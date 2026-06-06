@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@import "@fontsource/instrument-sans/400.css";
+@import "@fontsource/instrument-sans/400-italic.css";
+@import "@fontsource/instrument-sans/500.css";
+@import "@fontsource/instrument-sans/500-italic.css";
+@import "@fontsource/instrument-sans/600.css";
+@import "@fontsource/instrument-sans/600-italic.css";
+@import "@fontsource/instrument-sans/700.css";
+@import "@fontsource/instrument-sans/700-italic.css";
+
+@theme {
+  --color-auth-primary: #c73b2d;
+  --color-auth-primary-hover: #b33428;
+  --color-auth-accent: #c9a227;
+  --color-auth-muted: #8a8a8a;
+}
+
+body {
+  font-family: "Instrument Sans", sans-serif;
+  margin: 0;
+  padding: 0;
+  font-weight: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+.auth-bg-dots {
+  background-image: radial-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.auth-bg-grid {
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.028) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 88%);
+}
+
+.auth-bg-diagonal {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 28px,
+    rgba(199, 59, 45, 0.018) 28px,
+    rgba(199, 59, 45, 0.018) 29px
+  );
+}
