@@ -2,14 +2,27 @@ import { useId } from 'react'
 import { Link } from 'react-router'
 import { SITE_NAME } from '../../constants/siteNav'
 
+const sizeStyles = {
+  md: {
+    icon: 'size-9 shrink-0 sm:size-10',
+    text: 'text-lg font-semibold tracking-tight sm:text-xl lg:text-[1.35rem]',
+  },
+  lg: {
+    icon: 'size-12 shrink-0 sm:size-14',
+    text: 'text-xl font-semibold tracking-tight sm:text-2xl lg:text-[1.75rem]',
+  },
+}
+
 export default function StoreLogo({
   variant = 'light',
   showText = true,
+  size = 'md',
   className = '',
   linkTo = '/',
 }) {
   const gradientId = useId()
   const textClass = variant === 'light' ? 'text-white' : 'text-slate-900'
+  const styles = sizeStyles[size] ?? sizeStyles.md
 
   return (
     <Link
@@ -23,7 +36,7 @@ export default function StoreLogo({
         viewBox="0 0 40 40"
         fill="none"
         aria-hidden="true"
-        className="size-9 shrink-0 sm:size-10"
+        className={styles.icon}
       >
         <defs>
           <linearGradient id={gradientId} x1="8" y1="34" x2="32" y2="6" gradientUnits="userSpaceOnUse">
@@ -41,9 +54,7 @@ export default function StoreLogo({
         />
       </svg>
       {showText && (
-        <span
-          className={`text-lg font-semibold tracking-tight sm:text-xl lg:text-[1.35rem] ${textClass}`}
-        >
+        <span className={`${styles.text} ${textClass}`}>
           {SITE_NAME}
         </span>
       )}

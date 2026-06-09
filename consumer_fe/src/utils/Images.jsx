@@ -1,17 +1,10 @@
-/**
- * Central image registry for consumer_fe.
- *
- * public/*              → path strings (served as-is)
- * src/assets/images/*   → import for Vite bundling + cache busting
- *
- * Add bundled images:
- *   import logo from '../assets/images/logo.png'
- *   then register under the matching group below
- */
-
-// import logo from '../assets/images/logo.png'
-// import heroBanner from '../assets/images/hero-banner.webp'
-
+import applePay from '../assets/images/apple-pay.png'
+import googlePay from '../assets/images/google-pay.png'
+import visa from '../assets/images/visa.png'
+import mastercard from '../assets/images/mastercard.png'
+import paypal from '../assets/images/paypal.png'
+import playstore from '../assets/images/playstore.png'
+import appstore from '../assets/images/apple_store.svg'
 const brand = {
   favicon: '/favicon.svg',
   iconsSprite: '/icons.svg',
@@ -29,7 +22,13 @@ const shop = {
 }
 
 const common = {
-  // placeholder: '/images/placeholder.png',
+  apple_pay: applePay,
+  google_pay: googlePay,
+  visa,
+  mastercard,
+  paypal,
+  playstore,
+  appstore,
 }
 
 export const Images = {

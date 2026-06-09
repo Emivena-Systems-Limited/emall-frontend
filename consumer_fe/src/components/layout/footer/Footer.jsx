@@ -13,7 +13,7 @@ export default function Footer() {
     <footer className="site-shell-footer bg-auth-primary text-white">
       <Container className="py-10 sm:py-12 lg:py-14">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] lg:gap-12 xl:gap-16">
-          <StoreLogo variant="light" showText className="self-start" />
+          <StoreLogo variant="light" showText size="lg" className="self-start" />
 
           <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-3">
             {footerColumns.map((column) => (

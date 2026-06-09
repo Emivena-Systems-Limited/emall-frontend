@@ -1,23 +1,28 @@
 import { paymentMethods } from '../../../constants/siteNav'
+import Images from '../../../utils/Images'
 
-const paymentStyles = {
-  Visa: 'font-bold italic tracking-wide text-[#1A1F71]',
-  Mastercard: 'font-bold text-[#EB001B]',
-  PayPal: 'font-bold italic text-[#003087]',
-  'Apple Pay': 'font-semibold text-black',
-  'Google Pay': 'font-semibold text-[#5F6368]',
+const paymentImages = {
+  Visa: Images.common.visa,
+  Mastercard: Images.common.mastercard,
+  PayPal: Images.common.paypal,
+  'Apple Pay': Images.common.apple_pay,
+  'Google Pay': Images.common.google_pay,
 }
 
 export default function FooterPayments() {
   return (
     <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
       {paymentMethods.map((method) => (
-        <span
+        <div
           key={method}
-          className="inline-flex min-w-[3.25rem] items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-[0.625rem] sm:text-[0.6875rem]"
+          className="inline-flex items-center justify-center rounded-md bg-white px-2 py-1"
         >
-          <span className={paymentStyles[method]}>{method}</span>
-        </span>
+          <img
+            src={paymentImages[method]}
+            alt={method}
+            className="h-5 w-auto object-contain sm:h-6"
+          />
+        </div>
       ))}
     </div>
   )
