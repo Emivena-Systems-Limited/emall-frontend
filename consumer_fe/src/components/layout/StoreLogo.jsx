@@ -19,17 +19,14 @@ export default function StoreLogo({
   size = 'md',
   className = '',
   linkTo = '/',
+  linked = true,
 }) {
   const gradientId = useId()
   const textClass = variant === 'light' ? 'text-white' : 'text-slate-900'
   const styles = sizeStyles[size] ?? sizeStyles.md
 
-  return (
-    <Link
-      to={linkTo}
-      className={`group inline-flex shrink-0 items-center gap-2.5 sm:gap-3 ${className}`}
-      aria-label={`${SITE_NAME} home`}
-    >
+  const content = (
+    <>
       <svg
         width="40"
         height="40"
@@ -58,6 +55,24 @@ export default function StoreLogo({
           {SITE_NAME}
         </span>
       )}
+    </>
+  )
+
+  if (!linked) {
+    return (
+      <span className={`inline-flex shrink-0 items-center gap-2.5 sm:gap-3 ${className}`}>
+        {content}
+      </span>
+    )
+  }
+
+  return (
+    <Link
+      to={linkTo}
+      className={`group inline-flex shrink-0 items-center gap-2.5 sm:gap-3 ${className}`}
+      aria-label={`${SITE_NAME} home`}
+    >
+      {content}
     </Link>
   )
 }
