@@ -7,9 +7,9 @@
 
 export const appMeta = {
   lastUpdated: '2026-06-05',
-  currentPhase: 'Auth (Login + Register)',
+  currentPhase: 'Landing page',
   summary:
-    'Login and registration flows with Ghana phone validation, OTP verification, and animated verifying state.',
+    'Public home landing at /. Auth flows at /login and /register. Landing navbar and sections in progress.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,17 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-05',
+    title: 'Landing layout — navbar & footer',
+    items: [
+      'Modular SiteLayout with Navbar + Footer on HomePage',
+      'Responsive navbar — mobile drawer, tablet search row, desktop full bar',
+      'Footer — company/help/faq columns, social, app badges, payments',
+      'Shared Container (max 1440px) for modern laptop resolutions',
+      'Site nav constants in src/constants/siteNav.js',
+    ],
+  },
   {
     date: '2026-06-05',
     title: 'Registration & account verification',
@@ -74,8 +85,8 @@ export const roadmap = [
   },
   {
     phase: 'Layout & navigation',
-    status: 'planned',
-    items: ['App shell', 'Header / footer', 'Mobile nav'],
+    status: 'in-progress',
+    items: ['Landing navbar', 'App shell', 'Header / footer', 'Mobile nav'],
   },
   {
     phase: 'Catalog',
@@ -92,10 +103,10 @@ export const roadmap = [
 export const routes = [
   {
     path: '/',
-    name: 'Root redirect',
-    status: 'done',
-    file: 'src/routes/AppRoutes.jsx',
-    notes: 'Redirects to /login',
+    name: 'Home',
+    status: 'in-progress',
+    file: 'src/pages/HomePage.jsx',
+    notes: 'Public landing page with SiteLayout navbar + footer',
   },
   {
     path: '/login',
@@ -168,7 +179,6 @@ export const apiIntegrations = [
 ]
 
 export const plannedPages = [
-  { name: 'Home', path: '/home', status: 'planned', notes: 'Post-login landing' },
   { name: 'Products', path: '/products', status: 'planned' },
   { name: 'Product detail', path: '/products/:id', status: 'planned' },
   { name: 'Cart', path: '/cart', status: 'planned' },
@@ -337,6 +347,6 @@ export const authFlow = {
     slice: 'src/store/slices/authSlice.jsx',
     persisted: true,
     redirect: '/dev-guide',
-    notes: 'Replace redirect with /home when post-auth landing is built.',
+    notes: 'Replace redirect with / when post-auth home is ready.',
   },
 }

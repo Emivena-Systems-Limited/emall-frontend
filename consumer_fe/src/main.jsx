@@ -15,7 +15,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <Provider store={store}>
-        <PersistGate loading={null} persistor={persistor}>
+        <PersistGate loading={<div className="min-h-screen bg-white" />} persistor={persistor}>
           <BrowserRouter>
             <App />
             <NotificationProvider />

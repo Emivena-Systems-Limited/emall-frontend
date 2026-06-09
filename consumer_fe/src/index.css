@@ -16,6 +16,12 @@
   --color-auth-muted: #8a8a8a;
 }
 
+.site-shell-header,
+.site-shell-footer {
+  background-color: var(--color-auth-primary);
+  color: #fff;
+}
+
 body {
   font-family: "Instrument Sans", sans-serif;
   margin: 0;
