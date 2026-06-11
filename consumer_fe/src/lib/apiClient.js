@@ -3,7 +3,7 @@ import { logout } from '../store/slices/authSlice'
 import { store } from '../store/store'
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  baseURL: import.meta.env.API_BASE_URL ?? '/api',
   headers: {
     'Content-Type': 'application/json',
   },

@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import AuthLayout from '../../components/auth/AuthLayout'
 import AuthTabs from '../../components/auth/AuthTabs'
 import EmailInput from '../../components/auth/EmailInput'
-import FieldError from '../../components/auth/FieldError'
 import FormField from '../../components/auth/FormField'
 import {
   formActionsMotion,
@@ -12,9 +11,8 @@ import {
   formStaggerContainer,
 } from '../../components/auth/formMotion'
 import PhoneInput from '../../components/auth/PhoneInput'
-import TermsCheckbox from '../../components/auth/TermsCheckbox'
 import notify from '../../lib/notify'
-import { requestOtp } from '../../services/authService'
+import { useRequestOtpMutation } from '../../hooks/useAuthMutations'
 import { AUTH_METHODS, AUTH_FLOW } from '../../constants/auth'
 import {
   formatGhanaPhoneDisplay,
@@ -31,8 +29,8 @@ const tabContentVariants = {
 }
 
 const LOGIN_FIELD_ORDER = {
-  phone: ['phone', 'terms'],
-  email: ['email', 'terms'],
+  phone: ['phone'],
+  email: ['email'],
 }
 
 export default function LoginPage() {
@@ -40,11 +38,10 @@ export default function LoginPage() {
   const [activeTab, setActiveTab] = useState('phone')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
-  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [phoneError, setPhoneError] = useState('')
   const [emailError, setEmailError] = useState('')
-  const [termsError, setTermsError] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const requestOtpMutation = useRequestOtpMutation()
+  const isSubmitting = requestOtpMutation.isPending
 
   const handlePhoneChange = (value) => {
     const local = normalizeGhanaPhone(value)
@@ -91,10 +88,6 @@ export default function LoginPage() {
       }
     }
 
-    const nextTermsError = acceptedTerms ? '' : 'Please accept the terms and conditions'
-    setTermsError(nextTermsError)
-    if (nextTermsError) validationErrors.terms = nextTermsError
-
     if (Object.keys(validationErrors).length > 0) {
       scrollToFirstError(validationErrors, fieldOrder)
       return
@@ -114,10 +107,12 @@ export default function LoginPage() {
       displayContact = emailResult.email
     }
 
-    setIsSubmitting(true)
-
     try {
-      await requestOtp({ method, contact })
+      const otpResponse = await requestOtpMutation.mutateAsync({ method, contact })
+      if (otpResponse?.otpAlreadyPending) {
+        notify.info('Use the verification code already sent to continue login.')
+      }
+
       navigate('/login/verify', {
         state: {
           flow: AUTH_FLOW.LOGIN,
@@ -128,8 +123,6 @@ export default function LoginPage() {
       })
     } catch (error) {
       notify.fromError(error, 'Could not send verification code')
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
@@ -206,15 +199,6 @@ export default function LoginPage() {
           </AnimatePresence>
 
           <motion.div variants={formActionsMotion}>
-            <FormField name="terms">
-              <TermsCheckbox
-                checked={acceptedTerms}
-                onChange={setAcceptedTerms}
-                disabled={isSubmitting}
-              />
-              <FieldError message={termsError} />
-            </FormField>
-
             <motion.button
               type="submit"
               disabled={isSubmitting}

@@ -161,7 +161,7 @@ export function useProducts() {
       </GuideSection>
 
       <GuideSection id="axios" icon={Server} title="Axios API client" description="All HTTP via apiClient. Token attached automatically.">
-        <CodeBlock code={`# .env\nVITE_API_BASE_URL=http://localhost:8000/api`} />
+        <CodeBlock code={`# .env\nAPI_BASE_URL=http://localhost:8000/api`} />
         <CodeBlock
           code={`import apiClient from '../lib/apiClient'
 const { data } = await apiClient.get('/products')`}

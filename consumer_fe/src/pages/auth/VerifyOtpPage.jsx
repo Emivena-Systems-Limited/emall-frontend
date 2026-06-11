@@ -7,7 +7,10 @@ import OtpInput from '../../components/auth/OtpInput'
 import OtpVerifyingLoader from '../../components/auth/OtpVerifyingLoader'
 import ResendTimer from '../../components/auth/ResendTimer'
 import notify from '../../lib/notify'
-import { resendOtp, verifyOtp } from '../../services/authService'
+import {
+  useResendOtpMutation,
+  useVerifyOtpMutation,
+} from '../../hooks/useAuthMutations'
 import { AUTH_FLOW, OTP_LENGTH } from '../../constants/auth'
 import { setCredentials } from '../../store/slices/authSlice'
 
@@ -24,6 +27,8 @@ export default function VerifyOtpPage() {
   const [otp, setOtp] = useState('')
   const [hasError, setHasError] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const verifyOtpMutation = useVerifyOtpMutation()
+  const resendOtpMutation = useResendOtpMutation()
 
   if (!session?.contact || !session?.method) {
     return <Navigate to={fallbackPath} replace />
@@ -44,23 +49,27 @@ export default function VerifyOtpPage() {
     setIsVerifying(true)
 
     try {
-      const data = await verifyOtp({ method, contact, otp, profile })
+      const data = await verifyOtpMutation.mutateAsync({ method, contact, otp, profile, flow })
       dispatch(setCredentials({ user: data.user, accessToken: data.accessToken }))
       notify.success(
         flow === AUTH_FLOW.REGISTER ? 'Account verified successfully' : 'Login successful',
       )
-      navigate('/dev-guide', { replace: true })
-    } catch {
+      navigate('/', { replace: true })
+    } catch (error) {
       setHasError(true)
       setIsVerifying(false)
-      notify.error('Please check and re-enter the 6-digit verification code')
+      notify.fromError(error, 'Please check and re-enter the 6-digit verification code')
     }
   }
 
   const handleResend = async () => {
     try {
-      await resendOtp({ method, contact })
-      notify.success('Otp has been resent successfully')
+      const otpResponse = await resendOtpMutation.mutateAsync({ method, contact })
+      notify[otpResponse?.otpAlreadyPending ? 'info' : 'success'](
+        otpResponse?.otpAlreadyPending
+          ? 'A verification code is already active. Please use the code already sent.'
+          : 'Otp has been resent successfully',
+      )
       setOtp('')
       setHasError(false)
     } catch (error) {
@@ -131,12 +140,6 @@ export default function VerifyOtpPage() {
               <div className="mt-4 max-[740px]:mt-3 sm:mt-5">
                 <ResendTimer onResend={handleResend} />
               </div>
-
-              {import.meta.env.DEV && (
-                <p className="mt-4 text-center text-xs text-slate-400 max-[740px]:mt-3 sm:mt-6">
-                  Dev OTP: <code className="rounded bg-slate-100 px-1.5 py-0.5">123456</code>
-                </p>
-              )}
             </motion.div>
           )}
         </AnimatePresence>

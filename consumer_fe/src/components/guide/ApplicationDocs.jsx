@@ -206,10 +206,8 @@ progressLog.unshift({
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-medium text-slate-500 uppercase">Dev mock OTP</p>
-            <p className="mt-1 font-mono text-lg font-semibold text-slate-900">
-              {authFlow.constants.devMockOtp}
-            </p>
+            <p className="text-xs font-medium text-slate-500 uppercase">API state</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">Live</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-medium text-slate-500 uppercase">Methods</p>

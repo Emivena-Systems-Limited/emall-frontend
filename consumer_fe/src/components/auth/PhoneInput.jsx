@@ -5,10 +5,10 @@ import FieldError from './FieldError'
 function GhanaFlag() {
   return (
     <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true" className="shrink-0 rounded-[2px]">
-      <rect width="22" height="16" fill="#006B3F" />
+      <rect width="22" height="16" fill="#CE1126" />
       <rect width="22" height="5.33" y="5.33" fill="#FCD116" />
-      <rect width="22" height="5.34" y="10.66" fill="#CE1126" />
-      <polygon points="11,8 9.2,11.2 5.5,11.8 8.2,14.1 7.4,17.6 11,15.6 14.6,17.6 13.8,14.1 16.5,11.8 12.8,11.2" fill="#000" transform="scale(0.55) translate(8.8,2.2)" />
+      <rect width="22" height="5.34" y="10.66" fill="#006B3F" />
+      <polygon points="11,5 11.9,7.7 14.8,7.7 12.45,9.35 13.35,12 11,10.35 8.65,12 9.55,9.35 7.2,7.7 10.1,7.7" fill="#000" />
     </svg>
   )
 }

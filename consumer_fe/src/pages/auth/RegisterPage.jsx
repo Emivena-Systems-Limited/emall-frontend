@@ -24,7 +24,10 @@ import TermsCheckbox from '../../components/auth/TermsCheckbox'
 import TextInput from '../../components/auth/TextInput'
 import FieldError from '../../components/auth/FieldError'
 import notify from '../../lib/notify'
-import { registerUser, requestOtp } from '../../services/authService'
+import {
+  useRegisterUserMutation,
+  useRequestOtpMutation,
+} from '../../hooks/useAuthMutations'
 import { AUTH_FLOW, AUTH_METHODS } from '../../constants/auth'
 import {
   GENDER_OPTIONS,
@@ -77,7 +80,9 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState({})
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [termsError, setTermsError] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const registerUserMutation = useRegisterUserMutation()
+  const requestOtpMutation = useRequestOtpMutation()
+  const isSubmitting = registerUserMutation.isPending || requestOtpMutation.isPending
 
   const cityOptions = useMemo(
     () => getCityOptionsByRegion(form.region),
@@ -215,25 +220,27 @@ export default function RegisterPage() {
       phone: phoneResult.e164,
     }
 
-    setIsSubmitting(true)
-
     try {
-      await registerUser(profile)
-      await requestOtp({ method: AUTH_METHODS.PHONE, contact: phoneResult.e164 })
+      await registerUserMutation.mutateAsync(profile)
+      const otpResponse = await requestOtpMutation.mutateAsync({
+        method: AUTH_METHODS.EMAIL,
+        contact: profile.email,
+      })
+      if (otpResponse?.otpAlreadyPending) {
+        notify.info('Use the verification code already sent to verify your account.')
+      }
 
       navigate('/register/verify', {
         state: {
           flow: AUTH_FLOW.REGISTER,
-          method: AUTH_METHODS.PHONE,
-          contact: phoneResult.e164,
-          displayContact: phoneResult.display,
+          method: AUTH_METHODS.EMAIL,
+          contact: profile.email,
+          displayContact: profile.email,
           profile,
         },
       })
     } catch (error) {
       notify.fromError(error, 'Could not complete registration')
-    } finally {
-      setIsSubmitting(false)
     }
   }
 

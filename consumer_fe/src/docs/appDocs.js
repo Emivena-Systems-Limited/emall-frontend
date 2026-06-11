@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-05',
-  currentPhase: 'Landing page',
+  lastUpdated: '2026-06-11',
+  currentPhase: 'Post-auth landing polish',
   summary:
-    'Public home landing at /. Auth flows at /login and /register. Landing navbar and sections in progress.',
+    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Registration uses expanded Ghana region, city, and district data.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,47 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-11',
+    title: 'Post-auth landing polish',
+    items: [
+      'Login and registration OTP success now redirect authenticated users to the landing page',
+      'My Account remains available from the authenticated navbar dropdown',
+      'Registration requires the terms and conditions checkbox before submit, but terms are not sent in the auth API payload',
+      'Backend SQL exception messages are sanitized before showing auth toasts',
+      'Expired or unavailable OTP responses show a direct request-new-code message',
+      'Duplicate active OTP responses continue to the verify page and tell users to use the existing code',
+    ],
+  },
+  {
+    date: '2026-06-11',
+    title: 'Registration location polish',
+    items: [
+      'Expanded selectable cities and districts across all 16 Ghana regions',
+      'Corrected the Ghana phone prefix flag to red, gold, and green with the black star',
+      'Kept Other options for manual city or district entry where needed',
+    ],
+  },
+  {
+    date: '2026-06-11',
+    title: 'Account page & authenticated navbar',
+    items: [
+      'OTP success stores authenticated users and exposes My Account from the navbar dropdown',
+      'Added protected My Account page with dashboard shortcuts',
+      'Navbar shows My Account dropdown instead of Sign In/Register when authenticated',
+      'Logout calls the backend when available and always clears the persisted Redux session',
+    ],
+  },
+  {
+    date: '2026-06-10',
+    title: 'Authentication API wiring',
+    items: [
+      'Auth service calls Laravel user auth endpoints through the shared Axios apiClient',
+      'Login, register, explicit registration OTP request, verify OTP, and resend OTP use React Query mutations',
+      'OTP success stores normalized user and accessToken in Redux auth slice',
+      'Removed silent mock OTP fallback from the auth service',
+    ],
+  },
   {
     date: '2026-06-05',
     title: 'Landing layout — navbar & footer',
@@ -54,7 +95,7 @@ export const progressLog = [
       'OTP verification page with 6-digit input',
       'Animated verifying OTP loader (Framer Motion)',
       'Resend timer (60s countdown)',
-      'Mock auth service (dev OTP: 123456) — swaps to API when ready',
+      'Auth service prepared for API-backed OTP flow',
       'Framer Motion tab + page transitions',
     ],
   },
@@ -113,7 +154,7 @@ export const routes = [
     name: 'Login',
     status: 'done',
     file: 'src/pages/auth/LoginPage.jsx',
-    notes: 'Phone (Ghana) + Email tabs, terms checkbox',
+    notes: 'Phone (Ghana) + Email tabs',
   },
   {
     path: '/login/verify',
@@ -137,6 +178,13 @@ export const routes = [
     notes: 'Shared verify page for register flow',
   },
   {
+    path: '/account',
+    name: 'My Account',
+    status: 'done',
+    file: 'src/pages/AccountPage.jsx',
+    notes: 'Protected account dashboard for authenticated users',
+  },
+  {
     path: '/dev-guide',
     name: 'Developer Guide',
     status: 'done',
@@ -155,26 +203,58 @@ export const reduxSlices = [
   },
 ]
 
-export const queryHooks = []
+export const queryHooks = [
+  {
+    name: 'useRegisterUserMutation',
+    file: 'src/hooks/useAuthMutations.js',
+    purpose: 'POST /user/auth/register through authService.registerUser',
+  },
+  {
+    name: 'useRequestOtpMutation',
+    file: 'src/hooks/useAuthMutations.js',
+    purpose: 'POST /user/auth/login for login, registration OTP request, and resend flows',
+  },
+  {
+    name: 'useVerifyOtpMutation',
+    file: 'src/hooks/useAuthMutations.js',
+    purpose: 'POST /user/auth/verify_otp and normalize auth response for Redux',
+  },
+  {
+    name: 'useResendOtpMutation',
+    file: 'src/hooks/useAuthMutations.js',
+    purpose: 'Resend OTP via authService.resendOtp',
+  },
+  {
+    name: 'useLogoutMutation',
+    file: 'src/hooks/useAuthMutations.js',
+    purpose: 'POST /user/auth/logout before clearing local Redux session',
+  },
+]
 
 export const apiIntegrations = [
   {
     method: 'POST',
-    endpoint: '/auth/register',
-    purpose: 'Create consumer account before OTP verification',
-    status: 'in-progress',
+    endpoint: '/user/auth/register',
+    purpose: 'Create consumer account before requesting email OTP',
+    status: 'wired',
   },
   {
     method: 'POST',
-    endpoint: '/auth/otp/request',
-    purpose: 'Request OTP for phone or email login',
-    status: 'in-progress',
+    endpoint: '/user/auth/login',
+    purpose: 'Request OTP for email or phone login',
+    status: 'wired',
   },
   {
     method: 'POST',
-    endpoint: '/auth/otp/verify',
+    endpoint: '/user/auth/verify_otp',
     purpose: 'Verify OTP and receive access token',
-    status: 'in-progress',
+    status: 'wired',
+  },
+  {
+    method: 'POST',
+    endpoint: '/user/auth/logout',
+    purpose: 'End backend auth session when the user logs out',
+    status: 'wired',
   },
 ]
 
@@ -185,19 +265,17 @@ export const plannedPages = [
 ]
 
 export const authNotes = {
-  devOtp: '123456',
   phoneValidation: 'src/utils/validateGhanaPhone.js',
-  authService: 'src/services/authService.js — mock fallback until API is live',
+  authService: 'src/services/authService.js — Axios calls to Laravel user auth endpoints',
   components: 'src/components/auth/*',
 }
 
 export const authFlow = {
   overview:
-    'Two entry flows (login + register) share a single OTP verification page. On success, credentials are stored in Redux (persisted) and the user is redirected to /dev-guide (placeholder post-auth destination).',
+    'Two entry flows (login + register) share a single OTP verification page. On success, credentials are stored in Redux (persisted) and the user is redirected to the landing page.',
   constants: {
     otpLength: 6,
     resendCooldownSeconds: 60,
-    devMockOtp: '123456',
     methods: ['phone', 'email'],
     flows: ['login', 'register'],
   },
@@ -213,20 +291,20 @@ export const authFlow = {
           order: 1,
           title: 'Choose login method',
           route: '/login',
-          description: 'User picks Phone or Email tab (AuthTabs). Terms checkbox required.',
+          description: 'User picks Phone or Email tab (AuthTabs).',
         },
         {
           order: 2,
           title: 'Enter contact & submit',
           route: '/login',
           description:
-            'Phone: Ghana mobile (+233, 9 digits, MTN/Telecel/AT prefix). Email: standard format. Validates all fields + terms on submit.',
+            'Phone: Ghana mobile (+233, 9 digits, MTN/Telecel/AT prefix). Email: standard format. Validates selected contact field on submit.',
         },
         {
           order: 3,
           title: 'Request OTP',
           route: '/login',
-          description: 'POST /auth/otp/request with { method, contact }. Falls back to mock on API failure.',
+          description: 'POST /user/auth/login with email or phone_number through useRequestOtpMutation. Login is OTP-based, so every login request goes through verification. If the backend reports an active OTP already exists, the user continues to /login/verify with the existing code.',
         },
         {
           order: 4,
@@ -246,13 +324,13 @@ export const authFlow = {
           title: 'Verify OTP',
           route: '/login/verify',
           description:
-            'POST /auth/otp/verify with { method, contact, otp }. Mock accepts OTP 123456. On success: setCredentials → /dev-guide.',
+            'POST /user/auth/verify_otp with email/phone_number, otp_token, and type. On success: setCredentials → /.',
         },
       ],
       navigationState: ['flow', 'method', 'contact', 'displayContact'],
       apiCalls: [
-        { step: 'Submit login', method: 'POST', endpoint: '/auth/otp/request' },
-        { step: 'Verify OTP', method: 'POST', endpoint: '/auth/otp/verify' },
+        { step: 'Submit login', method: 'POST', endpoint: '/user/auth/login' },
+        { step: 'Verify OTP', method: 'POST', endpoint: '/user/auth/verify_otp' },
       ],
     },
     {
@@ -281,27 +359,27 @@ export const authFlow = {
           title: 'Register account',
           route: '/register',
           description:
-            'POST /auth/register with profile payload (name, gender, email, region, city, district, phone). Mock fallback on failure.',
+            'POST /user/auth/register with first_name, last_name, email, phone_number, region, district, city_or_town.',
         },
         {
           order: 4,
           title: 'Request OTP',
           route: '/register',
-          description: 'POST /auth/otp/request with phone contact (E.164). Sent after successful register.',
+          description: 'POST /user/auth/login with registered email to explicitly request the OTP. If an active OTP already exists, the user continues to /register/verify with the existing code.',
         },
         {
           order: 5,
           title: 'Navigate to verify',
           route: '/register/verify',
           description:
-            'Router state: { flow: "register", method: "phone", contact, displayContact, profile }. Redirects to /register if state missing.',
+            'Router state: { flow: "register", method: "email", contact, displayContact, profile }. Redirects to /register if state missing.',
         },
         {
           order: 6,
           title: 'Enter OTP & verify',
           route: '/register/verify',
           description:
-            'Shared VerifyOtpPage. POST /auth/otp/verify includes profile for mock user creation. On success: setCredentials → /dev-guide.',
+            'Shared VerifyOtpPage. POST /user/auth/verify_otp returns auth data. On success: setCredentials → /.',
         },
       ],
       navigationState: ['flow', 'method', 'contact', 'displayContact', 'profile'],
@@ -316,9 +394,9 @@ export const authFlow = {
         'phone',
       ],
       apiCalls: [
-        { step: 'Continue', method: 'POST', endpoint: '/auth/register' },
-        { step: 'Continue', method: 'POST', endpoint: '/auth/otp/request' },
-        { step: 'Verify OTP', method: 'POST', endpoint: '/auth/otp/verify' },
+        { step: 'Continue', method: 'POST', endpoint: '/user/auth/register' },
+        { step: 'Continue', method: 'POST', endpoint: '/user/auth/login' },
+        { step: 'Verify OTP', method: 'POST', endpoint: '/user/auth/verify_otp' },
       ],
     },
   ],
@@ -328,9 +406,9 @@ export const authFlow = {
     components: ['OtpInput', 'OtpVerifyingLoader', 'ResendTimer'],
     behaviour: [
       'Detects flow from pathname or navigation state (login vs register)',
-      'Shows animated verifying loader during POST /auth/otp/verify',
-      'Resend calls requestOtp again after 60s cooldown',
-      'Dev hint shows mock OTP 123456 when import.meta.env.DEV',
+      'Shows animated verifying loader during POST /user/auth/verify_otp',
+      'Resend calls login OTP request again after 60s cooldown',
+      'Stores normalized API auth response in Redux after successful verification',
     ],
   },
   validation: [
@@ -339,14 +417,14 @@ export const authFlow = {
     { field: 'Names', rules: 'First and last name required (trimmed).' },
     { field: 'Gender', rules: 'Required. Female or Male.' },
     { field: 'Region / City / District', rules: 'Required. Searchable selects. Other opens inline custom text input.' },
-    { field: 'Terms', rules: 'Checkbox must be checked before submit (login + register).' },
+    { field: 'Terms', rules: 'Checkbox must be checked before registration submit.' },
     { field: 'OTP', rules: '6 digits required. Invalid code shows inline error + Retry button label.' },
   ],
   postAuth: {
     action: 'setCredentials({ user, accessToken })',
     slice: 'src/store/slices/authSlice.jsx',
     persisted: true,
-    redirect: '/dev-guide',
-    notes: 'Replace redirect with / when post-auth home is ready.',
+    redirect: '/',
+    notes: 'Navbar switches to My Account dropdown while authenticated; clicking My Account opens /account.',
   },
 }

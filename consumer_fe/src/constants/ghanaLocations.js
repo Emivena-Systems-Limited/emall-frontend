@@ -280,6 +280,111 @@ export const GHANA_LOCATIONS = [
   },
 ]
 
+const EXTRA_GHANA_DISTRICTS_BY_REGION = {
+  'greater-accra': [
+    { id: 'tema-metropolitan', name: 'Tema Metropolitan', towns: ['Tema Community 1', 'Tema Community 2', 'Tema Community 25', 'Sakumono'] },
+    { id: 'tema-west-municipal', name: 'Tema West Municipal', towns: ['Lashibi', 'Adjei Kojo', 'Baatsona', 'Spintex'] },
+    { id: 'ledzokuku-municipal', name: 'Ledzokuku Municipal', towns: ['Teshie', 'Tse Addo', 'Manet', 'Baatsonaa'] },
+    { id: 'la-dade-kotopon', name: 'La Dade-Kotopon Municipal', towns: ['La', 'Cantonments', 'Labone', 'Burma Camp'] },
+    { id: 'adentan-municipal', name: 'Adentan Municipal', towns: ['Adenta', 'Frafraha', 'Ashaley Botwe', 'New Legon'] },
+    { id: 'ga-east-municipal', name: 'Ga East Municipal', towns: ['Abokobi', 'Haatso', 'Dome', 'Ashongman'] },
+    { id: 'ga-west-municipal', name: 'Ga West Municipal', towns: ['Amasaman', 'Pokuase', 'Medie', 'Ofankor'] },
+    { id: 'ga-south-municipal', name: 'Ga South Municipal', towns: ['Weija', 'Bortianor', 'Ngleshie Amanfro', 'Domeabra'] },
+    { id: 'weija-gbawe-municipal', name: 'Weija-Gbawe Municipal', towns: ['Gbawe', 'Mallam', 'Anyaa', 'Oblogo'] },
+    { id: 'la-nkwantanang-madina', name: 'La Nkwantanang-Madina Municipal', towns: ['Madina', 'Atomic', 'Ritz Junction', 'Pantang'] },
+    { id: 'kpone-katamanso', name: 'Kpone Katamanso Municipal', towns: ['Kpone', 'Katamanso', 'Oyibi', 'Gbetsile'] },
+    { id: 'ningo-prampram', name: 'Ningo-Prampram District', towns: ['Prampram', 'Old Ningo', 'Dawhenya', 'Afienya'] },
+  ],
+  ashanti: [
+    { id: 'ejisu-municipal', name: 'Ejisu Municipal', towns: ['Ejisu', 'Kwaso', 'Besease', 'Onwe'] },
+    { id: 'kwabre-east-municipal', name: 'Kwabre East Municipal', towns: ['Mamponteng', 'Ahwiaa', 'Aboaso', 'Ntonso'] },
+    { id: 'old-tafo-municipal', name: 'Old Tafo Municipal', towns: ['Old Tafo', 'Pankrono', 'Krofrom', 'Akwatia Line'] },
+    { id: 'suame-municipal', name: 'Suame Municipal', towns: ['Suame', 'Maakro', 'Kronum', 'Anomangye'] },
+    { id: 'bekwai-municipal', name: 'Bekwai Municipal', towns: ['Bekwai', 'Anwiankwanta', 'Poano', 'Kokofu'] },
+    { id: 'mampong-municipal', name: 'Mampong Municipal', towns: ['Mampong', 'Kofiase', 'Bosofour', 'Beposo'] },
+  ],
+  western: [
+    { id: 'effia-kwesimintsim', name: 'Effia-Kwesimintsim Municipal', towns: ['Effia', 'Kwesimintsim', 'Apremdo', 'Anaji'] },
+    { id: 'shama-district', name: 'Shama District', towns: ['Shama', 'Aboadze', 'Inchaban', 'Daboase'] },
+    { id: 'ellembelle-district', name: 'Ellembelle District', towns: ['Nkroful', 'Esiama', 'Aiyinase', 'Asasetre'] },
+    { id: 'prestea-huni-valley', name: 'Prestea-Huni Valley Municipal', towns: ['Prestea', 'Bogoso', 'Huni Valley', 'Aboso'] },
+  ],
+  central: [
+    { id: 'komenda-edina-eguafo-abirem', name: 'Komenda-Edina-Eguafo-Abirem Municipal', towns: ['Elmina', 'Komenda', 'Brenu Akyinim', 'Kissi'] },
+    { id: 'awutu-senya-east', name: 'Awutu Senya East Municipal', towns: ['Kasoa', 'Opeikuma', 'Ofaakor', 'Buduburam'] },
+    { id: 'mfantsiman-municipal', name: 'Mfantsiman Municipal', towns: ['Saltpond', 'Mankessim', 'Anomabo', 'Yamoransa'] },
+    { id: 'agona-west', name: 'Agona West Municipal', towns: ['Agona Swedru', 'Nyakrom', 'Bobikuma', 'Nkum'] },
+  ],
+  eastern: [
+    { id: 'new-juaben-south', name: 'New Juaben South Municipal', towns: ['Koforidua', 'Srodae', 'Betom', 'Adweso'] },
+    { id: 'nsawam-adoagyiri', name: 'Nsawam-Adoagyiri Municipal', towns: ['Nsawam', 'Adoagyiri', 'Dobro', 'Fotobi'] },
+    { id: 'abuakwa-south', name: 'Abuakwa South Municipal', towns: ['Kibi', 'Asiakwa', 'Apedwa', 'Asikam'] },
+    { id: 'kwahu-west', name: 'Kwahu West Municipal', towns: ['Nkawkaw', 'Amanfrom', 'Asuboni Rails', 'Bepong'] },
+  ],
+  northern: [
+    { id: 'savelugu-municipal', name: 'Savelugu Municipal', towns: ['Savelugu', 'Diare', 'Nanton', 'Pong-Tamale'] },
+    { id: 'yendi-municipal', name: 'Yendi Municipal', towns: ['Yendi', 'Gbungbaliga', 'Adibo', 'Bunbon'] },
+    { id: 'tolon-district', name: 'Tolon District', towns: ['Tolon', 'Nyankpala', 'Tali', 'Wantugu'] },
+  ],
+  volta: [
+    { id: 'hohoe-municipal', name: 'Hohoe Municipal', towns: ['Hohoe', 'Gbi Wegbe', 'Alavanyo', 'Fodome'] },
+    { id: 'akatsi-south', name: 'Akatsi South Municipal', towns: ['Akatsi', 'Avenorpeme', 'Wute', 'Atidzive'] },
+    { id: 'keta-municipal', name: 'Keta Municipal', towns: ['Keta', 'Anloga', 'Abor', 'Tegbi'] },
+  ],
+  bono: [
+    { id: 'dormaa-central', name: 'Dormaa Central Municipal', towns: ['Dormaa Ahenkro', 'Amasu', 'Asuotiano', 'Nkrankwanta'] },
+    { id: 'wenchi-municipal', name: 'Wenchi Municipal', towns: ['Wenchi', 'Nchiraa', 'Awisa', 'Koase'] },
+    { id: 'jaman-south', name: 'Jaman South Municipal', towns: ['Drobo', 'Japekrom', 'Adamsu', 'Dwenem'] },
+  ],
+  'upper-east': [
+    { id: 'kasena-nankana', name: 'Kasena-Nankana Municipal', towns: ['Navrongo', 'Paga', 'Kandiga', 'Sirigu'] },
+    { id: 'talensi-district', name: 'Talensi District', towns: ['Tongo', 'Winkogo', 'Pwalugu', 'Datoku'] },
+    { id: 'bongo-district', name: 'Bongo District', towns: ['Bongo', 'Namoo', 'Zorko', 'Balungu'] },
+  ],
+  'upper-west': [
+    { id: 'nadowli-kaleo', name: 'Nadowli-Kaleo District', towns: ['Nadowli', 'Kaleo', 'Charikpong', 'Sombo'] },
+    { id: 'sissala-east', name: 'Sissala East Municipal', towns: ['Tumu', 'Wellembelle', 'Nabulo', 'Sakai'] },
+    { id: 'jirapa-municipal', name: 'Jirapa Municipal', towns: ['Jirapa', 'Ullo', 'Sabuli', 'Tizza'] },
+  ],
+  'western-north': [
+    { id: 'aowin-municipal', name: 'Aowin Municipal', towns: ['Enchi', 'Achimfo', 'Boinso', 'Jema'] },
+    { id: 'juaboso-district', name: 'Juaboso District', towns: ['Juaboso', 'Boinzan', 'Kofikrom', 'Asempanaye'] },
+    { id: 'bia-west', name: 'Bia West District', towns: ['Essam', 'Debiso', 'Oseikojokrom', 'Adabokrom'] },
+  ],
+  ahafo: [
+    { id: 'tano-north', name: 'Tano North Municipal', towns: ['Duayaw Nkwanta', 'Yamfo', 'Bomaa', 'Terchire'] },
+    { id: 'tano-south', name: 'Tano South Municipal', towns: ['Bechem', 'Techimantia', 'Derma', 'Dwomo'] },
+    { id: 'asutifi-south', name: 'Asutifi South District', towns: ['Hwidiem', 'Acherensua', 'Kenyasi No. 2', 'Dadiesoaba'] },
+  ],
+  'bono-east': [
+    { id: 'nkoranza-south', name: 'Nkoranza South Municipal', towns: ['Nkoranza', 'Donkro Nkwanta', 'Akuma', 'Busunya'] },
+    { id: 'atebubu-amantin', name: 'Atebubu-Amantin Municipal', towns: ['Atebubu', 'Amantin', 'Jato Zongo', 'Kumfia'] },
+    { id: 'pru-east', name: 'Pru East District', towns: ['Yeji', 'Prang', 'Parambo', 'Kadue'] },
+  ],
+  oti: [
+    { id: 'jasikan-municipal', name: 'Jasikan Municipal', towns: ['Jasikan', 'Bodada', 'Okadjakrom', 'Atonkor'] },
+    { id: 'biakoye-district', name: 'Biakoye District', towns: ['Nkonya Ahenkro', 'Tapa Abotoase', 'Bowiri', 'Kwamikrom'] },
+    { id: 'krachi-west', name: 'Krachi West Municipal', towns: ['Kete Krachi', 'Osramani', 'Ehiamankyene', 'Kpandai'] },
+  ],
+  savannah: [
+    { id: 'east-gonja', name: 'East Gonja Municipal', towns: ['Salaga', 'Kafaba', 'Makango', 'Kpembe'] },
+    { id: 'bole-district', name: 'Bole District', towns: ['Bole', 'Tinga', 'Mandari', 'Bamboi'] },
+    { id: 'north-gonja', name: 'North Gonja District', towns: ['Daboya', 'Lingbinsi', 'Mankarigu', 'Sinsina'] },
+  ],
+  'north-east': [
+    { id: 'east-mamprusi', name: 'East Mamprusi Municipal', towns: ['Nalerigu', 'Gambaga', 'Sakogu', 'Langbinsi'] },
+    { id: 'bunkpurugu-nakpanduri', name: 'Bunkpurugu-Nakpanduri District', towns: ['Bunkpurugu', 'Nakpanduri', 'Binde', 'Nayorku'] },
+    { id: 'yunyoo-nasuan', name: 'Yunyoo-Nasuan District', towns: ['Yunyoo', 'Nasuan', 'Gbungbaliga', 'Kpunkpamba'] },
+  ],
+}
+
+for (const region of GHANA_LOCATIONS) {
+  region.districts = [
+    ...region.districts,
+    ...(EXTRA_GHANA_DISTRICTS_BY_REGION[region.id] ?? []),
+  ]
+}
+
 export function getDistrictsByRegion(regionId) {
   return GHANA_LOCATIONS.find((region) => region.id === regionId)?.districts ?? []
 }

@@ -9,6 +9,3 @@ export const AUTH_FLOW = {
   LOGIN: 'login',
   REGISTER: 'register',
 }
-
-// Dev mock — replace with real API responses when backend is ready
-export const DEV_MOCK_OTP = '123456'
