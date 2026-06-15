@@ -7,9 +7,9 @@
 
 export const appMeta = {
   lastUpdated: '2026-06-15',
-  currentPhase: 'Cart page',
+  currentPhase: 'Auth route guards',
   summary:
-    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart page at /cart supports item review, quantities, selection, removal, discounts, and related products.',
+    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Guest-only guards prevent authenticated users from revisiting login and registration routes.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,15 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-15',
+    title: 'Auth route guards',
+    items: [
+      'Added GuestOnlyRoute wrapper for authentication entry routes',
+      'Authenticated users are redirected to / when they try to access /login, /login/verify, /register, or /register/verify',
+      'Guard uses persisted Redux auth state after PersistGate rehydration',
+    ],
+  },
   {
     date: '2026-06-15',
     title: 'Cart page',
@@ -165,28 +174,28 @@ export const routes = [
     name: 'Login',
     status: 'done',
     file: 'src/pages/auth/LoginPage.jsx',
-    notes: 'Phone (Ghana) + Email tabs',
+    notes: 'Phone (Ghana) + Email tabs. Guest-only route redirects authenticated users to /',
   },
   {
     path: '/login/verify',
     name: 'OTP Verification',
     status: 'done',
     file: 'src/pages/auth/VerifyOtpPage.jsx',
-    notes: '6-digit OTP, verifying loader, resend timer',
+    notes: '6-digit OTP, verifying loader, resend timer. Guest-only route redirects authenticated users to /',
   },
   {
     path: '/register',
     name: 'Register',
     status: 'done',
     file: 'src/pages/auth/RegisterPage.jsx',
-    notes: 'Full registration form → OTP verify flow',
+    notes: 'Full registration form → OTP verify flow. Guest-only route redirects authenticated users to /',
   },
   {
     path: '/register/verify',
     name: 'Register OTP Verification',
     status: 'done',
     file: 'src/pages/auth/VerifyOtpPage.jsx',
-    notes: 'Shared verify page for register flow',
+    notes: 'Shared verify page for register flow. Guest-only route redirects authenticated users to /',
   },
   {
     path: '/account',

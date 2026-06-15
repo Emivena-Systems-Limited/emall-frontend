@@ -6,6 +6,13 @@ import CartPage from '../pages/CartPage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
 import VerifyOtpPage from '../pages/auth/VerifyOtpPage'
+import GuestOnlyRoute from './GuestOnlyRoute'
+
+const guestOnly = (page) => (
+  <GuestOnlyRoute>
+    {page}
+  </GuestOnlyRoute>
+)
 
 export default function AppRoutes() {
   return (
@@ -14,10 +21,10 @@ export default function AppRoutes() {
       <Route path="/cart" element={<CartPage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route path="/account/*" element={<AccountPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/login/verify" element={<VerifyOtpPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/register/verify" element={<VerifyOtpPage />} />
+      <Route path="/login" element={guestOnly(<LoginPage />)} />
+      <Route path="/login/verify" element={guestOnly(<VerifyOtpPage />)} />
+      <Route path="/register" element={guestOnly(<RegisterPage />)} />
+      <Route path="/register/verify" element={guestOnly(<VerifyOtpPage />)} />
       <Route path="/dev-guide" element={<DeveloperGuide />} />
     </Routes>
   )
