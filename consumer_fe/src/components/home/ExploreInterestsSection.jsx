@@ -49,7 +49,7 @@ export default function ExploreInterestsSection() {
           >
             {exploreInterestsGrid.map((product, index) => (
               <motion.div key={`${product.id}-${index}`} variants={itemVariants}>
-                <ProductCard product={product} />
+                <ProductCard product={product} hrefOverride="/cart" />
               </motion.div>
             ))}
           </motion.div>

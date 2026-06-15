@@ -54,7 +54,7 @@ function CarouselTrack({ products }) {
             className="w-42 shrink-0 sm:w-52 lg:w-56 xl:w-60"
             style={{ scrollSnapAlign: 'start' }}
           >
-            <ProductCard product={product} />
+            <ProductCard product={product} hrefOverride="/cart" />
           </li>
         ))}
       </ul>

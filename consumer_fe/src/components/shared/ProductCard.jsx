@@ -1,5 +1,5 @@
 import { ShoppingCart, Star } from 'lucide-react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { formatCedi } from '../../utils/formatCurrency'
 
 function PriceDisplay({ price, compareAt }) {
@@ -62,11 +62,14 @@ function StarRating({ rating, count }) {
   )
 }
 
-export default function ProductCard({ product, onAddToCart }) {
+export default function ProductCard({ product, hrefOverride, onAddToCart }) {
+  const navigate = useNavigate()
+  const productHref = hrefOverride ?? product.href
+
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition-shadow duration-300 hover:shadow-[0_8px_30px_-6px_rgba(15,23,42,0.15)]">
       <Link
-        to={product.href}
+        to={productHref}
         className="relative block aspect-square w-full overflow-hidden bg-slate-50"
         tabIndex={-1}
         aria-hidden="true"
@@ -97,7 +100,7 @@ export default function ProductCard({ product, onAddToCart }) {
       </Link>
 
       <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-3.5">
-        <Link to={product.href} className="block min-w-0">
+        <Link to={productHref} className="block min-w-0">
           <h3 className="truncate text-sm font-semibold leading-snug text-slate-900 transition-colors group-hover:text-auth-primary sm:text-[0.9375rem]">
             {product.name}
           </h3>
@@ -116,7 +119,12 @@ export default function ProductCard({ product, onAddToCart }) {
             aria-label={`Add ${product.name} to cart`}
             onClick={(e) => {
               e.preventDefault()
-              onAddToCart?.(product)
+              if (onAddToCart) {
+                onAddToCart(product)
+                return
+              }
+
+              navigate('/cart')
             }}
             className="flex size-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-auth-primary hover:bg-auth-primary hover:text-white sm:size-9"
           >

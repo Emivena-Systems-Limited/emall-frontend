@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-11',
-  currentPhase: 'Post-auth landing polish',
+  lastUpdated: '2026-06-15',
+  currentPhase: 'Cart page',
   summary:
-    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Registration uses expanded Ghana region, city, and district data.',
+    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart page at /cart supports item review, quantities, selection, removal, discounts, and related products.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,17 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-15',
+    title: 'Cart page',
+    items: [
+      'Added responsive /cart page with My Cart heading, item rows, product images, prices, quantities, remove actions, and item subtotals',
+      'Added Select all items / Deselect all items behavior with item checkboxes',
+      'Cart summary updates item count, subtotal, red discount value, and total when quantities or items change',
+      'Homepage ProductCard links now open /cart for homepage product clicks',
+      'Related products display below the cart using existing product card styling',
+    ],
+  },
   {
     date: '2026-06-11',
     title: 'Post-auth landing polish',
@@ -136,8 +147,8 @@ export const roadmap = [
   },
   {
     phase: 'Cart & checkout',
-    status: 'planned',
-    items: ['Cart slice', 'Cart page', 'Checkout flow'],
+    status: 'in-progress',
+    items: ['Cart page', 'Quantity and remove actions', 'Checkout flow'],
   },
 ]
 
@@ -183,6 +194,13 @@ export const routes = [
     status: 'done',
     file: 'src/pages/AccountPage.jsx',
     notes: 'Protected account dashboard for authenticated users',
+  },
+  {
+    path: '/cart',
+    name: 'My Cart',
+    status: 'done',
+    file: 'src/pages/CartPage.jsx',
+    notes: 'Responsive cart review page with quantities, item actions, summary totals, and related products',
   },
   {
     path: '/dev-guide',
@@ -261,7 +279,6 @@ export const apiIntegrations = [
 export const plannedPages = [
   { name: 'Products', path: '/products', status: 'planned' },
   { name: 'Product detail', path: '/products/:id', status: 'planned' },
-  { name: 'Cart', path: '/cart', status: 'planned' },
 ]
 
 export const authNotes = {
