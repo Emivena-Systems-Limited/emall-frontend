@@ -1,23 +1,28 @@
 import axios from 'axios'
+import config from '../utils/Config'
 import { logout } from '../store/slices/authSlice'
-import { store } from '../store/store'
+import { persistor, store } from '../store/store'
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  baseURL: config.base_url,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 15000,
 })
 
-apiClient.interceptors.request.use((config) => {
-  const { accessToken } = store.getState().auth
+apiClient.interceptors.request.use((requestConfig) => {
+  const { accessToken, applicationToken } = store.getState().auth
 
   if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`
+    requestConfig.headers.Authorization = `Bearer ${accessToken}`
   }
 
-  return config
+  if (applicationToken) {
+    requestConfig.headers['Application-Token'] = applicationToken
+  }
+
+  return requestConfig
 })
 
 apiClient.interceptors.response.use(
@@ -25,6 +30,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401 && store.getState().auth.isAuthenticated) {
       store.dispatch(logout())
+      persistor.persist()
     }
 
     return Promise.reject(error)

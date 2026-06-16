@@ -1,0 +1,42 @@
+export const TOP_SELLING_PRODUCTS = [
+  {
+    rank: 1,
+    id: 'PRD-001',
+    name: 'Wireless Earbuds Pro',
+    thumbnail: 'https://images.unsplash.com/photo-1590658268037-6bf3f7f2b8fd?w=120&h=120&fit=crop',
+    unitsSold: 248,
+    revenue: 60760,
+  },
+  {
+    rank: 2,
+    id: 'PRD-014',
+    name: 'Smart Watch Series 4',
+    thumbnail: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&h=120&fit=crop',
+    unitsSold: 196,
+    revenue: 174440,
+  },
+  {
+    rank: 3,
+    id: 'PRD-022',
+    name: 'Running Sneakers',
+    thumbnail: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop',
+    unitsSold: 172,
+    revenue: 58480,
+  },
+  {
+    rank: 4,
+    id: 'PRD-009',
+    name: 'Portable Blender',
+    thumbnail: 'https://images.unsplash.com/photo-1570222094114-792a308585bc?w=120&h=120&fit=crop',
+    unitsSold: 141,
+    revenue: 16920,
+  },
+  {
+    rank: 5,
+    id: 'PRD-031',
+    name: 'USB-C Hub 7-in-1',
+    thumbnail: 'https://images.unsplash.com/photo-1625948515291-69613efd103f?w=120&h=120&fit=crop',
+    unitsSold: 128,
+    revenue: 23680,
+  },
+]
