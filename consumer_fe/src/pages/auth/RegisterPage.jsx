@@ -26,7 +26,6 @@ import FieldError from '../../components/auth/FieldError'
 import notify from '../../lib/notify'
 import {
   useRegisterUserMutation,
-  useRequestOtpMutation,
 } from '../../hooks/useAuthMutations'
 import { AUTH_FLOW, AUTH_METHODS } from '../../constants/auth'
 import {
@@ -81,8 +80,7 @@ export default function RegisterPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [termsError, setTermsError] = useState('')
   const registerUserMutation = useRegisterUserMutation()
-  const requestOtpMutation = useRequestOtpMutation()
-  const isSubmitting = registerUserMutation.isPending || requestOtpMutation.isPending
+  const isSubmitting = registerUserMutation.isPending
 
   const cityOptions = useMemo(
     () => getCityOptionsByRegion(form.region),
@@ -222,13 +220,6 @@ export default function RegisterPage() {
 
     try {
       await registerUserMutation.mutateAsync(profile)
-      const otpResponse = await requestOtpMutation.mutateAsync({
-        method: AUTH_METHODS.EMAIL,
-        contact: profile.email,
-      })
-      if (otpResponse?.otpAlreadyPending) {
-        notify.info('Use the verification code already sent to verify your account.')
-      }
 
       navigate('/register/verify', {
         state: {

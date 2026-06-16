@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-15',
-  currentPhase: 'Auth route guards',
+  lastUpdated: '2026-06-16',
+  currentPhase: 'Registration OTP cleanup',
   summary:
-    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Guest-only guards prevent authenticated users from revisiting login and registration routes.',
+    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Registration uses the register endpoint OTP only to avoid duplicate OTP emails.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,15 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-16',
+    title: 'Registration OTP cleanup',
+    items: [
+      'Removed the extra POST /user/auth/login call after successful registration',
+      'Registration now relies on POST /user/auth/register to create the account and trigger the registration OTP',
+      'Register continues directly to /register/verify after successful account creation',
+    ],
+  },
   {
     date: '2026-06-15',
     title: 'Auth route guards',
@@ -77,7 +86,7 @@ export const progressLog = [
     title: 'Authentication API wiring',
     items: [
       'Auth service calls Laravel user auth endpoints through the shared Axios apiClient',
-      'Login, register, explicit registration OTP request, verify OTP, and resend OTP use React Query mutations',
+      'Login, register, verify OTP, and resend OTP use React Query mutations',
       'OTP success stores normalized user and accessToken in Redux auth slice',
       'Removed silent mock OTP fallback from the auth service',
     ],
@@ -239,7 +248,7 @@ export const queryHooks = [
   {
     name: 'useRequestOtpMutation',
     file: 'src/hooks/useAuthMutations.js',
-    purpose: 'POST /user/auth/login for login, registration OTP request, and resend flows',
+    purpose: 'POST /user/auth/login for login OTP request and resend flows',
   },
   {
     name: 'useVerifyOtpMutation',
@@ -262,7 +271,7 @@ export const apiIntegrations = [
   {
     method: 'POST',
     endpoint: '/user/auth/register',
-    purpose: 'Create consumer account before requesting email OTP',
+    purpose: 'Create consumer account and trigger registration OTP',
     status: 'wired',
   },
   {
@@ -385,23 +394,17 @@ export const authFlow = {
           title: 'Register account',
           route: '/register',
           description:
-            'POST /user/auth/register with first_name, last_name, email, phone_number, region, district, city_or_town.',
+            'POST /user/auth/register with first_name, last_name, email, phone_number, region, district, city_or_town. Backend sends the registration OTP from this request.',
         },
         {
           order: 4,
-          title: 'Request OTP',
-          route: '/register',
-          description: 'POST /user/auth/login with registered email to explicitly request the OTP. If an active OTP already exists, the user continues to /register/verify with the existing code.',
-        },
-        {
-          order: 5,
           title: 'Navigate to verify',
           route: '/register/verify',
           description:
             'Router state: { flow: "register", method: "email", contact, displayContact, profile }. Redirects to /register if state missing.',
         },
         {
-          order: 6,
+          order: 5,
           title: 'Enter OTP & verify',
           route: '/register/verify',
           description:
@@ -421,7 +424,6 @@ export const authFlow = {
       ],
       apiCalls: [
         { step: 'Continue', method: 'POST', endpoint: '/user/auth/register' },
-        { step: 'Continue', method: 'POST', endpoint: '/user/auth/login' },
         { step: 'Verify OTP', method: 'POST', endpoint: '/user/auth/verify_otp' },
       ],
     },
