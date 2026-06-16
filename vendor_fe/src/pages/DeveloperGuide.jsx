@@ -5,6 +5,7 @@ import {
   Database,
   FolderTree,
   Image,
+  KeyRound,
   Layers,
   Route,
   Server,
@@ -17,6 +18,7 @@ import Images from '../utils/Images'
 
 const navItems = [
   { id: 'structure', label: 'Project structure' },
+  { id: 'auth-flow', label: 'Vendor auth flow' },
   { id: 'new-page', label: 'Build a page' },
   { id: 'routing', label: 'Routing' },
   { id: 'redux', label: 'Redux & auth' },
@@ -29,20 +31,37 @@ const navItems = [
 
 const folderStructure = `src/
 ├── assets/images/          # Bundled images (imported in Images.jsx)
-├── components/             # Reusable UI + NotificationProvider
-├── hooks/                  # Custom hooks (e.g. useProducts.js)
+├── components/
+│   ├── auth/               # AuthLayout, FormInput, OtpInput, ResendTimer, …
+│   └── guide/              # Developer guide UI
+├── constants/
+│   ├── auth.js             # Endpoints, OTP config
+│   └── ghanaRegions.js     # Region/city options for signup
+├── hooks/
+│   └── useAuthMutations.js # TanStack Query auth mutations
 ├── lib/
 │   ├── apiClient.js        # Axios instance + auth interceptors
 │   ├── notify.js           # Toast helper (Sonner)
 │   ├── persistStorage.js   # Redux persist localStorage adapter
 │   └── queryClient.js      # TanStack Query defaults
-├── pages/                  # Route-level views
-├── routes/                 # AppRoutes.jsx
+├── pages/
+│   ├── auth_pages/         # Login, Signup, VerifyAccount
+│   ├── Dashboard.jsx       # Post-auth landing (protected)
+│   └── DeveloperGuide.jsx
+├── routes/
+│   ├── AppRoutes.jsx
+│   ├── GuestOnlyRoute.jsx  # Redirect authenticated users away
+│   ├── ProtectedRoute.jsx  # Require auth
+│   └── RootRedirect.jsx    # / → /login or /dashboard
+├── services/
+│   └── authService.js      # Vendor auth API calls
 ├── store/
-│   ├── slices/             # Redux slices (auth, cart, …)
+│   ├── slices/             # Redux slices (auth, …)
 │   └── store.js            # Store + redux-persist config
 └── utils/
-    └── Images.jsx          # Central image registry`
+    ├── Config.jsx          # API base URL
+    ├── Images.jsx          # Central image registry
+    └── validationSchemas.js # Formik/Yup schemas`
 
 export default function DeveloperGuide() {
   const auth = useSelector((state) => state.auth)
@@ -54,8 +73,8 @@ export default function DeveloperGuide() {
           <div className="flex items-center gap-3">
             <img src={Images.brand.favicon} alt="" className="size-8" />
             <div>
-              <p className="text-xs font-medium tracking-[0.14em] text-violet-600 uppercase">
-                E-Mall Consumer FE
+              <p className="text-xs font-medium tracking-[0.14em] text-sky-700 uppercase">
+                E-Mall Vendor FE
               </p>
               <h1 className="text-lg font-semibold tracking-tight">Developer Guide</h1>
             </div>
@@ -84,9 +103,9 @@ export default function DeveloperGuide() {
         <main className="min-w-0 space-y-12">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm leading-relaxed text-slate-600">
-              This page documents the shared setup for the consumer frontend. Use it as a
-              reference when building pages, hooks, slices, and API integrations. Everything
-              below is already wired in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">main.jsx</code>.
+              This page documents the shared setup for the vendor frontend. Use it as a
+              reference when building pages, hooks, slices, and API integrations. Auth pages
+              (login, signup, verify) are already wired with Redux + TanStack Query.
             </p>
             <dl className="mt-6 grid gap-4 sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-4">
@@ -114,7 +133,60 @@ export default function DeveloperGuide() {
           </GuideSection>
 
           <GuideSection
-            id="new-page"
+            id="auth-flow"
+            icon={KeyRound}
+            title="Vendor auth flow"
+            description="Signup → email OTP verification → dashboard. Login uses email + password. Unauthenticated users land on /login."
+          >
+            <ol className="space-y-3 text-sm leading-relaxed text-slate-700">
+              <li className="flex gap-3">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">1</span>
+                <span><strong>Signup</strong> — API returns vendor in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">data</code> with no tokens. If <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">email_verified_at</code> and <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">phone_verified_at</code> are both null, user is sent to verify.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">2</span>
+                <span><strong>Verify</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/verify-account</code>) — 6-box OTP input with 15s resend timer. <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">useVerifyVendorOtpMutation</code> posts <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{'{ email, otp_token, type: "registration" }'}</code>.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">3</span>
+                <span><strong>Verify / Login</strong> — On success, <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">data.token</code> and <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">data.application_token</code> are stored. <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">apiClient</code> sends <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Authorization: Bearer</code> and <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Application-Token</code> on every request.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">4</span>
+                <span><strong>Dashboard</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/dashboard</code>) — Protected route. Root <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/</code> redirects to <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/login</code> or <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/dashboard</code> based on auth state.</span>
+              </li>
+            </ol>
+
+            <CodeBlock
+              title="Auth mutation hooks (TanStack Query)"
+              code={`import { useLoginVendorMutation, useRegisterVendorMutation } from '../hooks/useAuthMutations'
+
+const loginMutation = useLoginVendorMutation()
+const registerMutation = useRegisterVendorMutation()
+
+// In submit handler
+const data = await loginMutation.mutateAsync({ email, password })
+dispatch(setCredentials({
+  user: data.user,
+  accessToken: data.accessToken,
+  applicationToken: data.applicationToken,
+}))
+
+await registerMutation.mutateAsync(signupPayload)
+dispatch(setPendingVerificationEmail(signupPayload.email))`}
+            />
+
+            <CodeBlock
+              title="API base URL"
+              code={`// src/utils/Config.jsx
+const config = { base_url: 'https://emall-backend-main-fnfxdk.laravel.cloud' }
+
+// src/lib/apiClient.js uses config.base_url
+// Endpoints: /api/vendor/auth/register | login | verify | resend-otp`}
+            />
+          </GuideSection>
+
+          <GuideSection
             icon={Layers}
             title="How to build a new page"
             description="Follow this flow for every new screen (shop, cart, checkout, profile, etc.)."
@@ -174,22 +246,19 @@ export default function Products() {
             id="routing"
             icon={Route}
             title="Routing"
-            description="React Router v7 is configured in main.jsx. Add routes in AppRoutes.jsx."
+            description="React Router v7 with guest-only and protected route guards. Login is the default for unauthenticated users."
           >
             <CodeBlock
-              code={`import { Link, NavLink, useNavigate, useParams } from 'react-router'
+              code={`// src/routes/AppRoutes.jsx
+<Route path="/" element={<RootRedirect />} />           // → /login or /dashboard
+<Route path="/login" element={guestOnly(<Login />)} />
+<Route path="/signup" element={guestOnly(<Signup />)} />
+<Route path="/verify-account" element={guestOnly(<VerifyAccount />)} />
+<Route path="/dashboard" element={protectedPage(<Dashboard />)} />
 
-<Link to="/products">Products</Link>
-
-<NavLink
-  to="/cart"
-  className={({ isActive }) => isActive ? 'text-violet-700' : 'text-slate-600'}
->
-  Cart
-</NavLink>
-
+import { Link, NavLink, useNavigate } from 'react-router'
 const navigate = useNavigate()
-navigate('/checkout')`}
+navigate('/dashboard')`}
             />
           </GuideSection>
 
@@ -197,8 +266,22 @@ navigate('/checkout')`}
             id="redux"
             icon={Shield}
             title="Redux & auth"
-            description="Use Redux for client/session state. Auth is persisted across refreshes via redux-persist."
+            description="Auth session is persisted to localStorage and rehydrated on refresh via redux-persist + PersistGate in main.jsx."
           >
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+              <p className="font-medium text-slate-800">Persisted auth fields</p>
+              <ul className="mt-2 space-y-1 text-slate-600">
+                <li>• <code className="rounded bg-slate-100 px-1 text-xs">user</code> — vendor profile (business, store, email, …)</li>
+                <li>• <code className="rounded bg-slate-100 px-1 text-xs">accessToken</code> — JWT for <code className="rounded bg-slate-100 px-1 text-xs">Authorization</code></li>
+                <li>• <code className="rounded bg-slate-100 px-1 text-xs">applicationToken</code> — for <code className="rounded bg-slate-100 px-1 text-xs">Application-Token</code></li>
+                <li>• <code className="rounded bg-slate-100 px-1 text-xs">isAuthenticated</code> — derived on rehydrate</li>
+                <li>• <code className="rounded bg-slate-100 px-1 text-xs">pendingVerificationEmail</code> — pre-verify signup flow</li>
+              </ul>
+              <p className="mt-3 text-xs text-slate-500">
+                Storage key: <code className="rounded bg-slate-100 px-1">persist:vendor-auth</code> (v2 migration)
+              </p>
+            </div>
+
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
               <p className="font-medium text-slate-800">Live auth state</p>
               <p className="mt-2 text-slate-600">
@@ -210,7 +293,37 @@ navigate('/checkout')`}
               <p className="text-slate-600">
                 User:{' '}
                 <span className="font-medium text-slate-900">
-                  {auth.user?.email ?? auth.user?.name ?? '—'}
+                  {auth.user?.email ?? auth.user?.business_name ?? '—'}
+                </span>
+              </p>
+              <p className="text-slate-600">
+                Business:{' '}
+                <span className="font-medium text-slate-900">
+                  {auth.user?.business_name ?? '—'}
+                </span>
+              </p>
+              <p className="text-slate-600">
+                Store:{' '}
+                <span className="font-medium text-slate-900">
+                  {auth.user?.store_name ?? '—'}
+                </span>
+              </p>
+              <p className="text-slate-600">
+                Token:{' '}
+                <span className="font-medium text-slate-900">
+                  {auth.accessToken ? 'Present' : '—'}
+                </span>
+              </p>
+              <p className="text-slate-600">
+                Application token:{' '}
+                <span className="font-medium text-slate-900">
+                  {auth.applicationToken ? 'Present' : '—'}
+                </span>
+              </p>
+              <p className="text-slate-600">
+                Pending verification:{' '}
+                <span className="font-medium text-slate-900">
+                  {auth.pendingVerificationEmail ?? '—'}
                 </span>
               </p>
             </div>
@@ -221,10 +334,10 @@ navigate('/checkout')`}
 import { setCredentials, logout, updateUser } from '../store/slices/authSlice'
 
 const dispatch = useDispatch()
-const { user, isAuthenticated, accessToken } = useSelector((state) => state.auth)
+const { user, isAuthenticated, accessToken, applicationToken } = useSelector((state) => state.auth)
 
-// After a successful login API call
-dispatch(setCredentials({ user, accessToken }))
+// After verify or login (vendor must have email_verified_at or phone_verified_at)
+dispatch(setCredentials({ user, accessToken, applicationToken }))
 
 // Update profile fields
 dispatch(updateUser({ name: 'Jane Doe' }))
@@ -250,7 +363,9 @@ const cartSlice = createSlice({
 export const { addItem, clearCart } = cartSlice.actions
 export default cartSlice.reducer
 
-// src/store/store.js — register reducer + add to persist whitelist if needed`}
+// src/store/store.js — auth slice persisted under key "vendor-auth"
+// Whitelist: user, accessToken, applicationToken, isAuthenticated, pendingVerificationEmail
+// Logout clears Redux then persistor.persist() flushes localStorage`}
             />
           </GuideSection>
 
@@ -261,7 +376,28 @@ export default cartSlice.reducer
             description="Use for server data: products, orders, categories. Redux stays for client state only."
           >
             <CodeBlock
-              title="Query hook pattern"
+              title="Auth mutation pattern (already implemented)"
+              code={`// src/hooks/useAuthMutations.js
+import { useMutation } from '@tanstack/react-query'
+import { loginVendor } from '../services/authService'
+import notify from '../lib/notify'
+
+export function useLoginVendorMutation() {
+  return useMutation({
+    mutationKey: ['vendor-auth', 'login'],
+    mutationFn: loginVendor,
+    onError: (error) => notify.fromError(error, 'Invalid email or password'),
+  })
+}
+
+// In a page component
+const loginMutation = useLoginVendorMutation()
+const data = await loginMutation.mutateAsync({ email, password })
+// loginMutation.isPending for loading state`}
+            />
+
+            <CodeBlock
+              title="Query hook pattern (for server data)"
               code={`// src/hooks/useProducts.js
 import { useQuery } from '@tanstack/react-query'
 import apiClient from '../lib/apiClient'
@@ -306,17 +442,18 @@ export function useAddToCart() {
             description="All HTTP requests go through apiClient. It attaches the auth token and handles 401 logout."
           >
             <CodeBlock
-              title="Environment"
-              code={`# .env
-VITE_API_BASE_URL=http://localhost:8000/api`}
+              title="Base URL (Config.jsx)"
+              code={`// src/utils/Config.jsx
+const config = { base_url: 'https://emall-backend-main-fnfxdk.laravel.cloud' }
+
+// src/lib/apiClient.js — uses config.base_url automatically`}
             />
             <CodeBlock
               title="Usage"
               code={`import apiClient from '../lib/apiClient'
 
-const { data } = await apiClient.get('/products')
-const { data: order } = await apiClient.post('/orders', { items })
-const { data: profile } = await apiClient.patch('/users/me', payload)`}
+const { data } = await apiClient.post('/api/vendor/auth/login', { email, password })
+const { data: vendor } = await apiClient.get('/api/vendor/products')`}
             />
           </GuideSection>
 
@@ -402,18 +539,19 @@ notify.promise(submitOrder(), {
             description="Quick rules to keep the codebase maintainable."
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
-              <li>• <strong>Redux</strong> — auth, cart, UI preferences (client state).</li>
-              <li>• <strong>TanStack Query</strong> — products, orders, anything from the API.</li>
-              <li>• <strong>apiClient</strong> — never use raw <code className="rounded bg-slate-100 px-1 text-xs">fetch</code> or a second axios instance.</li>
+              <li>• <strong>Redux</strong> — auth session, pending verification email (client state).</li>
+              <li>• <strong>TanStack Query</strong> — API mutations (register, login, verify, resend) and future server data.</li>
+              <li>• <strong>Formik + Yup</strong> — form state and validation on auth pages.</li>
+              <li>• <strong>apiClient</strong> — single axios instance using <code className="rounded bg-slate-100 px-1 text-xs">Config.jsx</code> base URL.</li>
               <li>• <strong>notify</strong> — user-facing success/error feedback after actions.</li>
               <li>• <strong>Images.jsx</strong> — single source of truth for static assets.</li>
-              <li>• Put query hooks in <code className="rounded bg-slate-100 px-1 text-xs">src/hooks/</code>, one concern per file.</li>
+              <li>• Put query/mutation hooks in <code className="rounded bg-slate-100 px-1 text-xs">src/hooks/</code>, API logic in <code className="rounded bg-slate-100 px-1 text-xs">src/services/</code>.</li>
               <li>• Style with Tailwind utility classes; font is Instrument Sans (see index.css).</li>
             </ul>
 
-            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
-              Suggested build order: layout shell → product listing → product detail → cart slice →
-              checkout flow → auth pages wired to <code className="rounded bg-violet-100 px-1 text-xs">setCredentials</code>.
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+              Auth is complete. Next build order: product catalog → order management →
+              vendor profile → analytics dashboard.
             </div>
           </GuideSection>
         </main>

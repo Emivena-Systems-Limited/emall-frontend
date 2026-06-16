@@ -1,5 +1,6 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import {
+  createMigrate,
   persistStore,
   persistReducer,
   FLUSH,
@@ -11,24 +12,53 @@ import {
 } from 'redux-persist'
 import persistStorage from '../lib/persistStorage'
 import authReducer from './slices/authSlice'
+import { isVendorVerified } from '../utils/vendorAuth'
 
+/** localStorage key: persist:vendor-auth */
+export const AUTH_PERSIST_KEY = 'vendor-auth'
+export const AUTH_PERSIST_VERSION = 2
 
-const rootReducer = combineReducers({
-  auth: authReducer,
-})
+const authMigrations = {
+  2: (state) => {
+    if (!state) return undefined
 
-const persistConfig = {
-  key: 'root',
-  version: 1,
-  storage: persistStorage,
-  whitelist: ['auth'],
-  blacklist: [],
+    const user = state.user ?? null
+    const accessToken = state.accessToken ?? null
+    const applicationToken = state.applicationToken ?? null
+    const pendingVerificationEmail = state.pendingVerificationEmail ?? null
+
+    return {
+      user,
+      accessToken,
+      applicationToken,
+      pendingVerificationEmail,
+      isAuthenticated: Boolean(
+        accessToken && applicationToken && isVendorVerified(user),
+      ),
+    }
+  },
 }
 
-const persistedReducer = persistReducer(persistConfig, rootReducer)
+const authPersistConfig = {
+  key: AUTH_PERSIST_KEY,
+  version: AUTH_PERSIST_VERSION,
+  storage: persistStorage,
+  whitelist: [
+    'user',
+    'accessToken',
+    'applicationToken',
+    'isAuthenticated',
+    'pendingVerificationEmail',
+  ],
+  migrate: createMigrate(authMigrations, { debug: import.meta.env.DEV }),
+}
+
+const rootReducer = combineReducers({
+  auth: persistReducer(authPersistConfig, authReducer),
+})
 
 export const store = configureStore({
-  reducer: persistedReducer,
+  reducer: rootReducer,
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
