@@ -19,15 +19,12 @@ export default function SearchableSelect({
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [isCustom, setIsCustom] = useState(false)
+  const [isCustom, setIsCustom] = useState(() => (
+    Boolean(value && !options.find((o) => o.value === value))
+  ))
   const containerRef = useRef(null)
   const searchRef = useRef(null)
   const triggerRef = useRef(null)
-
-  // Detect if the initial value isn't in the options list (e.g. pre-filled custom)
-  useEffect(() => {
-    if (value && !options.find((o) => o.value === value)) setIsCustom(true)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (open) searchRef.current?.focus()
@@ -45,13 +42,20 @@ export default function SearchableSelect({
   }, [])
 
   const emitChange = (val) => onChange?.({ target: { name, value: val } })
-  const emitBlur  = ()    => onBlur?.({ target: { name } })
+  const emitBlur = () => onBlur?.({ target: { name } })
+
+  const handleBlur = (event) => {
+    const next = event.relatedTarget
+    if (next && containerRef.current?.contains(next)) return
+    emitBlur()
+  }
 
   const handleSelect = (optVal) => {
     emitChange(optVal)
     setIsCustom(false)
     setOpen(false)
     setSearch('')
+    emitBlur()
   }
 
   const enableCustom = () => {
@@ -95,7 +99,7 @@ export default function SearchableSelect({
             type="text"
             value={value}
             onChange={(e) => emitChange(e.target.value)}
-            onBlur={emitBlur}
+            onBlur={handleBlur}
             placeholder={customPlaceholder}
             disabled={disabled}
             autoFocus
@@ -119,7 +123,7 @@ export default function SearchableSelect({
             type="button"
             disabled={disabled}
             onClick={() => !disabled && setOpen((v) => !v)}
-            onBlur={emitBlur}
+            onBlur={handleBlur}
             className={`flex w-full items-center justify-between rounded-xl border bg-white px-4 py-3 text-sm outline-none transition-all ${
               value ? 'text-slate-900' : 'text-slate-400'
             } ${error ? bdError : bdNormal} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
@@ -165,6 +169,7 @@ export default function SearchableSelect({
                     <li key={opt.value}>
                       <button
                         type="button"
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => handleSelect(opt.value)}
                         className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-brand-light hover:text-brand ${
                           value === opt.value

@@ -373,7 +373,7 @@ export default cartSlice.reducer
             id="query"
             icon={Database}
             title="TanStack Query"
-            description="Use for server data: products, orders, categories. Redux stays for client state only."
+            description="Use for server data: products, orders, inventory. Redux stays for client state only."
           >
             <CodeBlock
               title="Auth mutation pattern (already implemented)"

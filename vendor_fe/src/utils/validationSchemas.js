@@ -1,4 +1,5 @@
 import * as Yup from 'yup'
+import { stripHtml } from './richText'
 
 const passwordSchema = Yup.string()
   .min(8, 'Password must be at least 8 characters')
@@ -42,4 +43,60 @@ export const vendorSignupSchema = Yup.object({
 export const vendorLoginSchema = Yup.object({
   email: Yup.string().trim().email('Enter a valid email address').required('Email is required'),
   password: Yup.string().required('Password is required'),
+})
+
+const metadataItemSchema = Yup.object({
+  key: Yup.string().trim().required('Specification name is required'),
+  value: Yup.string().trim().required('Specification value is required'),
+})
+
+export const productListingSchema = Yup.object({
+  name: Yup.string()
+    .trim()
+    .min(3, 'Product name must be at least 3 characters')
+    .required('Product name is required'),
+  sku: Yup.string()
+    .trim()
+    .matches(/^[A-Z0-9-]+$/i, 'SKU can only include letters, numbers, and hyphens')
+    .required('SKU is required'),
+  description: Yup.string()
+    .required('Description is required')
+    .test('min-length', 'Description must be at least 20 characters', (value) => {
+      return stripHtml(value).length >= 20
+    }),
+  category_slug: Yup.string().required('Category is required'),
+  subcategory_slug: Yup.string().required('Subcategory is required'),
+  brand_slug: Yup.string().required('Brand is required'),
+  status: Yup.string().oneOf(['draft', 'active', 'inactive']).required('Status is required'),
+  price: Yup.number()
+    .typeError('Price must be a number')
+    .min(1, 'Price must be greater than zero')
+    .required('Price is required'),
+  quantity: Yup.number()
+    .typeError('Quantity must be a number')
+    .integer('Quantity must be a whole number')
+    .min(0, 'Quantity cannot be negative')
+    .required('Quantity is required'),
+  image_urls: Yup.array()
+    .of(
+      Yup.string()
+        .trim()
+        .url('Enter a valid image URL')
+        .required('Image URL is required'),
+    )
+    .min(1, 'Add at least one product image')
+    .required('Add at least one product image'),
+  videos: Yup.array().of(
+    Yup.object({
+      title: Yup.string().trim().when('video_url', {
+        is: (value) => Boolean(value?.trim()),
+        then: (schema) => schema.required('Video title is required'),
+        otherwise: (schema) => schema,
+      }),
+      video_url: Yup.string().trim().url('Enter a valid video URL'),
+    }),
+  ),
+  metadata: Yup.array()
+    .of(metadataItemSchema)
+    .min(1, 'Add at least one product-specific detail'),
 })
