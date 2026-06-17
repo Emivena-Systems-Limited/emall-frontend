@@ -117,6 +117,23 @@ body {
   animation: fade-in 0.2s ease-out both;
 }
 
+/* ── Vendor landing page scroll reveal ───────────────────── */
+@keyframes vendor-scroll-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(34px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.vendor-scroll-reveal {
+  animation: vendor-scroll-reveal 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-timeline: view();
+  animation-range: entry 8% cover 32%;
+}
+
 /* ── Dashboard loader & reveal ───────────────────────────── */
 @keyframes skeleton-shimmer {
   0%   { background-position: -200% 0; }
@@ -187,6 +204,11 @@ body {
     animation: none;
     opacity: 0.25;
     transform: scale(1.15);
+  }
+  .vendor-scroll-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 

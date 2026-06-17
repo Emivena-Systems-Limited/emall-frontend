@@ -46,13 +46,13 @@ const folderStructure = `src/
 │   └── queryClient.js      # TanStack Query defaults
 ├── pages/
 │   ├── auth_pages/         # Login, Signup, VerifyAccount
+│   ├── LandingPage.jsx     # Public vendor seller landing page
 │   ├── Dashboard.jsx       # Post-auth landing (protected)
 │   └── DeveloperGuide.jsx
 ├── routes/
 │   ├── AppRoutes.jsx
 │   ├── GuestOnlyRoute.jsx  # Redirect authenticated users away
-│   ├── ProtectedRoute.jsx  # Require auth
-│   └── RootRedirect.jsx    # / → /login or /dashboard
+│   └── ProtectedRoute.jsx  # Require auth
 ├── services/
 │   └── authService.js      # Vendor auth API calls
 ├── store/
@@ -136,7 +136,7 @@ export default function DeveloperGuide() {
             id="auth-flow"
             icon={KeyRound}
             title="Vendor auth flow"
-            description="Signup → email OTP verification → dashboard. Login uses email + password. Unauthenticated users land on /login."
+            description="Signup → email OTP verification → dashboard. Login uses email + password. The public seller landing page lives at /."
           >
             <ol className="space-y-3 text-sm leading-relaxed text-slate-700">
               <li className="flex gap-3">
@@ -153,7 +153,7 @@ export default function DeveloperGuide() {
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">4</span>
-                <span><strong>Dashboard</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/dashboard</code>) — Protected route. Root <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/</code> redirects to <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/login</code> or <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/dashboard</code> based on auth state.</span>
+                <span><strong>Dashboard</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/dashboard</code>) — Protected route. Public seller landing lives at <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/</code> and links users to signup or login.</span>
               </li>
             </ol>
 
@@ -250,7 +250,7 @@ export default function Products() {
           >
             <CodeBlock
               code={`// src/routes/AppRoutes.jsx
-<Route path="/" element={<RootRedirect />} />           // → /login or /dashboard
+<Route path="/" element={<LandingPage />} />            // public seller landing page
 <Route path="/login" element={guestOnly(<Login />)} />
 <Route path="/signup" element={guestOnly(<Signup />)} />
 <Route path="/verify-account" element={guestOnly(<VerifyAccount />)} />
