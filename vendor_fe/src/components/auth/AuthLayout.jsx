@@ -23,6 +23,8 @@ export default function AuthLayout({
   return (
     <div className={`${shellClass} bg-slate-50`}>
       <div className={`grid ${showHero ? 'h-screen lg:grid-cols-2' : 'min-h-screen'}`}>
+
+        {/* ── Hero panel ────────────────────────────────────── */}
         {showHero && (
           <aside className="relative hidden h-screen overflow-hidden lg:block">
             <img
@@ -72,39 +74,70 @@ export default function AuthLayout({
           </aside>
         )}
 
-        <main className={`flex flex-col ${showHero ? 'h-screen scroll-smooth overflow-y-auto overscroll-contain' : ''}`}>
-          <header className="shrink-0 border-b border-slate-100 bg-white/80 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-10">
-            <Link to="/login" className="inline-flex items-center gap-2 lg:hidden">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-brand text-white">
-                <Store className="size-4" strokeWidth={1.75} />
+        {/* ── Form panel ────────────────────────────────────── */}
+        <main
+          className={`relative flex flex-col bg-white ${
+            showHero ? 'h-screen scroll-smooth overflow-y-auto overscroll-contain' : ''
+          }`}
+        >
+          {/* Decorative background elements */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-40 -right-40 size-112 rounded-full bg-brand/4 blur-3xl" />
+            <div className="absolute -bottom-32 -left-32 size-80 rounded-full bg-brand/3 blur-3xl" />
+            <div
+              className="absolute inset-0 opacity-[0.4]"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle, #c73b2d0a 1px, transparent 1px)',
+                backgroundSize: '22px 22px',
+              }}
+            />
+          </div>
+
+          {/* Top nav */}
+          <header className="relative shrink-0 px-6 py-5 sm:px-8 lg:px-10">
+            <div className="flex items-center justify-between">
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80"
+              >
+                <span className="flex size-9 items-center justify-center rounded-xl bg-brand text-white shadow-sm shadow-brand/30">
+                  <Store className="size-4" strokeWidth={1.75} />
+                </span>
+                <span className="text-sm font-semibold tracking-tight text-slate-900">E-Mall Vendor</span>
+              </Link>
+              <span className="hidden text-xs text-slate-400 sm:block">
+                Secure · Encrypted · Verified
               </span>
-              <span className="text-sm font-semibold text-slate-900">E-Mall Vendor</span>
-            </Link>
-            {(title || subtitle) && (
-              <div className="hidden lg:block">
-                {title && (
-                  <h1 className="text-xl font-bold tracking-tight text-slate-900">{title}</h1>
-                )}
-                {subtitle && (
-                  <p className="mt-1 max-w-lg text-sm text-slate-600">{subtitle}</p>
-                )}
-              </div>
-            )}
+            </div>
           </header>
 
-          <div className="flex flex-1 justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+          {/* Centered form area */}
+          <div className="relative flex flex-1 items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
             <div className={`w-full ${formWidthClass}`}>
-              {(title || subtitle) && (
-                <div className="mb-6 space-y-2 lg:hidden">
-                  {title && (
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-                  )}
-                  {subtitle && (
-                    <p className="text-sm leading-relaxed text-slate-600">{subtitle}</p>
-                  )}
-                </div>
-              )}
-              {children}
+
+              {/* Form card */}
+              <div className="rounded-2xl border border-slate-100 bg-white px-7 py-8 shadow-xl shadow-slate-200/70 sm:px-8 sm:py-10">
+                {(title || subtitle) && (
+                  <div className="mb-7">
+                    <div className="mb-3.5 flex items-center gap-2.5">
+                      <span className="h-px w-6 rounded-full bg-brand" />
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">
+                        Vendor Portal
+                      </span>
+                    </div>
+                    {title && (
+                      <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                        {title}
+                      </h1>
+                    )}
+                    {subtitle && (
+                      <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{subtitle}</p>
+                    )}
+                  </div>
+                )}
+                {children}
+              </div>
             </div>
           </div>
         </main>

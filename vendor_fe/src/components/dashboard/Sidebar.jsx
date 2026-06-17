@@ -3,7 +3,6 @@ import { useSelector } from 'react-redux'
 import {
   ChevronLeft,
   ChevronRight,
-  Loader2,
   LogOut,
   Store,
   X,
@@ -171,10 +170,7 @@ function SidebarInner({ collapsed, onToggle, onMobileClose, isMobile = false }) 
           className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl py-2.5 text-sm font-medium text-white/55 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50
             ${effectiveCollapsed ? 'justify-center px-2.5' : 'px-3'}`}
         >
-          {logoutMutation.isPending
-            ? <Loader2 className="size-[18px] shrink-0 animate-spin" />
-            : <LogOut className="size-[18px] shrink-0" strokeWidth={1.75} />
-          }
+          <LogOut className="size-[18px] shrink-0" strokeWidth={1.75} />
           {!effectiveCollapsed && <span className="truncate">Sign out</span>}
         </button>
       </div>

@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router'
 import {
   Bell,
   ChevronDown,
-  Loader2,
   LogOut,
   Menu,
   MessageSquare,
@@ -130,10 +129,7 @@ function UserMenu({ user, logoutMutation }) {
               disabled={logoutMutation.isPending}
               className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {logoutMutation.isPending
-                ? <Loader2 className="size-4 animate-spin" />
-                : <LogOut className="size-4" strokeWidth={2} />
-              }
+              <LogOut className="size-4" strokeWidth={2} />
               Sign out
             </button>
           </div>
