@@ -9,6 +9,6 @@ export const VENDOR_AUTH_ENDPOINTS = {
   REGISTER: '/api/vendor/auth/register',
   LOGIN: '/api/vendor/auth/login',
   VERIFY: '/api/vendor/auth/verify_otp',
-  RESEND_OTP: '/api/vendor/auth/resend-otp',
+  RESEND_OTP: '/api/notification/re-send/otp',
   LOGOUT: '/api/vendor/auth/logout',
 }
