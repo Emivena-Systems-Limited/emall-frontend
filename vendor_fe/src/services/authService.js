@@ -1,12 +1,17 @@
 import apiClient from '../lib/apiClient'
 import { AUTH_VERIFICATION_TYPE, VENDOR_AUTH_ENDPOINTS } from '../constants/auth'
 import { isVendorVerified } from '../utils/vendorAuth'
+import { buildVendorRegistrationPayload } from '../utils/buildVendorRegistrationPayload'
+import { buildFieldErrors, normalizeErrorsList, unwrapApiEnvelope } from '../utils/parseApiError'
 
 export function assertApiSuccess(data) {
-  if (!data || !data.in_error) return data
+  const envelope = unwrapApiEnvelope(data)
+  if (!envelope || !envelope.in_error) return envelope ?? data
 
-  const error = new Error(data.message || 'Request failed')
-  error.response = { data }
+  const error = new Error(envelope.message || 'Request failed')
+  error.response = { data: data ?? envelope, status: envelope.status_code }
+  error.fieldErrors = buildFieldErrors(envelope.errors)
+  error.validationErrors = normalizeErrorsList(envelope.errors)
   throw error
 }
 
@@ -36,9 +41,11 @@ function isVendorRecord(value) {
 function unwrapApiPayload(body) {
   if (!body || typeof body !== 'object') return body
 
-  if (isApiEnvelope(body)) {
+  const envelope = unwrapApiEnvelope(body)
+
+  if (isApiEnvelope(envelope)) {
     assertApiSuccess(body)
-    return body.data ?? body
+    return envelope.data ?? envelope
   }
 
   if (body.data && isVendorRecord(body.data)) {
@@ -112,30 +119,9 @@ function normalizeAuthResponse(body) {
   }
 }
 
-/**
- * Normalizes a Ghana phone number to the 233XXXXXXXXX format expected by the API.
- */
-const normalizeGhanaPhone = (phone) => {
-  const digits = String(phone ?? '').replace(/\D/g, '')
-  if (digits.startsWith('0') && digits.length === 10) return '233' + digits.slice(1)
-  if (digits.startsWith('233')) return digits
-  return digits
-}
 
 export async function registerVendor(payload) {
-  const body = {
-    business_name: payload.business_name,
-    store_name: payload.store_name,
-    email: payload.email,
-    phone_number: normalizeGhanaPhone(payload.phone_number),
-    password: payload.password,
-    password_confirmation: payload.password_confirmation,
-    country: payload.country,
-    region: payload.region,
-    city_or_town: payload.city_or_town,
-    address: payload.address,
-    gps_address: payload.gps_address,
-  }
+  const body = buildVendorRegistrationPayload(payload)
 
   const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.REGISTER, body)
   const vendorPayload = unwrapApiPayload(data)

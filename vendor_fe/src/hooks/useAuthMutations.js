@@ -11,11 +11,15 @@ import { logout } from '../store/slices/authSlice'
 import { persistor } from '../store/store'
 import notify from '../lib/notify'
 
-export function useRegisterVendorMutation() {
+export function useRegisterVendorMutation({ suppressErrorToast = false } = {}) {
   return useMutation({
     mutationKey: ['vendor-auth', 'register'],
     mutationFn: registerVendor,
-    onError: (error) => notify.fromError(error, 'Could not create vendor account'),
+    onError: (error) => {
+      if (!suppressErrorToast) {
+        notify.fromError(error, 'Could not create vendor account')
+      }
+    },
   })
 }
 

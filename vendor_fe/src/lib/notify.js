@@ -1,11 +1,5 @@
 import { toast } from 'sonner'
-
-const getErrorMessage = (error, fallback = 'Something went wrong') => {
-  if (typeof error === 'string') return error
-  if (error?.response?.data?.message) return error.response.data.message
-  if (error?.message) return error.message
-  return fallback
-}
+import { getApiErrorMessage } from '../utils/parseApiError'
 
 export const notify = {
   success: (message, options) => toast.success(message, options),
@@ -15,7 +9,7 @@ export const notify = {
   loading: (message, options) => toast.loading(message, options),
   promise: toast.promise,
   dismiss: toast.dismiss,
-  fromError: (error, fallback) => toast.error(getErrorMessage(error, fallback)),
+  fromError: (error, fallback) => toast.error(getApiErrorMessage(error, fallback)),
 }
 
 export default notify

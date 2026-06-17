@@ -18,7 +18,7 @@ export default function AuthLayout({
   heroDescription = 'List products, manage orders, and reach customers across Ghana — all from one powerful vendor dashboard.',
 }) {
   const shellClass = showHero ? 'h-screen overflow-hidden' : 'min-h-screen'
-  const formWidthClass = wideForm ? 'max-w-3xl' : 'max-w-xl'
+  const formWidthClass = wideForm ? 'max-w-5xl' : 'max-w-xl'
 
   return (
     <div className={`${shellClass} bg-slate-50`}>
@@ -76,6 +76,7 @@ export default function AuthLayout({
 
         {/* ── Form panel ────────────────────────────────────── */}
         <main
+          data-auth-scroll-panel
           className={`relative flex flex-col bg-white ${
             showHero ? 'h-screen scroll-smooth overflow-y-auto overscroll-contain' : ''
           }`}
