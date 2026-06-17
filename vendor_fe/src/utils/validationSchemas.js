@@ -9,36 +9,96 @@ const passwordSchema = Yup.string()
   .required('Password is required')
 
 const ghanaPhoneSchema = Yup.string()
-  .required('Phone number is required')
+  .required('Mobile number is required')
   .test(
     'ghana-phone',
-    'Enter a valid 10-digit Ghana number starting with 0 (e.g. 0574622234)',
+    'Enter a valid 10-digit Ghanaian mobile number starting with 0 (e.g. 0241234567)',
     (value) => {
       const digits = String(value ?? '').replace(/\D/g, '')
       return digits.startsWith('0') && digits.length === 10
     },
   )
 
+// Hidden until backend file storage is ready
+// const registrationCertificateSchema = Yup.mixed()
+//   .nullable()
+//   .test('file-size', 'File must be 5MB or less', (value) => {
+//     if (!value) return true
+//     return value.size <= 5 * 1024 * 1024
+//   })
+//   .test('file-type', 'Only JPG, PNG, or PDF files are allowed', (value) => {
+//     if (!value) return true
+//     return ['image/jpeg', 'image/png', 'application/pdf'].includes(value.mime_type)
+//   })
+
+export const VENDOR_ADDRESS_MAX_LENGTH = 100
+
 export const vendorSignupSchema = Yup.object({
   business_name: Yup.string()
     .trim()
     .min(2, 'Business name must be at least 2 characters')
     .required('Business name is required'),
-  store_name: Yup.string()
+  trading_name: Yup.string()
     .trim()
-    .min(2, 'Store name must be at least 2 characters')
-    .required('Store name is required'),
-  email: Yup.string().trim().email('Enter a valid email address').required('Email is required'),
+    .min(2, 'Trading name must be at least 2 characters')
+    .required('Trading name is required'),
+  region: Yup.string().required('Region is required'),
+  district: Yup.string().trim().required('District is required'),
+  city_or_town: Yup.string().trim().required('Town or city is required'),
+  gps_address: Yup.string().trim().min(3, 'GPS address is required').required('GPS address is required'),
+  address: Yup.string()
+    .trim()
+    .min(5, 'Address must be at least 5 characters')
+    .max(VENDOR_ADDRESS_MAX_LENGTH, `Address must not exceed ${VENDOR_ADDRESS_MAX_LENGTH} characters`)
+    .required('Address is required'),
+  street_name: Yup.string().trim().min(2, 'Street name is required').required('Street name is required'),
+  landmark: Yup.string().trim().nullable(),
+  business_registration_number: Yup.string().trim().nullable(),
+  tin_number: Yup.string().trim().nullable(),
+  // registration_certificate: registrationCertificateSchema,
+  admin_full_name: Yup.string()
+    .trim()
+    .min(3, 'Enter the store admin full name')
+    .required('Store admin full name is required'),
   phone_number: ghanaPhoneSchema,
+  email: Yup.string().trim().email('Enter a valid email address').required('Email is required'),
   password: passwordSchema,
   password_confirmation: Yup.string()
     .oneOf([Yup.ref('password')], 'Passwords must match')
     .required('Please confirm your password'),
-  region: Yup.string().required('Region is required'),
-  city_or_town: Yup.string().trim().required('City or town is required'),
-  address: Yup.string().trim().min(5, 'Address must be at least 5 characters').required('Address is required'),
-  gps_address: Yup.string().trim().required('GPS address is required'),
+  confirm_accurate: Yup.boolean()
+    .oneOf([true], 'You must confirm the information is accurate')
+    .required('You must confirm the information is accurate'),
+  agree_terms: Yup.boolean()
+    .oneOf([true], 'You must agree to the Vendor Terms and Conditions')
+    .required('You must agree to the Vendor Terms and Conditions'),
 })
+
+export const vendorSignupStepSchemas = [
+  vendorSignupSchema.pick([
+    'business_name',
+    'trading_name',
+    'region',
+    'district',
+    'city_or_town',
+    'gps_address',
+    'address',
+    'street_name',
+    'landmark',
+  ]),
+  vendorSignupSchema.pick(['business_registration_number', 'tin_number']),
+  // vendorSignupSchema.pick(['business_registration_number', 'tin_number', 'registration_certificate']),
+  vendorSignupSchema.pick(['admin_full_name', 'phone_number', 'email']),
+  vendorSignupSchema.pick(['password', 'password_confirmation', 'confirm_accurate', 'agree_terms']),
+]
+
+export const vendorSignupStepFields = [
+  ['business_name', 'trading_name', 'region', 'district', 'city_or_town', 'gps_address', 'address', 'street_name'],
+  ['business_registration_number', 'tin_number'],
+  // ['business_registration_number', 'tin_number', 'registration_certificate'],
+  ['admin_full_name', 'phone_number', 'email'],
+  ['password', 'password_confirmation', 'confirm_accurate', 'agree_terms'],
+]
 
 export const vendorLoginSchema = Yup.object({
   email: Yup.string().trim().email('Enter a valid email address').required('Email is required'),

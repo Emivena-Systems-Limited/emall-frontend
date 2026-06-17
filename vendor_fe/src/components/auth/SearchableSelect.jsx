@@ -55,7 +55,7 @@ export default function SearchableSelect({
     setIsCustom(false)
     setOpen(false)
     setSearch('')
-    emitBlur()
+    setTimeout(() => emitBlur(), 0)
   }
 
   const enableCustom = () => {

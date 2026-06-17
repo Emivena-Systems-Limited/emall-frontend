@@ -1,51 +1,58 @@
-import { useNavigate } from 'react-router'
-import { useDispatch } from 'react-redux'
+import { useState } from 'react'
 import { Formik } from 'formik'
 import AuthLayout from '../../components/auth/AuthLayout'
 import SignupFormFields from '../../components/auth/SignupFormFields'
-import notify from '../../lib/notify'
+import SignupSuccessState from '../../components/auth/SignupSuccessState'
 import { useRegisterVendorMutation } from '../../hooks/useAuthMutations'
 import { setPendingVerificationEmail, setPendingVendor } from '../../store/slices/authSlice'
+import { useDispatch } from 'react-redux'
 import { GHANA_COUNTRY } from '../../constants/ghanaRegions'
+import { parseApiError } from '../../utils/parseApiError'
 import { vendorSignupSchema } from '../../utils/validationSchemas'
 
 const initialValues = {
   business_name: '',
-  store_name: '',
-  email: '',
+  trading_name: '',
+  region: '',
+  district: '',
+  city_or_town: '',
+  gps_address: '',
+  address: '',
+  street_name: '',
+  landmark: '',
+  business_registration_number: '',
+  tin_number: '',
+  // registration_certificate: null, // Hidden until backend file storage is ready
+  admin_full_name: '',
   phone_number: '',
+  email: '',
   password: '',
   password_confirmation: '',
   country: GHANA_COUNTRY,
-  region: '',
-  city_or_town: '',
-  address: '',
-  gps_address: '',
+  confirm_accurate: false,
+  agree_terms: false,
 }
 
 export default function Signup() {
-  const navigate = useNavigate()
   const dispatch = useDispatch()
-  const registerMutation = useRegisterVendorMutation()
+  const [submitted, setSubmitted] = useState(false)
+  const [submittedEmail, setSubmittedEmail] = useState('')
+  const [submitError, setSubmitError] = useState(null)
+  const registerMutation = useRegisterVendorMutation({ suppressErrorToast: true })
 
   const handleSubmit = async (values, { setSubmitting }) => {
+    setSubmitError(null)
+
     try {
       const result = await registerMutation.mutateAsync(values)
       dispatch(setPendingVerificationEmail(values.email))
       if (result.user) {
         dispatch(setPendingVendor(result.user))
       }
-      notify.success(result.message || 'Account created! Check your email for the verification code.')
-
-      if (result.needsVerification) {
-        navigate('/verify-account', { state: { email: values.email }, replace: true })
-        return
-      }
-
-      notify.info('Your account is already verified. Please sign in.')
-      navigate('/login', { replace: true })
-    } catch {
-      // Error handled by mutation onError
+      setSubmittedEmail(values.email)
+      setSubmitted(true)
+    } catch (error) {
+      setSubmitError(parseApiError(error, 'Could not create vendor account'))
     } finally {
       setSubmitting(false)
     }
@@ -55,17 +62,32 @@ export default function Signup() {
     <AuthLayout
       showHero
       wideForm
-      title="Create vendor account"
-      subtitle="Join E-Mall and start selling to customers across Ghana."
+      title="Become a Vendor"
+      subtitle="Join us and grow your business with us."
+      heroTitle="Start selling on E-Mall"
+      heroDescription="Register your store, reach customers nationwide, and manage everything from one powerful vendor dashboard."
     >
-      <Formik initialValues={initialValues} validationSchema={vendorSignupSchema} onSubmit={handleSubmit}>
-        {(formikProps) => (
-          <SignupFormFields
-            {...formikProps}
-            registerPending={registerMutation.isPending}
-          />
-        )}
-      </Formik>
+      {submitted ? (
+        <SignupSuccessState email={submittedEmail} />
+      ) : (
+        <Formik
+          initialValues={initialValues}
+          validationSchema={vendorSignupSchema}
+          validateOnMount
+          validateOnChange
+          validateOnBlur
+          onSubmit={handleSubmit}
+        >
+          {(formikProps) => (
+            <SignupFormFields
+              {...formikProps}
+              registerPending={registerMutation.isPending}
+              submitError={submitError}
+              onDismissError={() => setSubmitError(null)}
+            />
+          )}
+        </Formik>
+      )}
     </AuthLayout>
   )
 }
