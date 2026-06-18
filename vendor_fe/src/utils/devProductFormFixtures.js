@@ -10,12 +10,6 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
     subcategory_slug: 'electronics-audio-systems',
     brand_slug: 'sony',
     tags: ['wireless', 'audio', 'earbuds'],
-    metadata: [
-      { key: 'color', value: 'Midnight Black' },
-      { key: 'storage', value: 'N/A' },
-      { key: 'warranty', value: '12 months' },
-      { key: 'weight', value: '45g' },
-    ],
   },
   2: {
     price: '245.99',

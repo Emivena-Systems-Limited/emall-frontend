@@ -133,7 +133,7 @@ export function buildProductPayload(values, productImages = []) {
     quantity: Number(values.quantity),
     low_stock_threshold: toNumberOrNull(values.low_stock_threshold),
     barcode: values.barcode?.trim() || null,
-    metadata: metadataRowsToObject(values.metadata),
+    metadata: {},
     primary_image,
     product_images: productImages,
     variations: buildVariationsPayload(values.variations, values),

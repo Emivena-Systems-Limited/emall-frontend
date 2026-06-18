@@ -105,23 +105,6 @@ export const vendorLoginSchema = Yup.object({
   password: Yup.string().required('Password is required'),
 })
 
-const metadataItemSchema = Yup.object({
-  key: Yup.string()
-    .trim()
-    .test('key-when-value', 'Enter a specification name for this value', function validateKey(key) {
-      const value = this.parent.value?.trim()
-      if (!value) return true
-      return Boolean(key?.trim())
-    }),
-  value: Yup.string()
-    .trim()
-    .test('value-when-key', 'Enter the specification value for this attribute', function validateValue(value) {
-      const key = this.parent.key?.trim()
-      if (!key) return true
-      return Boolean(value?.trim())
-    }),
-})
-
 const nullableNumber = Yup.number()
   .nullable()
   .transform((value, originalValue) => {
@@ -189,7 +172,6 @@ export const productListingSchema = Yup.object({
   subcategory_slug: Yup.string().required('Subcategory is required'),
   brand_slug: Yup.string().required('Brand is required'),
   tags: Yup.array().of(Yup.string().trim().min(1)).default([]),
-  metadata: Yup.array().of(metadataItemSchema).default([]),
 
   price: Yup.number()
     .typeError('Price must be a valid amount')

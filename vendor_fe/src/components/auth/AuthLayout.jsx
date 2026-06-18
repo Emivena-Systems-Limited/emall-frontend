@@ -31,7 +31,7 @@ export default function AuthLayout({
       </div>
 
       <header className={headerClass}>
-        <div className="mx-auto flex w-full max-w-8xl items-center justify-between">
+        <div className="mx-auto w-full max-w-8xl">
           <Link
             to="/"
             className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80"
@@ -41,9 +41,6 @@ export default function AuthLayout({
             </span>
             <span className="text-sm font-semibold tracking-tight text-slate-900">E-Mall Vendor</span>
           </Link>
-          <span className="hidden text-xs text-slate-400 sm:block">
-            Secure · Encrypted · Verified
-          </span>
         </div>
       </header>
 

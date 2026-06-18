@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { FieldArray, Form, Formik, getIn } from 'formik'
+import { Form, Formik, getIn } from 'formik'
 import { Link, useNavigate } from 'react-router'
 import {
   ArrowLeft,
   ArrowRight,
   BadgePercent,
   Box,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   ImagePlus,
@@ -18,7 +17,6 @@ import {
   Plus,
   Ruler,
   Save,
-  Sparkles,
   Store,
   Trash2,
   X,
@@ -39,14 +37,12 @@ import {
   ProductMoneyInput,
 } from '../../components/products/ProductFormControls'
 import {
-  METADATA_TEMPLATES,
   MOCK_BRANDS,
 } from '../../constants/productData'
 import { useProductCategoryOptions } from '../../hooks/useCategories'
 import {
   findCategoryBySlug,
   getSubcategoriesForParent,
-  inferMetadataTemplateType,
   toSelectOptions,
 } from '../../utils/normalizeCategories'
 import { productListingSchema } from '../../utils/validationSchemas'
@@ -71,7 +67,7 @@ import notify from '../../lib/notify'
 import { isLocalEnvironment } from '../../utils/environment'
 
 const steps = [
-  { id: 'info',       title: 'Product Info',  caption: 'Name, details & specs'  },
+  { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
   { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
   { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
   { id: 'variations', title: 'Variations',    caption: 'Size, color, weight'     },
@@ -80,7 +76,7 @@ const steps = [
 ]
 
 const stepFields = [
-  ['name', 'sku', 'description', 'category_slug', 'subcategory_slug', 'brand_slug', 'metadata'],
+  ['name', 'sku', 'description', 'category_slug', 'subcategory_slug', 'brand_slug'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity'],
   ['variations'],
@@ -96,7 +92,6 @@ const initialValues = {
   subcategory_slug:   '',
   brand_slug:         '',
   tags:               [],
-  metadata:           [],
   price:              '',
   discount_mode:      'amount',
   discount_price:     '',
@@ -114,9 +109,6 @@ const initialValues = {
 
 function getTouchedForFields(fields, values) {
   return fields.reduce((touched, field) => {
-    if (field === 'metadata') {
-      return { ...touched, metadata: values.metadata.map(() => ({ key: true, value: true })) }
-    }
     if (field === 'variations') {
       return {
         ...touched,
@@ -237,15 +229,13 @@ function getVariationValuesError(formik, varIndex) {
   return error
 }
 
-function templateRows(type) {
-  return (METADATA_TEMPLATES[type] ?? METADATA_TEMPLATES.default).map((field) => ({
-    key: field.key,
-    value: '',
-  }))
-}
-
-function pruneEmptyMetadataRows(metadata = []) {
-  return metadata.filter((row) => row.key?.trim() || row.value?.trim())
+function getBrandFieldError(formik) {
+  const value = formik.values.brand_slug
+  if (value?.trim()) {
+    const error = getIn(formik.errors, 'brand_slug')
+    if (error === 'Brand is required') return undefined
+  }
+  return getFieldError(formik, 'brand_slug')
 }
 
 const brandOptions = MOCK_BRANDS.map((b) => ({ value: b.slug, label: b.label }))
@@ -254,15 +244,6 @@ function getBrandDisplayLabel(brandSlug) {
   if (!brandSlug) return null
   const match = MOCK_BRANDS.find((brand) => brand.slug === brandSlug)
   return match?.label ?? brandSlug
-}
-
-function getBrandFieldError(formik) {
-  const value = formik.values.brand_slug
-  if (value?.trim()) {
-    const error = getIn(formik.errors, 'brand_slug')
-    if (error === 'Brand is required') return undefined
-  }
-  return getFieldError(formik, 'brand_slug')
 }
 
 // ─── Step 1: Product Info ────────────────────────────────────────────────────
@@ -280,8 +261,6 @@ function InfoStep({
     ?? parentCategories.find((category) => category.slug === formik.values.category_slug)
   const subcategories = getSubcategoriesForParent(categoryTree, formik.values.category_slug)
   const subcategoryOptions = toSelectOptions(subcategories)
-  const selectedSubcategory = findCategoryBySlug(subcategories, formik.values.subcategory_slug)
-  const metadataTemplateType = inferMetadataTemplateType(formik.values.category_slug)
 
   return (
     <div className="space-y-6">
@@ -424,104 +403,6 @@ function InfoStep({
         error={getFieldError(formik, 'description')}
       />
 
-      <FieldArray name="metadata">
-        {({ push, remove }) => (
-          <section data-field="metadata" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Specs</p>
-                <h3 className="mt-1 text-sm font-bold text-slate-900">Product specifications (optional)</h3>
-                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
-                  Add extra facts buyers compare — one attribute per row. Enter what you are describing
-                  (e.g. <span className="font-medium text-slate-700">Color</span>,{' '}
-                  <span className="font-medium text-slate-700">Size</span>) and the matching detail for
-                  this product (e.g. <span className="font-medium text-slate-700">Navy blue</span>,{' '}
-                  <span className="font-medium text-slate-700">Large</span>).
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedSubcategory && (
-                  <button
-                    type="button"
-                    onClick={() => formik.setFieldValue('metadata', templateRows(metadataTemplateType))}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:border-cyan-200 hover:text-cyan-700"
-                  >
-                    <Sparkles className="size-3.5" /> Suggested specs
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => push({ key: '', value: '' })}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"
-                >
-                  <Plus className="size-3.5" /> Add specification
-                </button>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {formik.values.metadata.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center">
-                  <p className="text-sm text-slate-500">
-                    No specifications added yet. Click{' '}
-                    <span className="font-semibold text-slate-700">Add specification</span> when you want
-                    to list attributes like color, size, or warranty.
-                  </p>
-                  <p className="mx-auto mt-3 max-w-md rounded-lg bg-white px-3 py-2 text-left text-xs text-slate-500 ring-1 ring-slate-200">
-                    <span className="font-semibold text-slate-700">Example:</span>{' '}
-                    <span className="text-slate-600">Color</span> → Midnight black ·{' '}
-                    <span className="text-slate-600">Material</span> → 100% cotton
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="hidden gap-3 rounded-lg bg-slate-100/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[1fr_1fr_auto]">
-                    <span>What are you describing?</span>
-                    <span>Detail for this product</span>
-                    <span className="sr-only">Remove</span>
-                  </div>
-                  {formik.values.metadata.map((row, index) => (
-                  <div
-                    key={index}
-                    className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-start"
-                  >
-                    <ProductInput
-                      id={`metadata.${index}.key`}
-                      name={`metadata.${index}.key`}
-                      label="Specification name"
-                      hint="The attribute or property, e.g. Color, Size, Warranty"
-                      placeholder="e.g. Color"
-                      value={row.key}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      error={getFieldError(formik, `metadata.${index}.key`)}
-                    />
-                    <ProductInput
-                      id={`metadata.${index}.value`}
-                      name={`metadata.${index}.value`}
-                      label="Specification value"
-                      hint="The detail for this product, e.g. Navy blue, XL, 1 year"
-                      placeholder="e.g. Navy blue"
-                      value={row.value}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      error={getFieldError(formik, `metadata.${index}.value`)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => remove(index)}
-                      className="mt-7 flex size-10 cursor-pointer items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      aria-label="Remove specification"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  ))}
-                </>
-              )}
-            </div>
-          </section>
-        )}
-      </FieldArray>
     </div>
   )
 }
@@ -1330,8 +1211,6 @@ function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTr
     },
   ]
 
-  const filledDetails = formik.values.metadata.filter((r) => r.key?.trim() && r.value?.trim())
-
   return (
     <div className="space-y-5">
       <div>
@@ -1451,26 +1330,6 @@ function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTr
         </section>
       )}
 
-      {filledDetails.length > 0 && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
-            <CheckCircle2 className="size-4 text-emerald-600" /> Specifications
-          </h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {filledDetails.map((row, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2"
-              >
-                <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  {row.key}
-                </span>
-                <span className="text-xs font-bold text-slate-900">{row.value}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   )
 }
@@ -1524,13 +1383,6 @@ export default function AddProduct() {
       }
       setMainImageError('')
       return true
-    }
-
-    if (stepIndex === 0) {
-      const prunedMetadata = pruneEmptyMetadataRows(formik.values.metadata)
-      if (prunedMetadata.length !== formik.values.metadata.length) {
-        await formik.setFieldValue('metadata', prunedMetadata, false)
-      }
     }
 
     if (stepIndex === 3) {
@@ -1601,7 +1453,7 @@ export default function AddProduct() {
               Add a product
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Create a complete listing with clear photos, accurate pricing, and detailed specifications so customers find and trust your product.
+              Create a complete listing with clear photos and accurate pricing so customers find and trust your product.
             </p>
           </div>
         </section>
@@ -1617,7 +1469,6 @@ export default function AddProduct() {
               const payload = buildProductPayload(
                 {
                   ...values,
-                  metadata: pruneEmptyMetadataRows(values.metadata),
                   status: submitActionRef.current,
                 },
                 productImages,
