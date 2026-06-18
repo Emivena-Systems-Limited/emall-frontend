@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Menu, X } from 'lucide-react'
-import { landingContainerClass } from '../../constants/landingLayout'
+import { landingContainerClass, landingHeroBgClass } from '../../constants/landingLayout'
 import LandingLogo from './LandingLogo'
 
 const navLinks = [
@@ -23,8 +23,8 @@ export default function LandingHeader() {
   const closeMobile = () => setMobileOpen(false)
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 shadow-sm shadow-slate-200/50 backdrop-blur-md">
-      <div className={`${landingContainerClass} flex items-center justify-between gap-4 py-3.5`}>
+    <header className={`sticky top-0 z-50 ${landingHeroBgClass}`}>
+      <div className={`${landingContainerClass} flex items-center justify-between gap-4 py-2`}>
         <LandingLogo variant="light" />
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">

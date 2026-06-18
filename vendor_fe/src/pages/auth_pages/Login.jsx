@@ -50,11 +50,8 @@ export default function Login() {
 
   return (
     <AuthLayout
-      showHero
       title="Welcome back"
       subtitle="Sign in to manage your store, track orders, and grow your sales."
-      heroTitle="Your store, your rules"
-      heroDescription="Access your vendor dashboard to manage inventory, fulfill orders, and connect with customers nationwide."
     >
       <Formik
         initialValues={initialValues}

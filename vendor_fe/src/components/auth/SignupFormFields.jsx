@@ -366,7 +366,7 @@ export default function SignupFormFields({
               description="Optional — speed up approval by sharing registration documents."
             />
             <span className="mt-3 inline-flex rounded-full bg-slate-200/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-              Optional — you can skip this step
+              Optional
             </span>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <FormInput

@@ -16,6 +16,10 @@ export default function SearchableSelect({
   placeholder = 'Select…',
   customPlaceholder = 'Type your own value…',
   allowCustom = false,
+  customEntryLabel = 'Enter manually…',
+  hint,
+  reserveHintSpace = false,
+  onCustomModeStart,
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -29,6 +33,18 @@ export default function SearchableSelect({
   useEffect(() => {
     if (open) searchRef.current?.focus()
   }, [open])
+
+  useEffect(() => {
+    if (!value) {
+      setIsCustom(false)
+      return
+    }
+    if (!options.find((o) => o.value === value)) {
+      setIsCustom(true)
+    } else {
+      setIsCustom(false)
+    }
+  }, [value, options])
 
   useEffect(() => {
     const onOutside = (e) => {
@@ -59,10 +75,10 @@ export default function SearchableSelect({
   }
 
   const enableCustom = () => {
-    emitChange('')
     setIsCustom(true)
     setOpen(false)
     setSearch('')
+    onCustomModeStart?.()
   }
 
   const clearCustom = () => {
@@ -71,11 +87,29 @@ export default function SearchableSelect({
     setTimeout(() => triggerRef.current?.focus(), 0)
   }
 
+  const applyCustomValue = (customValue) => {
+    const nextValue = customValue.trim()
+    if (!nextValue) return
+    emitChange(nextValue)
+    setIsCustom(true)
+    setOpen(false)
+    setSearch('')
+    setTimeout(() => emitBlur(), 0)
+  }
+
   const filtered = options.filter((o) =>
     o.label.toLowerCase().includes(search.toLowerCase()),
   )
 
   const selectedLabel = options.find((o) => o.value === value)?.label ?? ''
+  const trimmedSearch = search.trim()
+  const hasExactOptionMatch = options.some(
+    (option) =>
+      option.value === trimmedSearch
+      || option.label.toLowerCase() === trimmedSearch.toLowerCase(),
+  )
+  const showAddFromSearch = allowCustom && trimmedSearch && !hasExactOptionMatch
+  const triggerLabel = selectedLabel || (value && !selectedLabel ? value : '') || placeholder
 
   const ring     = 'focus:ring-2 focus:ring-brand-light'
   const bdNormal = `border-slate-200 hover:border-slate-300 focus:border-brand ${ring}`
@@ -83,13 +117,22 @@ export default function SearchableSelect({
   const baseCls  = 'w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400'
 
   return (
-    <div ref={containerRef} data-field={name} className="relative">
+    <div ref={containerRef} data-field={name} className="relative flex h-full flex-col">
       <label
         htmlFor={id}
-        className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700"
+        className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[3.25rem]' : ''}`}
       >
-        {Icon && <Icon className="size-4 text-slate-400" strokeWidth={1.75} />}
-        {label}
+        <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          {Icon && <Icon className="size-4 shrink-0 text-slate-400" strokeWidth={1.75} />}
+          {label}
+        </span>
+        {hint ? (
+          <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
+        ) : reserveHintSpace ? (
+          <span className="mt-0.5 block text-xs leading-relaxed text-transparent select-none" aria-hidden="true">
+            &nbsp;
+          </span>
+        ) : null}
       </label>
 
       {isCustom ? (
@@ -116,7 +159,7 @@ export default function SearchableSelect({
           </button>
         </div>
       ) : (
-        <>
+        <div className="relative">
           <button
             ref={triggerRef}
             id={id}
@@ -128,14 +171,14 @@ export default function SearchableSelect({
               value ? 'text-slate-900' : 'text-slate-400'
             } ${error ? bdError : bdNormal} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
           >
-            <span className="truncate">{selectedLabel || placeholder}</span>
+            <span className="truncate">{triggerLabel}</span>
             <ChevronDown
               className={`ml-2 size-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
             />
           </button>
 
           {open && (
-            <div className="fade-in absolute z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div className="fade-in absolute top-full left-0 z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
               <div className="border-b border-slate-100 p-2">
                 <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
                   <Search className="size-4 shrink-0 text-slate-400" />
@@ -160,10 +203,26 @@ export default function SearchableSelect({
               </div>
 
               <ul className="max-h-52 overflow-y-auto p-1.5">
-                {filtered.length === 0 ? (
-                  <li className="px-3 py-2.5 text-sm italic text-slate-500">
-                    No results for &ldquo;{search}&rdquo;
+                {showAddFromSearch && (
+                  <li className="mb-1">
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => applyCustomValue(trimmedSearch)}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg bg-brand-light px-3 py-2.5 text-left text-sm font-semibold text-brand transition-colors hover:bg-brand/10"
+                    >
+                      <PenLine className="size-3.5 shrink-0" />
+                      Add &ldquo;{trimmedSearch}&rdquo;
+                    </button>
                   </li>
+                )}
+
+                {filtered.length === 0 ? (
+                  !showAddFromSearch && (
+                    <li className="px-3 py-2.5 text-sm italic text-slate-500">
+                      No results for &ldquo;{search}&rdquo;
+                    </li>
+                  )
                 ) : (
                   filtered.map((opt) => (
                     <li key={opt.value}>
@@ -187,18 +246,19 @@ export default function SearchableSelect({
                   <li className="mt-1 border-t border-slate-100 pt-1">
                     <button
                       type="button"
+                      onMouseDown={(event) => event.preventDefault()}
                       onClick={enableCustom}
                       className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
                     >
                       <PenLine className="size-3.5 text-brand" />
-                      Enter manually…
+                      {customEntryLabel}
                     </button>
                   </li>
                 )}
               </ul>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {error && <FieldError message={error} />}

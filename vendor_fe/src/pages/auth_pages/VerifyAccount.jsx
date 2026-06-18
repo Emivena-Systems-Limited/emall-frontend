@@ -66,9 +66,8 @@ export default function VerifyAccount() {
 
   return (
     <AuthLayout
-      showHero={false}
       title="Verify your account"
-      subtitle="We sent a 6-digit code to your email. Enter it below to activate your vendor account."
+      subtitle="We sent a 6-digit code to your email. Enter it below to verify your email address."
     >
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -60,12 +60,10 @@ export default function Signup() {
 
   return (
     <AuthLayout
-      showHero
       wideForm
+      compactLayout
       title="Become a Vendor"
       subtitle="Join us and grow your business with us."
-      heroTitle="Start selling on E-Mall"
-      heroDescription="Register your store, reach customers nationwide, and manage everything from one powerful vendor dashboard."
     >
       {submitted ? (
         <SignupSuccessState email={submittedEmail} />

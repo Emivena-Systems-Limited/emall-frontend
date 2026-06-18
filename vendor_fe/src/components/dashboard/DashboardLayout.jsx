@@ -1,6 +1,7 @@
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import LogoutOverlay from './LogoutOverlay'
+import PendingApprovalGuard from './PendingApprovalGuard'
 import { useSidebar } from '../../hooks/useSidebar'
 
 export default function DashboardLayout({ children, pageTitle }) {
@@ -9,6 +10,7 @@ export default function DashboardLayout({ children, pageTitle }) {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
       <LogoutOverlay />
+      <PendingApprovalGuard />
       {/* ── Sidebar ── */}
       <Sidebar
         collapsed={collapsed}

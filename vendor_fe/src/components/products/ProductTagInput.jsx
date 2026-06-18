@@ -9,6 +9,7 @@ export default function ProductTagInput({
   label = 'Tags',
   hint,
   maxTags = 15,
+  reserveHintSpace = false,
 }) {
   const [input, setInput] = useState('')
   const inputRef = useRef(null)
@@ -32,16 +33,22 @@ export default function ProductTagInput({
   }
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       {label && (
-        <label className="mb-1.5 block">
+        <label className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[3.25rem]' : ''}`}>
           <span className="text-sm font-semibold text-slate-800">{label}</span>
-          {hint && <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>}
+          {hint ? (
+            <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
+          ) : reserveHintSpace ? (
+            <span className="mt-0.5 block text-xs leading-relaxed text-transparent select-none" aria-hidden="true">
+              &nbsp;
+            </span>
+          ) : null}
         </label>
       )}
       <div
         onClick={() => inputRef.current?.focus()}
-        className={`flex min-h-[46px] cursor-text flex-wrap items-center gap-1.5 rounded-xl border bg-white px-3 py-2 transition-all focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-light ${
+        className={`flex min-h-12 cursor-text flex-wrap items-center gap-1.5 rounded-xl border bg-white px-4 py-3 transition-all focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-light ${
           error ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-200'
         }`}
       >

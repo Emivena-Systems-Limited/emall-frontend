@@ -13,7 +13,7 @@ import LowStockAlert from '../components/dashboard/LowStockAlert'
 import TopSellingProducts from '../components/dashboard/TopSellingProducts'
 import VendorNotifications from '../components/dashboard/VendorNotifications'
 // import YearlyOrderBarChart from '../components/dashboard/YearlyOrderBarChart'
-import QuickActions from '../components/dashboard/QuickActions'
+// import QuickActions from '../components/dashboard/QuickActions'
 import { useDashboardReveal } from '../hooks/useDashboardReveal'
 // import { useDashboardYearFilters } from '../hooks/useDashboardYearFilters'
 import { useSalesOverviewRange } from '../hooks/useSalesOverviewRange'
@@ -107,9 +107,9 @@ export default function Dashboard() {
             <VendorNotifications />
           </DashboardReveal>
 
-          <DashboardReveal index={8}>
+          {/* <DashboardReveal index={8}>
             <QuickActions />
-          </DashboardReveal>
+          </DashboardReveal> */}
         </div>
       )}
     </DashboardLayout>

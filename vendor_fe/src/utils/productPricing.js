@@ -85,17 +85,24 @@ export function getParentProductPricing(productValues) {
  */
 export function resolveVariantPricing(variantValue, productValues) {
   const parent = getParentProductPricing(productValues)
-  const rawOverride = variantValue.price
-  const hasOverride =
-    rawOverride !== '' && rawOverride != null && !Number.isNaN(Number(rawOverride))
+  const rawPrice = variantValue.price
+  const rawSale = variantValue.discount_price
 
-  const listPrice = hasOverride
-    ? roundMoney(Number(rawOverride))
+  const hasPriceOverride =
+    rawPrice !== '' && rawPrice != null && !Number.isNaN(Number(rawPrice))
+  const hasSaleOverride =
+    rawSale !== '' && rawSale != null && !Number.isNaN(Number(rawSale))
+
+  const listPrice = hasPriceOverride
+    ? roundMoney(Number(rawPrice))
     : parent.regularPrice
 
   let salePrice = null
-  if (parent.hasDiscount && listPrice > 0) {
-    salePrice = hasOverride
+  if (hasSaleOverride) {
+    const sale = roundMoney(Number(rawSale))
+    if (sale > 0 && sale < listPrice) salePrice = sale
+  } else if (parent.hasDiscount && listPrice > 0) {
+    salePrice = hasPriceOverride
       ? roundMoney(listPrice * parent.discountRatio)
       : parent.salePrice
   }
@@ -106,7 +113,9 @@ export function resolveVariantPricing(variantValue, productValues) {
     listPrice,
     salePrice,
     customerPrice,
-    isInherited: !hasOverride,
+    isInherited: !hasPriceOverride,
+    isSaleInherited: !hasSaleOverride && parent.hasDiscount,
+    hasSaleOverride,
     hasDiscount: salePrice != null,
     parent,
   }

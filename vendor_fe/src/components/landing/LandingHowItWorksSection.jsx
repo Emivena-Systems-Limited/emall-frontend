@@ -1,144 +1,70 @@
-import { Link } from 'react-router'
-import { ArrowRight } from 'lucide-react'
 import { landingSteps } from '../../constants/landingPageData'
 import { landingContainerClass } from '../../constants/landingLayout'
 
-function StepNumber({ index, className = '' }) {
-  return (
-    <span
-      className={`relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold text-white shadow-[0_8px_20px_rgba(199,59,45,0.22)] ring-4 ring-brand-light ${className}`}
-    >
-      {index + 1}
-    </span>
-  )
-}
-
-function StepCard({ icon: Icon, title, description, index }) {
-  return (
-    <div className="group relative h-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/40 transition-all duration-200 hover:border-brand/20 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:p-6">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-linear-to-r from-brand/80 via-brand to-brand/80 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex size-11 items-center justify-center rounded-xl bg-brand-light text-brand ring-1 ring-brand-muted/50 transition-colors group-hover:bg-brand group-hover:text-white group-hover:ring-brand/30">
-          <Icon className="size-5" strokeWidth={1.75} />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-          Step {index + 1}
-        </span>
-      </div>
-
-      <h3 className="mt-5 text-base font-bold tracking-tight text-slate-950 sm:text-lg">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
-    </div>
-  )
-}
-
 export default function LandingHowItWorksSection() {
   return (
-    <section id="how-it-works" className="relative overflow-hidden border-b border-slate-200/60 bg-white py-14 sm:py-20 lg:py-24">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-20 left-1/2 size-96 -translate-x-1/2 rounded-full bg-brand/4 blur-3xl" />
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #c73b2d0a 1px, transparent 1px)',
-            backgroundSize: '22px 22px',
-          }}
-        />
-      </div>
-
-      <div className={`${landingContainerClass} relative`}>
-        <div className="vendor-scroll-reveal mx-auto max-w-3xl text-center">
-          <div className="mb-4 flex items-center justify-center gap-2.5">
-            <span className="h-px w-6 rounded-full bg-brand" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">
-              Simple process
-            </span>
-            <span className="h-px w-6 rounded-full bg-brand" />
-          </div>
+    <section id="how-it-works" className="border-b border-slate-200 bg-white py-14 sm:py-18 lg:py-20">
+      <div className={`${landingContainerClass}`}>
+        <div className="mx-auto max-w-xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
             How it works
           </h2>
           <p className="mt-4 text-base leading-7 text-slate-600">
-            From registration to your first payout — four clear steps to launch and grow your store on E-Mall.
+            From registration to your first payout — four simple steps to launch and grow your store on EZ-Mall.
           </p>
         </div>
 
-        {/* Mobile: vertical timeline */}
-        <ol className="vendor-scroll-reveal mt-10 sm:hidden">
-          {landingSteps.map(({ icon, title, description }, index) => (
-            <li key={title} className="relative flex gap-4 pb-8 last:pb-0">
+        {/* Mobile: vertical list */}
+        <ol className="mt-10 space-y-8 sm:hidden">
+          {landingSteps.map(({ icon: Icon, title, description }, index) => (
+            <li key={title} className="relative flex gap-5">
               {index < landingSteps.length - 1 && (
                 <span
                   aria-hidden="true"
-                  className="absolute top-10 bottom-0 left-5 w-px bg-linear-to-b from-brand/50 via-brand-muted to-brand-muted/40"
+                  className="absolute top-[4.25rem] bottom-0 left-8 w-px border-l-2 border-dashed border-slate-200"
                 />
               )}
-              <StepNumber index={index} />
-              <div className="min-w-0 flex-1 pt-0.5">
-                <StepCard icon={icon} title={title} description={description} index={index} />
-              </div>
-            </li>
-          ))}
-        </ol>
-
-        {/* Tablet: 2×2 grid */}
-        <ol className="vendor-scroll-reveal mt-10 hidden grid-cols-2 gap-5 sm:grid lg:hidden">
-          {landingSteps.map(({ icon, title, description }, index) => (
-            <li key={title} className="flex flex-col">
-              <div className="mb-4 flex items-center gap-3">
-                <StepNumber index={index} />
-                <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-                  Step {index + 1}
+              <div className="relative shrink-0">
+                <span className="flex size-16 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-50 text-slate-600">
+                  <Icon className="size-8" strokeWidth={1.5} />
+                </span>
+                <span className="absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">
+                  {index + 1}
                 </span>
               </div>
-              <StepCard icon={icon} title={title} description={description} index={index} />
+              <div className="min-w-0 pt-1">
+                <h3 className="text-base font-bold text-slate-950">{title}</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+              </div>
             </li>
           ))}
         </ol>
 
-        {/* Desktop: horizontal journey */}
-        <div className="vendor-scroll-reveal mt-14 hidden lg:block">
+        {/* Desktop: horizontal with dashed connector */}
+        <div className="mt-14 hidden sm:block">
           <div className="relative">
+            {/* Dashed connector line across circle centres */}
             <div
               aria-hidden="true"
-              className="absolute left-[calc(12.5%+1.25rem)] right-[calc(12.5%+1.25rem)] top-5 h-0.5 bg-linear-to-r from-brand-muted via-brand to-brand-muted"
+              className="absolute top-12 left-[calc(12.5%+1.75rem)] right-[calc(12.5%+1.75rem)] border-t-2 border-dashed border-slate-200"
             />
 
             <ol className="grid grid-cols-4 gap-6">
-              {landingSteps.map(({ icon, title, description }, index) => (
-                <li key={title} className="relative flex flex-col items-center">
-                  <StepNumber index={index} />
-                  <div className="mt-8 w-full">
-                    <StepCard icon={icon} title={title} description={description} index={index} />
-                  </div>
-                  {index < landingSteps.length - 1 && (
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute -right-3 top-4 text-brand/35"
-                    >
-                      <ArrowRight className="size-4" strokeWidth={2.5} />
+              {landingSteps.map(({ icon: Icon, title, description }, index) => (
+                <li key={title} className="flex flex-col items-center text-center">
+                  <div className="relative z-10">
+                    <span className="flex size-24 items-center justify-center rounded-full border-2 border-slate-200 bg-white text-slate-600 shadow-sm">
+                      <Icon className="size-10" strokeWidth={1.5} />
                     </span>
-                  )}
+                    <span className="absolute -top-2 -right-2 flex size-7 items-center justify-center rounded-full bg-brand text-xs font-bold text-white shadow">
+                      {index + 1}
+                    </span>
+                  </div>
+                  <h3 className="mt-5 text-base font-bold text-slate-950">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
                 </li>
               ))}
             </ol>
-          </div>
-        </div>
-
-        <div className="vendor-scroll-reveal mx-auto mt-10 max-w-2xl text-center sm:mt-12 lg:mt-14">
-          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-5 py-7 shadow-sm ring-1 ring-slate-100 sm:px-8 sm:py-8">
-            <p className="text-sm font-semibold text-slate-900">Ready to begin at step one?</p>
-            <p className="mt-1.5 text-sm leading-6 text-slate-600">
-              Create your vendor account today and list your first product in minutes.
-            </p>
-            <Link
-              to="/signup"
-              className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand px-6 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover sm:w-auto"
-            >
-              Start selling
-              <ArrowRight className="size-4" strokeWidth={2.25} />
-            </Link>
           </div>
         </div>
       </div>

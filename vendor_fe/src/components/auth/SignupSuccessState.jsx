@@ -10,8 +10,8 @@ export default function SignupSuccessState({ email }) {
 
       <h2 className="text-2xl font-bold tracking-tight text-slate-900">Account created</h2>
       <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600">
-        Your vendor account has been created. Check your email for a 6-digit verification code
-        to activate your account.
+        Your vendor account has been created. Check your email for a 6-digit code to verify
+        your email address.
       </p>
 
       {email && (
@@ -29,7 +29,7 @@ export default function SignupSuccessState({ email }) {
             <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600">
               <li>Open the verification email we sent you.</li>
               <li>Enter the 6-digit code on the next screen.</li>
-              <li>After verification, access your vendor dashboard.</li>
+              <li>After email verification, our team will review and activate your account.</li>
             </ul>
           </div>
         </div>
@@ -40,7 +40,7 @@ export default function SignupSuccessState({ email }) {
         state={{ email }}
         className="mt-8 inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-hover"
       >
-        Verify account
+        Verify email
         <ArrowRight className="size-4" />
       </Link>
     </div>

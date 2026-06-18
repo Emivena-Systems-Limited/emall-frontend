@@ -106,8 +106,20 @@ export const vendorLoginSchema = Yup.object({
 })
 
 const metadataItemSchema = Yup.object({
-  key: Yup.string().trim().required('Detail name is required'),
-  value: Yup.string().trim().required('Detail value is required'),
+  key: Yup.string()
+    .trim()
+    .test('key-when-value', 'Enter a specification name for this value', function validateKey(key) {
+      const value = this.parent.value?.trim()
+      if (!value) return true
+      return Boolean(key?.trim())
+    }),
+  value: Yup.string()
+    .trim()
+    .test('value-when-key', 'Enter the specification value for this attribute', function validateValue(value) {
+      const key = this.parent.key?.trim()
+      if (!key) return true
+      return Boolean(value?.trim())
+    }),
 })
 
 const nullableNumber = Yup.number()
@@ -120,12 +132,34 @@ const nullableNumber = Yup.number()
 const productVariationValueSchema = Yup.object({
   id: Yup.string(),
   value: Yup.string().trim().required('Value is required'),
+  variant_name: Yup.string().trim().nullable(),
   sku: Yup.string()
     .trim()
     .matches(/^[A-Z0-9-]*$/i, 'SKU format: letters, numbers, hyphens')
     .nullable(),
   price: nullableNumber.min(0.01, 'Price must be at least 0.01'),
+  discount_price: nullableNumber
+    .min(0.01, 'Sale price must be at least 0.01')
+    .test('variant-sale-less-than-list', 'Sale price must be less than the variant list price', function validateSale(value) {
+      if (value == null) return true
+      const { price } = this.parent
+      if (price != null && price !== '' && !Number.isNaN(Number(price))) {
+        return value < Number(price)
+      }
+      return true
+    }),
   quantity: nullableNumber.integer('Must be a whole number').min(0, 'Cannot be negative'),
+  reserved_quantity: nullableNumber.integer('Must be a whole number').min(0, 'Cannot be negative'),
+  low_stock_threshold: nullableNumber.integer('Must be a whole number').min(1, 'Threshold must be at least 1'),
+  barcode: Yup.string().trim().nullable(),
+  images: Yup.array()
+    .of(
+      Yup.object({
+        id: Yup.string(),
+        preview: Yup.string(),
+      }),
+    )
+    .default([]),
   image_url: Yup.string().nullable(),
 })
 
@@ -155,9 +189,7 @@ export const productListingSchema = Yup.object({
   subcategory_slug: Yup.string().required('Subcategory is required'),
   brand_slug: Yup.string().required('Brand is required'),
   tags: Yup.array().of(Yup.string().trim().min(1)).default([]),
-  metadata: Yup.array()
-    .of(metadataItemSchema)
-    .min(1, 'Add at least one product detail'),
+  metadata: Yup.array().of(metadataItemSchema).default([]),
 
   price: Yup.number()
     .typeError('Price must be a valid amount')
