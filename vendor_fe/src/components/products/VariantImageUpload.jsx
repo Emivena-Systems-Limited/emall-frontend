@@ -1,41 +1,64 @@
-import { useRef } from 'react'
-import { ImagePlus, Trash2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { GripVertical, ImagePlus, Trash2, Upload } from 'lucide-react'
 import { isAcceptedImageFile, readImageAsDataUri } from '../../utils/readImageAsDataUri'
 import notify from '../../lib/notify'
 
 export default function VariantImageUpload({
-  value,
+  images = [],
   onChange,
-  label = 'Variant image',
-  hint = 'Optional · JPG or PNG · Max 5MB',
+  label = 'Variant images',
+  hint = 'Optional · JPG or PNG · Max 5MB · First image is primary',
   compact = false,
 }) {
   const inputRef = useRef(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [draggingIndex, setDraggingIndex] = useState(null)
+  const [overIndex, setOverIndex] = useState(null)
 
-  const handleFile = async (file) => {
-    if (!file) return
-    if (!isAcceptedImageFile(file)) {
+  const processFiles = async (fileList) => {
+    const files = Array.from(fileList).filter(isAcceptedImageFile)
+    if (files.length === 0) {
       notify.error('Only JPG or PNG images up to 5MB are allowed')
       return
     }
 
     try {
-      const dataUri = await readImageAsDataUri(file)
-      onChange(dataUri)
+      const added = await Promise.all(
+        files.map(async (file) => ({
+          id: `var-img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          preview: await readImageAsDataUri(file),
+        })),
+      )
+      onChange([...images, ...added])
     } catch {
-      notify.error('Could not process image. Try another file.')
+      notify.error('Could not process one or more images. Try again.')
     }
   }
 
-  const handleInputChange = (event) => {
-    const file = event.target.files?.[0]
-    handleFile(file)
-    event.target.value = ''
+  const removeImage = (id) => {
+    onChange(images.filter((image) => image.id !== id))
   }
 
-  const handleRemove = (event) => {
+  const handleZoneDrop = (event) => {
+    event.preventDefault()
+    setIsDragOver(false)
+    processFiles(event.dataTransfer.files)
+  }
+
+  const handleItemDrop = (event, toIndex) => {
+    event.preventDefault()
     event.stopPropagation()
-    onChange('')
+    if (draggingIndex === null || draggingIndex === toIndex) {
+      setDraggingIndex(null)
+      setOverIndex(null)
+      return
+    }
+    const next = [...images]
+    const [moved] = next.splice(draggingIndex, 1)
+    next.splice(toIndex, 0, moved)
+    onChange(next)
+    setDraggingIndex(null)
+    setOverIndex(null)
   }
 
   const labelBlock = (
@@ -47,53 +70,101 @@ export default function VariantImageUpload({
     </div>
   )
 
-  if (value) {
-    return (
-      <div className={`flex h-full flex-col ${compact ? 'rounded-xl border border-slate-200 bg-white p-3' : ''}`}>
-        {labelBlock}
-        <div className="group relative inline-block">
-          <img
-            src={value}
-            alt="Variant preview"
-            className={`rounded-xl object-cover ring-1 ring-slate-200 ${compact ? 'size-20' : 'size-24'}`}
-          />
-          <button
-            type="button"
-            onClick={handleRemove}
-            className="absolute -right-2 -top-2 cursor-pointer rounded-full bg-white p-1 text-red-600 shadow ring-1 ring-slate-200 transition-colors hover:bg-red-50"
-            aria-label="Remove variant image"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className={`flex h-full flex-col ${compact ? 'rounded-xl border border-slate-200 bg-white p-3' : ''}`}>
       {labelBlock}
-      <button
-        type="button"
+
+      <div
+        role="button"
+        tabIndex={0}
+        onDragOver={(event) => { event.preventDefault(); setIsDragOver(true) }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={handleZoneDrop}
         onClick={() => inputRef.current?.click()}
-        className={`flex w-full flex-1 cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 transition-colors hover:border-brand/40 hover:bg-brand-light/10 ${
-          compact ? 'min-h-[5.5rem] gap-3 px-4 py-3 sm:flex-row' : 'flex-col gap-2 px-4 py-5'
+        onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
+        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-all ${
+          isDragOver
+            ? 'border-brand bg-brand-light/30 px-4 py-4'
+            : images.length === 0
+              ? 'border-slate-200 bg-slate-50/50 px-4 py-5 hover:border-brand/40 hover:bg-brand-light/10'
+              : 'border-slate-200 bg-slate-50/40 px-4 py-3 hover:border-slate-300'
         }`}
       >
         <input
           ref={inputRef}
           type="file"
           accept="image/jpeg,image/png"
-          onChange={handleInputChange}
+          multiple
+          onChange={(event) => { processFiles(event.target.files); event.target.value = '' }}
           className="sr-only"
         />
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 ring-1 ring-slate-200">
-          <ImagePlus className="size-4" strokeWidth={1.75} />
+        <span className={`flex size-9 items-center justify-center rounded-lg ring-1 ${
+          isDragOver ? 'bg-brand text-white ring-brand/30' : 'bg-white text-slate-400 ring-slate-200'
+        }`}>
+          {images.length === 0
+            ? <ImagePlus className="size-4" strokeWidth={1.75} />
+            : <Upload className="size-4" strokeWidth={1.75} />}
         </span>
-        <span className={`text-xs font-semibold text-slate-600 ${compact ? 'text-left' : ''}`}>
-          Click to upload variant image
+        <span className="text-center text-xs font-semibold text-slate-600">
+          {images.length === 0
+            ? 'Click or drop variant photos'
+            : 'Add more variant photos'}
         </span>
-      </button>
+      </div>
+
+      {images.length > 0 && (
+        <>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {images.map((image, index) => (
+              <div
+                key={image.id}
+                draggable
+                onDragStart={() => setDraggingIndex(index)}
+                onDragOver={(event) => { event.preventDefault(); setOverIndex(index) }}
+                onDrop={(event) => handleItemDrop(event, index)}
+                onDragEnd={() => { setDraggingIndex(null); setOverIndex(null) }}
+                className={`group relative size-16 shrink-0 overflow-hidden rounded-lg sm:size-[4.5rem] ${
+                  draggingIndex === index
+                    ? 'cursor-grabbing opacity-40 ring-2 ring-slate-300'
+                    : overIndex === index && draggingIndex !== index
+                      ? 'scale-105 cursor-grab ring-2 ring-brand'
+                      : 'cursor-grab ring-1 ring-slate-200 hover:ring-slate-300 active:cursor-grabbing'
+                }`}
+              >
+                <img
+                  src={image.preview}
+                  alt={`Variant image ${index + 1}`}
+                  draggable={false}
+                  className="pointer-events-none size-full object-cover select-none"
+                />
+                {index === 0 && (
+                  <span className="absolute left-1 top-1 rounded-full bg-brand px-1.5 py-px text-[9px] font-bold text-white shadow">
+                    Main
+                  </span>
+                )}
+                <div className="absolute inset-0 flex cursor-grab items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing">
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); removeImage(image.id) }}
+                    className="cursor-pointer rounded-md bg-white p-1 text-red-600 shadow-sm transition-colors hover:bg-red-50"
+                    aria-label={`Remove variant image ${index + 1}`}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+                <div className="pointer-events-none absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <span className="flex size-4 cursor-grab items-center justify-center rounded bg-black/60 text-white">
+                    <GripVertical className="size-2.5" />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400">
+            {images.length} photo{images.length === 1 ? '' : 's'} · Drag to reorder · First is primary
+          </p>
+        </>
+      )}
     </div>
   )
 }

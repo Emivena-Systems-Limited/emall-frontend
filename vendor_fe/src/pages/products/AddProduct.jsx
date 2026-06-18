@@ -27,6 +27,7 @@ import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import ProductStepper from '../../components/products/ProductStepper'
 import ProductRichTextEditor from '../../components/products/ProductRichTextEditor'
 import ProductImageUploader from '../../components/products/ProductImageUploader'
+import ProductMainImageUpload from '../../components/products/ProductMainImageUpload'
 import VariantImageUpload from '../../components/products/VariantImageUpload'
 import DevProductFormTools from '../../components/products/DevProductFormTools'
 import ProductTagInput from '../../components/products/ProductTagInput'
@@ -95,7 +96,7 @@ const initialValues = {
   subcategory_slug:   '',
   brand_slug:         '',
   tags:               [],
-  metadata:           [{ key: 'color', value: '' }, { key: 'weight', value: '' }],
+  metadata:           [],
   price:              '',
   discount_mode:      'amount',
   discount_price:     '',
@@ -121,7 +122,19 @@ function getTouchedForFields(fields, values) {
         ...touched,
         variations: values.variations.map((v) => ({
           attribute: true,
-          values: v.values.map(() => ({ value: true })),
+          values: v.values.length > 0
+            ? v.values.map(() => ({
+              value: true,
+              variant_name: true,
+              sku: true,
+              price: true,
+              discount_price: true,
+              quantity: true,
+              reserved_quantity: true,
+              low_stock_threshold: true,
+              barcode: true,
+            }))
+            : true,
         })),
       }
     }
@@ -129,14 +142,99 @@ function getTouchedForFields(fields, values) {
   }, {})
 }
 
+function createVariantValue(value) {
+  return {
+    id: `val-${Date.now()}`,
+    value,
+    variant_name: '',
+    sku: '',
+    price: '',
+    discount_price: '',
+    quantity: '',
+    reserved_quantity: '',
+    low_stock_threshold: '',
+    barcode: '',
+    images: [],
+  }
+}
+
+function getVariantPrimaryPreview(variantValue) {
+  if (variantValue?.images?.length > 0) return variantValue.images[0].preview
+  return variantValue?.image_url || null
+}
+
+function pruneEmptyVariations(variations = []) {
+  return variations.filter(
+    (variation) =>
+      Boolean(variation.attribute?.trim())
+      || (variation.values ?? []).some((value) => value.value?.trim()),
+  )
+}
+
+function hasVariationStepErrors(variationErrors) {
+  if (!variationErrors) return false
+  if (typeof variationErrors === 'string') return true
+  if (!Array.isArray(variationErrors)) {
+    return Object.values(variationErrors).some((value) => {
+      if (!value) return false
+      if (typeof value === 'string') return true
+      if (Array.isArray(value)) return value.some(Boolean)
+      return typeof value === 'object' && Object.values(value).some(Boolean)
+    })
+  }
+
+  return variationErrors.some((item) => {
+    if (!item) return false
+    if (typeof item === 'string') return true
+    return Object.values(item).some((value) => {
+      if (!value) return false
+      if (typeof value === 'string') return true
+      if (Array.isArray(value)) return value.some(Boolean)
+      return typeof value === 'object' && Object.values(value).some(Boolean)
+    })
+  })
+}
+
 function hasStepErrors(errors, fields) {
-  return fields.some((field) => Boolean(getIn(errors, field)))
+  return fields.some((field) => {
+    if (field === 'variations') return hasVariationStepErrors(errors?.variations)
+    return Boolean(getIn(errors, field))
+  })
 }
 
 function getFieldError(formik, name) {
   const touched = getIn(formik.touched, name)
   const error = getIn(formik.errors, name)
   return touched && typeof error === 'string' ? error : undefined
+}
+
+function getVariationAttributeError(formik, varIndex) {
+  const path = `variations.${varIndex}.attribute`
+  const value = formik.values.variations[varIndex]?.attribute
+  if (value?.trim()) {
+    const error = getIn(formik.errors, path)
+    if (error === 'Variation name is required') return undefined
+  }
+  return getFieldError(formik, path)
+}
+
+function getVariationValuesError(formik, varIndex) {
+  const values = formik.values.variations[varIndex]?.values ?? []
+  const error = getIn(formik.errors, `variations.${varIndex}.values`)
+  if (typeof error !== 'string') return undefined
+
+  if (error === 'Add at least one value for this variation' && values.length > 0) {
+    return undefined
+  }
+
+  const attributeTouched = getIn(formik.touched, `variations.${varIndex}.attribute`)
+  const valuesTouched = getIn(formik.touched, `variations.${varIndex}.values`)
+  const valuesFieldTouched =
+    valuesTouched === true
+    || (Array.isArray(valuesTouched) && valuesTouched.length > 0)
+
+  if (!attributeTouched && !valuesFieldTouched) return undefined
+  return error
 }
 
 function templateRows(type) {
@@ -146,7 +244,26 @@ function templateRows(type) {
   }))
 }
 
+function pruneEmptyMetadataRows(metadata = []) {
+  return metadata.filter((row) => row.key?.trim() || row.value?.trim())
+}
+
 const brandOptions = MOCK_BRANDS.map((b) => ({ value: b.slug, label: b.label }))
+
+function getBrandDisplayLabel(brandSlug) {
+  if (!brandSlug) return null
+  const match = MOCK_BRANDS.find((brand) => brand.slug === brandSlug)
+  return match?.label ?? brandSlug
+}
+
+function getBrandFieldError(formik) {
+  const value = formik.values.brand_slug
+  if (value?.trim()) {
+    const error = getIn(formik.errors, 'brand_slug')
+    if (error === 'Brand is required') return undefined
+  }
+  return getFieldError(formik, 'brand_slug')
+}
 
 // ─── Step 1: Product Info ────────────────────────────────────────────────────
 
@@ -168,8 +285,8 @@ function InfoStep({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
+      <div className="grid gap-4 md:grid-cols-3 md:items-start">
+        <div className="md:col-span-3">
           <ProductInput
             id="name"
             name="name"
@@ -187,6 +304,7 @@ function InfoStep({
           name="sku"
           label="SKU"
           hint="Unique identifier. Letters, numbers, hyphens only."
+          reserveHintSpace
           placeholder="AUD-WEP-001"
           value={formik.values.sku}
           onChange={(e) => formik.setFieldValue('sku', e.target.value.toUpperCase())}
@@ -198,13 +316,41 @@ function InfoStep({
           onChange={(tags) => formik.setFieldValue('tags', tags)}
           label="Tags"
           hint="Press Enter or comma to add. Max 15 tags."
+          reserveHintSpace
+        />
+        <SearchableSelect
+          id="brand_slug"
+          name="brand_slug"
+          label="Brand"
+          icon={Store}
+          hint="Search the list or add your own."
+          reserveHintSpace
+          placeholder="Search brands…"
+          options={brandOptions}
+          value={formik.values.brand_slug}
+          allowCustom
+          customPlaceholder="Enter your brand name…"
+          customEntryLabel="Type a different brand…"
+          onChange={(e) => {
+            const nextValue = e.target.value
+            formik.setFieldValue('brand_slug', nextValue)
+            if (nextValue.trim()) {
+              formik.setFieldError('brand_slug', undefined)
+            }
+          }}
+          onCustomModeStart={() => {
+            formik.setFieldTouched('brand_slug', false, false)
+            formik.setFieldError('brand_slug', undefined)
+          }}
+          onBlur={formik.handleBlur}
+          error={getBrandFieldError(formik)}
         />
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <div className="mb-4">
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Classification</p>
-          <h3 className="mt-1 text-sm font-bold text-slate-900">Category & brand</h3>
+          <h3 className="mt-1 text-sm font-bold text-slate-900">Category</h3>
           <p className="mt-1 text-xs text-slate-500">
             Accurate classification helps customers find your product faster.
           </p>
@@ -214,7 +360,7 @@ function InfoStep({
             Could not load categories from the server. Refresh the page and try again.
           </div>
         )}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <SearchableSelect
             id="category_slug"
             name="category_slug"
@@ -235,13 +381,13 @@ function InfoStep({
           <SearchableSelect
             id="subcategory_slug"
             name="subcategory_slug"
-            label="Product type"
+            label="Sub category"
             icon={PackageSearch}
             placeholder={
               categoriesLoading
-                ? 'Loading product types…'
+                ? 'Loading sub categories…'
                 : selectedCategory
-                  ? 'Search product types…'
+                  ? 'Search sub categories…'
                   : 'Choose a category first'
             }
             options={subcategoryOptions}
@@ -249,30 +395,10 @@ function InfoStep({
             disabled={categoriesLoading || categoriesError || !formik.values.category_slug}
             onChange={(e) => {
               formik.setFieldValue('subcategory_slug', e.target.value, true)
-              formik.setFieldValue(
-                'metadata',
-                templateRows(inferMetadataTemplateType(formik.values.category_slug)),
-                false,
-              )
               formik.setFieldTouched('subcategory_slug', true, false)
             }}
             onBlur={formik.handleBlur}
             error={getFieldError(formik, 'subcategory_slug')}
-          />
-          <SearchableSelect
-            id="brand_slug"
-            name="brand_slug"
-            label="Brand"
-            icon={Store}
-            placeholder="Search brands…"
-            options={brandOptions}
-            value={formik.values.brand_slug}
-            onChange={(e) => {
-              formik.setFieldValue('brand_slug', e.target.value, true)
-              formik.setFieldTouched('brand_slug', true, false)
-            }}
-            onBlur={formik.handleBlur}
-            error={getFieldError(formik, 'brand_slug')}
           />
         </div>
         {selectedCategory && (
@@ -280,8 +406,8 @@ function InfoStep({
             <p className="text-xs font-bold text-cyan-900">{selectedCategory.name}</p>
             <p className="mt-0.5 text-xs leading-relaxed text-cyan-800/80">
               {subcategories.length > 0
-                ? `${subcategories.length} product type${subcategories.length === 1 ? '' : 's'} available under this category.`
-                : 'Choose the product type that best matches this item.'}
+                ? `${subcategories.length} sub categor${subcategories.length === 1 ? 'y' : 'ies'} available under this category.`
+                : 'Choose the sub category that best matches this item.'}
             </p>
           </div>
         )}
@@ -304,9 +430,13 @@ function InfoStep({
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Specs</p>
-                <h3 className="mt-1 text-sm font-bold text-slate-900">Product details</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Add specs shoppers compare — color, size, material, warranty, etc.
+                <h3 className="mt-1 text-sm font-bold text-slate-900">Product specifications (optional)</h3>
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
+                  Add extra facts buyers compare — one attribute per row. Enter what you are describing
+                  (e.g. <span className="font-medium text-slate-700">Color</span>,{' '}
+                  <span className="font-medium text-slate-700">Size</span>) and the matching detail for
+                  this product (e.g. <span className="font-medium text-slate-700">Navy blue</span>,{' '}
+                  <span className="font-medium text-slate-700">Large</span>).
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -316,7 +446,7 @@ function InfoStep({
                     onClick={() => formik.setFieldValue('metadata', templateRows(metadataTemplateType))}
                     className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:border-cyan-200 hover:text-cyan-700"
                   >
-                    <Sparkles className="size-3.5" /> Use suggestions
+                    <Sparkles className="size-3.5" /> Suggested specs
                   </button>
                 )}
                 <button
@@ -324,47 +454,70 @@ function InfoStep({
                   onClick={() => push({ key: '', value: '' })}
                   className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"
                 >
-                  <Plus className="size-3.5" /> Add detail
+                  <Plus className="size-3.5" /> Add specification
                 </button>
               </div>
             </div>
             <div className="space-y-3">
-              {formik.values.metadata.map((row, index) => (
-                <div
-                  key={index}
-                  className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-start"
-                >
-                  <ProductInput
-                    id={`metadata.${index}.key`}
-                    name={`metadata.${index}.key`}
-                    label="Detail name"
-                    placeholder="e.g. Color"
-                    value={row.key}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={getFieldError(formik, `metadata.${index}.key`)}
-                  />
-                  <ProductInput
-                    id={`metadata.${index}.value`}
-                    name={`metadata.${index}.value`}
-                    label="Value"
-                    placeholder="e.g. Midnight Black"
-                    value={row.value}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={getFieldError(formik, `metadata.${index}.value`)}
-                  />
-                  {formik.values.metadata.length > 1 && (
+              {formik.values.metadata.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center">
+                  <p className="text-sm text-slate-500">
+                    No specifications added yet. Click{' '}
+                    <span className="font-semibold text-slate-700">Add specification</span> when you want
+                    to list attributes like color, size, or warranty.
+                  </p>
+                  <p className="mx-auto mt-3 max-w-md rounded-lg bg-white px-3 py-2 text-left text-xs text-slate-500 ring-1 ring-slate-200">
+                    <span className="font-semibold text-slate-700">Example:</span>{' '}
+                    <span className="text-slate-600">Color</span> → Midnight black ·{' '}
+                    <span className="text-slate-600">Material</span> → 100% cotton
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden gap-3 rounded-lg bg-slate-100/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[1fr_1fr_auto]">
+                    <span>What are you describing?</span>
+                    <span>Detail for this product</span>
+                    <span className="sr-only">Remove</span>
+                  </div>
+                  {formik.values.metadata.map((row, index) => (
+                  <div
+                    key={index}
+                    className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-start"
+                  >
+                    <ProductInput
+                      id={`metadata.${index}.key`}
+                      name={`metadata.${index}.key`}
+                      label="Specification name"
+                      hint="The attribute or property, e.g. Color, Size, Warranty"
+                      placeholder="e.g. Color"
+                      value={row.key}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      error={getFieldError(formik, `metadata.${index}.key`)}
+                    />
+                    <ProductInput
+                      id={`metadata.${index}.value`}
+                      name={`metadata.${index}.value`}
+                      label="Specification value"
+                      hint="The detail for this product, e.g. Navy blue, XL, 1 year"
+                      placeholder="e.g. Navy blue"
+                      value={row.value}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      error={getFieldError(formik, `metadata.${index}.value`)}
+                    />
                     <button
                       type="button"
                       onClick={() => remove(index)}
                       className="mt-7 flex size-10 cursor-pointer items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      aria-label="Remove specification"
                     >
                       <Trash2 className="size-4" />
                     </button>
-                  )}
-                </div>
-              ))}
+                  </div>
+                  ))}
+                </>
+              )}
             </div>
           </section>
         )}
@@ -375,17 +528,34 @@ function InfoStep({
 
 // ─── Step 2: Images ──────────────────────────────────────────────────────────
 
-function ImagesStep({ images, onChange, error }) {
+function ImagesStep({ mainImage, onMainImageChange, mainImageError, subImages, onSubImagesChange }) {
   return (
-    <div className="space-y-5">
-      <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Media</p>
-        <h3 className="mt-1 text-lg font-bold text-slate-900">Product images</h3>
-        <p className="mt-1 text-sm text-slate-500">
-          Upload clear, high-quality photos. The first image will be your main product photo shown to customers.
-        </p>
-      </div>
-      <ProductImageUploader images={images} onChange={onChange} error={error} />
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Main photo</p>
+          <h3 className="mt-1 text-sm font-bold text-slate-900">Primary product image</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            This is the hero image customers see first in search results and on your product page.
+          </p>
+        </div>
+        <ProductMainImageUpload
+          image={mainImage}
+          onChange={onMainImageChange}
+          error={mainImageError}
+        />
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Gallery</p>
+          <h3 className="mt-1 text-sm font-bold text-slate-900">Additional product images</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Optional extra photos — different angles, packaging, or close-ups. Drag to reorder.
+          </p>
+        </div>
+        <ProductImageUploader images={subImages} onChange={onSubImagesChange} />
+      </section>
     </div>
   )
 }
@@ -602,13 +772,21 @@ function ParentPricingBanner({ values }) {
 
 function VariantPricingSummary({ variantValue, productValues }) {
   const pricing = resolveVariantPricing(variantValue, productValues)
+  const note = pricing.hasSaleOverride
+    ? 'Custom sale price'
+    : pricing.isInherited
+      ? 'Inherits base list price'
+      : 'Custom list price'
+  const saleNote = !pricing.hasSaleOverride && pricing.isSaleInherited && pricing.hasDiscount
+    ? ' · sale from base discount'
+    : ''
 
   return (
-    <div className="flex h-full min-h-[8.75rem] flex-col rounded-xl border border-slate-200 bg-white p-3">
-      <p className="min-h-[3.25rem] text-[10px] font-bold uppercase tracking-wide text-slate-400">
-        {pricing.isInherited ? 'Inherited pricing' : 'Custom pricing'}
-      </p>
-      <div className="flex flex-wrap items-baseline gap-2">
+    <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          Customer pays
+        </span>
         {pricing.hasDiscount ? (
           <>
             <span className="text-sm font-bold text-emerald-700">
@@ -624,20 +802,23 @@ function VariantPricingSummary({ variantValue, productValues }) {
           </span>
         )}
       </div>
-      <p className="mt-auto pt-2 text-[11px] leading-relaxed text-slate-500">
-        {pricing.isInherited
-          ? 'Uses base product price from the Pricing step'
-          : pricing.parent.hasDiscount
-            ? `Same ${roundDiscountPercent(pricing.parent)}% discount rate as base product`
-            : 'Custom list price for this variant'}
+      <p className="text-[11px] text-slate-500 sm:text-right">
+        {note}{saleNote}
       </p>
     </div>
   )
 }
 
-function roundDiscountPercent(parent) {
-  const pct = (1 - parent.discountRatio) * 100
-  return pct % 1 === 0 ? pct : pct.toFixed(1)
+function scrollToElement(id) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  })
+}
+
+function isVariationPreset(attribute) {
+  return VARIATION_PRESETS.includes(attribute)
 }
 
 function VariationCard({ formik, varIndex, onRemove }) {
@@ -659,10 +840,12 @@ function VariationCard({ formik, varIndex, onRemove }) {
     const newIndex = variation.values.length
     formik.setFieldValue(`variations.${varIndex}.values`, [
       ...variation.values,
-      { id: `val-${Date.now()}`, value: val, sku: '', price: '', quantity: '', image_url: '' },
+      createVariantValue(val),
     ])
+    formik.setFieldError(`variations.${varIndex}.values`, undefined)
     setNewValueInput('')
     setExpandedValues(new Set([newIndex]))
+    scrollToElement(`variant-value-form-${varIndex}-${newIndex}`)
   }
 
   const removeValue = (i) => {
@@ -672,12 +855,8 @@ function VariationCard({ formik, varIndex, onRemove }) {
     )
   }
 
-  const attrError = getFieldError(formik, `variations.${varIndex}.attribute`)
-  const valuesArrayError =
-    getIn(formik.touched, `variations.${varIndex}.attribute`) &&
-    typeof getIn(formik.errors, `variations.${varIndex}.values`) === 'string'
-      ? getIn(formik.errors, `variations.${varIndex}.values`)
-      : null
+  const attrError = getVariationAttributeError(formik, varIndex)
+  const valuesArrayError = getVariationValuesError(formik, varIndex)
 
   const placeholder =
     variation.attribute === 'Color'
@@ -689,35 +868,45 @@ function VariationCard({ formik, varIndex, onRemove }) {
           : 'Add a value…'
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <section id={`variation-card-${variation.id}`} className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2">
-          <div
-            data-field={`variations.${varIndex}.attribute`}
-            className="flex flex-wrap items-center gap-2"
-          >
+          <div data-field={`variations.${varIndex}.attribute`} className="space-y-2">
+            <label
+              htmlFor={`variation-attribute-${varIndex}`}
+              className="block text-xs font-semibold text-slate-700"
+            >
+              Variation type
+            </label>
             <input
+              id={`variation-attribute-${varIndex}`}
               type="text"
-              placeholder="Variation type (e.g. Size)"
+              placeholder="Type your own (e.g. Material, Capacity, Style)"
               value={variation.attribute}
-              onChange={(e) =>
-                formik.setFieldValue(`variations.${varIndex}.attribute`, e.target.value)
-              }
+              onChange={(e) => {
+                const nextValue = e.target.value
+                formik.setFieldValue(`variations.${varIndex}.attribute`, nextValue)
+                if (nextValue.trim()) {
+                  formik.setFieldError(`variations.${varIndex}.attribute`, undefined)
+                }
+              }}
               onBlur={() =>
                 formik.setFieldTouched(`variations.${varIndex}.attribute`, true)
               }
-              className={`rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light ${
+              className={`w-full rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light ${
                 attrError ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-200'
               }`}
             />
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-slate-500">Quick suggestions:</span>
               {VARIATION_PRESETS.map((preset) => (
                 <button
                   key={preset}
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     formik.setFieldValue(`variations.${varIndex}.attribute`, preset)
-                  }
+                    formik.setFieldError(`variations.${varIndex}.attribute`, undefined)
+                  }}
                   className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-colors ${
                     variation.attribute === preset
                       ? 'bg-brand text-white'
@@ -727,6 +916,11 @@ function VariationCard({ formik, varIndex, onRemove }) {
                   {preset}
                 </button>
               ))}
+              {variation.attribute && !isVariationPreset(variation.attribute) && (
+                <span className="rounded-lg bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800 ring-1 ring-cyan-100">
+                  Custom: {variation.attribute}
+                </span>
+              )}
             </div>
           </div>
           {attrError && <FieldError message={attrError} />}
@@ -752,8 +946,8 @@ function VariationCard({ formik, varIndex, onRemove }) {
                 onClick={() => toggleExpand(i)}
               >
                 <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
-                  {val.image_url ? (
-                    <img src={val.image_url} alt="" className="size-full object-cover" />
+                  {getVariantPrimaryPreview(val) ? (
+                    <img src={getVariantPrimaryPreview(val)} alt="" className="size-full object-cover" />
                   ) : (
                     val.value.charAt(0).toUpperCase()
                   )}
@@ -793,14 +987,17 @@ function VariationCard({ formik, varIndex, onRemove }) {
               </div>
 
               {expandedValues.has(i) && (
-                <div className="border-t border-slate-100 bg-slate-50/60 p-4">
-                  <div className="grid gap-3 sm:grid-cols-3 sm:items-start">
+                <div
+                  id={`variant-value-form-${varIndex}-${i}`}
+                  className="scroll-mt-4 border-t border-slate-100 bg-slate-50/60 p-4"
+                >
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <ProductInput
                       id={`variations.${varIndex}.values.${i}.sku`}
                       name={`variations.${varIndex}.values.${i}.sku`}
                       label="Variant SKU"
                       reserveHintSpace
-                      placeholder="AUD-001-S"
+                      placeholder="AUD-001-BLK"
                       value={val.sku}
                       onChange={(e) =>
                         formik.setFieldValue(
@@ -813,8 +1010,8 @@ function VariationCard({ formik, varIndex, onRemove }) {
                     <ProductMoneyInput
                       id={`variations.${varIndex}.values.${i}.price`}
                       name={`variations.${varIndex}.values.${i}.price`}
-                      label="Price override (GH₵) · Optional"
-                      hint="Leave empty to inherit base product pricing."
+                      label="List price (GH₵) · Optional"
+                      hint="Leave empty to inherit base product price."
                       reserveHintSpace
                       placeholder={formatMoney(pricing.parent.regularPrice)}
                       value={val.price}
@@ -822,25 +1019,83 @@ function VariationCard({ formik, varIndex, onRemove }) {
                       onBlur={formik.handleBlur}
                       error={getFieldError(formik, `variations.${varIndex}.values.${i}.price`)}
                     />
+                    <ProductMoneyInput
+                      id={`variations.${varIndex}.values.${i}.discount_price`}
+                      name={`variations.${varIndex}.values.${i}.discount_price`}
+                      label="Sale price (GH₵) · Optional"
+                      hint="Leave empty to inherit base sale price."
+                      reserveHintSpace
+                      placeholder={
+                        pricing.parent.salePrice != null
+                          ? formatMoney(pricing.parent.salePrice)
+                          : 'No base sale price'
+                      }
+                      value={val.discount_price}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      error={getFieldError(formik, `variations.${varIndex}.values.${i}.discount_price`)}
+                    />
                     <ProductInput
                       id={`variations.${varIndex}.values.${i}.quantity`}
                       name={`variations.${varIndex}.values.${i}.quantity`}
                       type="number"
-                      label="Variant quantity"
+                      label="Stock quantity"
                       reserveHintSpace
                       placeholder="0"
                       value={val.quantity}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                     />
+                    <ProductInput
+                      id={`variations.${varIndex}.values.${i}.variant_name`}
+                      name={`variations.${varIndex}.values.${i}.variant_name`}
+                      label="Variant display name · Optional"
+                      hint={`Defaults to "${val.value}" if empty.`}
+                      reserveHintSpace
+                      placeholder={val.value}
+                      value={val.variant_name}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                    />
+                    <ProductInput
+                      id={`variations.${varIndex}.values.${i}.barcode`}
+                      name={`variations.${varIndex}.values.${i}.barcode`}
+                      label="Barcode · Optional"
+                      reserveHintSpace
+                      placeholder="1234567890123"
+                      value={val.barcode}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                    />
+                    <ProductInput
+                      id={`variations.${varIndex}.values.${i}.low_stock_threshold`}
+                      name={`variations.${varIndex}.values.${i}.low_stock_threshold`}
+                      type="number"
+                      label="Low stock alert · Optional"
+                      reserveHintSpace
+                      placeholder="10"
+                      value={val.low_stock_threshold}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                    />
+                    <ProductInput
+                      id={`variations.${varIndex}.values.${i}.reserved_quantity`}
+                      name={`variations.${varIndex}.values.${i}.reserved_quantity`}
+                      type="number"
+                      label="Reserved quantity · Optional"
+                      reserveHintSpace
+                      placeholder="0"
+                      value={val.reserved_quantity}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                    />
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 sm:items-stretch">
+                  <div className="mt-4 space-y-3">
                     <VariantPricingSummary variantValue={val} productValues={formik.values} />
                     <VariantImageUpload
-                      compact
-                      value={val.image_url}
-                      onChange={(dataUri) =>
-                        formik.setFieldValue(`variations.${varIndex}.values.${i}.image_url`, dataUri)
+                      images={val.images ?? []}
+                      onChange={(nextImages) =>
+                        formik.setFieldValue(`variations.${varIndex}.values.${i}.images`, nextImages)
                       }
                     />
                   </div>
@@ -880,10 +1135,12 @@ function VariationsStep({ formik }) {
   const rangeLabel = formatCustomerPriceRange(priceRange)
 
   const addVariation = () => {
+    const newId = `var-${Date.now()}`
     formik.setFieldValue('variations', [
       ...formik.values.variations,
-      { id: `var-${Date.now()}`, attribute: '', values: [] },
+      { id: newId, attribute: '', values: [] },
     ])
+    scrollToElement(`variation-card-${newId}`)
   }
 
   const removeVariation = (index) => {
@@ -900,7 +1157,8 @@ function VariationsStep({ formik }) {
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Variants</p>
           <h3 className="mt-1 text-lg font-bold text-slate-900">Product variations</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Each variant inherits your base pricing by default. Override a variant price only when that option should cost more or less — the same discount rate still applies.
+            Add variation types like Size, Color, or your own (Material, Capacity, etc.). Each option
+            can set its own list price, sale price, stock, and photos.
           </p>
           {rangeLabel && formik.values.variations.some((v) => v.values.length > 0) && (
             <p className="mt-2 text-xs font-semibold text-slate-600">
@@ -1019,11 +1277,11 @@ function ShippingStep({ formik }) {
 
 // ─── Step 6: Review ───────────────────────────────────────────────────────────
 
-function ReviewStep({ formik, images, parentCategories, categoryTree }) {
+function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTree }) {
   const selectedCategory =
     findCategoryBySlug(categoryTree, formik.values.category_slug)
     ?? parentCategories.find((category) => category.slug === formik.values.category_slug)
-  const selectedBrand = MOCK_BRANDS.find((b) => b.slug === formik.values.brand_slug)
+  const selectedBrandLabel = getBrandDisplayLabel(formik.values.brand_slug)
   const subcategories = getSubcategoriesForParent(categoryTree, formik.values.category_slug)
   const selectedSubcategory = findCategoryBySlug(subcategories, formik.values.subcategory_slug)
 
@@ -1043,8 +1301,8 @@ function ReviewStep({ formik, images, parentCategories, categoryTree }) {
         ['Name', formik.values.name],
         ['SKU', formik.values.sku],
         ['Category', selectedCategory?.name],
-        ['Product type', selectedSubcategory?.name],
-        ['Brand', selectedBrand?.label],
+        ['Sub category', selectedSubcategory?.name],
+        ['Brand', selectedBrandLabel],
         ['Tags', formik.values.tags.length ? formik.values.tags.join(', ') : null],
       ],
     },
@@ -1084,33 +1342,48 @@ function ReviewStep({ formik, images, parentCategories, categoryTree }) {
         </p>
       </div>
 
-      {images.length > 0 && (
+      {(mainImage || subImages.length > 0) && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
             <ImagePlus className="size-4 text-cyan-700" />
             Product images
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-              {images.length}
-            </span>
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {images.slice(0, 6).map((img, i) => (
-              <div key={img.id} className="relative">
-                <img
-                  src={img.preview}
-                  alt={`Product image ${i + 1}`}
-                  className="size-16 rounded-xl object-cover ring-1 ring-slate-200"
-                />
-                {i === 0 && (
-                  <span className="absolute left-1 top-1 rounded-full bg-brand px-1 text-[9px] font-bold text-white">
+          <div className="space-y-4">
+            {mainImage && (
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Main photo</p>
+                <div className="relative inline-block">
+                  <img
+                    src={mainImage.preview}
+                    alt="Main product"
+                    className="size-24 rounded-xl object-cover ring-1 ring-slate-200 sm:size-28"
+                  />
+                  <span className="absolute left-1 top-1 rounded-full bg-brand px-1.5 py-px text-[9px] font-bold text-white">
                     Main
                   </span>
-                )}
+                </div>
               </div>
-            ))}
-            {images.length > 6 && (
-              <div className="flex size-16 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
-                +{images.length - 6}
+            )}
+            {subImages.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  Gallery · {subImages.length}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {subImages.slice(0, 6).map((img, index) => (
+                    <img
+                      key={img.id}
+                      src={img.preview}
+                      alt={`Gallery image ${index + 1}`}
+                      className="size-16 rounded-xl object-cover ring-1 ring-slate-200"
+                    />
+                  ))}
+                  {subImages.length > 6 && (
+                    <div className="flex size-16 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                      +{subImages.length - 6}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1135,13 +1408,13 @@ function ReviewStep({ formik, images, parentCategories, categoryTree }) {
         ))}
       </div>
 
-      {formik.values.variations.length > 0 && (
+      {formik.values.variations.some((variation) => variation.values.length > 0) && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
             <Box className="size-4 text-cyan-700" />
-            Variations
+            Variants
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-              {formik.values.variations.length}
+              {formik.values.variations.reduce((count, variation) => count + variation.values.length, 0)}
             </span>
           </h3>
           <div className="space-y-3">
@@ -1153,15 +1426,16 @@ function ReviewStep({ formik, images, parentCategories, categoryTree }) {
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {variation.values.map((val) => {
                     const pricing = resolveVariantPricing(val, formik.values)
+                    const label = val.variant_name?.trim() || val.value
                     return (
                       <span
                         key={val.id}
                         className="inline-flex items-center gap-1.5 rounded-full bg-white py-1 pl-2.5 pr-3 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
                       >
-                        {val.image_url && (
-                          <img src={val.image_url} alt="" className="size-5 rounded-full object-cover" />
+                        {getVariantPrimaryPreview(val) && (
+                          <img src={getVariantPrimaryPreview(val)} alt="" className="size-5 rounded-full object-cover" />
                         )}
-                        <span>{val.value}</span>
+                        <span>{label}</span>
                         {pricing.customerPrice > 0 && (
                           <span className="text-[10px] font-bold text-emerald-700">
                             GH₵ {formatMoney(pricing.customerPrice)}
@@ -1180,7 +1454,7 @@ function ReviewStep({ formik, images, parentCategories, categoryTree }) {
       {filledDetails.length > 0 && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
-            <CheckCircle2 className="size-4 text-emerald-600" /> Product details
+            <CheckCircle2 className="size-4 text-emerald-600" /> Specifications
           </h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {filledDetails.map((row, i) => (
@@ -1205,8 +1479,9 @@ function ReviewStep({ formik, images, parentCategories, categoryTree }) {
 
 export default function AddProduct() {
   const [activeStep, setActiveStep] = useState(0)
-  const [images, setImages] = useState([])
-  const [imagesError, setImagesError] = useState('')
+  const [mainImage, setMainImage] = useState(null)
+  const [subImages, setSubImages] = useState([])
+  const [mainImageError, setMainImageError] = useState('')
   const submitActionRef = useRef('draft')
   const stepDirectionRef = useRef('forward')
   const isInitialStepMount = useRef(true)
@@ -1228,32 +1503,45 @@ export default function AddProduct() {
     }
   }, [activeStep])
 
-  const goToStep = (updater) => {
-    stepDirectionRef.current = 'forward'
-    setActiveStep(updater)
-  }
-
   const goToPreviousStep = () => {
     stepDirectionRef.current = 'back'
     setActiveStep((step) => Math.max(step - 1, 0))
   }
 
-  const handleNext = async (formik) => {
-    if (activeStep === 1) {
-      if (images.length === 0) {
-        setImagesError('Add at least one product image to continue')
+  const navigateToStep = (stepIndex) => {
+    stepDirectionRef.current = stepIndex < activeStep ? 'back' : 'forward'
+    setActiveStep(stepIndex)
+  }
+
+  const validateStepBeforeLeave = async (formik, stepIndex) => {
+    if (stepIndex === 1) {
+      if (!mainImage) {
+        setMainImageError('Add a main product image to continue')
         requestAnimationFrame(() => {
-          scrollToFirstError({ product_images: 'Add at least one product image to continue' })
+          scrollToFirstError({ main_product_image: 'Add a main product image to continue' })
         })
-        return
+        return false
       }
-      setImagesError('')
-      goToStep((step) => step + 1)
-      return
+      setMainImageError('')
+      return true
+    }
+
+    if (stepIndex === 0) {
+      const prunedMetadata = pruneEmptyMetadataRows(formik.values.metadata)
+      if (prunedMetadata.length !== formik.values.metadata.length) {
+        await formik.setFieldValue('metadata', prunedMetadata, false)
+      }
+    }
+
+    if (stepIndex === 3) {
+      const prunedVariations = pruneEmptyVariations(formik.values.variations)
+      if (prunedVariations.length !== formik.values.variations.length) {
+        await formik.setFieldValue('variations', prunedVariations, false)
+      }
     }
 
     const errors = await formik.validateForm()
-    const fields = stepFields[activeStep]
+    const fields = stepFields[stepIndex]
 
     if (fields.length > 0) {
       formik.setTouched(
@@ -1264,11 +1552,36 @@ export default function AddProduct() {
         requestAnimationFrame(() => {
           scrollToFirstError(collectStepErrors(errors, fields))
         })
+        return false
+      }
+    }
+
+    return true
+  }
+
+  const handleNext = async (formik) => {
+    const valid = await validateStepBeforeLeave(formik, activeStep)
+    if (!valid) return
+    navigateToStep(Math.min(activeStep + 1, steps.length - 1))
+  }
+
+  const handleStepClick = async (formik, stepIndex) => {
+    if (stepIndex === activeStep) return
+
+    if (stepIndex < activeStep) {
+      navigateToStep(stepIndex)
+      return
+    }
+
+    for (let step = activeStep; step < stepIndex; step += 1) {
+      const valid = await validateStepBeforeLeave(formik, step)
+      if (!valid) {
+        if (step !== activeStep) navigateToStep(step)
         return
       }
     }
 
-    goToStep((step) => Math.min(step + 1, steps.length - 1))
+    navigateToStep(stepIndex)
   }
 
   return (
@@ -1300,14 +1613,18 @@ export default function AddProduct() {
           validateOnChange={false}
           onSubmit={async (values, actions) => {
             try {
-              const productImages = await buildProductImagesPayload(images)
+              const productImages = await buildProductImagesPayload(mainImage, subImages)
               const payload = buildProductPayload(
-                { ...values, status: submitActionRef.current },
+                {
+                  ...values,
+                  metadata: pruneEmptyMetadataRows(values.metadata),
+                  status: submitActionRef.current,
+                },
                 productImages,
               )
 
               console.log('Product payload (sample)', formatProductPayloadSample(payload))
-              // TODO: POST full `payload` to backend — product_images and variant image_url use full base64
+              // TODO: POST full `payload` to backend — primary_image, product_images, and variant images use full base64
 
               notify.success(
                 submitActionRef.current === 'active'
@@ -1339,7 +1656,11 @@ export default function AddProduct() {
                 />
               )}
 
-              <ProductStepper steps={steps} activeStep={activeStep} />
+              <ProductStepper
+                steps={steps}
+                activeStep={activeStep}
+                onStepClick={(stepIndex) => handleStepClick(formik, stepIndex)}
+              />
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
                 {activeStep === 0 && (
@@ -1353,9 +1674,14 @@ export default function AddProduct() {
                 )}
                 {activeStep === 1 && (
                   <ImagesStep
-                    images={images}
-                    onChange={(imgs) => { setImages(imgs); if (imgs.length > 0) setImagesError('') }}
-                    error={imagesError}
+                    mainImage={mainImage}
+                    onMainImageChange={(image) => {
+                      setMainImage(image)
+                      if (image) setMainImageError('')
+                    }}
+                    mainImageError={mainImageError}
+                    subImages={subImages}
+                    onSubImagesChange={setSubImages}
                   />
                 )}
                 {activeStep === 2 && <PricingStep formik={formik} />}
@@ -1364,7 +1690,8 @@ export default function AddProduct() {
                 {activeStep === 5 && (
                   <ReviewStep
                     formik={formik}
-                    images={images}
+                    mainImage={mainImage}
+                    subImages={subImages}
                     parentCategories={parentCategories}
                     categoryTree={categoryTree}
                   />

@@ -20,7 +20,7 @@ export default function LandingLogo({ variant = 'dark' }) {
       >
         <Store className="size-5" strokeWidth={1.75} />
       </span>
-      <span className="text-lg font-semibold tracking-tight">E-Mall Vendor</span>
+      <span className="text-lg font-semibold tracking-tight">EZ-Mall Vendor</span>
     </Link>
   )
 }

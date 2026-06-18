@@ -75,7 +75,7 @@ export const landingFooterGroups = [
   {
     title: 'Help & support',
     links: [
-      { label: 'Account health', href: '/dashboard' },
+      { label: 'Your Dashboard', href: '/dashboard' },
       { label: 'Contact us', href: '#faq' },
     ],
   },

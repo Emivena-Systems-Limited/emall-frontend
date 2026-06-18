@@ -1,8 +1,10 @@
 import { CheckCircle2, Store } from 'lucide-react'
+import { isVendorPendingApproval } from '../../utils/vendorAuth'
 
 export default function DashboardHeader({ user, greeting, today }) {
   const storeName = user?.business_name ?? user?.store_name ?? 'Your Store'
   const isStoreActive = user?.status === 'active'
+  const isPendingApproval = isVendorPendingApproval(user)
 
   return (
     <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-[#172033] to-slate-900 px-6 py-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
@@ -39,17 +41,19 @@ export default function DashboardHeader({ user, greeting, today }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:max-w-sm lg:justify-end">
-          <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold ring-1 backdrop-blur-sm ${
-            isStoreActive
-              ? 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/25'
-              : 'bg-amber-500/15 text-amber-200 ring-amber-400/25'
-          }`}>
-            <span className={`relative flex size-2 ${isStoreActive ? 'text-emerald-400' : 'text-amber-400'}`}>
-              <span className={`absolute inline-flex size-full animate-ping rounded-full opacity-40 ${isStoreActive ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-              <span className={`relative inline-flex size-2 rounded-full ${isStoreActive ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          {(isStoreActive || isPendingApproval) && (
+            <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold ring-1 backdrop-blur-sm ${
+              isStoreActive
+                ? 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/25'
+                : 'bg-brand/15 text-brand-light ring-brand/25'
+            }`}>
+              <span className={`relative flex size-2 ${isStoreActive ? 'text-emerald-400' : 'text-brand-light'}`}>
+                <span className={`absolute inline-flex size-full animate-ping rounded-full opacity-40 ${isStoreActive ? 'bg-emerald-400' : 'bg-brand'}`} />
+                <span className={`relative inline-flex size-2 rounded-full ${isStoreActive ? 'bg-emerald-400' : 'bg-brand-light'}`} />
+              </span>
+              {isStoreActive ? 'Store active' : 'Pending approval'}
             </span>
-            {isStoreActive ? 'Store active' : 'Pending Activation'}
-          </span>
+          )}
 
           {user?.email_verified_at && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3.5 py-2 text-xs font-semibold text-white/70 ring-1 ring-white/12 backdrop-blur-sm">

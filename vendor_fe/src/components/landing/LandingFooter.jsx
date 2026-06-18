@@ -48,7 +48,7 @@ export default function LandingFooter() {
               <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-white shadow-sm shadow-brand/30">
                 <Store className="size-5" strokeWidth={1.75} />
               </span>
-              <span className="text-lg font-semibold tracking-tight">E-Mall Vendor</span>
+              <span className="text-lg font-semibold tracking-tight">EZ-Mall Vendor</span>
             </Link>
 
             <p className="mt-4 max-w-xs text-sm leading-6 text-white/55">
@@ -81,7 +81,7 @@ export default function LandingFooter() {
         </div>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {year} E-Mall. All rights reserved.</p>
+          <p>© {year} EZ-Mall. All rights reserved.</p>
           <div className="flex flex-wrap gap-5">
             <a href="#benefits" className="transition-colors hover:text-white/80">Conditions of Use</a>
             <a href="#benefits" className="transition-colors hover:text-white/80">Privacy Notice</a>

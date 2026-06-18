@@ -8,7 +8,7 @@ const GRID_COLS_CLASS = {
   6: 'md:grid-cols-6',
 }
 
-export default function ProductStepper({ steps, activeStep }) {
+export default function ProductStepper({ steps, activeStep, onStepClick }) {
   const colsClass = GRID_COLS_CLASS[steps.length] ?? 'md:grid-cols-5'
 
   return (
@@ -20,13 +20,17 @@ export default function ProductStepper({ steps, activeStep }) {
 
           return (
             <li key={step.id}>
-              <div
-                className={`flex h-full items-center gap-3 rounded-xl px-3 py-3 transition-colors ${
+              <button
+                type="button"
+                onClick={() => onStepClick?.(index)}
+                aria-current={active ? 'step' : undefined}
+                aria-label={`${step.title}${active ? ' (current step)' : complete ? ' (completed)' : ''}`}
+                className={`flex h-full w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
                   active
-                    ? 'bg-brand-light text-brand'
+                    ? 'bg-brand-light text-brand ring-1 ring-brand/20'
                     : complete
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-slate-50 text-slate-500'
+                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80'
+                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                 }`}
               >
                 <span
@@ -44,7 +48,7 @@ export default function ProductStepper({ steps, activeStep }) {
                   <span className="block truncate text-sm font-bold">{step.title}</span>
                   <span className="block truncate text-[11px] opacity-70">{step.caption}</span>
                 </span>
-              </div>
+              </button>
             </li>
           )
         })}
