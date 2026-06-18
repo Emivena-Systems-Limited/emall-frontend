@@ -5,10 +5,8 @@ import Images from '../../utils/Images'
 export default function LandingHeroSection() {
   return (
     <section className={`border-b border-slate-200/70 ${landingHeroBgClass}`}>
-      <div className="-mt-3 grid lg:-mt-6 lg:grid-cols-2 lg:items-stretch">
-        <div
-          className={`${landingContainerClass} order-2 flex flex-col justify-center pb-8 pt-0 sm:pb-10 lg:order-1 lg:pb-12 lg:pt-2 xl:pb-14`}
-        >
+      <div className={`${landingContainerClass} -mt-3 grid gap-8 pb-8 sm:pb-10 lg:-mt-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:pb-12 lg:pt-2 xl:pb-14`}>
+        <div className="order-2 flex flex-col justify-center lg:order-1">
           <h1 className="text-[2rem] font-bold leading-tight tracking-tight sm:text-4xl md:text-[2.85rem] lg:text-[3.5rem]">
             <span className="block text-slate-950">Start selling on EZ-Mall</span>
             <span className="mt-2 block text-brand sm:mt-2.5">
@@ -40,11 +38,11 @@ export default function LandingHeroSection() {
           </p>
         </div>
 
-        <div className={`order-1 -mt-6 overflow-hidden lg:order-2 lg:-mt-10 lg:min-h-full ${landingHeroBgClass}`}>
+        <div className="order-1 overflow-hidden pt-4 sm:pt-6 lg:order-2 lg:pt-8">
           <img
             src={Images.common.hero_image}
             alt="Sell your products on EZ-Mall"
-            className="block h-44 w-full -translate-y-4 object-contain object-top sm:h-52 sm:-translate-y-6 lg:h-full lg:min-h-64 lg:-translate-y-10 lg:object-right lg:object-top xl:-translate-y-14"
+            className="ml-auto block h-44 w-full max-w-3xl object-contain object-top sm:h-52 lg:h-[34rem] lg:object-right lg:object-top xl:h-[38rem]"
           />
         </div>
       </div>
