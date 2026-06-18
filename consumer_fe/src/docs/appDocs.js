@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-16',
-  currentPhase: 'Registration OTP cleanup',
+  lastUpdated: '2026-06-17',
+  currentPhase: 'Checkout page',
   summary:
-    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Registration uses the register endpoint OTP only to avoid duplicate OTP emails.',
+    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows now continue to a responsive checkout page with guest and saved-address states.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,17 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-17',
+    title: 'Checkout page',
+    items: [
+      'Added responsive /checkout page with guest and user checkout states',
+      'Added delivery address section with Add Address / Edit actions that route to the address page placeholder',
+      'Grouped checkout items by store with store subtotals, delivery fees, and store totals',
+      'Added promo code handling, order total breakdown, payment method selection, and disabled Place Order rules',
+      'Cart Proceed to checkout now navigates to /checkout',
+    ],
+  },
   {
     date: '2026-06-16',
     title: 'Registration OTP cleanup',
@@ -165,7 +176,7 @@ export const roadmap = [
   },
   {
     phase: 'Cart & checkout',
-    status: 'in-progress',
+    status: 'done',
     items: ['Cart page', 'Quantity and remove actions', 'Checkout flow'],
   },
 ]
@@ -219,6 +230,13 @@ export const routes = [
     status: 'done',
     file: 'src/pages/CartPage.jsx',
     notes: 'Responsive cart review page with quantities, item actions, summary totals, and related products',
+  },
+  {
+    path: '/checkout',
+    name: 'Checkout',
+    status: 'done',
+    file: 'src/pages/CheckoutPage.jsx',
+    notes: 'Responsive guest/user checkout with address, store-grouped items, coupon, totals, payment methods, and Place Order rules',
   },
   {
     path: '/dev-guide',

@@ -145,13 +145,17 @@ function CartSummary({ itemCount, subtotal, discount }) {
           <span className="font-extrabold text-slate-950">{formatCedi(total)}</span>
         </div>
       </div>
-      <button
-        type="button"
-        disabled={itemCount === 0}
-        className="mt-5 w-full rounded-xl bg-auth-primary px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+      <Link
+        to="/checkout"
+        aria-disabled={itemCount === 0}
+        className={`mt-5 flex w-full items-center justify-center rounded-xl px-5 py-3.5 text-sm font-bold text-white transition-colors ${
+          itemCount === 0
+            ? 'pointer-events-none bg-auth-primary opacity-60'
+            : 'bg-auth-primary hover:bg-auth-primary-hover'
+        }`}
       >
         Proceed to checkout
-      </button>
+      </Link>
     </aside>
   )
 }

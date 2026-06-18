@@ -3,6 +3,7 @@ import DeveloperGuide from '../pages/DeveloperGuide'
 import HomePage from '../pages/HomePage'
 import AccountPage from '../pages/AccountPage'
 import CartPage from '../pages/CartPage'
+import CheckoutPage from '../pages/CheckoutPage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
 import VerifyOtpPage from '../pages/auth/VerifyOtpPage'
@@ -19,6 +20,8 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/cart" element={<CartPage />} />
+      <Route path="/checkout" element={<CheckoutPage />} />
+      <Route path="/checkout/:mode" element={<CheckoutPage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route path="/account/*" element={<AccountPage />} />
       <Route path="/login" element={guestOnly(<LoginPage />)} />
