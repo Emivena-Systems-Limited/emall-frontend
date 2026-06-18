@@ -5,7 +5,9 @@ import Images from '../../utils/Images'
 export default function LandingHeroSection() {
   return (
     <section className={`border-b border-slate-200/70 ${landingHeroBgClass}`}>
-      <div className={`${landingContainerClass} -mt-3 grid gap-8 pb-8 sm:pb-10 lg:-mt-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:pb-12 lg:pt-2 xl:pb-14`}>
+      <div
+        className={`${landingContainerClass} grid gap-10 py-10 sm:gap-12 sm:py-12 lg:grid-cols-2 lg:items-center lg:gap-16 lg:py-14 xl:py-16`}
+      >
         <div className="order-2 flex flex-col justify-center lg:order-1">
           <h1 className="text-[2rem] font-bold leading-tight tracking-tight sm:text-4xl md:text-[2.85rem] lg:text-[3.5rem]">
             <span className="block text-slate-950">Start selling on EZ-Mall</span>
@@ -38,12 +40,23 @@ export default function LandingHeroSection() {
           </p>
         </div>
 
-        <div className="order-1 overflow-hidden pt-4 sm:pt-6 lg:order-2 lg:pt-8">
-          <img
-            src={Images.common.hero_image}
-            alt="Sell your products on EZ-Mall"
-            className="ml-auto block h-44 w-full max-w-3xl object-contain object-top sm:h-52 lg:h-[34rem] lg:object-right lg:object-top xl:h-[38rem]"
-          />
+        <div className="order-1 lg:order-2">
+          <div className="relative mx-auto w-full max-w-md lg:mx-0 lg:max-w-none">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -inset-3 rounded-[1.75rem] bg-brand/8 blur-2xl sm:-inset-4 sm:rounded-4xl"
+            />
+
+            <article className="relative overflow-hidden rounded-[1.75rem] bg-white p-3 shadow-[0_22px_55px_rgba(15,23,42,0.10)] ring-1 ring-slate-200/90 sm:rounded-4xl sm:p-4">
+              <div className="overflow-hidden rounded-2xl bg-[#F6F6F8] ring-1 ring-slate-100">
+                <img
+                  src={Images.auth.signupHero}
+                  alt="Sell your products on EZ-Mall"
+                  className="aspect-[1.08] w-full object-cover object-center sm:aspect-[1.12]"
+                />
+              </div>
+            </article>
+          </div>
         </div>
       </div>
     </section>
