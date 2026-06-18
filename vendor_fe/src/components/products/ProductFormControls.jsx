@@ -4,19 +4,28 @@ const inputBase = 'w-full rounded-xl border bg-white px-4 py-3 text-sm text-slat
 const normalState = 'border-slate-200 focus:border-brand focus:ring-2 focus:ring-brand-light'
 const errorState = 'border-red-400 ring-2 ring-red-100'
 
-function Label({ id, label, hint }) {
+function Label({ id, label, hint, reserveHintSpace = false }) {
   return (
-    <label htmlFor={id} className="mb-1.5 block">
+    <label
+      htmlFor={id}
+      className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[3.25rem]' : ''}`}
+    >
       <span className="text-sm font-semibold text-slate-800">{label}</span>
-      {hint && <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>}
+      {hint ? (
+        <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
+      ) : reserveHintSpace ? (
+        <span className="mt-0.5 block text-xs leading-relaxed text-transparent select-none" aria-hidden="true">
+          &nbsp;
+        </span>
+      ) : null}
     </label>
   )
 }
 
-export function ProductInput({ id, label, hint, error, ...props }) {
+export function ProductInput({ id, label, hint, error, reserveHintSpace = false, ...props }) {
   return (
-    <div data-field={props.name}>
-      <Label id={id} label={label} hint={hint} />
+    <div data-field={props.name} className="flex h-full flex-col">
+      <Label id={id} label={label} hint={hint} reserveHintSpace={reserveHintSpace} />
       <input
         id={id}
         className={`${inputBase} ${error ? errorState : normalState}`}
@@ -24,6 +33,24 @@ export function ProductInput({ id, label, hint, error, ...props }) {
       />
       {error && <FieldError message={error} />}
     </div>
+  )
+}
+
+export function ProductMoneyInput({ id, label, hint, error, reserveHintSpace = false, ...props }) {
+  return (
+    <ProductInput
+      id={id}
+      label={label}
+      hint={hint}
+      error={error}
+      reserveHintSpace={reserveHintSpace}
+      type="number"
+      step="0.01"
+      min="0"
+      inputMode="decimal"
+      placeholder="0.00"
+      {...props}
+    />
   )
 }
 

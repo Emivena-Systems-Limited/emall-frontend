@@ -6,6 +6,7 @@
  */
 
 import signupHero from '../assets/images/auth_img.jpg'
+import ghana_map from '../assets/images/ghana_map.png'
 
 const brand = {
   favicon: '/favicon.svg',
@@ -18,7 +19,9 @@ const auth = {
 
 const shop = {}
 
-const common = {}
+const common = {
+  ghana_map,
+}
 
 export const Images = {
   brand,

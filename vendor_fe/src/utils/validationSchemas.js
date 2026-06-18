@@ -106,8 +106,35 @@ export const vendorLoginSchema = Yup.object({
 })
 
 const metadataItemSchema = Yup.object({
-  key: Yup.string().trim().required('Specification name is required'),
-  value: Yup.string().trim().required('Specification value is required'),
+  key: Yup.string().trim().required('Detail name is required'),
+  value: Yup.string().trim().required('Detail value is required'),
+})
+
+const nullableNumber = Yup.number()
+  .nullable()
+  .transform((value, originalValue) => {
+    if (originalValue === '' || originalValue === null || originalValue === undefined) return null
+    return value
+  })
+
+const productVariationValueSchema = Yup.object({
+  id: Yup.string(),
+  value: Yup.string().trim().required('Value is required'),
+  sku: Yup.string()
+    .trim()
+    .matches(/^[A-Z0-9-]*$/i, 'SKU format: letters, numbers, hyphens')
+    .nullable(),
+  price: nullableNumber.min(0.01, 'Price must be at least 0.01'),
+  quantity: nullableNumber.integer('Must be a whole number').min(0, 'Cannot be negative'),
+  image_url: Yup.string().nullable(),
+})
+
+const productVariationSchema = Yup.object({
+  id: Yup.string(),
+  attribute: Yup.string().trim().required('Variation name is required'),
+  values: Yup.array()
+    .of(productVariationValueSchema)
+    .min(1, 'Add at least one value for this variation'),
 })
 
 export const productListingSchema = Yup.object({
@@ -127,36 +154,56 @@ export const productListingSchema = Yup.object({
   category_slug: Yup.string().required('Category is required'),
   subcategory_slug: Yup.string().required('Subcategory is required'),
   brand_slug: Yup.string().required('Brand is required'),
-  status: Yup.string().oneOf(['draft', 'active', 'inactive']).required('Status is required'),
+  tags: Yup.array().of(Yup.string().trim().min(1)).default([]),
+  metadata: Yup.array()
+    .of(metadataItemSchema)
+    .min(1, 'Add at least one product detail'),
+
   price: Yup.number()
-    .typeError('Price must be a number')
-    .min(1, 'Price must be greater than zero')
+    .typeError('Price must be a valid amount')
+    .min(0.01, 'Price must be at least 0.01')
     .required('Price is required'),
+  discount_mode: Yup.string().oneOf(['amount', 'percent']).default('amount'),
+  discount_price: nullableNumber.when('discount_mode', {
+    is: 'amount',
+    then: (schema) => schema
+      .test('greater-than-zero', 'Sale price must be at least 0.01', function (value) {
+        if (value == null) return true
+        return value >= 0.01
+      })
+      .test('less-than-price', 'Sale price must be less than regular price', function (value) {
+        if (value == null) return true
+        const { price } = this.parent
+        if (!price || isNaN(Number(price))) return true
+        return value < Number(price)
+      }),
+    otherwise: (schema) => schema,
+  }),
+  discount_percent: nullableNumber.when('discount_mode', {
+    is: 'percent',
+    then: (schema) => schema
+      .test('percent-range', 'Enter a discount between 0.01 and 99.99%', function (value) {
+        if (value == null) return true
+        return value >= 0.01 && value < 100
+      }),
+    otherwise: (schema) => schema,
+  }),
   quantity: Yup.number()
     .typeError('Quantity must be a number')
     .integer('Quantity must be a whole number')
     .min(0, 'Quantity cannot be negative')
     .required('Quantity is required'),
-  image_urls: Yup.array()
-    .of(
-      Yup.string()
-        .trim()
-        .url('Enter a valid image URL')
-        .required('Image URL is required'),
-    )
-    .min(1, 'Add at least one product image')
-    .required('Add at least one product image'),
-  videos: Yup.array().of(
-    Yup.object({
-      title: Yup.string().trim().when('video_url', {
-        is: (value) => Boolean(value?.trim()),
-        then: (schema) => schema.required('Video title is required'),
-        otherwise: (schema) => schema,
-      }),
-      video_url: Yup.string().trim().url('Enter a valid video URL'),
-    }),
-  ),
-  metadata: Yup.array()
-    .of(metadataItemSchema)
-    .min(1, 'Add at least one product-specific detail'),
+  low_stock_threshold: nullableNumber
+    .integer('Must be a whole number')
+    .min(1, 'Threshold must be at least 1'),
+  barcode: Yup.string().trim().nullable(),
+
+  variations: Yup.array().of(productVariationSchema).default([]),
+
+  shipping_weight: nullableNumber.min(0, 'Cannot be negative'),
+  shipping_length: nullableNumber.min(0, 'Cannot be negative'),
+  shipping_width: nullableNumber.min(0, 'Cannot be negative'),
+  shipping_height: nullableNumber.min(0, 'Cannot be negative'),
+
+  status: Yup.string().oneOf(['draft', 'active', 'inactive']).required('Status is required'),
 })

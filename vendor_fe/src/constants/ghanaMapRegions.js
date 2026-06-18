@@ -1,0 +1,98 @@
+export const ghanaMapRegions = [
+  {
+    name: 'Upper West',
+    path: 'M72 28 L178 32 L177 112 L161 126 L152 150 L119 142 L96 150 L80 193 L54 183 L45 109 L53 82 L49 55 Z',
+    fill: '#c7c844',
+    label: { x: 112, y: 86, size: 16 },
+  },
+  {
+    name: 'Upper East',
+    path: 'M178 32 L286 35 L309 18 L321 49 L305 86 L270 91 L238 82 L214 105 L190 96 L177 112 Z',
+    fill: '#8e8e8b',
+    label: { x: 244, y: 61, size: 15 },
+  },
+  {
+    name: 'North East',
+    path: 'M190 96 L214 105 L238 82 L270 91 L312 84 L334 121 L322 165 L284 157 L252 137 L216 150 L176 142 L161 126 Z',
+    fill: '#cab9dc',
+    label: { x: 262, y: 127, size: 15 },
+  },
+  {
+    name: 'Northern',
+    path: 'M216 150 L252 137 L284 157 L322 165 L342 195 L327 247 L350 284 L325 330 L287 315 L270 348 L238 321 L205 311 L186 283 L160 285 L149 248 L170 219 L154 198 L174 170 Z',
+    fill: '#986555',
+    label: { x: 274, y: 230, size: 17 },
+  },
+  {
+    name: 'Savannah',
+    path: 'M54 183 L80 193 L96 150 L119 142 L152 150 L161 126 L176 142 L216 150 L174 170 L154 198 L170 219 L149 248 L160 285 L186 283 L182 330 L145 339 L132 318 L102 326 L92 356 L65 355 L45 313 L38 249 Z',
+    fill: '#efb7d2',
+    label: { x: 137, y: 251, size: 17 },
+  },
+  {
+    name: 'Bono',
+    path: 'M38 249 L45 313 L65 355 L92 356 L97 393 L80 424 L48 414 L36 376 L23 350 L30 298 Z',
+    fill: '#fb862c',
+    label: { x: 65, y: 339, size: 15 },
+  },
+  {
+    name: 'Bono East',
+    path: 'M92 356 L102 326 L132 318 L145 339 L182 330 L186 283 L205 311 L238 321 L270 348 L262 394 L221 406 L189 390 L165 418 L121 413 L97 393 Z',
+    fill: '#4fa13c',
+    label: { x: 176, y: 375, size: 15 },
+  },
+  {
+    name: 'Oti',
+    path: 'M287 315 L325 330 L341 388 L323 447 L293 442 L280 392 L262 394 L270 348 Z',
+    fill: '#d778bd',
+    label: { x: 312, y: 377, size: 15 },
+  },
+  {
+    name: 'Western North',
+    path: 'M23 350 L36 376 L48 414 L80 424 L70 463 L77 503 L38 494 L20 440 L11 395 Z',
+    fill: '#aadce3',
+    label: { x: 43, y: 436, size: 13 },
+  },
+  {
+    name: 'Ahafo',
+    path: 'M80 424 L97 393 L121 413 L119 446 L94 465 L69 459 Z',
+    fill: '#3f83b8',
+    label: { x: 92, y: 433, size: 13 },
+  },
+  {
+    name: 'Ashanti',
+    path: 'M119 446 L121 413 L165 418 L189 390 L221 406 L262 394 L249 455 L217 487 L161 498 L120 483 L94 465 Z',
+    fill: '#b9cce8',
+    label: { x: 176, y: 459, size: 16 },
+  },
+  {
+    name: 'Eastern',
+    path: 'M249 455 L262 394 L280 392 L293 442 L323 447 L303 489 L313 522 L278 526 L246 505 L217 487 Z',
+    fill: '#d33a32',
+    label: { x: 269, y: 486, size: 15 },
+  },
+  {
+    name: 'Volta',
+    path: 'M323 447 L341 388 L354 420 L356 475 L343 516 L360 556 L332 552 L313 522 L303 489 Z',
+    fill: '#dedf94',
+    label: { x: 334, y: 490, size: 14 },
+  },
+  {
+    name: 'Greater Accra',
+    path: 'M246 505 L278 526 L313 522 L332 552 L284 557 L236 539 Z',
+    fill: '#9571bf',
+    label: { x: 288, y: 538, size: 12 },
+  },
+  {
+    name: 'Central',
+    path: 'M120 483 L161 498 L217 487 L246 505 L236 539 L193 560 L147 558 L111 535 Z',
+    fill: '#aee09b',
+    label: { x: 177, y: 533, size: 15 },
+  },
+  {
+    name: 'Western',
+    path: 'M77 503 L70 463 L94 465 L120 483 L111 535 L147 558 L135 589 L87 596 L47 579 L38 494 Z',
+    fill: '#55bfd0',
+    label: { x: 94, y: 548, size: 15 },
+  },
+]

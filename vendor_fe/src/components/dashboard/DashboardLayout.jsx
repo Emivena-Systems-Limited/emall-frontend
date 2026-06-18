@@ -22,7 +22,7 @@ export default function DashboardLayout({ children, pageTitle }) {
         <Navbar onMobileMenuOpen={openMobile} pageTitle={pageTitle} />
 
         {/* Scrollable content */}
-        <main className="flex-1 overflow-y-auto">
+        <main data-dashboard-scroll-panel className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </div>
