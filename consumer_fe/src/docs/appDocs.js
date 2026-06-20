@@ -7,9 +7,9 @@
 
 export const appMeta = {
   lastUpdated: '2026-06-17',
-  currentPhase: 'Checkout page',
+  currentPhase: 'Product details page',
   summary:
-    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows now continue to a responsive checkout page with guest and saved-address states.',
+    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout, and product cards now open a responsive product details page.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,25 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-20',
+    title: 'Homepage category API',
+    items: [
+      'Top Categories now fetches parent categories from GET /category/get_parents through API_BASE_URL, matching the backend /api/category/get_parents path',
+      'Homepage shows the first 10 categories by default',
+      'View All expands the category list inline and Show Less returns to the first 10',
+      'Static category thumbnails remain as a fallback when the API category does not include an image',
+    ],
+  },
+  {
+    date: '2026-06-18',
+    title: 'Product details page',
+    items: [
+      'Added /products/:slug product details page with image gallery, thumbnails, product information, variants, stock status, quantity selector, and purchase buttons',
+      'Added ratings, review summary, rating distribution, review cards, seller showcase, product description, and related product rails',
+      'Landing product cards now open product details while the cart icon still navigates to the cart',
+    ],
+  },
   {
     date: '2026-06-17',
     title: 'Checkout page',
@@ -171,7 +190,7 @@ export const roadmap = [
   },
   {
     phase: 'Catalog',
-    status: 'planned',
+    status: 'in-progress',
     items: ['Product listing', 'Product detail', 'Search & filters'],
   },
   {
@@ -239,6 +258,13 @@ export const routes = [
     notes: 'Responsive guest/user checkout with address, store-grouped items, coupon, totals, payment methods, and Place Order rules',
   },
   {
+    path: '/products/:slug',
+    name: 'Product Details',
+    status: 'done',
+    file: 'src/pages/ProductDetailsPage.jsx',
+    notes: 'Responsive product details page with gallery, variants, stock, quantity, reviews, seller details, and related products',
+  },
+  {
     path: '/dev-guide',
     name: 'Developer Guide',
     status: 'done',
@@ -258,6 +284,11 @@ export const reduxSlices = [
 ]
 
 export const queryHooks = [
+  {
+    name: 'TopCategoriesSection useQuery',
+    file: 'src/components/home/TopCategoriesSection.jsx',
+    purpose: 'GET /category/get_parents through categoryService.getParentCategories for homepage categories',
+  },
   {
     name: 'useRegisterUserMutation',
     file: 'src/hooks/useAuthMutations.js',
@@ -310,11 +341,17 @@ export const apiIntegrations = [
     purpose: 'End backend auth session when the user logs out',
     status: 'wired',
   },
+  {
+    method: 'GET',
+    endpoint: '/category/get_parents',
+    purpose: 'Fetch parent categories for the homepage Top Categories section',
+    status: 'wired',
+  },
 ]
 
 export const plannedPages = [
   { name: 'Products', path: '/products', status: 'planned' },
-  { name: 'Product detail', path: '/products/:id', status: 'planned' },
+  { name: 'Product detail', path: '/products/:slug', status: 'done' },
 ]
 
 export const authNotes = {

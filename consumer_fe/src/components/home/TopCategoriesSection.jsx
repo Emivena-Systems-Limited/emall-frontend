@@ -1,9 +1,40 @@
-import { Link } from 'react-router'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import Container from '../layout/Container'
 import { topCategories } from '../../constants/topCategories'
+import { getParentCategories } from '../../services/categoryService'
 import TopCategoryItem from './TopCategoryItem'
 
+function getCategoryImage(category, index) {
+  return category.image ?? topCategories[index % topCategories.length]?.image ?? null
+}
+
+function mapApiCategory(category, index) {
+  return {
+    id: category.id ?? category.slug,
+    label: category.name,
+    href: `/categories/${category.slug}`,
+    image: getCategoryImage(category, index),
+  }
+}
+
 export default function TopCategoriesSection() {
+  const [showAll, setShowAll] = useState(false)
+  const { data: apiCategories = [] } = useQuery({
+    queryKey: ['parent-categories'],
+    queryFn: getParentCategories,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+
+  const categories = useMemo(() => {
+    if (!apiCategories.length) return topCategories
+    return apiCategories.map(mapApiCategory)
+  }, [apiCategories])
+
+  const visibleCategories = showAll ? categories : categories.slice(0, 10)
+  const canToggle = categories.length > 10
+
   return (
     <section aria-labelledby="top-categories-heading" className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>
@@ -15,16 +46,25 @@ export default function TopCategoriesSection() {
             >
               Top Categories
             </h2>
-            <Link
-              to="/categories"
-              className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
-            >
-              View All
-            </Link>
+            {canToggle && (
+              <button
+                type="button"
+                onClick={() => setShowAll((current) => !current)}
+                className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
+              >
+                {showAll ? 'Show Less' : 'View All'}
+              </button>
+            )}
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 lg:justify-between lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
-            {topCategories.map((category) => (
+          <div
+            className={
+              showAll
+                ? 'flex flex-wrap justify-center gap-3 pb-0.5 sm:gap-4 lg:justify-between lg:pb-0'
+                : 'flex gap-3 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 lg:justify-between lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden'
+            }
+          >
+            {visibleCategories.map((category) => (
               <TopCategoryItem key={category.id} category={category} />
             ))}
           </div>

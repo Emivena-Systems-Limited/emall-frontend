@@ -42,7 +42,7 @@ export default function FlashSalesSection() {
           >
             {flashSaleProducts.map((product) => (
               <motion.div key={product.id} variants={itemVariants}>
-                <ProductCard product={product} hrefOverride="/cart" />
+                <ProductCard product={product} />
               </motion.div>
             ))}
           </motion.div>

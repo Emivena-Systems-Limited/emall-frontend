@@ -54,7 +54,7 @@ function CarouselTrack({ products }) {
             className="w-42 shrink-0 sm:w-52 lg:w-56 xl:w-60"
             style={{ scrollSnapAlign: 'start' }}
           >
-            <ProductCard product={product} hrefOverride="/cart" />
+            <ProductCard product={product} />
           </li>
         ))}
       </ul>
@@ -64,7 +64,7 @@ function CarouselTrack({ products }) {
           type="button"
           aria-label="Scroll left"
           onClick={() => scroll(-1)}
-          className="absolute -left-4 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
+          className="absolute left-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
         >
           <ChevronLeft className="size-4.5 text-slate-700" strokeWidth={2.25} />
         </button>
@@ -74,7 +74,7 @@ function CarouselTrack({ products }) {
           type="button"
           aria-label="Scroll right"
           onClick={() => scroll(1)}
-          className="absolute -right-4 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
+          className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
         >
           <ChevronRight className="size-4.5 text-slate-700" strokeWidth={2.25} />
         </button>

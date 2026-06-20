@@ -4,6 +4,7 @@ import HomePage from '../pages/HomePage'
 import AccountPage from '../pages/AccountPage'
 import CartPage from '../pages/CartPage'
 import CheckoutPage from '../pages/CheckoutPage'
+import ProductDetailsPage from '../pages/ProductDetailsPage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
 import VerifyOtpPage from '../pages/auth/VerifyOtpPage'
@@ -22,6 +23,7 @@ export default function AppRoutes() {
       <Route path="/cart" element={<CartPage />} />
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/checkout/:mode" element={<CheckoutPage />} />
+      <Route path="/products/:slug" element={<ProductDetailsPage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route path="/account/*" element={<AccountPage />} />
       <Route path="/login" element={guestOnly(<LoginPage />)} />

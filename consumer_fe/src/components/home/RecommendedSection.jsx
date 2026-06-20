@@ -48,7 +48,7 @@ export default function RecommendedSection() {
           >
             {recommendedProducts.map((product) => (
               <motion.div key={product.id} variants={itemVariants}>
-                <ProductCard product={product} hrefOverride="/cart" />
+                <ProductCard product={product} />
               </motion.div>
             ))}
           </motion.div>
