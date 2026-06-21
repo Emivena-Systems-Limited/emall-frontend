@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
 import Container from '../layout/Container'
 import { topCategories } from '../../constants/topCategories'
 import { getParentCategories } from '../../services/categoryService'
@@ -19,7 +20,6 @@ function mapApiCategory(category, index) {
 }
 
 export default function TopCategoriesSection() {
-  const [showAll, setShowAll] = useState(false)
   const { data: apiCategories = [] } = useQuery({
     queryKey: ['parent-categories'],
     queryFn: getParentCategories,
@@ -32,8 +32,8 @@ export default function TopCategoriesSection() {
     return apiCategories.map(mapApiCategory)
   }, [apiCategories])
 
-  const visibleCategories = showAll ? categories : categories.slice(0, 10)
-  const canToggle = categories.length > 10
+  const visibleCategories = categories.slice(0, 10)
+  const canViewAll = categories.length > 10
 
   return (
     <section aria-labelledby="top-categories-heading" className="bg-white py-4 sm:py-5 lg:py-6">
@@ -46,23 +46,18 @@ export default function TopCategoriesSection() {
             >
               Top Categories
             </h2>
-            {canToggle && (
-              <button
-                type="button"
-                onClick={() => setShowAll((current) => !current)}
+            {canViewAll && (
+              <Link
+                to="/categories"
                 className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
               >
-                {showAll ? 'Show Less' : 'View All'}
-              </button>
+                View All
+              </Link>
             )}
           </div>
 
           <div
-            className={
-              showAll
-                ? 'flex flex-wrap justify-center gap-3 pb-0.5 sm:gap-4 lg:justify-between lg:pb-0'
-                : 'flex gap-3 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 lg:justify-between lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden'
-            }
+            className="flex gap-3 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 lg:justify-between lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden"
           >
             {visibleCategories.map((category) => (
               <TopCategoryItem key={category.id} category={category} />

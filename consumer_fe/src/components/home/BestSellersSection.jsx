@@ -90,12 +90,14 @@ function CarouselTrack({ products }) {
   )
 }
 
-export default function BestSellersSection() {
+export default function BestSellersSection({ categories = [] }) {
+  const displayCategories = categories.length ? categories : bestSellersCategories
+
   return (
     <section aria-label="Best sellers" className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>
         <div className="space-y-5 sm:space-y-6">
-          {bestSellersCategories.map((category, i) => (
+          {displayCategories.map((category, i) => (
             <motion.div
               key={category.id}
               initial={{ opacity: 0, y: 20 }}
@@ -106,11 +108,17 @@ export default function BestSellersSection() {
             >
               <div className="mb-5 flex items-center justify-between gap-4 sm:mb-6">
                 <h2 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
-                  Best Sellers in{' '}
-                  <span className="text-auth-primary">{category.label}</span>
+                  {category.label === 'Best Sellers' ? (
+                    category.label
+                  ) : (
+                    <>
+                      Best Sellers in{' '}
+                      <span className="text-auth-primary">{category.label}</span>
+                    </>
+                  )}
                 </h2>
                 <Link
-                  to={category.href}
+                  to={category.viewAllHref ?? category.href}
                   className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
                 >
                   View All

@@ -18,7 +18,9 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease } },
 }
 
-export default function RecommendedSection() {
+export default function RecommendedSection({ products = [] }) {
+  const displayProducts = products.length ? products : recommendedProducts
+
   return (
     <section aria-labelledby="recommended-heading" className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>
@@ -32,7 +34,7 @@ export default function RecommendedSection() {
               Recommended For You
             </h2>
             <Link
-              to="/products"
+              to="/products/recommended"
               className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
             >
               View All
@@ -46,7 +48,7 @@ export default function RecommendedSection() {
             viewport={{ once: true, margin: '-60px' }}
             className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
           >
-            {recommendedProducts.map((product) => (
+            {displayProducts.map((product) => (
               <motion.div key={product.id} variants={itemVariants}>
                 <ProductCard product={product} />
               </motion.div>

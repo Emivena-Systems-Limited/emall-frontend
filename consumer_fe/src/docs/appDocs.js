@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-17',
-  currentPhase: 'Product details page',
+  lastUpdated: '2026-06-21',
+  currentPhase: 'Homepage landing API',
   summary:
-    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout, and product cards now open a responsive product details page.',
+    'Public home landing at / uses Laravel landing-page data where available. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout, and product cards open a responsive product details page.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,38 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-21',
+    title: 'Top Categories View All page',
+    items: [
+      'Added /categories page for all parent categories',
+      'Homepage Top Categories now always displays only the first 10 categories',
+      'Top Categories View All now navigates to /categories instead of expanding inline',
+      'Categories page uses GET /category/get_parents first and static categories as fallback',
+    ],
+  },
+  {
+    date: '2026-06-21',
+    title: 'Homepage View All product pages',
+    items: [
+      'Added reusable ProductListingPage for homepage product buckets',
+      'Added /products, /products/recommended, /products/best-sellers, /products/flash-sales, and /products/explore routes',
+      'Homepage View All links now route to their respective product listing pages',
+      'Listing pages use landing-page API products first and existing static products as fallback',
+    ],
+  },
+  {
+    date: '2026-06-21',
+    title: 'Homepage product API sections',
+    items: [
+      'Added GET /landing-page/home service and useLandingPageData React Query hook',
+      'Recommended For You now uses recommended_products when the backend returns items',
+      'Best Sellers now uses best_sellers when the backend returns items',
+      'Flash Sales now uses flash_sales when the backend returns items',
+      'Explore Your Interests now uses random_products when the backend returns items',
+      'Static product grids remain as fallback because the current backend product arrays are empty',
+    ],
+  },
   {
     date: '2026-06-20',
     title: 'Homepage category API',
@@ -258,6 +290,48 @@ export const routes = [
     notes: 'Responsive guest/user checkout with address, store-grouped items, coupon, totals, payment methods, and Place Order rules',
   },
   {
+    path: '/categories',
+    name: 'All Categories',
+    status: 'done',
+    file: 'src/pages/CategoriesPage.jsx',
+    notes: 'View All page for Top Categories using parent category API with static fallback',
+  },
+  {
+    path: '/products',
+    name: 'All Products',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'Aggregated product listing page for all homepage product buckets',
+  },
+  {
+    path: '/products/recommended',
+    name: 'Recommended Products',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for recommended_products with static fallback',
+  },
+  {
+    path: '/products/best-sellers',
+    name: 'Best Sellers',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for best_sellers with static fallback',
+  },
+  {
+    path: '/products/flash-sales',
+    name: 'Flash Sales',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for flash_sales with static fallback',
+  },
+  {
+    path: '/products/explore',
+    name: 'Explore Products',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for random_products with static fallback',
+  },
+  {
     path: '/products/:slug',
     name: 'Product Details',
     status: 'done',
@@ -284,6 +358,11 @@ export const reduxSlices = [
 ]
 
 export const queryHooks = [
+  {
+    name: 'useLandingPageData',
+    file: 'src/hooks/useLandingPageData.js',
+    purpose: 'GET /landing-page/home for recommended_products, best_sellers, flash_sales, and random_products on the homepage',
+  },
   {
     name: 'TopCategoriesSection useQuery',
     file: 'src/components/home/TopCategoriesSection.jsx',
@@ -347,10 +426,16 @@ export const apiIntegrations = [
     purpose: 'Fetch parent categories for the homepage Top Categories section',
     status: 'wired',
   },
+  {
+    method: 'GET',
+    endpoint: '/landing-page/home',
+    purpose: 'Fetch homepage product sections: recommended_products, best_sellers, flash_sales, and random_products',
+    status: 'wired',
+  },
 ]
 
 export const plannedPages = [
-  { name: 'Products', path: '/products', status: 'planned' },
+  { name: 'Products', path: '/products', status: 'done' },
   { name: 'Product detail', path: '/products/:slug', status: 'done' },
 ]
 
