@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, PenLine, Search, X } from 'lucide-react'
+import { ChevronDown, Loader2, PenLine, Search, X } from 'lucide-react'
 import FieldError from './FieldError'
 
 export default function SearchableSelect({
@@ -17,14 +17,18 @@ export default function SearchableSelect({
   customPlaceholder = 'Type your own value…',
   allowCustom = false,
   customEntryLabel = 'Enter manually…',
+  customSubmitLabel = 'Add brand',
   hint,
   reserveHintSpace = false,
   onCustomModeStart,
+  onCustomSubmit,
+  isCustomSubmitting = false,
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [customDraft, setCustomDraft] = useState('')
   const [isCustom, setIsCustom] = useState(() => (
-    Boolean(value && !options.find((o) => o.value === value))
+    Boolean(value && !options.find((o) => o.value === value) && !onCustomSubmit)
   ))
   const containerRef = useRef(null)
   const searchRef = useRef(null)
@@ -39,12 +43,20 @@ export default function SearchableSelect({
       setIsCustom(false)
       return
     }
+    if (onCustomSubmit) {
+      setIsCustom(false)
+      return
+    }
     if (!options.find((o) => o.value === value)) {
       setIsCustom(true)
     } else {
       setIsCustom(false)
     }
-  }, [value, options])
+  }, [value, options, onCustomSubmit])
+
+  useEffect(() => {
+    if (!isCustom) setCustomDraft('')
+  }, [isCustom])
 
   useEffect(() => {
     const onOutside = (e) => {
@@ -76,6 +88,7 @@ export default function SearchableSelect({
 
   const enableCustom = () => {
     setIsCustom(true)
+    setCustomDraft('')
     setOpen(false)
     setSearch('')
     onCustomModeStart?.()
@@ -83,18 +96,39 @@ export default function SearchableSelect({
 
   const clearCustom = () => {
     setIsCustom(false)
-    emitChange('')
+    setCustomDraft('')
+    if (!onCustomSubmit) {
+      emitChange('')
+    }
     setTimeout(() => triggerRef.current?.focus(), 0)
   }
 
-  const applyCustomValue = (customValue) => {
+  const applyCustomValue = async (customValue) => {
     const nextValue = customValue.trim()
-    if (!nextValue) return
+    if (!nextValue || isCustomSubmitting) return
+
+    if (onCustomSubmit) {
+      try {
+        await onCustomSubmit(nextValue)
+        setIsCustom(false)
+        setCustomDraft('')
+        setOpen(false)
+        setSearch('')
+      } catch {
+        // handled by caller
+      }
+      return
+    }
+
     emitChange(nextValue)
     setIsCustom(true)
     setOpen(false)
     setSearch('')
     setTimeout(() => emitBlur(), 0)
+  }
+
+  const submitCustomDraft = async () => {
+    await applyCustomValue(customDraft)
   }
 
   const filtered = options.filter((o) =>
@@ -136,27 +170,59 @@ export default function SearchableSelect({
       </label>
 
       {isCustom ? (
-        <div className="relative fade-in">
-          <input
-            id={id}
-            type="text"
-            value={value}
-            onChange={(e) => emitChange(e.target.value)}
-            onBlur={handleBlur}
-            placeholder={customPlaceholder}
-            disabled={disabled}
-            autoFocus
-            className={`${baseCls} pr-10 ${error ? bdError : bdNormal} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-          />
-          <button
-            type="button"
-            onClick={clearCustom}
-            title="Back to list"
-            aria-label="Back to dropdown list"
-            className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer rounded text-slate-400 transition-colors hover:text-brand"
-          >
-            <X className="size-4" />
-          </button>
+        <div className="fade-in space-y-2">
+          <div className="relative">
+            <input
+              id={id}
+              type="text"
+              value={onCustomSubmit ? customDraft : value}
+              onChange={(e) => {
+                if (onCustomSubmit) {
+                  setCustomDraft(e.target.value)
+                  return
+                }
+                emitChange(e.target.value)
+              }}
+              onKeyDown={(event) => {
+                if (onCustomSubmit && event.key === 'Enter') {
+                  event.preventDefault()
+                  submitCustomDraft()
+                }
+              }}
+              onBlur={onCustomSubmit ? undefined : handleBlur}
+              placeholder={customPlaceholder}
+              disabled={disabled || isCustomSubmitting}
+              autoFocus
+              className={`${baseCls} pr-10 ${error ? bdError : bdNormal} ${disabled || isCustomSubmitting ? 'cursor-not-allowed opacity-60' : ''}`}
+            />
+            <button
+              type="button"
+              onClick={clearCustom}
+              title="Back to list"
+              aria-label="Back to dropdown list"
+              disabled={isCustomSubmitting}
+              className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer rounded text-slate-400 transition-colors hover:text-brand disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          {onCustomSubmit && (
+            <button
+              type="button"
+              onClick={submitCustomDraft}
+              disabled={disabled || isCustomSubmitting || !customDraft.trim()}
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isCustomSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Adding brand…
+                </>
+              ) : (
+                customSubmitLabel
+              )}
+            </button>
+          )}
         </div>
       ) : (
         <div className="relative">
@@ -209,10 +275,15 @@ export default function SearchableSelect({
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => applyCustomValue(trimmedSearch)}
-                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg bg-brand-light px-3 py-2.5 text-left text-sm font-semibold text-brand transition-colors hover:bg-brand/10"
+                      disabled={isCustomSubmitting}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg bg-brand-light px-3 py-2.5 text-left text-sm font-semibold text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <PenLine className="size-3.5 shrink-0" />
-                      Add &ldquo;{trimmedSearch}&rdquo;
+                      {isCustomSubmitting ? (
+                        <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                      ) : (
+                        <PenLine className="size-3.5 shrink-0" />
+                      )}
+                      Add brand &ldquo;{trimmedSearch}&rdquo;
                     </button>
                   </li>
                 )}
@@ -248,7 +319,8 @@ export default function SearchableSelect({
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={enableCustom}
-                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
+                      disabled={isCustomSubmitting}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <PenLine className="size-3.5 text-brand" />
                       {customEntryLabel}

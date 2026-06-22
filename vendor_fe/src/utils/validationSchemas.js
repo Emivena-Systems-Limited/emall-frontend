@@ -168,9 +168,9 @@ export const productListingSchema = Yup.object({
     .test('min-length', 'Description must be at least 20 characters', (value) => {
       return stripHtml(value).length >= 20
     }),
-  category_slug: Yup.string().required('Category is required'),
-  subcategory_slug: Yup.string().required('Subcategory is required'),
-  brand_slug: Yup.string().required('Brand is required'),
+  category_id: Yup.string().required('Category is required'),
+  subcategory_id: Yup.string().required('Subcategory is required'),
+  brand_id: Yup.string().required('Brand is required'),
   tags: Yup.array().of(Yup.string().trim().min(1)).default([]),
 
   price: Yup.number()

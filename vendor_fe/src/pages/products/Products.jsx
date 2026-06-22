@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { PackagePlus } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Loader2, PackagePlus } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import EmptyState from '../../components/dashboard/EmptyState'
 import ProductCatalogToolbar from '../../components/products/ProductCatalogToolbar'
@@ -12,6 +13,7 @@ import {
 } from '../../constants/productCatalog'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import notify from '../../lib/notify'
+import { useProducts, productQueryKeys } from '../../hooks/useProducts'
 import { exportProductsToExcel, exportProductsToPdf } from '../../utils/exportProductCatalog'
 import { filterProductCatalog } from '../../utils/productCatalogFilters'
 
@@ -29,7 +31,8 @@ function duplicateProduct(product, existingProducts) {
 }
 
 export default function Products() {
-  const [products, setProducts] = useState([])
+  const queryClient = useQueryClient()
+  const { data: products = [], isLoading, isError, refetch } = useProducts()
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [brand, setBrand] = useState('')
@@ -50,6 +53,12 @@ export default function Products() {
 
   const preset = EMPTY_STATE_PRESETS.products
   const visibleSelectedCount = filteredProducts.filter((product) => selectedIds.has(product.id)).length
+
+  const updateProducts = (updater) => {
+    queryClient.setQueryData(productQueryKeys.list(), (current = []) => (
+      typeof updater === 'function' ? updater(current) : updater
+    ))
+  }
 
   const clearSelection = () => setSelectedIds(new Set())
 
@@ -82,7 +91,7 @@ export default function Products() {
   const updateSelectedStatus = (status) => {
     if (selectedIds.size === 0) return
 
-    setProducts((current) =>
+    updateProducts((current) =>
       current.map((product) => (
         selectedIds.has(product.id) ? { ...product, status } : product
       )),
@@ -94,7 +103,7 @@ export default function Products() {
   const deleteProducts = (ids) => {
     if (ids.size === 0) return
 
-    setProducts((current) => current.filter((product) => !ids.has(product.id)))
+    updateProducts((current) => current.filter((product) => !ids.has(product.id)))
     notify.success(`Deleted ${ids.size} product${ids.size === 1 ? '' : 's'}`)
     clearSelection()
   }
@@ -132,7 +141,7 @@ export default function Products() {
   }
 
   const handleDuplicate = (product) => {
-    setProducts((current) => [duplicateProduct(product, current), ...current])
+    updateProducts((current) => [duplicateProduct(product, current), ...current])
     notify.success(`Duplicated ${product.name}`)
   }
 
@@ -164,6 +173,19 @@ export default function Products() {
           onFilterChange={setSummaryFilter}
         />
 
+        {isError && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            Could not load your products.{' '}
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="cursor-pointer font-semibold underline underline-offset-2"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-sm font-bold text-slate-950">All Products</h2>
@@ -190,7 +212,12 @@ export default function Products() {
             />
           </div>
 
-          {filteredProducts.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2 px-5 py-16 text-sm font-semibold text-slate-500">
+              <Loader2 className="size-4 animate-spin text-brand" />
+              Loading products…
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <EmptyState
               icon={preset.icon}
               title={products.length === 0 ? preset.title : 'No products match your filters'}

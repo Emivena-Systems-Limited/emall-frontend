@@ -16,7 +16,6 @@ import {
   PackageSearch,
   Plus,
   Ruler,
-  Save,
   Store,
   Trash2,
   X,
@@ -37,20 +36,17 @@ import {
   ProductMoneyInput,
 } from '../../components/products/ProductFormControls'
 import {
-  MOCK_BRANDS,
-} from '../../constants/productData'
-import { useProductCategoryOptions } from '../../hooks/useCategories'
-import {
-  findCategoryBySlug,
-  getSubcategoriesForParent,
+  findCategoryById,
+  getSubcategoriesForParentId,
   toSelectOptions,
 } from '../../utils/normalizeCategories'
+import { findBrandById, getBrandDisplayLabel, toBrandSelectOptions } from '../../utils/normalizeBrands'
+import { useApprovedBrands } from '../../hooks/useBrands'
+import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
+import { useProductCategoryOptions } from '../../hooks/useCategories'
 import { productListingSchema } from '../../utils/validationSchemas'
-import {
-  buildProductImagesPayload,
-  buildProductPayload,
-  formatProductPayloadSample,
-} from '../../utils/productPayload'
+import { buildProductPayload } from '../../utils/productPayload'
+import { useCreateProductMutation } from '../../hooks/useProductMutations'
 import {
   convertDiscountAmountToPercent,
   convertDiscountPercentToAmount,
@@ -76,7 +72,7 @@ const steps = [
 ]
 
 const stepFields = [
-  ['name', 'sku', 'description', 'category_slug', 'subcategory_slug', 'brand_slug'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'brand_id'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity'],
   ['variations'],
@@ -88,9 +84,9 @@ const initialValues = {
   name:               '',
   sku:                '',
   description:        '',
-  category_slug:      '',
-  subcategory_slug:   '',
-  brand_slug:         '',
+  category_id:        '',
+  subcategory_id:     '',
+  brand_id:           '',
   tags:               [],
   price:              '',
   discount_mode:      'amount',
@@ -230,20 +226,12 @@ function getVariationValuesError(formik, varIndex) {
 }
 
 function getBrandFieldError(formik) {
-  const value = formik.values.brand_slug
+  const value = formik.values.brand_id
   if (value?.trim()) {
-    const error = getIn(formik.errors, 'brand_slug')
+    const error = getIn(formik.errors, 'brand_id')
     if (error === 'Brand is required') return undefined
   }
-  return getFieldError(formik, 'brand_slug')
-}
-
-const brandOptions = MOCK_BRANDS.map((b) => ({ value: b.slug, label: b.label }))
-
-function getBrandDisplayLabel(brandSlug) {
-  if (!brandSlug) return null
-  const match = MOCK_BRANDS.find((brand) => brand.slug === brandSlug)
-  return match?.label ?? brandSlug
+  return getFieldError(formik, 'brand_id')
 }
 
 // ─── Step 1: Product Info ────────────────────────────────────────────────────
@@ -254,13 +242,25 @@ function InfoStep({
   categoryTree,
   categoriesLoading,
   categoriesError,
+  approvedBrands,
+  brandsLoading,
+  brandsError,
+  createBrandMutation,
 }) {
   const categoryOptions = toSelectOptions(parentCategories)
+  const brandOptions = toBrandSelectOptions(approvedBrands)
   const selectedCategory =
-    findCategoryBySlug(categoryTree, formik.values.category_slug)
-    ?? parentCategories.find((category) => category.slug === formik.values.category_slug)
-  const subcategories = getSubcategoriesForParent(categoryTree, formik.values.category_slug)
+    findCategoryById(categoryTree, formik.values.category_id)
+    ?? parentCategories.find((category) => category.id === formik.values.category_id)
+  const subcategories = getSubcategoriesForParentId(categoryTree, formik.values.category_id)
   const subcategoryOptions = toSelectOptions(subcategories)
+
+  const handleCustomBrandSubmit = async (brandName) => {
+    const brand = await createBrandMutation.mutateAsync({ brand_name: brandName })
+    await formik.setFieldValue('brand_id', brand.id, false)
+    formik.setFieldTouched('brand_id', true, false)
+    formik.setFieldError('brand_id', undefined)
+  }
 
   return (
     <div className="space-y-6">
@@ -298,32 +298,41 @@ function InfoStep({
           reserveHintSpace
         />
         <SearchableSelect
-          id="brand_slug"
-          name="brand_slug"
+          id="brand_id"
+          name="brand_id"
           label="Brand"
           icon={Store}
-          hint="Search the list or add your own."
+          hint="Search for a brand or add a new one if it is not listed."
           reserveHintSpace
-          placeholder="Search brands…"
+          placeholder={brandsLoading ? 'Loading brands…' : 'Search brands…'}
           options={brandOptions}
-          value={formik.values.brand_slug}
+          value={formik.values.brand_id}
+          disabled={brandsLoading || createBrandMutation.isPending}
           allowCustom
           customPlaceholder="Enter your brand name…"
-          customEntryLabel="Type a different brand…"
+          customEntryLabel="Add a custom brand…"
+          customSubmitLabel="Save brand"
+          onCustomSubmit={handleCustomBrandSubmit}
+          isCustomSubmitting={createBrandMutation.isPending}
           onChange={(e) => {
-            const nextValue = e.target.value
-            formik.setFieldValue('brand_slug', nextValue)
-            if (nextValue.trim()) {
-              formik.setFieldError('brand_slug', undefined)
+            formik.setFieldValue('brand_id', e.target.value, true)
+            formik.setFieldTouched('brand_id', true, false)
+            if (e.target.value.trim()) {
+              formik.setFieldError('brand_id', undefined)
             }
           }}
           onCustomModeStart={() => {
-            formik.setFieldTouched('brand_slug', false, false)
-            formik.setFieldError('brand_slug', undefined)
+            formik.setFieldTouched('brand_id', false, false)
+            formik.setFieldError('brand_id', undefined)
           }}
           onBlur={formik.handleBlur}
           error={getBrandFieldError(formik)}
         />
+        {brandsError && (
+          <p className="mt-1 text-xs text-red-600">
+            Could not load brands from the server. Refresh the page and try again.
+          </p>
+        )}
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
@@ -341,25 +350,25 @@ function InfoStep({
         )}
         <div className="grid gap-4 sm:grid-cols-2">
           <SearchableSelect
-            id="category_slug"
-            name="category_slug"
+            id="category_id"
+            name="category_id"
             label="Category"
             icon={Layers3}
             placeholder={categoriesLoading ? 'Loading categories…' : 'Search categories…'}
             options={categoryOptions}
-            value={formik.values.category_slug}
+            value={formik.values.category_id}
             disabled={categoriesLoading || categoriesError}
             onChange={(e) => {
-              formik.setFieldValue('category_slug', e.target.value, true)
-              formik.setFieldValue('subcategory_slug', '', false)
-              formik.setFieldTouched('category_slug', true, false)
+              formik.setFieldValue('category_id', e.target.value, true)
+              formik.setFieldValue('subcategory_id', '', false)
+              formik.setFieldTouched('category_id', true, false)
             }}
             onBlur={formik.handleBlur}
-            error={getFieldError(formik, 'category_slug')}
+            error={getFieldError(formik, 'category_id')}
           />
           <SearchableSelect
-            id="subcategory_slug"
-            name="subcategory_slug"
+            id="subcategory_id"
+            name="subcategory_id"
             label="Sub category"
             icon={PackageSearch}
             placeholder={
@@ -370,14 +379,14 @@ function InfoStep({
                   : 'Choose a category first'
             }
             options={subcategoryOptions}
-            value={formik.values.subcategory_slug}
-            disabled={categoriesLoading || categoriesError || !formik.values.category_slug}
+            value={formik.values.subcategory_id}
+            disabled={categoriesLoading || categoriesError || !formik.values.category_id}
             onChange={(e) => {
-              formik.setFieldValue('subcategory_slug', e.target.value, true)
-              formik.setFieldTouched('subcategory_slug', true, false)
+              formik.setFieldValue('subcategory_id', e.target.value, true)
+              formik.setFieldTouched('subcategory_id', true, false)
             }}
             onBlur={formik.handleBlur}
-            error={getFieldError(formik, 'subcategory_slug')}
+            error={getFieldError(formik, 'subcategory_id')}
           />
         </div>
         {selectedCategory && (
@@ -1158,13 +1167,13 @@ function ShippingStep({ formik }) {
 
 // ─── Step 6: Review ───────────────────────────────────────────────────────────
 
-function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTree }) {
+function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTree, approvedBrands }) {
   const selectedCategory =
-    findCategoryBySlug(categoryTree, formik.values.category_slug)
-    ?? parentCategories.find((category) => category.slug === formik.values.category_slug)
-  const selectedBrandLabel = getBrandDisplayLabel(formik.values.brand_slug)
-  const subcategories = getSubcategoriesForParent(categoryTree, formik.values.category_slug)
-  const selectedSubcategory = findCategoryBySlug(subcategories, formik.values.subcategory_slug)
+    findCategoryById(categoryTree, formik.values.category_id)
+    ?? parentCategories.find((category) => category.id === formik.values.category_id)
+  const selectedBrandLabel = getBrandDisplayLabel(formik.values.brand_id, approvedBrands)
+  const subcategories = getSubcategoriesForParentId(categoryTree, formik.values.category_id)
+  const selectedSubcategory = findCategoryById(subcategories, formik.values.subcategory_id)
 
   const price = Number(formik.values.price) || 0
   const { salesPrice, percentOff, hasDiscount } = getDiscountSummary(
@@ -1336,15 +1345,45 @@ function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTr
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+function buildCreateProductContext(values, { parentCategories, categoryTree, approvedBrands }) {
+  const selectedCategory =
+    findCategoryById(categoryTree, values.category_id)
+    ?? parentCategories.find((category) => category.id === values.category_id)
+  const brand = findBrandById(approvedBrands, values.brand_id)
+  const { salesPrice } = getDiscountSummary(
+    values.price,
+    values.discount_mode ?? 'amount',
+    values.discount_price,
+    values.discount_percent,
+  )
+
+  return {
+    sku: values.sku,
+    quantity: Number(values.quantity),
+    price: Number(values.price),
+    salePrice: salesPrice,
+    categoryName: selectedCategory?.name ?? '',
+    categorySlug: selectedCategory?.slug ?? '',
+    brandName: brand?.name ?? getBrandDisplayLabel(values.brand_id, approvedBrands) ?? '',
+    brandSlug: brand?.slug ?? '',
+  }
+}
+
 export default function AddProduct() {
   const [activeStep, setActiveStep] = useState(0)
   const [mainImage, setMainImage] = useState(null)
   const [subImages, setSubImages] = useState([])
   const [mainImageError, setMainImageError] = useState('')
-  const submitActionRef = useRef('draft')
   const stepDirectionRef = useRef('forward')
   const isInitialStepMount = useRef(true)
   const navigate = useNavigate()
+  const createProductMutation = useCreateProductMutation()
+  const createBrandMutation = useCreateBrandMutation()
+  const {
+    data: approvedBrands = [],
+    isLoading: brandsLoading,
+    isError: brandsError,
+  } = useApprovedBrands()
   const {
     parentCategories,
     categoryTree,
@@ -1465,26 +1504,22 @@ export default function AddProduct() {
           validateOnChange={false}
           onSubmit={async (values, actions) => {
             try {
-              const productImages = await buildProductImagesPayload(mainImage, subImages)
-              const payload = buildProductPayload(
-                {
-                  ...values,
-                  status: submitActionRef.current,
-                },
-                productImages,
-              )
+              const formValues = { ...values, status: 'active' }
+              const payload = buildProductPayload(formValues, mainImage, subImages)
 
-              console.log('Product payload (sample)', formatProductPayloadSample(payload))
-              // TODO: POST full `payload` to backend — primary_image, product_images, and variant images use full base64
-
-              notify.success(
-                submitActionRef.current === 'active'
-                  ? 'Product published successfully!'
-                  : 'Product saved as draft.',
-              )
+              await createProductMutation.mutateAsync({
+                formData: payload,
+                context: buildCreateProductContext(formValues, {
+                  parentCategories,
+                  categoryTree,
+                  approvedBrands,
+                }),
+              })
               navigate('/products')
             } catch (error) {
-              notify.error(error?.message || 'Failed to prepare product images.')
+              if (!error?.response) {
+                notify.error(error?.message || 'Failed to prepare product images.')
+              }
             } finally {
               actions.setSubmitting(false)
             }
@@ -1521,6 +1556,10 @@ export default function AddProduct() {
                     categoryTree={categoryTree}
                     categoriesLoading={categoriesLoading}
                     categoriesError={categoriesError}
+                    approvedBrands={approvedBrands}
+                    brandsLoading={brandsLoading}
+                    brandsError={brandsError}
+                    createBrandMutation={createBrandMutation}
                   />
                 )}
                 {activeStep === 1 && (
@@ -1545,6 +1584,7 @@ export default function AddProduct() {
                     subImages={subImages}
                     parentCategories={parentCategories}
                     categoryTree={categoryTree}
+                    approvedBrands={approvedBrands}
                   />
                 )}
               </section>
@@ -1576,20 +1616,11 @@ export default function AddProduct() {
                       Cancel
                     </Link>
                     <button
-                      type="button"
-                      disabled={formik.isSubmitting}
-                      onClick={() => { submitActionRef.current = 'draft'; formik.submitForm() }}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Save className="size-4" /> Save as draft
-                    </button>
-                    <button
-                      type="button"
-                      disabled={formik.isSubmitting}
-                      onClick={() => { submitActionRef.current = 'active'; formik.submitForm() }}
+                      type="submit"
+                      disabled={formik.isSubmitting || createProductMutation.isPending}
                       className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {formik.isSubmitting ? (
+                      {formik.isSubmitting || createProductMutation.isPending ? (
                         <><Loader2 className="size-4 animate-spin" /> Publishing…</>
                       ) : (
                         <>Publish product <ArrowRight className="size-4" /></>

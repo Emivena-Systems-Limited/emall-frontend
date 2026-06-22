@@ -57,8 +57,14 @@ export function buildFieldErrors(errors) {
 export function parseApiError(error, fallback = 'Something went wrong') {
   const responseData = error?.response?.data
   const envelope = unwrapApiEnvelope(responseData) ?? {}
-  const errors = envelope.errors ?? responseData?.errors
-  const fieldErrors = buildFieldErrors(errors)
+  const errors =
+    envelope.errors ??
+    responseData?.errors ??
+    error?.validationErrors
+  const fieldErrors =
+    Object.keys(error?.fieldErrors ?? {}).length > 0
+      ? error.fieldErrors
+      : buildFieldErrors(errors)
   const errorList = normalizeErrorsList(errors)
   const message =
     envelope.message ||
@@ -74,11 +80,19 @@ export function parseApiError(error, fallback = 'Something went wrong') {
   }
 }
 
-export function getApiErrorMessage(error, fallback = 'Something went wrong') {
+export function formatApiErrorMessages(error, fallback = 'Something went wrong') {
   const parsed = parseApiError(error, fallback)
+  const messages = parsed.errors.filter(
+    (entry) => entry && entry !== parsed.message,
+  )
 
-  if (parsed.errors.length === 1) return parsed.errors[0]
-  if (parsed.errors.length > 1) return parsed.message
+  if (messages.length > 0) {
+    return messages.join('\n')
+  }
 
   return parsed.message || fallback
+}
+
+export function getApiErrorMessage(error, fallback = 'Something went wrong') {
+  return formatApiErrorMessages(error, fallback)
 }

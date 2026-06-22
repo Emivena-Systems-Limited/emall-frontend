@@ -28,7 +28,7 @@ export function extractCategoryList(body) {
 
 export function toSelectOptions(categories) {
   return categories.map((category) => ({
-    value: category.slug,
+    value: category.id,
     label: category.name,
   }))
 }
@@ -38,8 +38,26 @@ export function findCategoryBySlug(categories, slug) {
   return categories.find((category) => category.slug === slug) ?? null
 }
 
+export function findCategoryById(categories, id) {
+  if (!id) return null
+
+  for (const category of categories) {
+    if (category.id === id) return category
+
+    const nestedMatch = findCategoryById(category.children ?? [], id)
+    if (nestedMatch) return nestedMatch
+  }
+
+  return null
+}
+
 export function getSubcategoriesForParent(categories, parentSlug) {
   const parent = findCategoryBySlug(categories, parentSlug)
+  return (parent?.children ?? []).filter((child) => child.isActive)
+}
+
+export function getSubcategoriesForParentId(categories, parentId) {
+  const parent = findCategoryById(categories, parentId)
   return (parent?.children ?? []).filter((child) => child.isActive)
 }
 

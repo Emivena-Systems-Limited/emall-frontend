@@ -1,6 +1,10 @@
 import { useRef, useState } from 'react'
 import { GripVertical, ImagePlus, Trash2, Upload } from 'lucide-react'
-import { isAcceptedImageFile, readImageAsDataUri } from '../../utils/readImageAsDataUri'
+import {
+  createProductImageFromFile,
+  isValidProductImageFile,
+  revokeProductImagePreview,
+} from '../../utils/productImageUtils'
 import notify from '../../lib/notify'
 
 export default function VariantImageUpload({
@@ -16,27 +20,19 @@ export default function VariantImageUpload({
   const [overIndex, setOverIndex] = useState(null)
 
   const processFiles = async (fileList) => {
-    const files = Array.from(fileList).filter(isAcceptedImageFile)
+    const files = Array.from(fileList).filter(isValidProductImageFile)
     if (files.length === 0) {
       notify.error('Only JPG or PNG images up to 5MB are allowed')
       return
     }
 
-    try {
-      const added = await Promise.all(
-        files.map(async (file) => ({
-          id: `var-img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          preview: await readImageAsDataUri(file),
-        })),
-      )
-      onChange([...images, ...added])
-    } catch {
-      notify.error('Could not process one or more images. Try again.')
-    }
+    onChange([...images, ...files.map(createProductImageFromFile)])
   }
 
   const removeImage = (id) => {
-    onChange(images.filter((image) => image.id !== id))
+    const image = images.find((item) => item.id === id)
+    if (image) revokeProductImagePreview(image)
+    onChange(images.filter((item) => item.id !== id))
   }
 
   const handleZoneDrop = (event) => {
@@ -62,7 +58,7 @@ export default function VariantImageUpload({
   }
 
   const labelBlock = (
-    <div className={compact ? 'mb-2 min-h-[3.25rem]' : 'mb-1.5'}>
+    <div className={compact ? 'mb-2 min-h-13' : 'mb-1.5'}>
       <p className="text-sm font-semibold text-slate-800">{label}</p>
       {hint && (
         <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{hint}</p>
@@ -123,7 +119,7 @@ export default function VariantImageUpload({
                 onDragOver={(event) => { event.preventDefault(); setOverIndex(index) }}
                 onDrop={(event) => handleItemDrop(event, index)}
                 onDragEnd={() => { setDraggingIndex(null); setOverIndex(null) }}
-                className={`group relative size-16 shrink-0 overflow-hidden rounded-lg sm:size-[4.5rem] ${
+                className={`group relative size-16 shrink-0 overflow-hidden rounded-lg sm:size-18 ${
                   draggingIndex === index
                     ? 'cursor-grabbing opacity-40 ring-2 ring-slate-300'
                     : overIndex === index && draggingIndex !== index

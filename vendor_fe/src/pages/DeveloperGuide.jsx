@@ -300,7 +300,7 @@ src/utils/exportProductCatalog.js        // exportProductsToExcel, exportProduct
             description="/products/new — 6-step Formik wizard. Payload builder is ready; submit currently logs formatProductPayloadSample to console (API hookup pending)."
           >
             <ol className="space-y-2 text-sm leading-relaxed text-slate-700">
-              <li><strong>1. Product Info</strong> — Name, SKU, rich description, category + sub category, brand (<code className="rounded bg-slate-100 px-1 text-xs">SearchableSelect</code> with custom entry), tags, optional specs/metadata rows.</li>
+              <li><strong>1. Product Info</strong> — Name, SKU, rich description, category + sub category, brand (<code className="rounded bg-slate-100 px-1 text-xs">SearchableSelect</code> with custom entry), tags. Specs are hidden; <code className="rounded bg-slate-100 px-1 text-xs">metadata</code> submits as an empty object.</li>
               <li><strong>2. Images</strong> — Required main photo (<code className="rounded bg-slate-100 px-1 text-xs">ProductMainImageUpload</code>) + optional gallery (<code className="rounded bg-slate-100 px-1 text-xs">ProductImageUploader</code>).</li>
               <li><strong>3. Pricing</strong> — List price, discount (amount or %), quantity, low stock, barcode.</li>
               <li><strong>4. Variations</strong> — Optional groups (Size / Color / Weight presets or custom). Per-value SKU, pricing, inventory, multi-image upload (<code className="rounded bg-slate-100 px-1 text-xs">VariantImageUpload</code>).</li>
@@ -319,11 +319,11 @@ GET_WITH_CHILDREN: '/api/category/get_with_children'`}
             />
 
             <CodeBlock
-              title="Payload shape (utils/productPayload.js)"
-              code={`const payload = await buildProductPayload(values, productImages)
+              title="Multipart payload (utils/productPayload.js)"
+              code={`const formData = buildProductPayload(values, mainImage, subImages)
 
 // Root fields: name, description, category_slug, subcategory_slug,
-// brand_slug, tags, metadata, quantity, primary_image, product_images, shipping
+// brand_slug, tags, metadata={}, quantity, primary_image File, product_images Files, shipping
 // Variants flattened — one API object per value:
 {
   variant_name: 'Black / Large',
@@ -335,12 +335,13 @@ GET_WITH_CHILDREN: '/api/category/get_with_children'`}
   discount_price: 199.99,
   sku: 'SKU-001-BLK-L',
   attributes: { color: 'black' },
-  images: [{ image_url: 'data:...', sort_order: 0, is_primary: true }],
+  images: [{ image_url: File, sort_order: 0, is_primary: true }],
 }
 
 // Dev-only fixtures + autofill → DevProductFormTools (isLocalEnvironment)
 // Validation → productListingSchema in validationSchemas.js
-// Stepper is clickable; intermediate steps validate before forward navigation`}
+// Stepper is clickable; intermediate steps validate before forward navigation
+// Submit FormData directly with multipart/form-data. Do not JSON.stringify it.`}
             />
           </GuideSection>
 
@@ -687,8 +688,8 @@ notify.promise(submitOrder(), {
 
 // Static assets: place in src/assets/images/ → register in Images.jsx
 
-// Product uploads (dynamic): readImageAsDataUri → base64 in payload
-// buildProductImagesPayload(mainImage, subImages) in productPayload.js`}
+// Product uploads (dynamic): keep File objects in FormData
+// buildProductPayload(values, mainImage, subImages) in productPayload.js`}
             />
           </GuideSection>
 
@@ -704,7 +705,7 @@ notify.promise(submitOrder(), {
               <li>• <strong>Formik + Yup</strong> — auth pages + add-product wizard (<code className="rounded bg-slate-100 px-1 text-xs">productListingSchema</code>).</li>
               <li>• <strong>apiClient</strong> — single axios instance using <code className="rounded bg-slate-100 px-1 text-xs">Config.jsx</code> base URL.</li>
               <li>• <strong>notify</strong> — user-facing success/error feedback after actions.</li>
-              <li>• <strong>Images.jsx</strong> — single source of truth for static assets; product uploads use base64 via <code className="rounded bg-slate-100 px-1 text-xs">readImageAsDataUri</code>.</li>
+              <li>• <strong>Images.jsx</strong> — single source of truth for static assets; product uploads use <code className="rounded bg-slate-100 px-1 text-xs">File</code> objects in multipart <code className="rounded bg-slate-100 px-1 text-xs">FormData</code>.</li>
               <li>• Put query/mutation hooks in <code className="rounded bg-slate-100 px-1 text-xs">src/hooks/</code>, API logic in <code className="rounded bg-slate-100 px-1 text-xs">src/services/</code>.</li>
               <li>• Style with Tailwind utility classes; font is Instrument Sans (see index.css).</li>
               <li>• <strong>Email vs activation</strong> — OTP verifies email only; admin sets <code className="rounded bg-slate-100 px-1 text-xs">status: active</code> after review.</li>

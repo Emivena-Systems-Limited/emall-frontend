@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { getApiErrorMessage } from '../utils/parseApiError'
+import { formatApiErrorMessages } from '../utils/parseApiError'
 
 export const notify = {
   success: (message, options) => toast.success(message, options),
@@ -9,7 +9,19 @@ export const notify = {
   loading: (message, options) => toast.loading(message, options),
   promise: toast.promise,
   dismiss: toast.dismiss,
-  fromError: (error, fallback) => toast.error(getApiErrorMessage(error, fallback)),
+  fromError: (error, fallback) => {
+    const message = formatApiErrorMessages(error, fallback)
+    const lines = message.split('\n').filter(Boolean)
+
+    if (lines.length > 1) {
+      toast.error(lines[0], {
+        description: lines.slice(1).join('\n'),
+      })
+      return
+    }
+
+    toast.error(message)
+  },
 }
 
 export default notify

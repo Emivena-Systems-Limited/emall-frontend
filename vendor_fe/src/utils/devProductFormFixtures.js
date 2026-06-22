@@ -6,9 +6,9 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
     name: 'Wireless Earbuds Pro',
     sku: 'AUD-WEP-001',
     description: DEV_DESCRIPTION,
-    category_slug: 'electronics',
-    subcategory_slug: 'electronics-audio-systems',
-    brand_slug: 'sony',
+    category_id: '',
+    subcategory_id: '',
+    brand_id: '',
     tags: ['wireless', 'audio', 'earbuds'],
   },
   2: {

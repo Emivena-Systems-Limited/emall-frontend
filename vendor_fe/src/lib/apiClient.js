@@ -22,6 +22,10 @@ apiClient.interceptors.request.use((requestConfig) => {
     requestConfig.headers['Application-Token'] = applicationToken
   }
 
+  if (requestConfig.data instanceof FormData) {
+    delete requestConfig.headers['Content-Type']
+  }
+
   return requestConfig
 })
 

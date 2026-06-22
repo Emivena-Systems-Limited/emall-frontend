@@ -1,50 +1,27 @@
-import { readImageAsDataUri } from './readImageAsDataUri'
 import { resolveSalesPrice, resolveVariantPricing, roundMoney } from './productPricing'
+import { DEFAULT_PRODUCT_FULFILLMENT_CHANNEL } from '../constants/products'
 
-const SAMPLE_DATA_URI_PREFIX_LENGTH = 60
-
-export function shortenDataUriForSample(value, prefixLength = SAMPLE_DATA_URI_PREFIX_LENGTH) {
-  if (!value || typeof value !== 'string' || !value.startsWith('data:')) return value
-  if (value.length <= prefixLength) return value
-  return `${value.slice(0, prefixLength)}… [${value.length} chars]`
-}
-
-export function formatProductPayloadSample(payload) {
+function describeFile(file) {
+  if (!file) return null
   return {
-    ...payload,
-    primary_image: shortenDataUriForSample(payload.primary_image),
-    product_images: (payload.product_images ?? []).map((image) => ({
-      ...image,
-      image_url: shortenDataUriForSample(image.image_url),
-    })),
-    variations: (payload.variations ?? []).map((variation) => ({
-      ...variation,
-      images: (variation.images ?? []).map((image) => ({
-        ...image,
-        image_url: shortenDataUriForSample(image.image_url),
-      })),
-    })),
+    name: file.name,
+    type: file.type,
+    size: file.size,
   }
 }
 
-export async function buildProductImagesPayload(mainImage, subImages = []) {
-  const images = [mainImage, ...subImages].filter(Boolean)
-  return Promise.all(
-    images.map(async (image, index) => ({
-      image_url: await readImageAsDataUri(image.file),
-      sort_order: index,
-      is_primary: index === 0,
-    })),
-  )
+export function isFileValue(value) {
+  return typeof File !== 'undefined' && value instanceof File
 }
 
-export function metadataRowsToObject(rows) {
-  return rows.reduce((metadata, row) => {
-    const key = row.key?.trim()
-    const value = row.value?.trim()
-    if (key && value) metadata[key] = value
-    return metadata
-  }, {})
+export function formatProductPayloadSample(formData) {
+  const sample = {}
+
+  for (const [key, value] of formData.entries()) {
+    sample[key] = isFileValue(value) ? describeFile(value) : value
+  }
+
+  return sample
 }
 
 function toNumberOrNull(val) {
@@ -66,24 +43,37 @@ function slugifyAttributeKey(value) {
     .replace(/[^a-z0-9_]/g, '')
 }
 
-function buildVariantImagesPayload(images = [], legacyImageUrl = '') {
-  const normalized = Array.isArray(images) ? images : []
-  if (normalized.length > 0) {
-    return normalized.map((image, index) => ({
-      image_url: image.preview ?? image.image_url ?? '',
-      sort_order: index,
-      is_primary: index === 0,
-    })).filter((image) => image.image_url)
-  }
+function resolveImageFile(image) {
+  if (isFileValue(image)) return image
+  if (isFileValue(image?.file)) return image.file
+  return null
+}
 
-  const url = legacyImageUrl?.trim()
-  if (!url) return []
+function buildProductImagesPayload(mainImage, subImages = []) {
+  const images = [mainImage, ...subImages]
+    .map((image) => resolveImageFile(image))
+    .filter(Boolean)
 
-  return [{
-    image_url: url,
-    sort_order: 0,
-    is_primary: true,
-  }]
+  return images.map((file, index) => ({
+    file,
+    sort_order: index,
+    is_primary: index === 0,
+  }))
+}
+
+function buildVariantImagesPayload(images = []) {
+  return (Array.isArray(images) ? images : [])
+    .map((image, index) => {
+      const file = resolveImageFile(image)
+      if (!file) return null
+
+      return {
+        file,
+        sort_order: index,
+        is_primary: index === 0,
+      }
+    })
+    .filter(Boolean)
 }
 
 function buildVariationsPayload(variations, values) {
@@ -107,8 +97,8 @@ function buildVariationsPayload(variations, values) {
         attributes:
           attributeKey && attributeValue
             ? { [attributeKey]: attributeValue.toLowerCase() }
-            : {},
-        images: buildVariantImagesPayload(val.images, val.image_url),
+            : null,
+        images: buildVariantImagesPayload(val.images),
       })
     }
   }
@@ -116,32 +106,178 @@ function buildVariationsPayload(variations, values) {
   return payload
 }
 
-export function buildProductPayload(values, productImages = []) {
-  const primary_image =
-    productImages.find((image) => image.is_primary)?.image_url
-    ?? productImages[0]?.image_url
-    ?? null
+function appendFormDataValue(formData, key, value) {
+  if (value === undefined) return
 
-  return {
-    name: values.name.trim(),
-    description: values.description.trim(),
-    category_slug: values.category_slug,
-    subcategory_slug: values.subcategory_slug,
-    brand_slug: values.brand_slug,
-    status: values.status,
-    tags: values.tags ?? [],
-    quantity: Number(values.quantity),
-    low_stock_threshold: toNumberOrNull(values.low_stock_threshold),
-    barcode: values.barcode?.trim() || null,
-    metadata: {},
-    primary_image,
-    product_images: productImages,
-    variations: buildVariationsPayload(values.variations, values),
-    shipping: {
-      weight: toMoneyOrNull(values.shipping_weight),
-      length: toMoneyOrNull(values.shipping_length),
-      width: toMoneyOrNull(values.shipping_width),
-      height: toMoneyOrNull(values.shipping_height),
-    },
+  if (isFileValue(value)) {
+    formData.append(key, value, value.name)
+    return
   }
+
+  if (value === null) {
+    formData.append(key, '')
+    return
+  }
+
+  if (typeof value === 'boolean') {
+    formData.append(key, value ? '1' : '0')
+    return
+  }
+
+  formData.append(key, String(value))
+}
+
+function appendFormData(formData, key, value) {
+  if (isFileValue(value) || value === null || typeof value !== 'object') {
+    appendFormDataValue(formData, key, value)
+    return
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return
+
+    value.forEach((item, index) => {
+      if (item !== null && typeof item === 'object' && !isFileValue(item) && !Array.isArray(item)) {
+        Object.entries(item).forEach(([childKey, childValue]) => {
+          appendFormData(formData, `${key}[${index}][${childKey}]`, childValue)
+        })
+        return
+      }
+
+      appendFormData(formData, `${key}[${index}]`, item)
+    })
+    return
+  }
+
+  const entries = Object.entries(value)
+  if (entries.length === 0) return
+
+  entries.forEach(([childKey, childValue]) => {
+    appendFormData(formData, `${key}[${childKey}]`, childValue)
+  })
+}
+
+function appendProductImageFiles(formData, productImages) {
+  productImages.forEach((image, index) => {
+    formData.append(`product_images[${index}][image_url]`, image.file, image.file.name)
+    formData.append(`product_images[${index}][sort_order]`, String(image.sort_order))
+    formData.append(`product_images[${index}][is_primary]`, image.is_primary ? '1' : '0')
+  })
+}
+
+function appendMetadata(formData, metadata) {
+  if (!metadata.length) return
+
+  metadata.forEach((item, index) => {
+    if (item && typeof item === 'object') {
+      Object.entries(item).forEach(([childKey, childValue]) => {
+        appendFormData(formData, `metadata[${index}][${childKey}]`, childValue)
+      })
+      return
+    }
+
+    appendFormData(formData, `metadata[${index}]`, item)
+  })
+}
+
+function appendVariationFiles(formData, variations) {
+  variations.forEach((variation, variationIndex) => {
+    Object.entries(variation).forEach(([field, value]) => {
+      if (field === 'images' || field === 'attributes') return
+      appendFormData(formData, `variations[${variationIndex}][${field}]`, value)
+    })
+
+    if (variation.attributes && Object.keys(variation.attributes).length > 0) {
+      appendFormData(formData, `variations[${variationIndex}][attributes]`, variation.attributes)
+    }
+
+    variation.images.forEach((image, imageIndex) => {
+      formData.append(
+        `variations[${variationIndex}][images][${imageIndex}][image_url]`,
+        image.file,
+        image.file.name,
+      )
+      formData.append(
+        `variations[${variationIndex}][images][${imageIndex}][sort_order]`,
+        String(image.sort_order),
+      )
+      formData.append(
+        `variations[${variationIndex}][images][${imageIndex}][is_primary]`,
+        image.is_primary ? '1' : '0',
+      )
+    })
+  })
+}
+
+export function validateProductImageFiles(mainImage, subImages = []) {
+  const productImages = buildProductImagesPayload(mainImage, subImages)
+
+  if (productImages.length === 0) {
+    throw new Error('Main product image is required. Upload a JPG or PNG file and try again.')
+  }
+
+  productImages.forEach((image, index) => {
+    if (!isFileValue(image.file)) {
+      throw new Error(
+        index === 0
+          ? 'Main product image file is invalid. Re-upload the image and try again.'
+          : `Gallery image ${index} is invalid. Re-upload the image and try again.`,
+      )
+    }
+  })
+
+  return productImages
+}
+
+export function buildProductPayload(values, mainImage, subImages = []) {
+  const productImages = validateProductImageFiles(mainImage, subImages)
+  const primaryFile = productImages.find((image) => image.is_primary)?.file ?? productImages[0].file
+  const variations = buildVariationsPayload(values.variations, values)
+  const metadata = Array.isArray(values.metadata) ? values.metadata : []
+  const tags = values.tags ?? []
+  const listPrice = roundMoney(Number(values.price))
+  const salePrice = resolveSalesPrice(
+    values.price,
+    values.discount_mode ?? 'amount',
+    values.discount_price,
+    values.discount_percent,
+  )
+
+  const formData = new FormData()
+
+  appendFormData(formData, 'name', values.name.trim())
+  appendFormData(formData, 'sku', values.sku.trim())
+  appendFormData(formData, 'description', values.description.trim())
+  appendFormData(formData, 'category_id', values.category_id)
+  appendFormData(formData, 'subcategory_id', values.subcategory_id)
+  appendFormData(formData, 'brand_id', values.brand_id)
+  appendFormData(
+    formData,
+    'fulfillment_channel',
+    values.fulfillment_channel || DEFAULT_PRODUCT_FULFILLMENT_CHANNEL,
+  )
+  appendFormData(formData, 'is_active', values.status === 'active' ? true : Boolean(values.is_active))
+  appendFormData(formData, 'status', values.status)
+  appendFormData(formData, 'price', listPrice)
+  if (salePrice != null) {
+    appendFormData(formData, 'discount_price', salePrice)
+  }
+  appendFormData(formData, 'quantity', Number(values.quantity))
+  appendFormData(formData, 'low_stock_threshold', toNumberOrNull(values.low_stock_threshold))
+  appendFormData(formData, 'barcode', values.barcode?.trim() || null)
+
+  appendFormData(formData, 'tags', tags)
+  appendMetadata(formData, metadata)
+  appendFormData(formData, 'shipping', {
+    weight: toMoneyOrNull(values.shipping_weight),
+    length: toMoneyOrNull(values.shipping_length),
+    width: toMoneyOrNull(values.shipping_width),
+    height: toMoneyOrNull(values.shipping_height),
+  })
+
+  formData.append('primary_image', primaryFile, primaryFile.name)
+  appendProductImageFiles(formData, productImages)
+  appendVariationFiles(formData, variations)
+
+  return formData
 }
