@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-17',
-  currentPhase: 'Checkout page',
+  lastUpdated: '2026-06-21',
+  currentPhase: 'Homepage landing API',
   summary:
-    'Public home landing at /. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows now continue to a responsive checkout page with guest and saved-address states.',
+    'Public home landing at / uses Laravel landing-page data where available. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout, and product cards open a responsive product details page.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,86 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-22',
+    title: 'Cart and product details mobile responsiveness',
+    items: [
+      'Improved /cart mobile row spacing, product image sizing, rail spacing, and delivery modal scrolling',
+      'Improved /products/:slug mobile swatches, action buttons, review wrapping, product rails, and section padding',
+      'Verified both pages still build successfully after responsive adjustments',
+    ],
+  },
+  {
+    date: '2026-06-22',
+    title: 'Product details UI alignment',
+    items: [
+      'Adjusted /products/:slug layout to more closely match the supplied product details UI',
+      'Updated product info panel with compact pricing, image colour swatches, compatible model chips, stock note, and purchase buttons',
+      'Reworked review, seller, description, product image, and horizontal product rail styling to match the provided design',
+      'Kept changes scoped to the existing product details page sections',
+    ],
+  },
+  {
+    date: '2026-06-22',
+    title: 'Cart page UI alignment',
+    items: [
+      'Updated /cart to match the provided cart UI with shopping cart table, saved items table, order total, and product rails',
+      'Added cart item row details: free delivery tag, seller link, rating, delete, save for later/add to cart, and share actions',
+      'Added delivery information modal opened from the order total section',
+      'Kept the implementation scoped to consumer_fe cart UI only',
+    ],
+  },
+  {
+    date: '2026-06-21',
+    title: 'Top Categories View All page',
+    items: [
+      'Added /categories page for all parent categories',
+      'Homepage Top Categories now always displays only the first 10 categories',
+      'Top Categories View All now navigates to /categories instead of expanding inline',
+      'Categories page uses GET /category/get_parents first and static categories as fallback',
+    ],
+  },
+  {
+    date: '2026-06-21',
+    title: 'Homepage View All product pages',
+    items: [
+      'Added reusable ProductListingPage for homepage product buckets',
+      'Added /products, /products/recommended, /products/best-sellers, /products/flash-sales, and /products/explore routes',
+      'Homepage View All links now route to their respective product listing pages',
+      'Listing pages use landing-page API products first and existing static products as fallback',
+    ],
+  },
+  {
+    date: '2026-06-21',
+    title: 'Homepage product API sections',
+    items: [
+      'Added GET /landing-page/home service and useLandingPageData React Query hook',
+      'Recommended For You now uses recommended_products when the backend returns items',
+      'Best Sellers now uses best_sellers when the backend returns items',
+      'Flash Sales now uses flash_sales when the backend returns items',
+      'Explore Your Interests now uses random_products when the backend returns items',
+      'Static product grids remain as fallback because the current backend product arrays are empty',
+    ],
+  },
+  {
+    date: '2026-06-20',
+    title: 'Homepage category API',
+    items: [
+      'Top Categories now fetches parent categories from GET /category/get_parents through API_BASE_URL, matching the backend /api/category/get_parents path',
+      'Homepage shows the first 10 categories by default',
+      'View All expands the category list inline and Show Less returns to the first 10',
+      'Static category thumbnails remain as a fallback when the API category does not include an image',
+    ],
+  },
+  {
+    date: '2026-06-18',
+    title: 'Product details page',
+    items: [
+      'Added /products/:slug product details page with image gallery, thumbnails, product information, variants, stock status, quantity selector, and purchase buttons',
+      'Added ratings, review summary, rating distribution, review cards, seller showcase, product description, and related product rails',
+      'Landing product cards now open product details while the cart icon still navigates to the cart',
+    ],
+  },
   {
     date: '2026-06-17',
     title: 'Checkout page',
@@ -171,7 +251,7 @@ export const roadmap = [
   },
   {
     phase: 'Catalog',
-    status: 'planned',
+    status: 'in-progress',
     items: ['Product listing', 'Product detail', 'Search & filters'],
   },
   {
@@ -239,6 +319,55 @@ export const routes = [
     notes: 'Responsive guest/user checkout with address, store-grouped items, coupon, totals, payment methods, and Place Order rules',
   },
   {
+    path: '/categories',
+    name: 'All Categories',
+    status: 'done',
+    file: 'src/pages/CategoriesPage.jsx',
+    notes: 'View All page for Top Categories using parent category API with static fallback',
+  },
+  {
+    path: '/products',
+    name: 'All Products',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'Aggregated product listing page for all homepage product buckets',
+  },
+  {
+    path: '/products/recommended',
+    name: 'Recommended Products',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for recommended_products with static fallback',
+  },
+  {
+    path: '/products/best-sellers',
+    name: 'Best Sellers',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for best_sellers with static fallback',
+  },
+  {
+    path: '/products/flash-sales',
+    name: 'Flash Sales',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for flash_sales with static fallback',
+  },
+  {
+    path: '/products/explore',
+    name: 'Explore Products',
+    status: 'done',
+    file: 'src/pages/ProductListingPage.jsx',
+    notes: 'View All page for random_products with static fallback',
+  },
+  {
+    path: '/products/:slug',
+    name: 'Product Details',
+    status: 'done',
+    file: 'src/pages/ProductDetailsPage.jsx',
+    notes: 'Responsive product details page with gallery, variants, stock, quantity, reviews, seller details, and related products',
+  },
+  {
     path: '/dev-guide',
     name: 'Developer Guide',
     status: 'done',
@@ -258,6 +387,16 @@ export const reduxSlices = [
 ]
 
 export const queryHooks = [
+  {
+    name: 'useLandingPageData',
+    file: 'src/hooks/useLandingPageData.js',
+    purpose: 'GET /landing-page/home for recommended_products, best_sellers, flash_sales, and random_products on the homepage',
+  },
+  {
+    name: 'TopCategoriesSection useQuery',
+    file: 'src/components/home/TopCategoriesSection.jsx',
+    purpose: 'GET /category/get_parents through categoryService.getParentCategories for homepage categories',
+  },
   {
     name: 'useRegisterUserMutation',
     file: 'src/hooks/useAuthMutations.js',
@@ -310,11 +449,23 @@ export const apiIntegrations = [
     purpose: 'End backend auth session when the user logs out',
     status: 'wired',
   },
+  {
+    method: 'GET',
+    endpoint: '/category/get_parents',
+    purpose: 'Fetch parent categories for the homepage Top Categories section',
+    status: 'wired',
+  },
+  {
+    method: 'GET',
+    endpoint: '/landing-page/home',
+    purpose: 'Fetch homepage product sections: recommended_products, best_sellers, flash_sales, and random_products',
+    status: 'wired',
+  },
 ]
 
 export const plannedPages = [
-  { name: 'Products', path: '/products', status: 'planned' },
-  { name: 'Product detail', path: '/products/:id', status: 'planned' },
+  { name: 'Products', path: '/products', status: 'done' },
+  { name: 'Product detail', path: '/products/:slug', status: 'done' },
 ]
 
 export const authNotes = {

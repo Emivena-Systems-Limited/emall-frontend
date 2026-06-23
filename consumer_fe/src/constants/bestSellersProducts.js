@@ -3,6 +3,7 @@ export const bestSellersCategories = [
     id: 'computers-accessories',
     label: 'Computers & Accessories',
     href: '/categories/computer-accessories',
+    viewAllHref: '/products/best-sellers',
     products: [
       {
         id: 'bs-1',

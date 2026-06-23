@@ -115,7 +115,7 @@ export default function HeroBannerCarousel({ banners }) {
             type="button"
             aria-label="Previous banners"
             onClick={goPrev}
-            className="absolute left-0 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 text-slate-700 shadow-md transition-colors hover:bg-white sm:-left-3 sm:size-10"
+            className="absolute left-2 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 text-slate-700 shadow-md transition-colors hover:bg-white sm:left-3 sm:size-10"
           >
             <ChevronLeft className="size-5" strokeWidth={2.25} />
           </button>
@@ -123,7 +123,7 @@ export default function HeroBannerCarousel({ banners }) {
             type="button"
             aria-label="Next banners"
             onClick={goNext}
-            className="absolute right-0 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 text-slate-700 shadow-md transition-colors hover:bg-white sm:-right-3 sm:size-10"
+            className="absolute right-2 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 text-slate-700 shadow-md transition-colors hover:bg-white sm:right-3 sm:size-10"
           >
             <ChevronRight className="size-5" strokeWidth={2.25} />
           </button>

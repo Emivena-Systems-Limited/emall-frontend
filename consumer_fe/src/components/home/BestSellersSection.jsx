@@ -54,7 +54,7 @@ function CarouselTrack({ products }) {
             className="w-42 shrink-0 sm:w-52 lg:w-56 xl:w-60"
             style={{ scrollSnapAlign: 'start' }}
           >
-            <ProductCard product={product} hrefOverride="/cart" />
+            <ProductCard product={product} />
           </li>
         ))}
       </ul>
@@ -64,7 +64,7 @@ function CarouselTrack({ products }) {
           type="button"
           aria-label="Scroll left"
           onClick={() => scroll(-1)}
-          className="absolute -left-4 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
+          className="absolute left-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
         >
           <ChevronLeft className="size-4.5 text-slate-700" strokeWidth={2.25} />
         </button>
@@ -74,7 +74,7 @@ function CarouselTrack({ products }) {
           type="button"
           aria-label="Scroll right"
           onClick={() => scroll(1)}
-          className="absolute -right-4 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
+          className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
         >
           <ChevronRight className="size-4.5 text-slate-700" strokeWidth={2.25} />
         </button>
@@ -90,12 +90,14 @@ function CarouselTrack({ products }) {
   )
 }
 
-export default function BestSellersSection() {
+export default function BestSellersSection({ categories = [] }) {
+  const displayCategories = categories.length ? categories : bestSellersCategories
+
   return (
     <section aria-label="Best sellers" className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>
         <div className="space-y-5 sm:space-y-6">
-          {bestSellersCategories.map((category, i) => (
+          {displayCategories.map((category, i) => (
             <motion.div
               key={category.id}
               initial={{ opacity: 0, y: 20 }}
@@ -106,11 +108,17 @@ export default function BestSellersSection() {
             >
               <div className="mb-5 flex items-center justify-between gap-4 sm:mb-6">
                 <h2 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
-                  Best Sellers in{' '}
-                  <span className="text-auth-primary">{category.label}</span>
+                  {category.label === 'Best Sellers' ? (
+                    category.label
+                  ) : (
+                    <>
+                      Best Sellers in{' '}
+                      <span className="text-auth-primary">{category.label}</span>
+                    </>
+                  )}
                 </h2>
                 <Link
-                  to={category.href}
+                  to={category.viewAllHref ?? category.href}
                   className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
                 >
                   View All

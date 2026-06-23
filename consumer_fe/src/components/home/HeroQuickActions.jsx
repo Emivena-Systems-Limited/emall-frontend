@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
+import Container from '../layout/Container'
 import {
   authenticatedQuickActions,
   guestQuickActions,
@@ -43,10 +44,12 @@ export default function HeroQuickActions() {
   const actions = isAuthenticated ? authenticatedQuickActions : guestQuickActions
 
   return (
-    <div className="flex w-full gap-2 overflow-x-auto px-4 py-3 [-ms-overflow-style:none] scrollbar-none sm:gap-3 sm:px-6 sm:py-3.5 lg:px-8 lg:py-4 [&::-webkit-scrollbar]:hidden">
-      {actions.map((action) => (
-        <QuickActionPill key={action.id} action={action} />
-      ))}
-    </div>
+    <Container>
+      <div className="flex w-full gap-2 overflow-x-auto py-3 [-ms-overflow-style:none] scrollbar-none sm:gap-3 sm:py-3.5 lg:py-4 [&::-webkit-scrollbar]:hidden">
+        {actions.map((action) => (
+          <QuickActionPill key={action.id} action={action} />
+        ))}
+      </div>
+    </Container>
   )
 }
