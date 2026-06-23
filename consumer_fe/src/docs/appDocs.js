@@ -22,6 +22,35 @@ export const updateInstructions = [
 
 export const progressLog = [
   {
+    date: '2026-06-22',
+    title: 'Cart and product details mobile responsiveness',
+    items: [
+      'Improved /cart mobile row spacing, product image sizing, rail spacing, and delivery modal scrolling',
+      'Improved /products/:slug mobile swatches, action buttons, review wrapping, product rails, and section padding',
+      'Verified both pages still build successfully after responsive adjustments',
+    ],
+  },
+  {
+    date: '2026-06-22',
+    title: 'Product details UI alignment',
+    items: [
+      'Adjusted /products/:slug layout to more closely match the supplied product details UI',
+      'Updated product info panel with compact pricing, image colour swatches, compatible model chips, stock note, and purchase buttons',
+      'Reworked review, seller, description, product image, and horizontal product rail styling to match the provided design',
+      'Kept changes scoped to the existing product details page sections',
+    ],
+  },
+  {
+    date: '2026-06-22',
+    title: 'Cart page UI alignment',
+    items: [
+      'Updated /cart to match the provided cart UI with shopping cart table, saved items table, order total, and product rails',
+      'Added cart item row details: free delivery tag, seller link, rating, delete, save for later/add to cart, and share actions',
+      'Added delivery information modal opened from the order total section',
+      'Kept the implementation scoped to consumer_fe cart UI only',
+    ],
+  },
+  {
     date: '2026-06-21',
     title: 'Top Categories View All page',
     items: [
