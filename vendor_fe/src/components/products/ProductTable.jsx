@@ -109,6 +109,11 @@ function formatProductPrice(value) {
   })
 }
 
+const TABLE_HEAD_CLASS =
+  'whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500'
+
+const TABLE_PRICE_CLASS = 'whitespace-nowrap px-4 py-4 text-sm tabular-nums text-slate-700'
+
 export default function ProductTable({
   products,
   selectedIds,
@@ -139,14 +144,14 @@ export default function ProductTable({
                 aria-label="Select all products"
               />
             </th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Product</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Category</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Brand</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Regular price</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Sale price</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Stock</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
-            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
+            <th className={TABLE_HEAD_CLASS}>Product</th>
+            <th className={TABLE_HEAD_CLASS}>Category</th>
+            <th className={TABLE_HEAD_CLASS}>Brand</th>
+            <th className={TABLE_HEAD_CLASS}>Regular price</th>
+            <th className={TABLE_HEAD_CLASS}>Sale price</th>
+            <th className={TABLE_HEAD_CLASS}>Stock</th>
+            <th className={TABLE_HEAD_CLASS}>Status</th>
+            <th className={`${TABLE_HEAD_CLASS} text-right`}>Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">
@@ -185,10 +190,10 @@ export default function ProductTable({
                 </td>
                 <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
                 <td className="px-4 py-4 text-sm text-slate-700">{product.brand}</td>
-                <td className="px-4 py-4 text-sm tabular-nums text-slate-700">
-                  GH₵ {formatProductPrice(product.regularPrice ?? product.listPrice)}
+                <td className={TABLE_PRICE_CLASS}>
+                  GH₵&nbsp;{formatProductPrice(product.regularPrice ?? product.listPrice)}
                 </td>
-                <td className="px-4 py-4 text-sm tabular-nums">
+                <td className={TABLE_PRICE_CLASS}>
                   <span
                     className={
                       product.hasDiscount
@@ -196,7 +201,7 @@ export default function ProductTable({
                         : 'text-slate-700'
                     }
                   >
-                    GH₵ {formatProductPrice(product.salePrice ?? product.price)}
+                    GH₵&nbsp;{formatProductPrice(product.salePrice ?? product.price)}
                   </span>
                 </td>
                 <td className="px-4 py-4 text-sm text-slate-700">

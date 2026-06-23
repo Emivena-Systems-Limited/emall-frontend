@@ -5,6 +5,7 @@ import Dashboard from '../pages/Dashboard'
 import Products from '../pages/products/Products'
 import AddProduct from '../pages/products/AddProduct'
 import EditProduct from '../pages/products/EditProduct'
+import ViewProduct from '../pages/products/ViewProduct'
 import Orders from '../pages/orders/Orders'
 import OrderDetails from '../pages/orders/OrderDetails'
 import Inventory from '../pages/inventory/Inventory'
@@ -29,6 +30,7 @@ export default function AppRoutes() {
       <Route path="/products" element={protectedPage(<Products />)} />
       <Route path="/products/new" element={protectedPage(<AddProduct />)} />
       <Route path="/products/:productId/edit" element={protectedPage(<EditProduct />)} />
+      <Route path="/products/:productId/view" element={protectedPage(<ViewProduct />)} />
       <Route path="/orders" element={protectedPage(<Orders />)} />
       <Route path="/orders/:orderId" element={protectedPage(<OrderDetails />)} />
       <Route path="/inventory" element={protectedPage(<Inventory />)} />

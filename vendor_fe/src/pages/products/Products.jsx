@@ -165,7 +165,7 @@ export default function Products() {
   }
 
   const handleView = (product) => {
-    notify.info(`Viewing ${product.name}. Product detail page coming soon.`)
+    navigate(`/products/${product.id}/view`)
   }
 
   const handleEdit = (product) => {

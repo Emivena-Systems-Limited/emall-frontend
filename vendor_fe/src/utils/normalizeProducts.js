@@ -31,7 +31,18 @@ export function getPrimaryProductImage(images = []) {
   return resolveImageUrl(primary) || resolveImageUrl(sorted[0]) || ''
 }
 
-function resolveProductStock(record, variants, context) {
+export function metadataArrayToMap(metadata = []) {
+  if (!Array.isArray(metadata)) return {}
+  return metadata.reduce((map, item) => {
+    const key = item?.key?.trim()
+    if (key && item?.value != null && item?.value !== '') {
+      map[key] = String(item.value)
+    }
+    return map
+  }, {})
+}
+
+function resolveProductStock(record, variants, context, meta = {}) {
   if (context.quantity != null && context.quantity !== '') {
     return Number(context.quantity)
   }
@@ -44,12 +55,18 @@ function resolveProductStock(record, variants, context) {
     (variant) => variant.quantity != null && variant.quantity !== '',
   )
 
-  if (!hasVariantQuantity) return null
+  if (hasVariantQuantity) {
+    return variants.reduce(
+      (total, variant) => total + (Number(variant.quantity) || 0),
+      0,
+    )
+  }
 
-  return variants.reduce(
-    (total, variant) => total + (Number(variant.quantity) || 0),
-    0,
-  )
+  if (meta.quantity != null && meta.quantity !== '') {
+    return Number(meta.quantity)
+  }
+
+  return null
 }
 
 function slugifyLabel(value = '') {
@@ -147,24 +164,26 @@ function formatCatalogCategoryLabel(record, context = {}) {
   return parentName
 }
 
-function resolveCatalogListPrice(record, firstVariant, context) {
-  return Number(
+function resolveCatalogListPrice(record, firstVariant, context, meta = {}) {
+  const raw =
     context.price
     ?? firstVariant?.price
     ?? record.price
-    ?? 0,
-  )
+    ?? meta.regular_price
+    ?? null
+
+  return raw != null ? Number(raw) : 0
 }
-function resolveCatalogPrice(record, firstVariant, context) {
-  const salePrice = context.salePrice
+
+function resolveCatalogSalePrice(record, firstVariant, context, meta = {}) {
+  const raw =
+    context.salePrice
     ?? firstVariant?.discount_price
     ?? record.discount_price
+    ?? (meta.has_discount === '1' ? meta.sale_price : null)
+    ?? null
 
-  if (salePrice != null && salePrice !== '') {
-    return Number(salePrice)
-  }
-
-  return resolveCatalogListPrice(record, firstVariant, context)
+  return raw != null && raw !== '' ? Number(raw) : null
 }
 
 export function extractProductRecord(body) {
@@ -217,16 +236,19 @@ export function toCatalogProduct(record, context = {}) {
   const firstVariant = variants[0]
   const categoryRecord = resolveCategoryRecord(record)
   const subcategoryRecord = resolveSubcategoryRecord(record)
-  const regularPrice = resolveCatalogListPrice(record, firstVariant, context)
-  const salePrice = resolveCatalogPrice(record, firstVariant, context)
-  const hasDiscount = salePrice > 0 && regularPrice > 0 && salePrice < regularPrice
+  const meta = metadataArrayToMap(record.metadata)
   const brandName = resolveBrandName(record, context)
+
+  const regularPrice = resolveCatalogListPrice(record, firstVariant, context, meta)
+  const rawSalePrice = resolveCatalogSalePrice(record, firstVariant, context, meta)
+  const salePrice = rawSalePrice ?? regularPrice
+  const hasDiscount = rawSalePrice != null && rawSalePrice > 0 && rawSalePrice < regularPrice
 
   return {
     id: record.id,
     name: record.name,
     slug: record.slug ?? '',
-    sku: context.sku ?? firstVariant?.sku ?? record.sku ?? '—',
+    sku: context.sku ?? firstVariant?.sku ?? record.sku ?? meta.sku ?? '—',
     brandId: resolveBrandId(record),
     brand: brandName || '—',
     brandSlug: resolveBrandSlug(record, context),
@@ -234,13 +256,27 @@ export function toCatalogProduct(record, context = {}) {
     categorySlug: context.categorySlug ?? categoryRecord?.slug ?? '',
     subcategory: subcategoryRecord?.category_name ?? subcategoryRecord?.name ?? '',
     subcategorySlug: subcategoryRecord?.slug ?? '',
-    stock: resolveProductStock(record, variants, context),
+    stock: resolveProductStock(record, variants, context, meta),
+    lowStockThreshold: meta.low_stock_threshold ? Number(meta.low_stock_threshold) : null,
+    barcode: firstVariant?.barcode ?? meta.barcode ?? null,
     status: mapApiProductStatus(record.status, record.is_active),
     regularPrice,
     salePrice,
     listPrice: regularPrice,
     price: salePrice,
     hasDiscount,
+    discountPercent: hasDiscount ? Number(meta.percent_off ?? 0) : 0,
+    savingsAmount: hasDiscount ? Number(meta.savings_amount ?? 0) : 0,
+    shippingWeight: meta.shipping_weight ? Number(meta.shipping_weight) : null,
+    shippingLength: meta.shipping_length ? Number(meta.shipping_length) : null,
+    shippingWidth: meta.shipping_width ? Number(meta.shipping_width) : null,
+    shippingHeight: meta.shipping_height ? Number(meta.shipping_height) : null,
+    fulfillmentChannel: record.fulfillment_channel ?? 'vendor',
+    tags: Array.isArray(record.tags) ? record.tags : [],
+    description: record.description ?? '',
+    images: Array.isArray(record.images) ? record.images : [],
+    variants,
+    metadata: Array.isArray(record.metadata) ? record.metadata : [],
     image: getPrimaryProductImage(record.images),
     createdAt: record.created_at ?? context.createdAt ?? null,
     apiStatus: record.status ?? '',

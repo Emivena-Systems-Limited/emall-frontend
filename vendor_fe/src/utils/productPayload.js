@@ -231,6 +231,7 @@ function buildPricingMetadata(values) {
     metadataEntry('quantity', values.quantity),
     metadataEntry('low_stock_threshold', values.low_stock_threshold),
     metadataEntry('barcode', values.barcode?.trim()),
+    metadataEntry('sku', values.sku?.trim()),
   ]
 
   return entries.filter(Boolean)

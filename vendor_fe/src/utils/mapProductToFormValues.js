@@ -69,18 +69,34 @@ function resolveCategoryFields(record) {
   }
 }
 
-function resolvePricingFields(record, firstVariant) {
-  const listPrice = record.price ?? firstVariant?.price ?? ''
-  const salePrice = record.discount_price ?? firstVariant?.discount_price ?? ''
-  const hasSalePrice = salePrice !== '' && salePrice != null && Number(salePrice) > 0
+function resolvePricingFields(record, firstVariant, metadataMap = {}) {
+  const listPrice =
+    record.price
+    ?? firstVariant?.price
+    ?? (metadataMap.regular_price ? Number(metadataMap.regular_price) : undefined)
+    ?? ''
+
+  const rawSalePrice =
+    record.discount_price
+    ?? firstVariant?.discount_price
+    ?? (metadataMap.has_discount === '1' && metadataMap.sale_price
+      ? Number(metadataMap.sale_price)
+      : undefined)
+    ?? ''
+
+  const hasSalePrice = rawSalePrice !== '' && rawSalePrice != null && Number(rawSalePrice) > 0
+
+  const discountMode = metadataMap.discount_mode ?? 'amount'
+  const discountPercent = metadataMap.discount_percent
+    ?? (hasSalePrice && listPrice
+      ? String(convertDiscountAmountToPercent(listPrice, rawSalePrice) ?? '')
+      : '')
 
   return {
     price: listPrice === '' || listPrice == null ? '' : String(listPrice),
-    discount_mode: 'amount',
-    discount_price: hasSalePrice ? String(salePrice) : '',
-    discount_percent: hasSalePrice && listPrice
-      ? String(convertDiscountAmountToPercent(listPrice, salePrice) ?? '')
-      : '',
+    discount_mode: discountMode,
+    discount_price: hasSalePrice && discountMode === 'amount' ? String(rawSalePrice) : '',
+    discount_percent: hasSalePrice && discountMode === 'percent' ? String(discountPercent) : discountPercent,
   }
 }
 
@@ -145,22 +161,29 @@ export function mapProductRecordToFormValues(record) {
   const shipping = record.shipping ?? {}
   const metadataMap = metadataToMap(record.metadata)
   const { category_id, subcategory_id } = resolveCategoryFields(record)
-  const pricing = resolvePricingFields(record, firstVariant)
+  const pricing = resolvePricingFields(record, firstVariant, metadataMap)
+
+  const resolveQuantity = () => {
+    if (record.quantity != null) return String(record.quantity)
+    if (firstVariant?.quantity != null) return String(firstVariant.quantity)
+    if (metadataMap.quantity != null) return String(metadataMap.quantity)
+    return ''
+  }
 
   return {
     name: record.name ?? '',
-    sku: record.sku ?? firstVariant?.sku ?? '',
+    sku: record.sku ?? firstVariant?.sku ?? metadataMap.sku ?? '',
     description: record.description ?? '',
     category_id,
     subcategory_id,
     brand_id: resolveBrandId(record),
     tags: normalizeTags(record.tags),
     ...pricing,
-    quantity: record.quantity == null
-      ? (firstVariant?.quantity == null ? '' : String(firstVariant.quantity))
-      : String(record.quantity),
-    low_stock_threshold: record.low_stock_threshold == null ? '' : String(record.low_stock_threshold),
-    barcode: record.barcode ?? firstVariant?.barcode ?? '',
+    quantity: resolveQuantity(),
+    low_stock_threshold: record.low_stock_threshold != null
+      ? String(record.low_stock_threshold)
+      : (metadataMap.low_stock_threshold ?? ''),
+    barcode: record.barcode ?? firstVariant?.barcode ?? metadataMap.barcode ?? '',
     variations: mapVariantsToFormVariations(variants),
     shipping_weight: shipping.weight ?? record.shipping_weight ?? metadataMap.shipping_weight ?? '',
     shipping_length: shipping.length ?? record.shipping_length ?? metadataMap.shipping_length ?? '',
