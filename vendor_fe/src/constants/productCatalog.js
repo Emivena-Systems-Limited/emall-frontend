@@ -141,6 +141,7 @@ export const BRAND_FILTER_OPTIONS = [
 ]
 
 export function isLowStockProduct(product) {
+  if (product.stock == null || product.stock === '') return false
   return product.stock <= LOW_STOCK_THRESHOLD
 }
 

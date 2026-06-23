@@ -53,4 +53,52 @@ export async function createProduct(formData) {
   return record
 }
 
+export async function getProductById(productId) {
+  const { data } = await apiClient.get(PRODUCT_ENDPOINTS.byId(productId))
+  assertApiSuccess(data)
+
+  const record = extractProductRecord(data)
+  if (!record?.id) {
+    throw new Error('Product not found.')
+  }
+
+  return record
+}
+
+export async function updateProduct(productId, formData) {
+  const { data } = await apiClient.put(PRODUCT_ENDPOINTS.byId(productId), formData)
+  assertApiSuccess(data)
+
+  const record = extractProductRecord(data)
+  if (!record?.id) {
+    throw new Error('Product was updated but no product id was returned.')
+  }
+
+  return record
+}
+
+export async function replicateProduct(productId) {
+  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.replicateById(productId))
+  assertApiSuccess(data)
+
+  const record = extractProductRecord(data)
+  if (!record?.id) {
+    throw new Error('Product was duplicated but no product id was returned.')
+  }
+
+  return record
+}
+
+export async function deleteProduct(productId) {
+  const { data } = await apiClient.delete(PRODUCT_ENDPOINTS.deleteById(productId))
+  assertApiSuccess(data)
+  return productId
+}
+
+export async function deleteProducts(productIds = []) {
+  const ids = [...new Set(productIds.filter(Boolean))]
+  await Promise.all(ids.map((productId) => deleteProduct(productId)))
+  return ids
+}
+
 export { toCatalogProduct }

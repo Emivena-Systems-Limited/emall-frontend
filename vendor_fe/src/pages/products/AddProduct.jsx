@@ -46,7 +46,7 @@ import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
 import { useProductCategoryOptions } from '../../hooks/useCategories'
 import { productListingSchema } from '../../utils/validationSchemas'
 import { buildProductPayload } from '../../utils/productPayload'
-import { useCreateProductMutation } from '../../hooks/useProductMutations'
+import { useCreateProductMutation, useUpdateProductMutation } from '../../hooks/useProductMutations'
 import {
   convertDiscountAmountToPercent,
   convertDiscountPercentToAmount,
@@ -1369,15 +1369,23 @@ function buildCreateProductContext(values, { parentCategories, categoryTree, app
   }
 }
 
-export default function AddProduct() {
+export function ProductListingForm({
+  mode = 'create',
+  productId = null,
+  initialFormValues = null,
+  initialMainImage = null,
+  initialSubImages = null,
+}) {
+  const isEditMode = mode === 'edit'
   const [activeStep, setActiveStep] = useState(0)
-  const [mainImage, setMainImage] = useState(null)
-  const [subImages, setSubImages] = useState([])
+  const [mainImage, setMainImage] = useState(initialMainImage ?? null)
+  const [subImages, setSubImages] = useState(initialSubImages ?? [])
   const [mainImageError, setMainImageError] = useState('')
   const stepDirectionRef = useRef('forward')
   const isInitialStepMount = useRef(true)
   const navigate = useNavigate()
   const createProductMutation = useCreateProductMutation()
+  const updateProductMutation = useUpdateProductMutation()
   const createBrandMutation = useCreateBrandMutation()
   const {
     data: approvedBrands = [],
@@ -1476,7 +1484,7 @@ export default function AddProduct() {
   }
 
   return (
-    <DashboardLayout pageTitle="Add Product">
+    <DashboardLayout pageTitle={isEditMode ? 'Edit Product' : 'Add Product'}>
       <div className="page-enter space-y-5">
         <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
           <Link
@@ -1487,34 +1495,55 @@ export default function AddProduct() {
             Back to products
           </Link>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">New listing</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">
+              {isEditMode ? 'Edit listing' : 'New listing'}
+            </p>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-              Add a product
+              {isEditMode ? 'Edit product' : 'Add a product'}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Create a complete listing with clear photos and accurate pricing so customers find and trust your product.
+              {isEditMode
+                ? 'Update photos, pricing, and product details. Changes are saved to your live catalogue.'
+                : 'Create a complete listing with clear photos and accurate pricing so customers find and trust your product.'}
             </p>
           </div>
         </section>
 
         <Formik
-          initialValues={initialValues}
+          initialValues={initialFormValues ?? initialValues}
+          enableReinitialize={isEditMode}
           validationSchema={productListingSchema}
           validateOnBlur
           validateOnChange={false}
           onSubmit={async (values, actions) => {
             try {
-              const formValues = { ...values, status: 'active' }
-              const payload = buildProductPayload(formValues, mainImage, subImages)
-
-              await createProductMutation.mutateAsync({
-                formData: payload,
-                context: buildCreateProductContext(formValues, {
-                  parentCategories,
-                  categoryTree,
-                  approvedBrands,
-                }),
+              const formValues = isEditMode
+                ? { ...values, status: values.status || 'active' }
+                : { ...values, status: 'active' }
+              const payload = buildProductPayload(
+                formValues,
+                mainImage,
+                subImages,
+                { mode: isEditMode ? 'edit' : 'create' },
+              )
+              const context = buildCreateProductContext(formValues, {
+                parentCategories,
+                categoryTree,
+                approvedBrands,
               })
+
+              if (isEditMode) {
+                await updateProductMutation.mutateAsync({
+                  productId,
+                  formData: payload,
+                  context,
+                })
+              } else {
+                await createProductMutation.mutateAsync({
+                  formData: payload,
+                  context,
+                })
+              }
               navigate('/products')
             } catch (error) {
               if (!error?.response) {
@@ -1617,13 +1646,17 @@ export default function AddProduct() {
                     </Link>
                     <button
                       type="submit"
-                      disabled={formik.isSubmitting || createProductMutation.isPending}
+                      disabled={
+                        formik.isSubmitting
+                        || createProductMutation.isPending
+                        || updateProductMutation.isPending
+                      }
                       className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {formik.isSubmitting || createProductMutation.isPending ? (
-                        <><Loader2 className="size-4 animate-spin" /> Publishing…</>
+                      {formik.isSubmitting || createProductMutation.isPending || updateProductMutation.isPending ? (
+                        <><Loader2 className="size-4 animate-spin" /> {isEditMode ? 'Saving…' : 'Publishing…'}</>
                       ) : (
-                        <>Publish product <ArrowRight className="size-4" /></>
+                        <>{isEditMode ? 'Save changes' : 'Publish product'} <ArrowRight className="size-4" /></>
                       )}
                     </button>
                   </div>
@@ -1635,4 +1668,8 @@ export default function AddProduct() {
       </div>
     </DashboardLayout>
   )
+}
+
+export default function AddProduct() {
+  return <ProductListingForm mode="create" />
 }

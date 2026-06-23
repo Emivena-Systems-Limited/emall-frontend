@@ -10,9 +10,22 @@ export function createProductImageFromFile(file) {
     id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     file,
     preview: URL.createObjectURL(file),
+    isRemote: false,
+  }
+}
+
+export function createProductImageFromRemote(image) {
+  return {
+    id: image.id ?? `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    file: null,
+    preview: image.image_url ?? image.preview ?? '',
+    remoteId: image.id ?? null,
+    isRemote: true,
   }
 }
 
 export function revokeProductImagePreview(image) {
-  if (image?.preview) URL.revokeObjectURL(image.preview)
+  if (image?.preview?.startsWith('blob:')) {
+    URL.revokeObjectURL(image.preview)
+  }
 }

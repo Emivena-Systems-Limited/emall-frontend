@@ -33,7 +33,7 @@ export default function ProductSummaryCards({ summary, activeFilter, onFilterCha
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-2 sm:grid-cols-3">
       {cards.map(({ key, label, helper, icon: Icon, tone }) => {
         const isActive = activeFilter === key
 
@@ -42,25 +42,29 @@ export default function ProductSummaryCards({ summary, activeFilter, onFilterCha
             key={key}
             type="button"
             onClick={() => onFilterChange(key)}
-            className={`rounded-2xl border p-4 text-left transition-all ${
+            className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
               isActive
-                ? 'border-brand/30 bg-brand-light/20 shadow-[0_12px_30px_rgba(199,59,45,0.08)] ring-1 ring-brand/20'
+                ? 'border-brand/30 bg-brand-light/20 shadow-[0_8px_20px_rgba(199,59,45,0.06)] ring-1 ring-brand/20'
                 : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
             }`}
           >
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <span className={`flex size-10 items-center justify-center rounded-xl ring-1 ${tone}`}>
-                <Icon className="size-5" strokeWidth={2} />
+            <div className="flex items-center gap-2.5">
+              <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ${tone}`}>
+                <Icon className="size-4" strokeWidth={2} />
               </span>
-              {isActive && (
-                <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                  Filtered
-                </span>
-              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <p className="font-sans text-xl font-bold leading-none text-slate-950">{values[key]}</p>
+                  {isActive && (
+                    <span className="rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                      Filtered
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 truncate text-xs font-semibold text-slate-800">{label}</p>
+                <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-500">{helper}</p>
+              </div>
             </div>
-            <p className="font-sans text-2xl font-bold text-slate-950">{values[key]}</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">{label}</p>
-            <p className="mt-1 text-xs text-slate-500">{helper}</p>
           </button>
         )
       })}

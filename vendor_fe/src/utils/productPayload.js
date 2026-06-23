@@ -1,4 +1,10 @@
-import { resolveSalesPrice, resolveVariantPricing, roundMoney } from './productPricing'
+import {
+  convertDiscountAmountToPercent,
+  getDiscountSummary,
+  resolveSalesPrice,
+  resolveVariantPricing,
+  roundMoney,
+} from './productPricing'
 import { DEFAULT_PRODUCT_FULFILLMENT_CHANNEL } from '../constants/products'
 
 function describeFile(file) {
@@ -50,15 +56,19 @@ function resolveImageFile(image) {
 }
 
 function buildProductImagesPayload(mainImage, subImages = []) {
-  const images = [mainImage, ...subImages]
-    .map((image) => resolveImageFile(image))
-    .filter(Boolean)
+  const images = [mainImage, ...subImages].filter(Boolean)
 
-  return images.map((file, index) => ({
-    file,
-    sort_order: index,
-    is_primary: index === 0,
-  }))
+  return images.map((image, index) => {
+    const file = resolveImageFile(image)
+
+    return {
+      file,
+      remoteId: image?.remoteId ?? null,
+      imageUrl: image?.isRemote ? image.preview : null,
+      sort_order: index,
+      is_primary: index === 0,
+    }
+  })
 }
 
 function buildVariantImagesPayload(images = []) {
@@ -159,7 +169,14 @@ function appendFormData(formData, key, value) {
 
 function appendProductImageFiles(formData, productImages) {
   productImages.forEach((image, index) => {
-    formData.append(`product_images[${index}][image_url]`, image.file, image.file.name)
+    if (isFileValue(image.file)) {
+      formData.append(`product_images[${index}][image_url]`, image.file, image.file.name)
+    } else if (image.remoteId) {
+      formData.append(`product_images[${index}][id]`, image.remoteId)
+    } else if (image.imageUrl) {
+      formData.append(`product_images[${index}][image_url]`, image.imageUrl)
+    }
+
     formData.append(`product_images[${index}][sort_order]`, String(image.sort_order))
     formData.append(`product_images[${index}][is_primary]`, image.is_primary ? '1' : '0')
   })
@@ -178,6 +195,73 @@ function appendMetadata(formData, metadata) {
 
     appendFormData(formData, `metadata[${index}]`, item)
   })
+}
+
+function metadataEntry(key, value) {
+  if (value === null || value === undefined || value === '') return null
+  return { key, value: String(value) }
+}
+
+function buildPricingMetadata(values) {
+  const discountMode = values.discount_mode ?? 'amount'
+  const listPrice = roundMoney(Number(values.price))
+  const { salesPrice, savings, percentOff, hasDiscount } = getDiscountSummary(
+    values.price,
+    discountMode,
+    values.discount_price,
+    values.discount_percent,
+  )
+
+  const enteredDiscountPercent = values.discount_percent
+  const enteredDiscountPrice = values.discount_price
+  const computedPercent = hasDiscount && discountMode === 'amount'
+    ? convertDiscountAmountToPercent(values.price, enteredDiscountPrice)
+    : ''
+  const resolvedPercent = enteredDiscountPercent || computedPercent || (hasDiscount ? String(percentOff) : '')
+
+  const entries = [
+    metadataEntry('regular_price', listPrice || values.price),
+    metadataEntry('discount_mode', discountMode),
+    metadataEntry('discount_price', enteredDiscountPrice),
+    metadataEntry('discount_percent', resolvedPercent),
+    metadataEntry('sale_price', salesPrice ?? listPrice),
+    metadataEntry('percent_off', hasDiscount ? percentOff : null),
+    metadataEntry('savings_amount', hasDiscount ? savings : null),
+    metadataEntry('has_discount', hasDiscount ? '1' : '0'),
+    metadataEntry('quantity', values.quantity),
+    metadataEntry('low_stock_threshold', values.low_stock_threshold),
+    metadataEntry('barcode', values.barcode?.trim()),
+  ]
+
+  return entries.filter(Boolean)
+}
+
+function buildShippingMetadata(values) {
+  const entries = [
+    metadataEntry('shipping_weight', toMoneyOrNull(values.shipping_weight)),
+    metadataEntry('shipping_length', toMoneyOrNull(values.shipping_length)),
+    metadataEntry('shipping_width', toMoneyOrNull(values.shipping_width)),
+    metadataEntry('shipping_height', toMoneyOrNull(values.shipping_height)),
+  ]
+
+  return entries.filter(Boolean)
+}
+
+function mergeProductMetadata(values) {
+  const pricingMetadata = buildPricingMetadata(values)
+  const shippingMetadata = buildShippingMetadata(values)
+  const reservedKeys = new Set([
+    ...pricingMetadata.map((item) => item.key),
+    ...shippingMetadata.map((item) => item.key),
+  ])
+  const customMetadata = Array.isArray(values.metadata)
+    ? values.metadata
+      .filter((item) => item?.key?.trim() && item?.value != null && item?.value !== '')
+      .map((item) => ({ key: item.key.trim(), value: String(item.value).trim() }))
+      .filter((item) => !reservedKeys.has(item.key))
+    : []
+
+  return [...pricingMetadata, ...shippingMetadata, ...customMetadata]
 }
 
 function appendVariationFiles(formData, variations) {
@@ -209,7 +293,8 @@ function appendVariationFiles(formData, variations) {
   })
 }
 
-export function validateProductImageFiles(mainImage, subImages = []) {
+export function validateProductImageFiles(mainImage, subImages = [], options = {}) {
+  const { mode = 'create' } = options
   const productImages = buildProductImagesPayload(mainImage, subImages)
 
   if (productImages.length === 0) {
@@ -217,6 +302,10 @@ export function validateProductImageFiles(mainImage, subImages = []) {
   }
 
   productImages.forEach((image, index) => {
+    if (mode === 'edit' && !image.file && (image.remoteId || image.imageUrl)) {
+      return
+    }
+
     if (!isFileValue(image.file)) {
       throw new Error(
         index === 0
@@ -229,11 +318,13 @@ export function validateProductImageFiles(mainImage, subImages = []) {
   return productImages
 }
 
-export function buildProductPayload(values, mainImage, subImages = []) {
-  const productImages = validateProductImageFiles(mainImage, subImages)
-  const primaryFile = productImages.find((image) => image.is_primary)?.file ?? productImages[0].file
+export function buildProductPayload(values, mainImage, subImages = [], options = {}) {
+  const { mode = 'create' } = options
+  const productImages = validateProductImageFiles(mainImage, subImages, { mode })
+  const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0]
+  const primaryFile = primaryImage?.file
   const variations = buildVariationsPayload(values.variations, values)
-  const metadata = Array.isArray(values.metadata) ? values.metadata : []
+  const metadata = mergeProductMetadata(values)
   const tags = values.tags ?? []
   const listPrice = roundMoney(Number(values.price))
   const salePrice = resolveSalesPrice(
@@ -275,7 +366,12 @@ export function buildProductPayload(values, mainImage, subImages = []) {
     height: toMoneyOrNull(values.shipping_height),
   })
 
-  formData.append('primary_image', primaryFile, primaryFile.name)
+  if (isFileValue(primaryFile)) {
+    formData.append('primary_image', primaryFile, primaryFile.name)
+  } else if (mode === 'edit' && primaryImage?.remoteId) {
+    appendFormData(formData, 'primary_image_id', primaryImage.remoteId)
+  }
+
   appendProductImageFiles(formData, productImages)
   appendVariationFiles(formData, variations)
 

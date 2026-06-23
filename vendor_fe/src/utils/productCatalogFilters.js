@@ -16,6 +16,32 @@ export function filterProductCatalog(products, { search, category, brand, summar
       product.sku,
       product.brand,
       product.category,
-    ].some((value) => value.toLowerCase().includes(query))
+      product.subcategory,
+    ].some((value) => String(value ?? '').toLowerCase().includes(query))
   })
+}
+
+function buildFilterOptions(products, slugKey, labelKey, allLabel) {
+  const options = new Map()
+
+  products.forEach((product) => {
+    const slug = product[slugKey]
+    const label = product[labelKey]
+
+    if (!slug || !label || label === '—') return
+    options.set(slug, label)
+  })
+
+  return [
+    { value: '', label: allLabel },
+    ...Array.from(options, ([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+  ]
+}
+
+export function buildCatalogFilterOptions(products = []) {
+  return {
+    categoryOptions: buildFilterOptions(products, 'categorySlug', 'category', 'All categories'),
+    brandOptions: buildFilterOptions(products, 'brandSlug', 'brand', 'All brands'),
+  }
 }

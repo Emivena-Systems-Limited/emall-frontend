@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, PackagePlus } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import EmptyState from '../../components/dashboard/EmptyState'
+import ConfirmModal from '../../components/common/ConfirmModal'
 import ProductCatalogToolbar from '../../components/products/ProductCatalogToolbar'
 import ProductSummaryCards from '../../components/products/ProductSummaryCards'
 import ProductTable from '../../components/products/ProductTable'
@@ -13,31 +14,28 @@ import {
 } from '../../constants/productCatalog'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import notify from '../../lib/notify'
+import { useDeleteProductsMutation, useReplicateProductMutation } from '../../hooks/useProductMutations'
 import { useProducts, productQueryKeys } from '../../hooks/useProducts'
 import { exportProductsToExcel, exportProductsToPdf } from '../../utils/exportProductCatalog'
-import { filterProductCatalog } from '../../utils/productCatalogFilters'
-
-function duplicateProduct(product, existingProducts) {
-  const copyNumber = existingProducts.filter((item) => item.sku.startsWith(`${product.sku}-COPY`)).length + 1
-
-  return {
-    ...product,
-    id: `${product.id}-COPY-${Date.now()}`,
-    name: `${product.name} (Copy)`,
-    sku: `${product.sku}-COPY-${copyNumber}`,
-    status: 'draft',
-    createdAt: new Date().toISOString(),
-  }
-}
+import { buildCatalogFilterOptions, filterProductCatalog } from '../../utils/productCatalogFilters'
 
 export default function Products() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: products = [], isLoading, isError, refetch } = useProducts()
+  const deleteProductsMutation = useDeleteProductsMutation()
+  const replicateProductMutation = useReplicateProductMutation()
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [brand, setBrand] = useState('')
   const [summaryFilter, setSummaryFilter] = useState(SUMMARY_FILTERS.ALL)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [deleteRequest, setDeleteRequest] = useState(null)
+
+  const { categoryOptions, brandOptions } = useMemo(
+    () => buildCatalogFilterOptions(products),
+    [products],
+  )
 
   const summary = useMemo(() => getCatalogSummary(products), [products])
 
@@ -60,7 +58,45 @@ export default function Products() {
     ))
   }
 
-  const clearSelection = () => setSelectedIds(new Set())
+  const deleteModalCopy = useMemo(() => {
+    if (!deleteRequest) return null
+
+    if (deleteRequest.type === 'single') {
+      return {
+        title: 'Delete product?',
+        description: `"${deleteRequest.product.name}" will be permanently removed from your catalogue. This action cannot be undone.`,
+        confirmLabel: 'Delete product',
+      }
+    }
+
+    const count = deleteRequest.productIds.length
+    return {
+      title: `Delete ${count} product${count === 1 ? '' : 's'}?`,
+      description: `The selected product${count === 1 ? '' : 's'} will be permanently removed from your catalogue. This action cannot be undone.`,
+      confirmLabel: `Delete ${count} product${count === 1 ? '' : 's'}`,
+    }
+  }, [deleteRequest])
+
+  const closeDeleteModal = () => {
+    if (deleteProductsMutation.isPending) return
+    setDeleteRequest(null)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteRequest) return
+
+    const productIds = deleteRequest.type === 'single'
+      ? [deleteRequest.product.id]
+      : deleteRequest.productIds
+
+    try {
+      await deleteProductsMutation.mutateAsync(productIds)
+      setDeleteRequest(null)
+      clearSelection()
+    } catch {
+      /* error toast handled in mutation */
+    }
+  }
 
   const toggleOne = (productId) => {
     setSelectedIds((current) => {
@@ -100,18 +136,14 @@ export default function Products() {
     clearSelection()
   }
 
-  const deleteProducts = (ids) => {
-    if (ids.size === 0) return
+  const clearSelection = () => setSelectedIds(new Set())
 
-    updateProducts((current) => current.filter((product) => !ids.has(product.id)))
-    notify.success(`Deleted ${ids.size} product${ids.size === 1 ? '' : 's'}`)
-    clearSelection()
-  }
-
-  const handleDeleteSelected = () => {
+  const openBulkDeleteModal = () => {
     if (selectedIds.size === 0) return
-    if (!window.confirm(`Delete ${selectedIds.size} selected product${selectedIds.size === 1 ? '' : 's'}?`)) return
-    deleteProducts(selectedIds)
+    setDeleteRequest({
+      type: 'bulk',
+      productIds: Array.from(selectedIds),
+    })
   }
 
   const handleExport = (items, label) => {
@@ -137,22 +169,24 @@ export default function Products() {
   }
 
   const handleEdit = (product) => {
-    notify.info(`Edit ${product.name}. Product edit page coming soon.`)
+    navigate(`/products/${product.id}/edit`)
   }
 
-  const handleDuplicate = (product) => {
-    updateProducts((current) => [duplicateProduct(product, current), ...current])
-    notify.success(`Duplicated ${product.name}`)
+  const handleDuplicate = async (product) => {
+    try {
+      await replicateProductMutation.mutateAsync(product.id)
+    } catch {
+      /* error toast handled in mutation */
+    }
   }
 
   const handleDelete = (product) => {
-    if (!window.confirm(`Delete ${product.name}?`)) return
-    deleteProducts(new Set([product.id]))
+    setDeleteRequest({ type: 'single', product })
   }
 
   return (
     <DashboardLayout pageTitle="All Products">
-      <div className="page-enter space-y-5">
+      <div className="page-enter space-y-4">
         <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">Product catalogue</p>
@@ -202,12 +236,14 @@ export default function Products() {
               onCategoryChange={setCategory}
               brand={brand}
               onBrandChange={setBrand}
+              categoryOptions={categoryOptions}
+              brandOptions={brandOptions}
               onExportExcel={() => handleExport(filteredProducts, 'all-products')}
               onExportPdf={() => handleExportPdf(filteredProducts, 'All Products')}
               selectedCount={visibleSelectedCount}
               onActivateSelected={() => updateSelectedStatus('active')}
               onDeactivateSelected={() => updateSelectedStatus('inactive')}
-              onDeleteSelected={handleDeleteSelected}
+              onDeleteSelected={openBulkDeleteModal}
               onExportSelected={() => handleExport(selectedProducts, 'selected-products')}
             />
           </div>
@@ -251,6 +287,17 @@ export default function Products() {
             />
           )}
         </section>
+
+        <ConfirmModal
+          open={Boolean(deleteRequest && deleteModalCopy)}
+          title={deleteModalCopy?.title}
+          description={deleteModalCopy?.description}
+          confirmLabel={deleteModalCopy?.confirmLabel}
+          onConfirm={handleConfirmDelete}
+          onClose={closeDeleteModal}
+          isLoading={deleteProductsMutation.isPending}
+          tone="danger"
+        />
       </div>
     </DashboardLayout>
   )

@@ -1,31 +1,41 @@
-import { useEffect, useRef, useState } from 'react'
-import { Copy, Eye, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Copy, Eye, MoreHorizontal, Package, Pencil, Trash2 } from 'lucide-react'
+import PortalMenu from '../common/PortalMenu'
+
+const STATUS_CONFIG = {
+  active: {
+    label: 'Active',
+    dot: 'bg-emerald-500',
+    className: 'bg-emerald-50 text-emerald-800 ring-emerald-200/80',
+  },
+  inactive: {
+    label: 'Inactive',
+    dot: 'bg-slate-400',
+    className: 'bg-slate-50 text-slate-600 ring-slate-200',
+  },
+  draft: {
+    label: 'Draft',
+    dot: 'bg-amber-500',
+    className: 'bg-amber-50 text-amber-800 ring-amber-200/80',
+  },
+}
 
 function ProductStatusBadge({ status }) {
-  const styles = {
-    active: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-    inactive: 'bg-slate-100 text-slate-600 ring-slate-200',
-    draft: 'bg-amber-50 text-amber-700 ring-amber-100',
-  }
+  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.inactive
 
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${styles[status] || styles.inactive}`}>
-      {status}
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${config.className}`}
+    >
+      <span className={`size-1.5 shrink-0 rounded-full ${config.dot}`} aria-hidden />
+      {config.label}
     </span>
   )
 }
 
 function ProductActionsMenu({ product, onView, onEdit, onDuplicate, onDelete }) {
   const [open, setOpen] = useState(false)
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    const handleClick = (event) => {
-      if (!menuRef.current?.contains(event.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
+  const triggerRef = useRef(null)
 
   const run = (action) => {
     action(product)
@@ -33,57 +43,69 @@ function ProductActionsMenu({ product, onView, onEdit, onDuplicate, onDelete }) 
   }
 
   return (
-    <div ref={menuRef} className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="menu"
         className="inline-flex cursor-pointer items-center justify-center rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
         aria-label={`Actions for ${product.name}`}
       >
         <MoreHorizontal className="size-4" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-          <button
-            type="button"
-            onClick={() => run(onView)}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-          >
-            <Eye className="size-4" /> View
-          </button>
-          <button
-            type="button"
-            onClick={() => run(onEdit)}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-          >
-            <Pencil className="size-4" /> Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => run(onDuplicate)}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-          >
-            <Copy className="size-4" /> Duplicate
-          </button>
-          <button
-            type="button"
-            onClick={() => run(onDelete)}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-          >
-            <Trash2 className="size-4" /> Delete
-          </button>
-        </div>
-      )}
-    </div>
+      <PortalMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        triggerRef={triggerRef}
+        menuWidth={160}
+      >
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onView)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Eye className="size-4" /> View
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onEdit)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Pencil className="size-4" /> Edit
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onDuplicate)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Copy className="size-4" /> Duplicate
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onDelete)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+        >
+          <Trash2 className="size-4" /> Delete
+        </button>
+      </PortalMenu>
+    </>
   )
 }
 
-function formatProductDate(value) {
-  return new Date(value).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+function formatProductPrice(value) {
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return '—'
+
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
 }
 
@@ -120,9 +142,10 @@ export default function ProductTable({
             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Product</th>
             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Category</th>
             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Brand</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Price</th>
+            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Regular price</th>
+            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Sale price</th>
             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Stock</th>
-            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Date added</th>
+            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
             <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
           </tr>
         </thead>
@@ -143,27 +166,45 @@ export default function ProductTable({
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex min-w-[220px] items-center gap-3">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-                    />
+                    {product.image ? (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+                      />
+                    ) : (
+                      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200">
+                        <Package className="size-5" strokeWidth={1.5} />
+                      </span>
+                    )}
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{product.sku}</p>
-                      <div className="mt-1">
-                        <ProductStatusBadge status={product.status} />
-                      </div>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
                 <td className="px-4 py-4 text-sm text-slate-700">{product.brand}</td>
-                <td className="px-4 py-4 text-sm font-semibold text-slate-900">
-                  GH₵ {product.price.toLocaleString()}
+                <td className="px-4 py-4 text-sm tabular-nums text-slate-700">
+                  GH₵ {formatProductPrice(product.regularPrice ?? product.listPrice)}
                 </td>
-                <td className="px-4 py-4 text-sm text-slate-700">{product.stock}</td>
-                <td className="px-4 py-4 text-sm text-slate-600">{formatProductDate(product.createdAt)}</td>
+                <td className="px-4 py-4 text-sm tabular-nums">
+                  <span
+                    className={
+                      product.hasDiscount
+                        ? 'font-semibold text-emerald-700'
+                        : 'text-slate-700'
+                    }
+                  >
+                    GH₵ {formatProductPrice(product.salePrice ?? product.price)}
+                  </span>
+                </td>
+                <td className="px-4 py-4 text-sm text-slate-700">
+                  {product.stock == null ? '—' : product.stock}
+                </td>
+                <td className="px-4 py-4">
+                  <ProductStatusBadge status={product.status} />
+                </td>
                 <td className="px-4 py-4 text-right">
                   <ProductActionsMenu
                     product={product}

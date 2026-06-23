@@ -6,7 +6,9 @@ import {
   FileText,
   Search,
 } from 'lucide-react'
-import { BRAND_FILTER_OPTIONS, CATEGORY_FILTER_OPTIONS } from '../../constants/productCatalog'
+
+const DEFAULT_CATEGORY_OPTIONS = [{ value: '', label: 'All categories' }]
+const DEFAULT_BRAND_OPTIONS = [{ value: '', label: 'All brands' }]
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -93,6 +95,8 @@ export default function ProductCatalogToolbar({
   onCategoryChange,
   brand,
   onBrandChange,
+  categoryOptions = DEFAULT_CATEGORY_OPTIONS,
+  brandOptions = DEFAULT_BRAND_OPTIONS,
   onExportExcel,
   onExportPdf,
   selectedCount,
@@ -125,13 +129,13 @@ export default function ProductCatalogToolbar({
             label="Category"
             value={category}
             onChange={onCategoryChange}
-            options={CATEGORY_FILTER_OPTIONS}
+            options={categoryOptions}
           />
           <FilterSelect
             label="Brand"
             value={brand}
             onChange={onBrandChange}
-            options={BRAND_FILTER_OPTIONS}
+            options={brandOptions}
           />
           <ExportMenu onExportExcel={onExportExcel} onExportPdf={onExportPdf} />
         </div>
