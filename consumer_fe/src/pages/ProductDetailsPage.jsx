@@ -258,7 +258,14 @@ function ProductInfoPanel({
       </div>
 
       <ColorSwatches product={product} selected={selectedColor} onSelect={handleColorSelect} />
-      <VariantGroup label="Compatible Model" values={product.sizes} selected={selectedSize} onSelect={setSelectedSize} />
+      {product.sizes.length > 0 && (
+        <VariantGroup
+          label={product.sizeGroupLabel ?? 'Size'}
+          values={product.sizes}
+          selected={selectedSize}
+          onSelect={setSelectedSize}
+        />
+      )}
 
       <div className="mt-4 border-t border-slate-200 pt-4">
         <p className="text-xs font-bold text-slate-950">Quantity</p>
@@ -603,26 +610,54 @@ function normalizeApiProductDetails(apiProduct) {
   }
   const uniqueGallery = [...new Set(gallery)]
 
-  // Build colors and sizes from variants
+  // Build colors and other variant groups from API variants
   const colorImages = {}
   const colors = []
-  const sizes = []
+  const otherVariantGroups = {}
+
   if (Array.isArray(apiProduct.variants)) {
     apiProduct.variants.forEach(v => {
-      const color = v.attributes?.color || v.color || v.variant_name
-      if (color) {
-        colors.push(color)
+      const attrs = v.attributes ?? {}
+      const attrKeys = Object.keys(attrs)
+      
+      // Use the color attribute; fall back to top-level color or variant_name
+      const colorKey = attrKeys.find(k => k.toLowerCase() === 'color')
+      const colorVal = colorKey ? attrs[colorKey] : (v.color || v.variant_name)
+      
+      if (colorVal) {
+        if (!colors.includes(colorVal)) {
+          colors.push(colorVal)
+        }
         const varImage = v.images?.[0]?.image_url || v.image_url || v.image
         if (varImage) {
-          colorImages[color] = varImage
+          colorImages[colorVal] = varImage
         }
       }
-      const size = v.attributes?.size || v.size
-      if (size) sizes.push(size)
+
+      // Collect all non-color attributes as separate variant groups
+      attrKeys.filter(k => k.toLowerCase() !== 'color').forEach(k => {
+        if (!otherVariantGroups[k]) otherVariantGroups[k] = new Set()
+        if (attrs[k]) otherVariantGroups[k].add(String(attrs[k]))
+      })
+
+      // Also check for a top-level size field
+      const size = v.size || v.attributes?.size
+      if (size) {
+        if (!otherVariantGroups['size']) otherVariantGroups['size'] = new Set()
+        otherVariantGroups['size'].add(String(size))
+      }
     })
   }
-  const uniqueColors = [...new Set(colors)]
-  const uniqueSizes = [...new Set(sizes)]
+
+  // Convert other variant groups to arrays with human-readable labels
+  const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, valSet]) => ({
+    label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+    values: [...valSet],
+  }))
+
+  const uniqueColors = colors
+  const uniqueSizes = extraVariantGroups[0]?.values ?? []
+  const sizeGroupLabel = extraVariantGroups[0]?.label ?? 'Size'
 
   // Strip HTML tags from description
   const rawDescription = apiProduct.description || ''
@@ -642,6 +677,8 @@ function normalizeApiProductDetails(apiProduct) {
     gallery: uniqueGallery,
     colors: uniqueColors,
     sizes: uniqueSizes,
+    sizeGroupLabel,
+    extraVariantGroups,
     colorImages,
     about: [
       'High-quality design and build for premium daily use.',
@@ -724,11 +761,14 @@ export default function ProductDetailsPage() {
     if (!product || !product.variants || !product.variants.length) return null
     return product.variants.find((v) => {
       const vColor = v.attributes?.color || v.color || v.variant_name || ''
-      const vSize = v.attributes?.size || v.size || ''
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
+
+      const sizeKey = product.sizeGroupLabel ? product.sizeGroupLabel.toLowerCase().replace(/ /g, '_') : 'size'
+      const vSize = v.attributes?.[sizeKey] || v.attributes?.size || v.size || ''
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
+
       return matchColor && matchSize
-    }) || product.variants[0]
+    }) ?? product.variants[0]
   }, [product, selectedColor, selectedSize])
 
   const activeSku = useMemo(() => {
