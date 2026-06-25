@@ -302,6 +302,10 @@ function KeyDetails({ product, activeSku }) {
   if (activeSku) {
     detailsList['Model/SKU'] = activeSku
   }
+  delete detailsList['Fulfillment']
+  delete detailsList['fulfillment']
+  delete detailsList['Status']
+  delete detailsList['status']
 
   return (
     <section className="bg-white p-3 sm:p-4">
@@ -644,9 +648,7 @@ function normalizeApiProductDetails(apiProduct) {
     ],
     keyDetails: {
       'Model/SKU': sku,
-      'Fulfillment': apiProduct.fulfillment_channel || 'Vendor',
       'Category': apiProduct.category?.category_name || 'General',
-      'Status': apiProduct.status || 'Approved',
     },
     description: cleanDescription || 'No description available for this product.',
     details: {
