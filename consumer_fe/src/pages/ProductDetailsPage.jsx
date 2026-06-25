@@ -777,35 +777,88 @@ export default function ProductDetailsPage() {
     }
   }, [product])
 
-  const handleCompatibleModelSelect = (model) => {
-    setSelectedCompatibleModel(model)
-    // Automatically sync the color and image of this variant!
-    const variant = product?.variants?.find(
-      (v) => String(v.variant_name).toLowerCase() === String(model).toLowerCase()
-    )
-    if (variant) {
-      const colorVal = variant.attributes?.color || variant.color
-      if (colorVal) {
-        setSelectedColor(colorVal)
-        const varImage = product.colorImages?.[colorVal]
+  const handleColorSelect = (newColor) => {
+    setSelectedColor(newColor)
+    
+    // Find if there is a variant that matches the new color and the current compatible model and size
+    let matchingVariant = product?.variants?.find((v) => {
+      const vColor = v.attributes?.color || v.color || v.variant_name || ''
+      const vSize = v.attributes?.size || v.size || ''
+      const vModel = v.variant_name || ''
+      
+      const matchColor = String(vColor).toLowerCase() === String(newColor).toLowerCase()
+      const matchModel = !selectedCompatibleModel || String(vModel).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
+      
+      return matchColor && matchModel && matchSize
+    })
+    
+    // If no exact match, find any variant that has this color
+    if (!matchingVariant) {
+      matchingVariant = product?.variants?.find((v) => {
+        const vColor = v.attributes?.color || v.color || v.variant_name || ''
+        return String(vColor).toLowerCase() === String(newColor).toLowerCase()
+      })
+    }
+    
+    // If we found a matching variant, sync the other attributes!
+    if (matchingVariant) {
+      const vModel = matchingVariant.variant_name
+      const vSize = matchingVariant.attributes?.size || matchingVariant.size
+      if (vModel) setSelectedCompatibleModel(vModel)
+      if (vSize) setSelectedSize(vSize)
+    }
+
+    // Update the image
+    const varImage = product.colorImages?.[newColor]
+    if (varImage && setActiveImage) {
+      setActiveImage(varImage)
+    }
+  }
+
+  const handleCompatibleModelSelect = (newModel) => {
+    setSelectedCompatibleModel(newModel)
+    
+    // Find if there is a variant that matches the new compatible model and the current color and size
+    let matchingVariant = product?.variants?.find((v) => {
+      const vColor = v.attributes?.color || v.color || v.variant_name || ''
+      const vSize = v.attributes?.size || v.size || ''
+      const vModel = v.variant_name || ''
+      
+      const matchModel = String(vModel).toLowerCase() === String(newModel).toLowerCase()
+      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
+      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
+      
+      return matchColor && matchModel && matchSize
+    })
+    
+    // If no exact match, find any variant that has this compatible model
+    if (!matchingVariant) {
+      matchingVariant = product?.variants?.find((v) => {
+        const vModel = v.variant_name || ''
+        return String(vModel).toLowerCase() === String(newModel).toLowerCase()
+      })
+    }
+    
+    // If we found a matching variant, sync the other attributes!
+    if (matchingVariant) {
+      const vColor = matchingVariant.attributes?.color || matchingVariant.color
+      const vSize = matchingVariant.attributes?.size || matchingVariant.size
+      if (vColor) {
+        setSelectedColor(vColor)
+        const varImage = product.colorImages?.[vColor]
         if (varImage && setActiveImage) {
           setActiveImage(varImage)
         }
       }
+      if (vSize) setSelectedSize(vSize)
     }
   }
 
   const activeVariant = useMemo(() => {
     if (!product || !product.variants || !product.variants.length) return null
 
-    // If the product has compatible models, that uniquely identifies the variant for pricing/SKU/cart
-    if (product.compatibleModels && product.compatibleModels.length > 0 && selectedCompatibleModel) {
-      return product.variants.find(
-        (v) => String(v.variant_name).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
-      ) ?? product.variants[0]
-    }
-
-    // Otherwise, fall back to matching by color and size
+    // Match variant by all three selected attributes (color, size, and compatible model)
     return product.variants.find((v) => {
       const vColor = v.attributes?.color || v.color || v.variant_name || ''
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
@@ -814,7 +867,10 @@ export default function ProductDetailsPage() {
       const vSize = v.attributes?.[sizeKey] || v.attributes?.size || v.size || ''
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
 
-      return matchColor && matchSize
+      const vModel = v.variant_name || ''
+      const matchModel = !selectedCompatibleModel || String(vModel).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+
+      return matchColor && matchSize && matchModel
     }) ?? product.variants[0]
   }, [product, selectedColor, selectedSize, selectedCompatibleModel])
 
@@ -935,7 +991,7 @@ export default function ProductDetailsPage() {
                 product={product}
                 setActiveImage={setActiveImage}
                 selectedColor={selectedColor}
-                setSelectedColor={setSelectedColor}
+                setSelectedColor={handleColorSelect}
                 selectedSize={selectedSize}
                 setSelectedSize={setSelectedSize}
                 selectedCompatibleModel={selectedCompatibleModel}
