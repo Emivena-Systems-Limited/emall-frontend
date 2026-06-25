@@ -161,6 +161,8 @@ function ProductInfoPanel({
   setSelectedColor,
   selectedSize,
   setSelectedSize,
+  selectedCompatibleModel,
+  setSelectedCompatibleModel,
   activeSku,
   displayPriceInfo
 }) {
@@ -258,6 +260,16 @@ function ProductInfoPanel({
       </div>
 
       <ColorSwatches product={product} selected={selectedColor} onSelect={handleColorSelect} />
+      
+      {product.compatibleModels && product.compatibleModels.length > 0 && (
+        <VariantGroup
+          label="Compatible Model"
+          values={product.compatibleModels}
+          selected={selectedCompatibleModel}
+          onSelect={setSelectedCompatibleModel}
+        />
+      )}
+
       {product.sizes.length > 0 && (
         <VariantGroup
           label={product.sizeGroupLabel ?? 'Size'}
@@ -659,6 +671,10 @@ function normalizeApiProductDetails(apiProduct) {
   const uniqueSizes = extraVariantGroups[0]?.values ?? []
   const sizeGroupLabel = extraVariantGroups[0]?.label ?? 'Size'
 
+  const compatibleModels = Array.isArray(apiProduct.variants)
+    ? [...new Set(apiProduct.variants.map(v => v.variant_name).filter(Boolean))]
+    : []
+
   // Strip HTML tags from description
   const rawDescription = apiProduct.description || ''
   const cleanDescription = rawDescription.replace(/<[^>]*>/g, '').trim()
@@ -678,6 +694,7 @@ function normalizeApiProductDetails(apiProduct) {
     colors: uniqueColors,
     sizes: uniqueSizes,
     sizeGroupLabel,
+    compatibleModels,
     extraVariantGroups,
     colorImages,
     about: [
@@ -739,12 +756,14 @@ export default function ProductDetailsPage() {
   const [activeImage, setActiveImage] = useState(null)
   const [selectedColor, setSelectedColor] = useState('')
   const [selectedSize, setSelectedSize] = useState('')
+  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState('')
 
   // Sync selectedColor, selectedSize, and activeImage when product changes
   useEffect(() => {
     if (product) {
       setSelectedColor(product.colors?.[0] ?? '')
       setSelectedSize(product.sizes?.[0] ?? '')
+      setSelectedCompatibleModel(product.compatibleModels?.[0] ?? '')
       if (product.gallery && product.gallery[0]) {
         setActiveImage(product.gallery[0])
       } else {
@@ -753,12 +772,40 @@ export default function ProductDetailsPage() {
     } else {
       setSelectedColor('')
       setSelectedSize('')
+      setSelectedCompatibleModel('')
       setActiveImage(null)
     }
   }, [product])
 
+  const handleCompatibleModelSelect = (model) => {
+    setSelectedCompatibleModel(model)
+    // Automatically sync the color and image of this variant!
+    const variant = product?.variants?.find(
+      (v) => String(v.variant_name).toLowerCase() === String(model).toLowerCase()
+    )
+    if (variant) {
+      const colorVal = variant.attributes?.color || variant.color
+      if (colorVal) {
+        setSelectedColor(colorVal)
+        const varImage = product.colorImages?.[colorVal]
+        if (varImage && setActiveImage) {
+          setActiveImage(varImage)
+        }
+      }
+    }
+  }
+
   const activeVariant = useMemo(() => {
     if (!product || !product.variants || !product.variants.length) return null
+
+    // If the product has compatible models, that uniquely identifies the variant for pricing/SKU/cart
+    if (product.compatibleModels && product.compatibleModels.length > 0 && selectedCompatibleModel) {
+      return product.variants.find(
+        (v) => String(v.variant_name).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+      ) ?? product.variants[0]
+    }
+
+    // Otherwise, fall back to matching by color and size
     return product.variants.find((v) => {
       const vColor = v.attributes?.color || v.color || v.variant_name || ''
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
@@ -769,7 +816,7 @@ export default function ProductDetailsPage() {
 
       return matchColor && matchSize
     }) ?? product.variants[0]
-  }, [product, selectedColor, selectedSize])
+  }, [product, selectedColor, selectedSize, selectedCompatibleModel])
 
   const activeSku = useMemo(() => {
     return activeVariant?.sku || product?.sku || product?.keyDetails?.['Model/SKU'] || 'N/A'
@@ -891,6 +938,8 @@ export default function ProductDetailsPage() {
                 setSelectedColor={setSelectedColor}
                 selectedSize={selectedSize}
                 setSelectedSize={setSelectedSize}
+                selectedCompatibleModel={selectedCompatibleModel}
+                setSelectedCompatibleModel={handleCompatibleModelSelect}
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
               />
