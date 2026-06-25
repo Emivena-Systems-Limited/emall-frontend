@@ -11,7 +11,12 @@ const sourceProducts = [
 ]
 
 const uniqueProducts = Array.from(
-  new Map(sourceProducts.map((product) => [product.href, product])).values(),
+  new Map(
+    sourceProducts.map((product) => {
+      const href = product.href?.replace(/^\/products\//, '/')
+      return [href, { ...product, href }]
+    })
+  ).values(),
 )
 
 const caseImages = [
@@ -54,7 +59,7 @@ const reviewCards = [
 ]
 
 function getSlug(product) {
-  return product.href.replace('/products/', '')
+  return product.slug || product.href.replace(/^\/products\//, '').replace(/^\//, '')
 }
 
 function buildGallery(product) {

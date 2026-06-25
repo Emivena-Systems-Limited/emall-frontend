@@ -68,7 +68,7 @@ function FeaturedCarousel({ products, onNavigate }) {
       {products.map((product) => (
         <Link
           key={product.id}
-          to={product.href}
+          to={product.href?.replace(/^\/products\//, '/')}
           onClick={onNavigate}
           className="w-38 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white sm:w-40"
         >
@@ -111,7 +111,7 @@ function MobilePromoCard({ promo, onNavigate }) {
           <span className="font-bold text-slate-900">{formatCedi(promo.price)}</span>
         </p>
         <Link
-          to={promo.href}
+          to={promo.href?.replace(/^\/products\//, '/')}
           onClick={onNavigate}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-3 text-xs font-bold tracking-[0.08em] text-white"
         >

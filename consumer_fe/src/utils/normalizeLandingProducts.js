@@ -43,7 +43,7 @@ function getProductImage(product) {
   const images = toArray(product.images)
   const gallery = toArray(product.gallery)
   const productImages = toArray(product.product_images)
-  const variationImages = toArray(product.variations?.[0]?.images)
+  const variationImages = toArray(product.variants?.[0]?.images || product.variations?.[0]?.images)
 
   return firstValue(
     getNestedImage(product.primary_image),
@@ -60,7 +60,7 @@ function getProductImage(product) {
 }
 
 function getVariantText(product) {
-  const variation = toArray(product.variations)[0]
+  const variation = toArray(product.variants || product.variations)[0]
   const color = firstValue(product.color, product.colour, variation?.color, variation?.colour)
   const size = firstValue(product.size, variation?.size)
   const category = firstValue(
@@ -86,10 +86,17 @@ function getDiscountPercent(product, price, compareAt) {
   return null
 }
 
+function getMetadataValue(metadata, key) {
+  if (!Array.isArray(metadata)) return undefined
+  const item = metadata.find((m) => m && (m.key === key || m.meta_key === key))
+  return item ? item.value ?? item.meta_value : undefined
+}
+
 export function normalizeLandingProduct(product, index = 0, options = {}) {
   if (!product || typeof product !== 'object') return null
 
-  const variation = toArray(product.variations)[0]
+  const variation = toArray(product.variants || product.variations)[0]
+  const metadata = toArray(product.metadata)
   const id = firstValue(product.id, product.product_id, product.uuid, product.slug, `${options.prefix ?? 'product'}-${index}`)
   const name = firstValue(product.name, product.product_name, product.title, variation?.name, 'Product')
   const slug = firstValue(product.slug, product.product_slug, slugify(`${name}-${id}`))
@@ -100,6 +107,9 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
       product.selling_price,
       product.price,
       product.min_price,
+      getMetadataValue(metadata, 'discount_price'),
+      getMetadataValue(metadata, 'sale_price'),
+      getMetadataValue(metadata, 'price'),
       variation?.discount_price,
       variation?.sale_price,
       variation?.price,
@@ -113,8 +123,12 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
       product.compareAt,
       product.market_price,
       product.old_price,
+      getMetadataValue(metadata, 'original_price'),
+      getMetadataValue(metadata, 'regular_price'),
+      getMetadataValue(metadata, 'compare_at'),
       variation?.original_price,
       variation?.regular_price,
+      variation?.price,
     ),
     null,
   )
@@ -128,7 +142,7 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
     compareAt: compareAt > price ? compareAt : null,
     rating: toNumber(firstValue(product.rating, product.average_rating, product.avg_rating), 4.5),
     reviewCount: toNumber(firstValue(product.reviews_count, product.review_count, product.total_reviews), 0),
-    href: `/products/${slug}`,
+    href: `/${slug}`,
     image: getProductImage(product),
     discountPercent,
     isHot: Boolean(firstValue(product.is_hot, product.hot, product.is_flash_sale, options.isHot)),

@@ -45,6 +45,7 @@ export default function FlashSalesSection({ products = [] }) {
           </div>
 
           <motion.div
+            key={displayProducts.length}
             variants={containerVariants}
             initial="hidden"
             whileInView="show"

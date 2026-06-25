@@ -249,7 +249,7 @@ function RailProductCard({ product }) {
 
   return (
     <article className="min-w-0">
-      <Link to={product.href ?? '/cart'} className="group block">
+      <Link to={product.href?.replace(/^\/products\//, '/') ?? '/cart'} className="group block">
         <span className="relative block aspect-[1.18] overflow-hidden bg-slate-100">
           <img
             src={product.image}
