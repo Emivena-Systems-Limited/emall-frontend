@@ -11,17 +11,53 @@ export function createProductImageFromFile(file) {
     file,
     preview: URL.createObjectURL(file),
     isRemote: false,
+    remoteId: null,
   }
 }
 
+function isFileValue(value) {
+  return typeof File !== 'undefined' && value instanceof File
+}
+
+export function resolveRemoteProductImageId(image) {
+  if (!image || typeof image !== 'object') return null
+
+  const remoteId =
+    image.remoteId
+    ?? image.id
+    ?? image.product_image_id
+    ?? image.image_id
+    ?? image.uuid
+    ?? null
+
+  if (remoteId == null || remoteId === '') return null
+
+  const id = String(remoteId)
+  if (id.startsWith('img-') || id.startsWith('remote-')) return null
+
+  return id
+}
+
 export function createProductImageFromRemote(image) {
+  const remoteId = resolveRemoteProductImageId(image)
+
   return {
-    id: image.id ?? `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: remoteId ?? `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     file: null,
-    preview: image.image_url ?? image.preview ?? '',
-    remoteId: image.id ?? null,
+    preview: image.image_url ?? image.url ?? image.preview ?? image.image_path ?? '',
+    remoteId,
     isRemote: true,
   }
+}
+
+export function isKeptRemoteProductImage(image) {
+  if (!image || isFileValue(image.file)) return false
+  return resolveRemoteProductImageId(image) != null
+}
+
+export function replaceProductImageWithFile(previousImage, file) {
+  if (previousImage) revokeProductImagePreview(previousImage)
+  return createProductImageFromFile(file)
 }
 
 export function revokeProductImagePreview(image) {

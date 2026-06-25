@@ -3,25 +3,28 @@ import { getCategoriesWithChildren, getParentCategories } from '../services/cate
 
 const STALE_TIME = 5 * 60 * 1000
 
-export function useParentCategories() {
+export function useParentCategories(options = {}) {
   return useQuery({
     queryKey: ['categories', 'parents'],
     queryFn: getParentCategories,
     staleTime: STALE_TIME,
+    ...options,
   })
 }
 
-export function useCategoriesWithChildren() {
+export function useCategoriesWithChildren(options = {}) {
   return useQuery({
     queryKey: ['categories', 'with-children'],
     queryFn: getCategoriesWithChildren,
     staleTime: STALE_TIME,
+    ...options,
   })
 }
 
-export function useProductCategoryOptions() {
-  const parentsQuery = useParentCategories()
-  const treeQuery = useCategoriesWithChildren()
+export function useProductCategoryOptions(options = {}) {
+  const { enabled = true, ...queryOptions } = options
+  const parentsQuery = useParentCategories({ enabled, ...queryOptions })
+  const treeQuery = useCategoriesWithChildren({ enabled, ...queryOptions })
 
   return {
     parentCategories: parentsQuery.data ?? [],

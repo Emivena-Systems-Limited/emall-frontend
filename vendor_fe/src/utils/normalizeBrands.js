@@ -53,12 +53,14 @@ export function getBrandPaginationMeta(body) {
   const payload = envelope?.data
 
   if (!payload || Array.isArray(payload)) {
-    return { lastPage: 1, currentPage: 1 }
+    return { lastPage: 1, currentPage: 1, perPage: null, total: null }
   }
 
   return {
     lastPage: payload.last_page ?? 1,
     currentPage: payload.current_page ?? 1,
+    perPage: payload.per_page ?? null,
+    total: payload.total ?? null,
   }
 }
 

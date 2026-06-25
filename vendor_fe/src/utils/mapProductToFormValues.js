@@ -1,4 +1,5 @@
 import { convertDiscountAmountToPercent } from './productPricing'
+import { parseVariantAttributes } from './productPayload'
 import {
   mapApiProductStatus,
   resolveBrandId,
@@ -72,16 +73,16 @@ function resolveCategoryFields(record) {
 function resolvePricingFields(record, firstVariant, metadataMap = {}) {
   const listPrice =
     record.price
-    ?? firstVariant?.price
     ?? (metadataMap.regular_price ? Number(metadataMap.regular_price) : undefined)
+    ?? firstVariant?.price
     ?? ''
 
   const rawSalePrice =
     record.discount_price
-    ?? firstVariant?.discount_price
     ?? (metadataMap.has_discount === '1' && metadataMap.sale_price
       ? Number(metadataMap.sale_price)
       : undefined)
+    ?? firstVariant?.discount_price
     ?? ''
 
   const hasSalePrice = rawSalePrice !== '' && rawSalePrice != null && Number(rawSalePrice) > 0
@@ -106,14 +107,18 @@ function mapVariantImages(images = []) {
     .map(createProductImageFromRemote)
 }
 
+function resolveVariantInventoryValue(variant, field) {
+  const value = variant?.inventory?.[field] ?? variant?.[field]
+  return value == null ? '' : String(value)
+}
+
 function mapVariantsToFormVariations(variants = []) {
   if (!Array.isArray(variants) || variants.length === 0) return []
 
   const grouped = new Map()
 
   variants.forEach((variant) => {
-    const attributeEntries = Object.entries(variant.attributes ?? {})
-    const [attributeKey = 'option', attributeValue = ''] = attributeEntries[0] ?? []
+    const { attributeKey, attributeValue } = parseVariantAttributes(variant.attributes)
     const attributeLabel = humanizeAttributeKey(attributeKey)
 
     if (!grouped.has(attributeLabel)) {
@@ -132,8 +137,8 @@ function mapVariantsToFormVariations(variants = []) {
       price: variant.price == null ? '' : String(variant.price),
       discount_price: variant.discount_price == null ? '' : String(variant.discount_price),
       quantity: variant.quantity == null ? '' : String(variant.quantity),
-      reserved_quantity: variant.reserved_quantity == null ? '' : String(variant.reserved_quantity),
-      low_stock_threshold: variant.low_stock_threshold == null ? '' : String(variant.low_stock_threshold),
+      reserved_quantity: resolveVariantInventoryValue(variant, 'reserved_quantity'),
+      low_stock_threshold: resolveVariantInventoryValue(variant, 'low_stock_threshold'),
       barcode: variant.barcode ?? '',
       images: mapVariantImages(variant.images),
     })
@@ -200,7 +205,9 @@ export function mapProductRecordToFormState(record) {
   const formValues = mapProductRecordToFormValues(record)
   if (!formValues) return null
 
-  const { mainImage, subImages } = mapProductImagesToFormState(record.images)
+  const { mainImage, subImages } = mapProductImagesToFormState(
+    record.images ?? record.product_images,
+  )
 
   return {
     formValues,

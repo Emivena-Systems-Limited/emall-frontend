@@ -167,9 +167,9 @@ function formatCatalogCategoryLabel(record, context = {}) {
 function resolveCatalogListPrice(record, firstVariant, context, meta = {}) {
   const raw =
     context.price
-    ?? firstVariant?.price
     ?? record.price
-    ?? meta.regular_price
+    ?? (meta.regular_price != null && meta.regular_price !== '' ? Number(meta.regular_price) : null)
+    ?? firstVariant?.price
     ?? null
 
   return raw != null ? Number(raw) : 0
@@ -178,9 +178,11 @@ function resolveCatalogListPrice(record, firstVariant, context, meta = {}) {
 function resolveCatalogSalePrice(record, firstVariant, context, meta = {}) {
   const raw =
     context.salePrice
-    ?? firstVariant?.discount_price
     ?? record.discount_price
-    ?? (meta.has_discount === '1' ? meta.sale_price : null)
+    ?? (meta.has_discount === '1' && meta.sale_price != null && meta.sale_price !== ''
+      ? Number(meta.sale_price)
+      : null)
+    ?? firstVariant?.discount_price
     ?? null
 
   return raw != null && raw !== '' ? Number(raw) : null

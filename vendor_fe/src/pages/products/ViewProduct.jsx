@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
   AlertTriangle,
@@ -6,10 +6,13 @@ import {
   BadgeCheck,
   Barcode,
   Box,
-  Edit2,
+  ChevronDown,
+  Layers3,
   Loader2,
   Package,
   Pencil,
+  Power,
+  PowerOff,
   RefreshCw,
   Ruler,
   Tag,
@@ -20,22 +23,21 @@ import {
 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import ConfirmModal from '../../components/common/ConfirmModal'
+import PortalMenu from '../../components/common/PortalMenu'
 import { useProduct } from '../../hooks/useProducts'
-import { useDeleteProductsMutation } from '../../hooks/useProductMutations'
+import { useDeleteProductsMutation, useUpdateProductStatusMutation } from '../../hooks/useProductMutations'
 import { toCatalogProduct } from '../../utils/normalizeProducts'
-import { metadataArrayToMap } from '../../utils/normalizeProducts'
+import {
+  canActivateProduct,
+  canDeactivateProduct,
+  getProductStatusActionCopy,
+} from '../../utils/productStatusActions'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatMoney(amount) {
   if (amount == null || Number.isNaN(Number(amount))) return '—'
   return `GH₵ ${Number(amount).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`
-}
-
-function htmlToText(html = '') {
-  const div = document.createElement('div')
-  div.innerHTML = html
-  return div.textContent || div.innerText || ''
 }
 
 const STATUS_STYLES = {
@@ -129,7 +131,7 @@ function ProductGallery({ images }) {
 
   return (
     <div className="w-full space-y-3">
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      <div className="relative aspect-4/3 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
         {active?.image_url ? (
           <img
             src={active.image_url}
@@ -265,6 +267,61 @@ function StockIndicator({ stock, lowThreshold }) {
   )
 }
 
+// ─── Edit menu ────────────────────────────────────────────────────────────────
+
+function ProductEditMenu({ productId, className = '' }) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
+
+  const close = () => setOpen(false)
+
+  const menuItemClass =
+    'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50'
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={className}
+      >
+        <Pencil className="size-3.5" />
+        Edit
+        <ChevronDown className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      <PortalMenu
+        open={open}
+        onClose={close}
+        triggerRef={triggerRef}
+        menuWidth={210}
+      >
+        <Link
+          to={`/products/${productId}/edit?section=info`}
+          role="menuitem"
+          onClick={close}
+          className={menuItemClass}
+        >
+          <Pencil className="size-4" />
+          Edit product info
+        </Link>
+        <Link
+          to={`/products/${productId}/edit?section=variations`}
+          role="menuitem"
+          onClick={close}
+          className={menuItemClass}
+        >
+          <Layers3 className="size-4" />
+          Edit variations
+        </Link>
+      </PortalMenu>
+    </>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ViewProduct() {
@@ -272,7 +329,9 @@ export default function ViewProduct() {
   const navigate = useNavigate()
   const { data: rawRecord, isLoading, isError, refetch } = useProduct(productId)
   const deleteMutation = useDeleteProductsMutation()
+  const updateProductStatusMutation = useUpdateProductStatusMutation()
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [statusRequest, setStatusRequest] = useState(null)
 
   if (isLoading) {
     return (
@@ -321,7 +380,6 @@ export default function ViewProduct() {
   }
 
   const product = toCatalogProduct(rawRecord)
-  const meta = metadataArrayToMap(rawRecord.metadata)
   const variants = Array.isArray(rawRecord.variants) ? rawRecord.variants : []
   const images = Array.isArray(rawRecord.images) ? rawRecord.images : []
   const tags = Array.isArray(rawRecord.tags) ? rawRecord.tags : []
@@ -339,11 +397,31 @@ export default function ViewProduct() {
     : []
 
   const hasShipping = product.shippingWeight || product.shippingLength
+  const statusModalCopy = statusRequest
+    ? getProductStatusActionCopy({
+      product: statusRequest.product,
+      status: statusRequest.status,
+    })
+    : null
 
   const handleDelete = async () => {
     try {
       await deleteMutation.mutateAsync([product.id])
       navigate('/products')
+    } catch {
+      /* toast handled in mutation */
+    }
+  }
+
+  const handleConfirmStatusChange = async () => {
+    if (!statusRequest) return
+
+    try {
+      await updateProductStatusMutation.mutateAsync({
+        productId: statusRequest.product.id,
+        status: statusRequest.status,
+      })
+      setStatusRequest(null)
     } catch {
       /* toast handled in mutation */
     }
@@ -364,13 +442,30 @@ export default function ViewProduct() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <Link
-              to={`/products/${product.id}/edit`}
+            <ProductEditMenu
+              productId={product.id}
               className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50"
-            >
-              <Pencil className="size-3.5" />
-              Edit
-            </Link>
+            />
+            {canActivateProduct(product.status) && (
+              <button
+                type="button"
+                onClick={() => setStatusRequest({ product, status: 'active' })}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100"
+              >
+                <Power className="size-3.5" />
+                Activate
+              </button>
+            )}
+            {canDeactivateProduct(product.status) && (
+              <button
+                type="button"
+                onClick={() => setStatusRequest({ product, status: 'inactive' })}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition-all hover:bg-amber-100"
+              >
+                <PowerOff className="size-3.5" />
+                Deactivate
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowDeleteModal(true)}
@@ -522,12 +617,39 @@ export default function ViewProduct() {
               <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">Quick actions</p>
               <div className="space-y-2">
                 <Link
-                  to={`/products/${product.id}/edit`}
+                  to={`/products/${product.id}/edit?section=info`}
                   className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
                 >
-                  <Edit2 className="size-4 text-slate-500" />
-                  Edit product details
+                  <Pencil className="size-4 text-slate-500" />
+                  Edit product info
                 </Link>
+                <Link
+                  to={`/products/${product.id}/edit?section=variations`}
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  <Layers3 className="size-4 text-slate-500" />
+                  Edit variations
+                </Link>
+                {canActivateProduct(product.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusRequest({ product, status: 'active' })}
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                  >
+                    <Power className="size-4" />
+                    Activate product
+                  </button>
+                )}
+                {canDeactivateProduct(product.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusRequest({ product, status: 'inactive' })}
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-3 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+                  >
+                    <PowerOff className="size-4" />
+                    Deactivate product
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowDeleteModal(true)}
@@ -620,7 +742,23 @@ export default function ViewProduct() {
         onConfirm={handleDelete}
         onClose={() => setShowDeleteModal(false)}
         isLoading={deleteMutation.isPending}
+        loadingLabel="Deleting…"
         tone="danger"
+      />
+
+      <ConfirmModal
+        open={Boolean(statusRequest && statusModalCopy)}
+        title={statusModalCopy?.title}
+        description={statusModalCopy?.description}
+        confirmLabel={statusModalCopy?.confirmLabel}
+        onConfirm={handleConfirmStatusChange}
+        onClose={() => {
+          if (updateProductStatusMutation.isPending) return
+          setStatusRequest(null)
+        }}
+        isLoading={updateProductStatusMutation.isPending}
+        loadingLabel={statusModalCopy?.loadingLabel}
+        tone={statusModalCopy?.tone}
       />
     </DashboardLayout>
   )

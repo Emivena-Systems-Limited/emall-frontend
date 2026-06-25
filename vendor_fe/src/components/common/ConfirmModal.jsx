@@ -11,6 +11,7 @@ export default function ConfirmModal({
   onConfirm,
   onClose,
   isLoading = false,
+  loadingLabel = 'Please wait…',
   tone = 'danger',
 }) {
   useEffect(() => {
@@ -32,9 +33,12 @@ export default function ConfirmModal({
 
   if (!open) return null
 
-  const confirmStyles = tone === 'danger'
-    ? 'bg-red-600 text-white hover:bg-red-700 shadow-[0_10px_24px_rgba(220,38,38,0.22)]'
-    : 'bg-brand text-white hover:bg-brand-hover shadow-[0_10px_24px_rgba(199,59,45,0.22)]'
+  const confirmStyles = {
+    danger: 'bg-red-600 text-white hover:bg-red-700 shadow-[0_10px_24px_rgba(220,38,38,0.22)]',
+    brand: 'bg-brand text-white hover:bg-brand-hover shadow-[0_10px_24px_rgba(199,59,45,0.22)]',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_10px_24px_rgba(5,150,105,0.22)]',
+    warning: 'bg-amber-600 text-white hover:bg-amber-700 shadow-[0_10px_24px_rgba(217,119,6,0.22)]',
+  }[tone] ?? 'bg-brand text-white hover:bg-brand-hover shadow-[0_10px_24px_rgba(199,59,45,0.22)]'
 
   return createPortal(
     <div
@@ -79,7 +83,7 @@ export default function ConfirmModal({
               {isLoading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Deleting…
+                  {loadingLabel}
                 </>
               ) : (
                 confirmLabel

@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import { ImagePlus, Trash2, Upload } from 'lucide-react'
 import FieldError from '../auth/FieldError'
 import {
-  createProductImageFromFile,
   isValidProductImageFile,
+  replaceProductImageWithFile,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
@@ -13,8 +13,7 @@ export default function ProductMainImageUpload({ image, onChange, error }) {
 
   const applyFile = (file) => {
     if (!file || !isValidProductImageFile(file)) return
-    if (image) revokeProductImagePreview(image)
-    onChange(createProductImageFromFile(file))
+    onChange(replaceProductImageWithFile(image, file))
   }
 
   const processFiles = (fileList) => {

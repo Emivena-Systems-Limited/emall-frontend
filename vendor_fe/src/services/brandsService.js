@@ -4,35 +4,32 @@ import {
   capitalizeBrandName,
   extractBrandRecords,
   extractCreatedBrand,
-  getBrandPaginationMeta,
   sortBrandsAlphabetically,
 } from '../utils/normalizeBrands'
 import { assertApiSuccess } from './authService'
 
-async function fetchApprovedBrandsPage(page) {
-  const { data } = await apiClient.get(BRAND_ENDPOINTS.GET_APPROVED, { params: { page } })
+// One request for the brand dropdown — no client-side pagination fan-out.
+const BRANDS_DROPDOWN_PAGE_SIZE = 500
+
+let approvedBrandsInflight = null
+
+async function fetchApprovedBrandsOnce() {
+  const { data } = await apiClient.get(BRAND_ENDPOINTS.GET_APPROVED, {
+    params: { page: 1, per_page: BRANDS_DROPDOWN_PAGE_SIZE },
+  })
   assertApiSuccess(data)
-  return data
+
+  return sortBrandsAlphabetically(extractBrandRecords(data))
 }
 
 export async function getApprovedBrands() {
-  const firstResponse = await fetchApprovedBrandsPage(1)
-  const brands = extractBrandRecords(firstResponse)
-  const { lastPage } = getBrandPaginationMeta(firstResponse)
-
-  if (lastPage <= 1) {
-    return sortBrandsAlphabetically(brands)
+  if (!approvedBrandsInflight) {
+    approvedBrandsInflight = fetchApprovedBrandsOnce().finally(() => {
+      approvedBrandsInflight = null
+    })
   }
 
-  const remainingResponses = await Promise.all(
-    Array.from({ length: lastPage - 1 }, (_, index) => fetchApprovedBrandsPage(index + 2)),
-  )
-
-  remainingResponses.forEach((response) => {
-    brands.push(...extractBrandRecords(response))
-  })
-
-  return sortBrandsAlphabetically(brands)
+  return approvedBrandsInflight
 }
 
 export async function createBrand({ brand_name }) {

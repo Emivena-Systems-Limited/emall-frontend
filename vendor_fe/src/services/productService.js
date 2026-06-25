@@ -77,6 +77,64 @@ export async function updateProduct(productId, formData) {
   return record
 }
 
+export async function updateProductInfo(productId, formData) {
+  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.updateInfoById(productId), formData)
+  assertApiSuccess(data)
+
+  const record = extractProductRecord(data)
+  if (!record?.id) {
+    throw new Error('Product info was updated but no product id was returned.')
+  }
+
+  return record
+}
+
+export async function updateProductVariant(productVariantId, formData) {
+  if (!formData.get('_method')) {
+    formData.append('_method', 'PUT')
+  }
+
+  formData.delete('product_id')
+
+  const endpoint = PRODUCT_ENDPOINTS.updateVariantById(productVariantId)
+
+  if (import.meta.env.DEV) {
+    console.log('[update variant] POST', endpoint)
+  }
+
+  const { data } = await apiClient.post(endpoint, formData)
+  assertApiSuccess(data)
+
+  const record = extractProductRecord(data)
+  if (!record?.id) {
+    throw new Error('Product variant was updated but no product id was returned.')
+  }
+
+  return record
+}
+
+export async function createProductVariant(productId, formData) {
+  formData.set('product_id', String(productId))
+
+  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.createVariantStore, formData)
+  assertApiSuccess(data)
+
+  const record = extractProductRecord(data)
+  if (!record?.id) {
+    throw new Error('Variant was created but no product id was returned.')
+  }
+
+  return record
+}
+
+export async function deleteProductVariant(productVariantId) {
+  const { data } = await apiClient.delete(
+    PRODUCT_ENDPOINTS.deleteVariantById(productVariantId),
+  )
+  assertApiSuccess(data)
+  return productVariantId
+}
+
 export async function replicateProduct(productId) {
   const { data } = await apiClient.post(PRODUCT_ENDPOINTS.replicateById(productId))
   assertApiSuccess(data)
@@ -84,6 +142,18 @@ export async function replicateProduct(productId) {
   const record = extractProductRecord(data)
   if (!record?.id) {
     throw new Error('Product was duplicated but no product id was returned.')
+  }
+
+  return record
+}
+
+export async function toggleProductActive(productId) {
+  const { data } = await apiClient.put(PRODUCT_ENDPOINTS.toggleActiveById(productId))
+  assertApiSuccess(data)
+
+  const record = extractProductRecord(data)
+  if (!record?.id) {
+    return getProductById(productId)
   }
 
   return record

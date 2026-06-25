@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { Copy, Eye, MoreHorizontal, Package, Pencil, Trash2 } from 'lucide-react'
+import { Copy, Eye, Layers3, MoreHorizontal, Package, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
+import { canActivateProduct, canDeactivateProduct } from '../../utils/productStatusActions'
 
 const STATUS_CONFIG = {
   active: {
@@ -33,7 +34,16 @@ function ProductStatusBadge({ status }) {
   )
 }
 
-function ProductActionsMenu({ product, onView, onEdit, onDuplicate, onDelete }) {
+function ProductActionsMenu({
+  product,
+  onView,
+  onEditProductInfo,
+  onEditVariations,
+  onActivate,
+  onDeactivate,
+  onDuplicate,
+  onDelete,
+}) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
 
@@ -60,7 +70,7 @@ function ProductActionsMenu({ product, onView, onEdit, onDuplicate, onDelete }) 
         open={open}
         onClose={() => setOpen(false)}
         triggerRef={triggerRef}
-        menuWidth={160}
+        menuWidth={210}
       >
         <button
           type="button"
@@ -73,10 +83,18 @@ function ProductActionsMenu({ product, onView, onEdit, onDuplicate, onDelete }) 
         <button
           type="button"
           role="menuitem"
-          onClick={() => run(onEdit)}
+          onClick={() => run(onEditProductInfo)}
           className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
         >
-          <Pencil className="size-4" /> Edit
+          <Pencil className="size-4" /> Edit product info
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onEditVariations)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Layers3 className="size-4" /> Edit variations
         </button>
         <button
           type="button"
@@ -86,6 +104,27 @@ function ProductActionsMenu({ product, onView, onEdit, onDuplicate, onDelete }) 
         >
           <Copy className="size-4" /> Duplicate
         </button>
+        {canActivateProduct(product.status) && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => run(onActivate)}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50"
+          >
+            <Power className="size-4" /> Activate
+          </button>
+        )}
+        {canDeactivateProduct(product.status) && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => run(onDeactivate)}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50"
+          >
+            <PowerOff className="size-4" /> Deactivate
+          </button>
+        )}
+        <div className="my-1 border-t border-slate-100" role="separator" />
         <button
           type="button"
           role="menuitem"
@@ -120,7 +159,10 @@ export default function ProductTable({
   onToggleAll,
   onToggleOne,
   onView,
-  onEdit,
+  onEditProductInfo,
+  onEditVariations,
+  onActivate,
+  onDeactivate,
   onDuplicate,
   onDelete,
 }) {
@@ -214,7 +256,10 @@ export default function ProductTable({
                   <ProductActionsMenu
                     product={product}
                     onView={onView}
-                    onEdit={onEdit}
+                    onEditProductInfo={onEditProductInfo}
+                    onEditVariations={onEditVariations}
+                    onActivate={onActivate}
+                    onDeactivate={onDeactivate}
                     onDuplicate={onDuplicate}
                     onDelete={onDelete}
                   />

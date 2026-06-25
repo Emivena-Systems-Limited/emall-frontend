@@ -1,9 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
-  Download,
   FileSpreadsheet,
-  FileText,
   Search,
 } from 'lucide-react'
 
@@ -34,57 +31,16 @@ function FilterSelect({ label, value, onChange, options }) {
   )
 }
 
-function ExportMenu({ onExportExcel, onExportPdf }) {
-  const [open, setOpen] = useState(false)
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    const handleClick = (event) => {
-      if (!menuRef.current?.contains(event.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
+function ExportExcelButton({ onExportExcel }) {
   return (
-    <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
-      >
-        <Download className="size-4" />
-        Export
-        <ChevronDown className="size-4 text-slate-400" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-          <button
-            type="button"
-            onClick={() => {
-              onExportExcel()
-              setOpen(false)
-            }}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            <FileSpreadsheet className="size-4 text-emerald-600" />
-            Excel
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onExportPdf()
-              setOpen(false)
-            }}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            <FileText className="size-4 text-red-600" />
-            PDF
-          </button>
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={onExportExcel}
+      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+    >
+      <FileSpreadsheet className="size-4 text-emerald-600" />
+      Export Excel
+    </button>
   )
 }
 
@@ -98,7 +54,6 @@ export default function ProductCatalogToolbar({
   categoryOptions = DEFAULT_CATEGORY_OPTIONS,
   brandOptions = DEFAULT_BRAND_OPTIONS,
   onExportExcel,
-  onExportPdf,
   selectedCount,
   onActivateSelected,
   onDeactivateSelected,
@@ -137,7 +92,7 @@ export default function ProductCatalogToolbar({
             onChange={onBrandChange}
             options={brandOptions}
           />
-          <ExportMenu onExportExcel={onExportExcel} onExportPdf={onExportPdf} />
+          <ExportExcelButton onExportExcel={onExportExcel} />
         </div>
       </div>
 
@@ -147,20 +102,24 @@ export default function ProductCatalogToolbar({
             {selectedCount} product{selectedCount === 1 ? '' : 's'} selected
           </p>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onActivateSelected}
-              className="cursor-pointer rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
-            >
-              Activate selected
-            </button>
-            <button
-              type="button"
-              onClick={onDeactivateSelected}
-              className="cursor-pointer rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
-            >
-              Deactivate selected
-            </button>
+            {onActivateSelected && (
+              <button
+                type="button"
+                onClick={onActivateSelected}
+                className="cursor-pointer rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+              >
+                Activate selected
+              </button>
+            )}
+            {onDeactivateSelected && (
+              <button
+                type="button"
+                onClick={onDeactivateSelected}
+                className="cursor-pointer rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+              >
+                Deactivate selected
+              </button>
+            )}
             <button
               type="button"
               onClick={onDeleteSelected}
