@@ -15,7 +15,7 @@ const panelEase = [0.16, 1, 0.3, 1]
 function FeaturedProductCard({ product, onNavigate }) {
   return (
     <Link
-      to={product.href}
+      to={product.href?.replace(/^\/products\//, '/')}
       onClick={onNavigate}
       className="group flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white p-2 transition-all hover:border-slate-300 hover:shadow-sm"
     >
@@ -77,7 +77,7 @@ function PromoBanner({ promo, onNavigate }) {
         </div>
 
         <Link
-          to={promo.href}
+          to={promo.href?.replace(/^\/products\//, '/')}
           onClick={onNavigate}
           className="mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-3 text-xs font-bold tracking-[0.08em] text-white transition-colors hover:bg-auth-primary-hover"
         >

@@ -23,6 +23,8 @@ function PriceDisplay({ price, compareAt }) {
 }
 
 function StarRating({ rating, count }) {
+  if (!count || count <= 0) return null
+
   const full = Math.floor(rating)
   const hasHalf = rating % 1 >= 0.5
 
@@ -64,7 +66,7 @@ function StarRating({ rating, count }) {
 
 export default function ProductCard({ product, hrefOverride, onAddToCart }) {
   const navigate = useNavigate()
-  const productHref = hrefOverride ?? product.href
+  const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition-shadow duration-300 hover:shadow-[0_8px_30px_-6px_rgba(15,23,42,0.15)]">

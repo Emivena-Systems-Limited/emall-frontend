@@ -15,3 +15,11 @@ export async function getLandingPageHome() {
 
   return data?.data ?? data ?? {}
 }
+
+export async function getProductById(productId) {
+  if (!productId) return null
+  const { data } = await apiClient.get(`/product/${productId}`)
+  assertApiSuccess(data)
+
+  return data?.data ?? data ?? {}
+}
