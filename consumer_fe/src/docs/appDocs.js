@@ -26,7 +26,7 @@ export const progressLog = [
     title: 'Cart and product details mobile responsiveness',
     items: [
       'Improved /cart mobile row spacing, product image sizing, rail spacing, and delivery modal scrolling',
-      'Improved /products/:slug mobile swatches, action buttons, review wrapping, product rails, and section padding',
+      'Improved /:slug mobile swatches, action buttons, review wrapping, product rails, and section padding',
       'Verified both pages still build successfully after responsive adjustments',
     ],
   },
@@ -34,7 +34,7 @@ export const progressLog = [
     date: '2026-06-22',
     title: 'Product details UI alignment',
     items: [
-      'Adjusted /products/:slug layout to more closely match the supplied product details UI',
+      'Adjusted /:slug layout to more closely match the supplied product details UI',
       'Updated product info panel with compact pricing, image colour swatches, compatible model chips, stock note, and purchase buttons',
       'Reworked review, seller, description, product image, and horizontal product rail styling to match the provided design',
       'Kept changes scoped to the existing product details page sections',
@@ -96,7 +96,7 @@ export const progressLog = [
     date: '2026-06-18',
     title: 'Product details page',
     items: [
-      'Added /products/:slug product details page with image gallery, thumbnails, product information, variants, stock status, quantity selector, and purchase buttons',
+      'Added /:slug product details page with image gallery, thumbnails, product information, variants, stock status, quantity selector, and purchase buttons',
       'Added ratings, review summary, rating distribution, review cards, seller showcase, product description, and related product rails',
       'Landing product cards now open product details while the cart icon still navigates to the cart',
     ],
@@ -361,7 +361,7 @@ export const routes = [
     notes: 'View All page for random_products with static fallback',
   },
   {
-    path: '/products/:slug',
+    path: '/:slug',
     name: 'Product Details',
     status: 'done',
     file: 'src/pages/ProductDetailsPage.jsx',
@@ -465,7 +465,7 @@ export const apiIntegrations = [
 
 export const plannedPages = [
   { name: 'Products', path: '/products', status: 'done' },
-  { name: 'Product detail', path: '/products/:slug', status: 'done' },
+  { name: 'Product detail', path: '/:slug', status: 'done' },
 ]
 
 export const authNotes = {

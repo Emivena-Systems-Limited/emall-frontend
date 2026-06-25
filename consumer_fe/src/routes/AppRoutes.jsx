@@ -31,7 +31,7 @@ export default function AppRoutes() {
       <Route path="/products/best-sellers" element={<ProductListingPage type="best-sellers" />} />
       <Route path="/products/flash-sales" element={<ProductListingPage type="flash-sales" />} />
       <Route path="/products/explore" element={<ProductListingPage type="explore" />} />
-      <Route path="/products/:slug" element={<ProductDetailsPage />} />
+      <Route path="/:slug" element={<ProductDetailsPage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route path="/account/*" element={<AccountPage />} />
       <Route path="/login" element={guestOnly(<LoginPage />)} />

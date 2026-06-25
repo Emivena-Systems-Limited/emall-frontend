@@ -52,6 +52,7 @@ export default function ExploreInterestsSection({ products = [] }) {
           </div>
 
           <motion.div
+            key={displayProducts.length}
             variants={containerVariants}
             initial="hidden"
             whileInView="show"
