@@ -5,6 +5,7 @@ import AccountPage from '../pages/AccountPage'
 import CartPage from '../pages/CartPage'
 import CheckoutPage from '../pages/CheckoutPage'
 import CategoriesPage from '../pages/CategoriesPage'
+import CategoryPage from '../pages/CategoryPage'
 import ProductDetailsPage from '../pages/ProductDetailsPage'
 import ProductListingPage from '../pages/ProductListingPage'
 import LoginPage from '../pages/auth/LoginPage'
@@ -26,6 +27,7 @@ export default function AppRoutes() {
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/checkout/:mode" element={<CheckoutPage />} />
       <Route path="/categories" element={<CategoriesPage />} />
+      <Route path="/categories/:slug" element={<CategoryPage />} />
       <Route path="/products" element={<ProductListingPage type="all" />} />
       <Route path="/products/recommended" element={<ProductListingPage type="recommended" />} />
       <Route path="/products/best-sellers" element={<ProductListingPage type="best-sellers" />} />
