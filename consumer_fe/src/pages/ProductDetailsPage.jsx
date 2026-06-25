@@ -752,7 +752,68 @@ export default function ProductDetailsPage() {
     }
   }, [product, activeVariant])
 
-  const relatedProducts = useMemo(() => getRelatedProducts(product.slug, 8), [product.slug])
+  const allApiProducts = useMemo(() => {
+    if (!landingData) return []
+    const sections = ['recommended_products', 'best_sellers', 'flash_sales', 'random_products']
+    const products = []
+    const seenIds = new Set()
+    for (const sec of sections) {
+      const list = landingData[sec]
+      if (Array.isArray(list)) {
+        list.forEach((p) => {
+          if (p && !seenIds.has(p.id)) {
+            seenIds.add(p.id)
+            const normalized = normalizeLandingProduct(p)
+            if (normalized) {
+              products.push({
+                ...normalized,
+                vendor_id: p.vendor_id || p.vendor?.id || p.store?.vendor_id || p.store?.id || ''
+              })
+            }
+          }
+        })
+      }
+    }
+    return products
+  }, [landingData])
+
+  const sellerProducts = useMemo(() => {
+    if (!apiProduct) {
+      return getRelatedProducts(product.slug, 8)
+    }
+
+    const currentVendorId = apiProduct.vendor_id
+    let matching = allApiProducts.filter(
+      (p) => p.id !== product.id && p.vendor_id === currentVendorId
+    )
+
+    if (matching.length < 5) {
+      const otherReal = allApiProducts.filter(
+        (p) => p.id !== product.id && p.vendor_id !== currentVendorId
+      )
+      matching = [...matching, ...otherReal].slice(0, 8)
+    }
+
+    if (matching.length === 0) {
+      return getRelatedProducts(product.slug, 8)
+    }
+
+    return matching
+  }, [apiProduct, product.id, product.slug, allApiProducts])
+
+  const exploreRelatedProducts = useMemo(() => {
+    if (!apiProduct) {
+      return getRelatedProducts(product.slug, 8)
+    }
+
+    const otherReal = allApiProducts.filter((p) => p.id !== product.id)
+    
+    if (otherReal.length === 0) {
+      return getRelatedProducts(product.slug, 8)
+    }
+
+    return otherReal.slice(0, 8)
+  }, [apiProduct, product.id, product.slug, allApiProducts])
 
   if (isLandingLoading || (apiProductId && isProductLoading)) {
     return (
@@ -792,9 +853,9 @@ export default function ProductDetailsPage() {
             </div>
           </section>
 
-          <HorizontalProductRail title="Other Items From Seller" products={relatedProducts} visibleCount={5} />
+          <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={5} />
           <ProductDescription product={product} />
-          <HorizontalProductRail title="Explore Other Related Items" products={relatedProducts} visibleCount={5} />
+          <HorizontalProductRail title="Explore Other Related Items" products={exploreRelatedProducts} visibleCount={5} />
         </Container>
       </main>
     </SiteLayout>
