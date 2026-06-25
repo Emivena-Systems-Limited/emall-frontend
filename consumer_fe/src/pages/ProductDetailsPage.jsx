@@ -250,7 +250,10 @@ function ProductInfoPanel({
           )}
         </div>
         <p className="text-xs font-medium text-slate-500">
-          List Price: {displayPriceInfo.compareAt ? formatCedi(displayPriceInfo.compareAt) : formatCedi(displayPriceInfo.price)}
+          List Price:{' '}
+          <span className={displayPriceInfo.compareAt ? 'line-through' : ''}>
+            {displayPriceInfo.compareAt ? formatCedi(displayPriceInfo.compareAt) : formatCedi(displayPriceInfo.price)}
+          </span>
         </p>
       </div>
 
