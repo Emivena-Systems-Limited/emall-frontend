@@ -19,10 +19,13 @@
 }
 
 html,
-body {
+body,
+#root {
   font-family: var(--font-sans);
   margin: 0;
   padding: 0;
+  width: 100%;
+  min-height: 100%;
   font-weight: normal;
   -webkit-font-smoothing: antialiased;
 }

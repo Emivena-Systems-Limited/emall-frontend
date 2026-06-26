@@ -8,7 +8,7 @@ export default function DashboardLayout({ children, pageTitle }) {
   const { collapsed, toggleCollapsed, mobileOpen, openMobile, closeMobile } = useSidebar()
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
+    <div className="flex h-screen w-full min-h-0 overflow-hidden bg-slate-50 font-sans">
       <LogoutOverlay />
       <PendingApprovalGuard />
       {/* ── Sidebar ── */}
@@ -20,12 +20,15 @@ export default function DashboardLayout({ children, pageTitle }) {
       />
 
       {/* ── Main column ── */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
         <Navbar onMobileMenuOpen={openMobile} pageTitle={pageTitle} />
 
         {/* Scrollable content */}
-        <main data-dashboard-scroll-panel className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          data-dashboard-scroll-panel
+          className="min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto"
+        >
+          <div className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>
