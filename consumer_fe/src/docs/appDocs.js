@@ -30,6 +30,7 @@ export const progressLog = [
       'Aligned the Visit Store row horizontally with icon, store link, follower stats, rating, and Follow action',
       'Improved mobile responsiveness for the product details layout, store row, rails, details, reviews, and long text wrapping',
       'Adjusted mobile stacking so gallery is followed by product info/actions before details, feedback, and related products',
+      'Kept product detail related-item rails to a single horizontal row with click and keyboard arrow navigation',
       'Moved the Share action into the Key Details card top-right position shown in the PDF',
       'Moved Other Items From Seller into the left product-media column below Key Details',
       'Kept Customer Feedback below the purchase panel in the right column',
@@ -41,6 +42,7 @@ export const progressLog = [
     items: [
       'Matched homepage section background color to the product details page gray (#f2f2f2)',
       'Kept inner product/category cards and controls white for contrast',
+      'Updated shared product card images to use object-contain so landing page product images are not cropped',
     ],
   },
   {

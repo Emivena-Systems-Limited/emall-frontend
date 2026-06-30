@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -556,8 +556,30 @@ function RailProductCard({ product }) {
 }
 
 function HorizontalProductRail({ title, products, visibleCount }) {
-  const visibleProducts = visibleCount ? products.slice(0, visibleCount) : products
-  const desktopColumns = visibleCount === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-5'
+  const railRef = useRef(null)
+  const desktopAutoCols = visibleCount === 3
+    ? 'lg:auto-cols-[calc((100%-1.5rem)/3)]'
+    : 'lg:auto-cols-[calc((100%-3rem)/5)]'
+
+  const scrollRail = (direction) => {
+    const rail = railRef.current
+    if (!rail) return
+    rail.scrollBy({
+      left: direction * Math.max(rail.clientWidth * 0.85, 240),
+      behavior: 'smooth',
+    })
+  }
+
+  const handleRailKeyDown = (event) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      scrollRail(-1)
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      scrollRail(1)
+    }
+  }
 
   return (
     <section className="min-w-0 bg-white p-3 sm:p-4">
@@ -566,17 +588,33 @@ function HorizontalProductRail({ title, products, visibleCount }) {
         <span className="text-xs font-semibold text-slate-600">Page 1 Of 50</span>
       </div>
       <div className="relative">
-        <button type="button" className="absolute left-0 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-300 bg-white">
+        <button
+          type="button"
+          onClick={() => scrollRail(-1)}
+          aria-label={`Previous ${title}`}
+          className="absolute left-0 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-300 bg-white"
+        >
           <ChevronLeft className="size-4" />
         </button>
-        <div className={`grid auto-cols-[7rem] grid-flow-col gap-2 overflow-x-auto px-8 pb-1 [-ms-overflow-style:none] min-[390px]:auto-cols-[7.5rem] sm:auto-cols-[9rem] sm:gap-3 lg:auto-cols-fr lg:grid-flow-row ${desktopColumns} [&::-webkit-scrollbar]:hidden`}>
-          {visibleProducts.map((item) => (
+        <div
+          ref={railRef}
+          tabIndex={0}
+          onKeyDown={handleRailKeyDown}
+          aria-label={`${title} product carousel`}
+          className={`grid auto-cols-[7rem] grid-flow-col grid-rows-1 gap-2 overflow-x-auto scroll-smooth px-8 pb-1 outline-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/40 min-[390px]:auto-cols-[7.5rem] sm:auto-cols-[9rem] sm:gap-3 ${desktopAutoCols} [&::-webkit-scrollbar]:hidden`}
+        >
+          {products.map((item) => (
             <div key={`${item.slug}-${title}`} className="min-w-0">
               <RailProductCard product={item} />
             </div>
           ))}
         </div>
-        <button type="button" className="absolute right-0 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-300 bg-white">
+        <button
+          type="button"
+          onClick={() => scrollRail(1)}
+          aria-label={`Next ${title}`}
+          className="absolute right-0 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-300 bg-white"
+        >
           <ChevronRight className="size-4" />
         </button>
       </div>

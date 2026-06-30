@@ -80,7 +80,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
         <img
           src={product.image}
           alt=""
-          className="size-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
+          className="size-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
           loading="lazy"
         />
         <div className="absolute left-2 top-2 flex flex-col gap-1">
