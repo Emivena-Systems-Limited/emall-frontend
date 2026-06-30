@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, getProductById, replicateProduct, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
+import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, duplicateProduct, getProductById, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
 import { buildSingleVariantCreatePayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
 import notify from '../lib/notify'
 import { productQueryKeys } from './useProducts'
@@ -294,22 +294,33 @@ export function useUpdateProductsStatusMutation() {
   })
 }
 
-export function useReplicateProductMutation() {
+export function useDuplicateProductMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationKey: ['products', 'replicate'],
-    mutationFn: (productId) => replicateProduct(productId),
-    onSuccess: (record) => {
+    mutationKey: ['products', 'duplicate'],
+    mutationFn: (sourceProductId) => {
+      const currentProducts = queryClient.getQueryData(productQueryKeys.list()) ?? []
+      const knownProductIds = currentProducts.map((product) => product.id)
+      return duplicateProduct(sourceProductId, knownProductIds)
+    },
+    onSuccess: ({ record, catalogProducts }) => {
+      if (catalogProducts) {
+        queryClient.setQueryData(productQueryKeys.list(), catalogProducts)
+        return
+      }
+
       const catalogProduct = toCatalogProduct(record)
       if (!catalogProduct) return
 
       patchProductInListCache(queryClient, catalogProduct, { insertIfMissing: true })
-      notify.success(`${catalogProduct.name} was duplicated successfully.`)
     },
     onError: (error) => notify.fromError(error, 'Failed to duplicate product.'),
   })
 }
+
+/** @deprecated Use useDuplicateProductMutation */
+export const useReplicateProductMutation = useDuplicateProductMutation
 
 export function useDeleteProductsMutation() {
   const queryClient = useQueryClient()

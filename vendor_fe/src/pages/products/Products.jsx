@@ -9,6 +9,10 @@ import ProductCatalogToolbar from '../../components/products/ProductCatalogToolb
 import ProductSummaryCards from '../../components/products/ProductSummaryCards'
 import ProductTable from '../../components/products/ProductTable'
 import {
+  DuplicateProductConfirmModal,
+  DuplicateProductSuccessModal,
+} from '../../components/products/DuplicateProductModals'
+import {
   getCatalogSummary,
   SUMMARY_FILTERS,
 } from '../../constants/productCatalog'
@@ -16,7 +20,7 @@ import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import notify from '../../lib/notify'
 import {
   useDeleteProductsMutation,
-  useReplicateProductMutation,
+  useDuplicateProductMutation,
   useUpdateProductStatusMutation,
   useUpdateProductsStatusMutation,
 } from '../../hooks/useProductMutations'
@@ -24,12 +28,13 @@ import { useProducts } from '../../hooks/useProducts'
 import { exportProductsToExcel } from '../../utils/exportProductCatalog'
 import { buildCatalogFilterOptions, filterProductCatalog } from '../../utils/productCatalogFilters'
 import { getProductStatusActionCopy } from '../../utils/productStatusActions'
+import { toCatalogProduct } from '../../services/productService'
 
 export default function Products() {
   const navigate = useNavigate()
   const { data: products = [], isLoading, isError, refetch } = useProducts()
   const deleteProductsMutation = useDeleteProductsMutation()
-  const replicateProductMutation = useReplicateProductMutation()
+  const duplicateProductMutation = useDuplicateProductMutation()
   const updateProductStatusMutation = useUpdateProductStatusMutation()
   const updateProductsStatusMutation = useUpdateProductsStatusMutation()
   const [search, setSearch] = useState('')
@@ -39,6 +44,8 @@ export default function Products() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [deleteRequest, setDeleteRequest] = useState(null)
   const [statusRequest, setStatusRequest] = useState(null)
+  const [duplicateRequest, setDuplicateRequest] = useState(null)
+  const [duplicateSuccess, setDuplicateSuccess] = useState(null)
 
   const { categoryOptions, brandOptions } = useMemo(
     () => buildCatalogFilterOptions(products),
@@ -218,12 +225,45 @@ export default function Products() {
     navigate(`/products/${product.id}/edit?section=variations`)
   }
 
-  const handleDuplicate = async (product) => {
+  const handleDuplicate = (product) => {
+    setDuplicateRequest({ product })
+  }
+
+  const closeDuplicateConfirmModal = () => {
+    if (duplicateProductMutation.isPending) return
+    setDuplicateRequest(null)
+  }
+
+  const handleConfirmDuplicate = async () => {
+    if (!duplicateRequest?.product) return
+
+    const { product } = duplicateRequest
+
     try {
-      await replicateProductMutation.mutateAsync(product.id)
+      const { record } = await duplicateProductMutation.mutateAsync(product.id)
+      const duplicatedProduct = toCatalogProduct(record)
+
+      if (!duplicatedProduct) {
+        notify.error('Product was duplicated but could not be loaded.')
+        return
+      }
+
+      setDuplicateRequest(null)
+      setDuplicateSuccess({ sourceProduct: product, duplicatedProduct })
     } catch {
       /* error toast handled in mutation */
     }
+  }
+
+  const handleEditDuplicatedProduct = () => {
+    if (!duplicateSuccess?.duplicatedProduct) return
+
+    navigate(`/products/${duplicateSuccess.duplicatedProduct.id}/edit`)
+    setDuplicateSuccess(null)
+  }
+
+  const handleKeepDuplicatedProduct = () => {
+    setDuplicateSuccess(null)
   }
 
   const handleDelete = (product) => {
@@ -366,6 +406,22 @@ export default function Products() {
           isLoading={updateProductStatusMutation.isPending || updateProductsStatusMutation.isPending}
           loadingLabel={statusModalCopy?.loadingLabel}
           tone={statusModalCopy?.tone}
+        />
+
+        <DuplicateProductConfirmModal
+          open={Boolean(duplicateRequest)}
+          product={duplicateRequest?.product}
+          onClose={closeDuplicateConfirmModal}
+          onConfirm={handleConfirmDuplicate}
+          isLoading={duplicateProductMutation.isPending}
+        />
+
+        <DuplicateProductSuccessModal
+          open={Boolean(duplicateSuccess)}
+          sourceProduct={duplicateSuccess?.sourceProduct}
+          duplicatedProduct={duplicateSuccess?.duplicatedProduct}
+          onEditDetails={handleEditDuplicatedProduct}
+          onKeepDetails={handleKeepDuplicatedProduct}
         />
       </div>
     </DashboardLayout>
