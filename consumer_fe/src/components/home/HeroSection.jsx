@@ -11,7 +11,7 @@ const carouselBanners = [...heroBanners, ...heroBanners, ...heroBanners]
 
 export default function HeroSection() {
   return (
-    <section aria-label="Promotions and quick actions" className="bg-white pt-4 sm:pt-5 lg:pt-6">
+    <section aria-label="Promotions and quick actions" className="bg-[#f2f2f2] pt-4 sm:pt-5 lg:pt-6">
       <Container className="space-y-3 sm:space-y-4">
         <motion.div
           initial={{ opacity: 0, y: 14 }}
@@ -26,7 +26,7 @@ export default function HeroSection() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.22, ease: revealEase }}
-        className="w-full border-t border-slate-100 bg-white"
+        className="w-full border-t border-slate-200 bg-[#f2f2f2]"
       >
         <HeroQuickActions />
       </motion.div>

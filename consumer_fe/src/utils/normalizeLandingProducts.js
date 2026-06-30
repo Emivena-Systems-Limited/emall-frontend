@@ -136,6 +136,8 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
 
   return {
     id,
+    backendId: id,
+    syncable: true,
     name,
     variant: getVariantText(product),
     price,

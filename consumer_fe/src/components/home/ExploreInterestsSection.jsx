@@ -3,7 +3,6 @@ import { Link } from 'react-router'
 import Container from '../layout/Container'
 import ProductCard from '../shared/ProductCard'
 import NationwideDeliveryBanner from './NationwideDeliveryBanner'
-import { exploreInterestsGrid } from '../../constants/exploreInterestsProducts'
 
 const ease = [0.16, 1, 0.3, 1]
 
@@ -20,7 +19,9 @@ const itemVariants = {
 }
 
 export default function ExploreInterestsSection({ products = [] }) {
-  const displayProducts = products.length ? products : exploreInterestsGrid
+  if (!products.length) {
+    return <NationwideDeliveryBanner />
+  }
 
   return (
     <>
@@ -28,7 +29,7 @@ export default function ExploreInterestsSection({ products = [] }) {
 
       <section
         aria-labelledby="explore-interests-heading"
-        className="bg-white py-6 sm:py-8 lg:py-10"
+        className="bg-[#f2f2f2] py-6 sm:py-8 lg:py-10"
       >
         <Container>
           <div className="mb-6 flex items-end justify-between gap-4 sm:mb-8">
@@ -52,14 +53,14 @@ export default function ExploreInterestsSection({ products = [] }) {
           </div>
 
           <motion.div
-            key={displayProducts.length}
+            key={products.length}
             variants={containerVariants}
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: '-60px' }}
             className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
           >
-            {displayProducts.map((product, index) => (
+            {products.map((product, index) => (
               <motion.div key={`${product.id}-${index}`} variants={itemVariants}>
                 <ProductCard product={product} />
               </motion.div>

@@ -1,6 +1,7 @@
 import { ShoppingCart, Star } from 'lucide-react'
-import { Link, useNavigate } from 'react-router'
+import { Link } from 'react-router'
 import { formatCedi } from '../../utils/formatCurrency'
+import { useCartActions } from '../../hooks/useCartActions'
 
 function PriceDisplay({ price, compareAt }) {
   const [integer, decimal] = formatCedi(price).split('.')
@@ -65,7 +66,7 @@ function StarRating({ rating, count }) {
 }
 
 export default function ProductCard({ product, hrefOverride, onAddToCart }) {
-  const navigate = useNavigate()
+  const { addToCart } = useCartActions()
   const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
 
   return (
@@ -126,7 +127,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
                 return
               }
 
-              navigate('/cart')
+              addToCart(product)
             }}
             className="flex size-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-auth-primary hover:bg-auth-primary hover:text-white sm:size-9"
           >

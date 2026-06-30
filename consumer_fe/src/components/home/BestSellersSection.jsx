@@ -4,7 +4,6 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router'
 import Container from '../layout/Container'
 import ProductCard from '../shared/ProductCard'
-import { bestSellersCategories } from '../../constants/bestSellersProducts'
 
 const ease = [0.16, 1, 0.3, 1]
 
@@ -91,13 +90,13 @@ function CarouselTrack({ products }) {
 }
 
 export default function BestSellersSection({ categories = [] }) {
-  const displayCategories = categories.length ? categories : bestSellersCategories
+  if (!categories.length) return null
 
   return (
-    <section aria-label="Best sellers" className="bg-white py-4 sm:py-5 lg:py-6">
+    <section aria-label="Best sellers" className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
       <Container>
         <div className="space-y-5 sm:space-y-6">
-          {displayCategories.map((category, i) => (
+          {categories.map((category, i) => (
             <motion.div
               key={category.id}
               initial={{ opacity: 0, y: 20 }}

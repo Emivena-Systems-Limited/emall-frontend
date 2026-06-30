@@ -6,8 +6,8 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-21',
-  currentPhase: 'Homepage landing API',
+  lastUpdated: '2026-06-29',
+  currentPhase: 'Instant storefront rendering',
   summary:
     'Public home landing at / uses Laravel landing-page data where available. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout, and product cards open a responsive product details page.',
 }
@@ -21,6 +21,103 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-06-29',
+    title: 'Product details PDF layout alignment',
+    items: [
+      'Rearranged product details top area to match the supplied PDF layout',
+      'Positioned the Visit Store row inside the right purchase panel below the title/review summary',
+      'Aligned the Visit Store row horizontally with icon, store link, follower stats, rating, and Follow action',
+      'Improved mobile responsiveness for the product details layout, store row, rails, details, reviews, and long text wrapping',
+      'Adjusted mobile stacking so gallery is followed by product info/actions before details, feedback, and related products',
+      'Moved the Share action into the Key Details card top-right position shown in the PDF',
+      'Moved Other Items From Seller into the left product-media column below Key Details',
+      'Kept Customer Feedback below the purchase panel in the right column',
+    ],
+  },
+  {
+    date: '2026-06-29',
+    title: 'Homepage background alignment',
+    items: [
+      'Matched homepage section background color to the product details page gray (#f2f2f2)',
+      'Kept inner product/category cards and controls white for contrast',
+    ],
+  },
+  {
+    date: '2026-06-29',
+    title: 'Instant homepage and product details rendering',
+    items: [
+      'Added localStorage-backed landing page cache so homepage product sections render immediately after refresh',
+      'Landing page API still refreshes in the background without blanking existing products',
+      'Removed the product details blocking loading spinner so product pages render from cached landing data or local product data immediately',
+    ],
+  },
+  {
+    date: '2026-06-28',
+    title: 'Cart sync UX hardening',
+    items: [
+      'Marked backend landing products as cart-syncable while keeping static/demo products local-only',
+      'Removed user-facing cart sync warning for local fallback so guest and logged-in cart adds feel seamless',
+      'Made backend cart creation best-effort before adding an authenticated item',
+      'Merged authenticated backend cart bootstrap into local cart state instead of replacing local pending items',
+      'Limited authenticated cart bootstrap to once per login token so route changes do not overwrite pending local cart updates',
+    ],
+  },
+  {
+    date: '2026-06-28',
+    title: 'Auth session protection during cart sync',
+    items: [
+      'Prevented cart API 401 responses from clearing the authenticated session during post-login cart bootstrap',
+      'Kept normal auth logout handling for non-cart API requests',
+    ],
+  },
+  {
+    date: '2026-06-28',
+    title: 'Homepage navigation data refresh',
+    items: [
+      'Adjusted landing-page React Query settings so homepage product sections refetch when returning from other routes',
+      'Kept dummy product fallbacks removed while preventing stale empty cached homepage data from persisting until browser refresh',
+    ],
+  },
+  {
+    date: '2026-06-28',
+    title: 'Empty cart state',
+    items: [
+      'Added branded empty-cart state for /cart when no cart items exist',
+      'Start Shopping button routes users back to the homepage',
+      'Saved Items only render when saved items are available',
+    ],
+  },
+  {
+    date: '2026-06-28',
+    title: 'Cart API and shared cart state',
+    items: [
+      'Added persisted Redux cart slice for guest and authenticated cart state',
+      'Added cart API service for GET /cart, POST /cart, POST /cart/items, PUT /cart/items/{itemId}, and DELETE /cart/items/{itemId}',
+      'Product cards now add items to cart immediately instead of navigating to /cart',
+      'Product details Add to Cart uses selected quantity and variant, then changes to View Cart when the item is already in cart',
+      'Navbar cart badge now reads from shared cart state across the site',
+      'Cart page quantity, remove, save for later, restore, clear, and related product add buttons now use shared cart actions',
+    ],
+  },
+  {
+    date: '2026-06-28',
+    title: 'Homepage product fallback removal',
+    items: [
+      'Removed static dummy product fallbacks from homepage Recommended, Best Sellers, Flash Sales, and Explore product sections',
+      'Homepage product sections now render only products returned by GET /landing-page/home',
+      'Adjusted landing page query cache settings to reduce repeated loading/refetch cycles for database-backed homepage data',
+    ],
+  },
+  {
+    date: '2026-06-27',
+    title: 'Consumer API documentation refresh',
+    items: [
+      'Reviewed current consumer_fe API usage after user changes',
+      'Documented GET /product/{productId} from landingPageService.getProductById',
+      'Updated app metadata to reflect the current documentation pass',
+    ],
+  },
   {
     date: '2026-06-22',
     title: 'Cart and product details mobile responsiveness',
@@ -384,6 +481,13 @@ export const reduxSlices = [
     purpose: 'User session, accessToken, isAuthenticated — set on OTP success',
     actions: ['setCredentials', 'updateUser', 'logout'],
   },
+  {
+    name: 'cart',
+    file: 'src/store/slices/cartSlice.js',
+    persisted: true,
+    purpose: 'Guest/auth cart items, saved items, selected items, quantities, and navbar cart count',
+    actions: ['addItem', 'upsertItem', 'replaceItems', 'setQuantity', 'removeItem', 'clearCart', 'setSelected', 'saveForLater', 'moveSavedToCart'],
+  },
 ]
 
 export const queryHooks = [
@@ -422,6 +526,16 @@ export const queryHooks = [
     file: 'src/hooks/useAuthMutations.js',
     purpose: 'POST /user/auth/logout before clearing local Redux session',
   },
+  {
+    name: 'useCartActions',
+    file: 'src/hooks/useCartActions.js',
+    purpose: 'Shared cart actions with optimistic Redux updates and authenticated backend sync',
+  },
+  {
+    name: 'useCartBootstrap',
+    file: 'src/hooks/useCartBootstrap.js',
+    purpose: 'Loads GET /cart for authenticated users while preserving local guest cart fallback',
+  },
 ]
 
 export const apiIntegrations = [
@@ -459,6 +573,42 @@ export const apiIntegrations = [
     method: 'GET',
     endpoint: '/landing-page/home',
     purpose: 'Fetch homepage product sections: recommended_products, best_sellers, flash_sales, and random_products',
+    status: 'wired',
+  },
+  {
+    method: 'GET',
+    endpoint: '/product/{productId}',
+    purpose: 'Fetch a product record by backend product ID for product details',
+    status: 'wired',
+  },
+  {
+    method: 'GET',
+    endpoint: '/cart',
+    purpose: 'Fetch authenticated user cart',
+    status: 'wired',
+  },
+  {
+    method: 'POST',
+    endpoint: '/cart',
+    purpose: 'Create authenticated user cart when needed',
+    status: 'wired',
+  },
+  {
+    method: 'POST',
+    endpoint: '/cart/items',
+    purpose: 'Add product or product variant to authenticated user cart',
+    status: 'wired',
+  },
+  {
+    method: 'PUT',
+    endpoint: '/cart/items/{itemId}',
+    purpose: 'Update authenticated cart item quantity',
+    status: 'wired',
+  },
+  {
+    method: 'DELETE',
+    endpoint: '/cart/items/{itemId}',
+    purpose: 'Remove item from authenticated user cart',
     status: 'wired',
   },
 ]

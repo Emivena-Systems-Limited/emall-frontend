@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
+import { useSelector } from 'react-redux'
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,6 +19,8 @@ import { getProductById } from '../services/landingPageService'
 import { formatCedi } from '../utils/formatCurrency'
 import { normalizeLandingProduct } from '../utils/normalizeLandingProducts'
 import { notify } from '../lib/notify'
+import { useCartActions } from '../hooks/useCartActions'
+import { selectCartItems } from '../store/slices/cartSlice'
 
 function Stars({ rating, size = 'size-4' }) {
   const full = Math.floor(rating)
@@ -52,7 +55,7 @@ function ProductGallery({ product, activeImage, setActiveImage }) {
         <img
           src={currentImage}
           alt={product.title}
-          className="aspect-[1.45] w-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:scale-110"
+          className="aspect-square w-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:aspect-[1.45] sm:object-cover motion-safe:group-hover:scale-110"
         />
       </div>
       <div className="flex justify-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -154,6 +157,33 @@ function QuantitySelector({ value, onChange, disabled }) {
   )
 }
 
+async function shareProduct(product) {
+  const shareData = {
+    title: product.title,
+    text: `Check out ${product.title} on EZ-Stores!`,
+    url: window.location.href,
+  }
+
+  try {
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      await navigator.share(shareData)
+    } else {
+      await navigator.clipboard.writeText(window.location.href)
+      notify.success('Product link copied to clipboard!')
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      try {
+        await navigator.clipboard.writeText(window.location.href)
+        notify.success('Product link copied to clipboard!')
+      } catch (clipErr) {
+        notify.error('Could not copy link to clipboard')
+        console.error(clipErr)
+      }
+    }
+  }
+}
+
 function ProductInfoPanel({
   product,
   setActiveImage,
@@ -163,10 +193,15 @@ function ProductInfoPanel({
   setSelectedSize,
   selectedCompatibleModel,
   setSelectedCompatibleModel,
+  activeImage,
+  activeVariant,
   activeSku,
   displayPriceInfo
 }) {
   const [quantity, setQuantity] = useState(1)
+  const navigate = useNavigate()
+  const cartItems = useSelector(selectCartItems)
+  const { addToCart } = useCartActions()
   const outOfStock = !product.inStock
 
   const handleColorSelect = (newColor) => {
@@ -177,50 +212,40 @@ function ProductInfoPanel({
     }
   }
 
-  const handleShare = async () => {
-    const shareData = {
-      title: product.title,
-      text: `Check out ${product.title} on EZ-Stores!`,
-      url: window.location.href,
+  const isLowStock = !outOfStock && product.stockCount <= (product.lowStockThreshold ?? 10)
+  const activeCartKey = [
+    product.id,
+    activeVariant?.id,
+    activeSku,
+  ].filter(Boolean).join(':')
+  const isInCart = cartItems.some((item) => item.key === activeCartKey || (
+    String(item.productId) === String(product.id) &&
+    String(item.variantId ?? '') === String(activeVariant?.id ?? '') &&
+    String(item.sku ?? '') === String(activeSku ?? '')
+  ))
+
+  const handleAddToCart = async () => {
+    if (isInCart) {
+      navigate('/cart')
+      return
     }
 
-    try {
-      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-        await navigator.share(shareData)
-      } else {
-        await navigator.clipboard.writeText(window.location.href)
-        notify.success('Product link copied to clipboard!')
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        try {
-          await navigator.clipboard.writeText(window.location.href)
-          notify.success('Product link copied to clipboard!')
-        } catch (clipErr) {
-          notify.error('Could not copy link to clipboard')
-          console.error(clipErr)
-        }
-      }
-    }
+    await addToCart(product, {
+      quantity,
+      price: displayPriceInfo.price,
+      compareAt: displayPriceInfo.compareAt,
+      variantId: activeVariant?.id,
+      sku: activeSku,
+      variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
+      size: selectedSize || selectedCompatibleModel || activeSku,
+      image: activeImage || product.gallery?.[0] || product.image,
+    })
   }
 
-  const isLowStock = !outOfStock && product.stockCount <= (product.lowStockThreshold ?? 10)
-
   return (
-    <aside className="bg-white p-3 sm:p-4">
+    <aside className="min-w-0 bg-white p-3 sm:p-4">
       <div className="border-b border-slate-200 pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-lg font-bold leading-snug text-slate-950">{product.title}</h1>
-          <button
-            type="button"
-            onClick={handleShare}
-            aria-label="Share product"
-            className="flex size-5 shrink-0 items-center justify-center bg-auth-primary text-white hover:opacity-90 transition-opacity"
-          >
-            <Share2 className="size-3" strokeWidth={2.4} />
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-slate-500 font-medium">Visit {product.storeName}</p>
+        <h1 className="break-words text-lg font-bold leading-snug text-slate-950">{product.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
           {product.reviewCount > 0 ? (
             <>
@@ -236,6 +261,25 @@ function ProductInfoPanel({
           <span className="font-semibold text-slate-600">{product.salesCount.toLocaleString()} sold</span>
         </div>
         <p className="mt-1 text-[0.6875rem] font-semibold text-slate-600">{product.soldIndicator}</p>
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-slate-100 pt-3">
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded bg-red-50">
+              <ShoppingCart className="size-3.5 text-auth-primary" strokeWidth={2} />
+            </span>
+            <Link to="/stores" className="shrink-0 text-xs font-bold text-blue-600 hover:underline">
+              Visit the {product.storeName}
+            </Link>
+            <span className="min-w-0 flex-1 truncate text-[0.625rem] font-semibold text-slate-500">
+              110 Followers | 150k+ Followers | {product.rating.toFixed(1)} ★
+            </span>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-full border border-slate-300 px-4 py-1.5 text-[0.625rem] font-bold text-slate-800 transition-colors hover:bg-slate-50 sm:px-5"
+          >
+            Follow
+          </button>
+        </div>
       </div>
 
       <div className="space-y-2 py-3">
@@ -281,7 +325,7 @@ function ProductInfoPanel({
 
       <div className="mt-4 border-t border-slate-200 pt-4">
         <p className="text-xs font-bold text-slate-950">Quantity</p>
-        <div className="mt-2 flex items-center gap-4">
+        <div className="mt-2 flex flex-wrap items-center gap-3 sm:gap-4">
           <QuantitySelector value={quantity} onChange={setQuantity} disabled={outOfStock} />
           <p className="text-[0.625rem] leading-4">
             <span className={outOfStock ? 'font-bold text-red-600' : isLowStock ? 'font-bold text-auth-primary' : 'font-bold text-emerald-600'}>
@@ -305,13 +349,14 @@ function ProductInfoPanel({
         <button
           type="button"
           disabled={outOfStock}
+          onClick={handleAddToCart}
           className="rounded-full border border-auth-primary px-6 py-3 text-xs font-bold text-auth-primary transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Add to Cart
+          {isInCart ? 'View Cart' : 'Add to Cart'}
         </button>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[0.625rem] text-slate-500">
+      <div className="mt-3 grid gap-1.5 text-[0.625rem] text-slate-500 min-[480px]:flex min-[480px]:items-center min-[480px]:justify-between min-[480px]:gap-3">
         <span>Returns <b className="text-blue-600">30-day refund/replacement</b></span>
         <span>Payment <b className="text-blue-600">Secure transaction</b></span>
       </div>
@@ -330,13 +375,23 @@ function KeyDetails({ product, activeSku }) {
   delete detailsList['status']
 
   return (
-    <section className="bg-white p-3 sm:p-4">
-      <h2 className="text-sm font-bold text-slate-950">Key Details</h2>
-      <dl className="mt-2 grid gap-0.5 text-[0.6875rem] leading-4 text-slate-700">
+    <section className="min-w-0 bg-white p-3 sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-bold text-slate-950">Key Details</h2>
+        <button
+          type="button"
+          onClick={() => shareProduct(product)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 px-4 py-1.5 text-[0.6875rem] font-bold text-slate-700 transition-colors hover:bg-slate-50"
+        >
+          <Share2 className="size-3.5" strokeWidth={2.4} />
+          Share
+        </button>
+      </div>
+      <dl className="mt-2 grid gap-1 text-[0.6875rem] leading-4 text-slate-700">
         {Object.entries(detailsList).map(([key, value]) => (
-          <div key={key} className="grid gap-1 sm:grid-cols-[11rem_1fr]">
+          <div key={key} className="grid min-w-0 gap-1 sm:grid-cols-[11rem_1fr]">
             <dt className="font-bold">{key}:</dt>
-            <dd>{value}</dd>
+            <dd className="break-words">{value}</dd>
           </div>
         ))}
       </dl>
@@ -352,8 +407,9 @@ function KeyDetails({ product, activeSku }) {
 
 function ReviewSummary({ product }) {
   return (
-    <section id="reviews" className="bg-white p-3 sm:p-4">
-      <h2 className="text-base font-bold text-slate-950">Review this product</h2>
+    <section id="reviews" className="min-w-0 bg-white p-3 sm:p-4">
+      <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
+      <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
       <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
       <button className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800" type="button">
         Write a customer review
@@ -406,7 +462,7 @@ function ReviewSummary({ product }) {
                   <span className="text-[0.5625rem] text-slate-500">on {review.date}</span>
                 </div>
                 <Stars rating={review.rating} size="size-3" />
-                <p className="mt-1 text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
+                <p className="mt-1 break-words text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
               </div>
             </div>
           </article>
@@ -473,7 +529,7 @@ function RailProductCard({ product }) {
       </Link>
       <div className="mt-1 flex items-center justify-between gap-2">
         {product.reviewCount > 0 ? (
-          <div className="flex items-center gap-0.5">
+          <div className="flex min-w-0 items-center gap-0.5">
             {Array.from({ length: 5 }, (_, index) => (
               <Star
                 key={index}
@@ -501,10 +557,11 @@ function RailProductCard({ product }) {
 
 function HorizontalProductRail({ title, products, visibleCount }) {
   const visibleProducts = visibleCount ? products.slice(0, visibleCount) : products
+  const desktopColumns = visibleCount === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-5'
 
   return (
-    <section className="bg-white p-3 sm:p-4">
-      <div className="mb-3 flex items-center justify-between gap-4">
+    <section className="min-w-0 bg-white p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
         <h2 className="text-base font-bold text-slate-950">{title}</h2>
         <span className="text-xs font-semibold text-slate-600">Page 1 Of 50</span>
       </div>
@@ -512,7 +569,7 @@ function HorizontalProductRail({ title, products, visibleCount }) {
         <button type="button" className="absolute left-0 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-300 bg-white">
           <ChevronLeft className="size-4" />
         </button>
-        <div className="grid auto-cols-[7.5rem] grid-flow-col gap-2 overflow-x-auto px-8 pb-1 [-ms-overflow-style:none] sm:auto-cols-[9rem] sm:gap-3 lg:auto-cols-fr lg:grid-flow-row lg:grid-cols-5 [&::-webkit-scrollbar]:hidden">
+        <div className={`grid auto-cols-[7rem] grid-flow-col gap-2 overflow-x-auto px-8 pb-1 [-ms-overflow-style:none] min-[390px]:auto-cols-[7.5rem] sm:auto-cols-[9rem] sm:gap-3 lg:auto-cols-fr lg:grid-flow-row ${desktopColumns} [&::-webkit-scrollbar]:hidden`}>
           {visibleProducts.map((item) => (
             <div key={`${item.slug}-${title}`} className="min-w-0">
               <RailProductCard product={item} />
@@ -534,18 +591,18 @@ function ProductDescription({ product }) {
   delete detailsList['Sku']
 
   return (
-    <section className="bg-white p-3 sm:p-5">
+    <section className="min-w-0 bg-white p-3 sm:p-5">
       <h2 className="text-base font-bold text-slate-950">Product description</h2>
       <div className="mt-5 divide-y divide-slate-300 border-y border-slate-300">
         {Object.entries(detailsList).map(([key, value]) => (
-          <div key={key} className="grid gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
+          <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
             <dt className="font-bold text-slate-950">{key}</dt>
-            <dd className="text-slate-700">{value}</dd>
+            <dd className="break-words text-slate-700">{value}</dd>
           </div>
         ))}
-        <div className="grid gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
+        <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
           <dt className="font-bold text-slate-950">Description</dt>
-          <dd className="space-y-4 text-slate-700">
+          <dd className="space-y-4 break-words text-slate-700">
             <p>{product.description}</p>
             <div>
               <h3 className="font-bold text-slate-950">Key Features:</h3>
@@ -560,7 +617,7 @@ function ProductDescription({ product }) {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-[12rem_1fr]">
+      <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
         <h3 className="font-bold text-slate-950">Product Images</h3>
         <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
           {product.gallery.slice(1).concat(product.gallery.slice(1, 3)).slice(0, 6).map((image, index) => (
@@ -724,22 +781,24 @@ function normalizeApiProductDetails(apiProduct) {
 
 export default function ProductDetailsPage() {
   const { slug } = useParams()
-  const { data: landingData, isLoading: isLandingLoading } = useLandingPageData()
+  const { data: landingData } = useLandingPageData()
 
-  const apiProductId = useMemo(() => {
+  const landingProduct = useMemo(() => {
     if (!landingData) return null
     const sections = ['recommended_products', 'best_sellers', 'flash_sales', 'random_products']
     for (const sec of sections) {
       const list = landingData[sec]
       if (Array.isArray(list)) {
         const found = list.find((p) => p && p.slug === slug)
-        if (found) return found.id
+        if (found) return found
       }
     }
     return null
   }, [landingData, slug])
 
-  const { data: apiProduct, isLoading: isProductLoading } = useQuery({
+  const apiProductId = landingProduct?.id ?? null
+
+  const { data: apiProduct } = useQuery({
     queryKey: ['product-details', apiProductId],
     queryFn: () => getProductById(apiProductId),
     enabled: Boolean(apiProductId),
@@ -750,8 +809,11 @@ export default function ProductDetailsPage() {
     if (apiProduct) {
       return normalizeApiProductDetails(apiProduct)
     }
+    if (landingProduct) {
+      return normalizeApiProductDetails(landingProduct)
+    }
     return getProductBySlug(slug)
-  }, [apiProduct, slug])
+  }, [apiProduct, landingProduct, slug])
 
   const [activeImage, setActiveImage] = useState(null)
   const [selectedColor, setSelectedColor] = useState('')
@@ -963,47 +1025,45 @@ export default function ProductDetailsPage() {
     return otherReal.slice(0, 8)
   }, [apiProduct, product.id, product.slug, allApiProducts])
 
-  if (isLandingLoading || (apiProductId && isProductLoading)) {
-    return (
-      <SiteLayout cartCount={4}>
-        <div className="flex min-h-[60vh] items-center justify-center bg-slate-50">
-          <div className="flex flex-col items-center gap-3">
-            <div className="size-10 animate-spin rounded-full border-3 border-slate-200 border-t-auth-primary" />
-            <p className="text-sm font-medium text-slate-500">Loading product details...</p>
-          </div>
-        </div>
-      </SiteLayout>
-    )
-  }
-
   return (
-    <SiteLayout cartCount={4}>
+    <SiteLayout>
       <main className="bg-[#f2f2f2] py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
-            <div className="space-y-4">
-              <ProductGallery product={product} activeImage={activeImage} setActiveImage={setActiveImage} />
-              <KeyDetails product={product} activeSku={activeSku} />
-              <SellerShowcase product={product} />
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
+            <div className="contents lg:block lg:min-w-0 lg:space-y-4">
+              <div className="order-1 min-w-0">
+                <ProductGallery product={product} activeImage={activeImage} setActiveImage={setActiveImage} />
+              </div>
+              <div className="order-3 min-w-0">
+                <KeyDetails product={product} activeSku={activeSku} />
+              </div>
+              <div className="order-5 min-w-0">
+                <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
+              </div>
             </div>
-            <div className="space-y-4">
-              <ProductInfoPanel
-                product={product}
-                setActiveImage={setActiveImage}
-                selectedColor={selectedColor}
-                setSelectedColor={handleColorSelect}
-                selectedSize={selectedSize}
-                setSelectedSize={setSelectedSize}
-                selectedCompatibleModel={selectedCompatibleModel}
-                setSelectedCompatibleModel={handleCompatibleModelSelect}
-                activeSku={activeSku}
-                displayPriceInfo={displayPriceInfo}
-              />
-              <ReviewSummary product={product} />
+            <div className="contents lg:block lg:min-w-0 lg:space-y-4">
+              <div className="order-2 min-w-0">
+                <ProductInfoPanel
+                  product={product}
+                  setActiveImage={setActiveImage}
+                  selectedColor={selectedColor}
+                  setSelectedColor={handleColorSelect}
+                  selectedSize={selectedSize}
+                  setSelectedSize={setSelectedSize}
+                  selectedCompatibleModel={selectedCompatibleModel}
+                  setSelectedCompatibleModel={handleCompatibleModelSelect}
+                  activeImage={activeImage}
+                  activeVariant={activeVariant}
+                  activeSku={activeSku}
+                  displayPriceInfo={displayPriceInfo}
+                />
+              </div>
+              <div className="order-4 min-w-0">
+                <ReviewSummary product={product} />
+              </div>
             </div>
           </section>
 
-          <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={5} />
           <ProductDescription product={product} />
           <HorizontalProductRail title="Explore Other Related Items" products={exploreRelatedProducts} visibleCount={5} />
         </Container>

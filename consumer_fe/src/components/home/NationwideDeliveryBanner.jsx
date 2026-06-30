@@ -7,7 +7,7 @@ const logoPanelClip = 'polygon(0 0, 100% 0, calc(100% - 1.75rem) 100%, 0 100%)'
 
 export default function NationwideDeliveryBanner() {
   return (
-    <section className="bg-white py-4 sm:py-5 lg:py-6">
+    <section className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
       <Container>
         <Link
           to="/delivery"

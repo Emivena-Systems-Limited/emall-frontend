@@ -1,10 +1,17 @@
 import Footer from './footer/Footer'
 import Navbar from './navbar/Navbar'
+import { useSelector } from 'react-redux'
+import { selectCartCount } from '../../store/slices/cartSlice'
+import { useCartBootstrap } from '../../hooks/useCartBootstrap'
 
-export default function SiteLayout({ children, cartCount = 0 }) {
+export default function SiteLayout({ children, cartCount }) {
+  useCartBootstrap()
+  const globalCartCount = useSelector(selectCartCount)
+  const resolvedCartCount = cartCount ?? globalCartCount
+
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
-      <Navbar cartCount={cartCount} />
+      <Navbar cartCount={resolvedCartCount} />
       <main className="flex-1">{children}</main>
       <Footer />
     </div>

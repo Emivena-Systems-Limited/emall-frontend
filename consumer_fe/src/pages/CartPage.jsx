@@ -1,19 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Heart, Minus, Plus, ShoppingCart, Star, X } from 'lucide-react'
+import { useSelector } from 'react-redux'
+import { Heart, Minus, Plus, ShoppingBag, ShoppingCart, Star, X } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
-import { cartRelatedProducts, initialCartItems } from '../constants/cartProducts'
+import { cartRelatedProducts } from '../constants/cartProducts'
 import { formatCedi } from '../utils/formatCurrency'
+import { selectCartItems, selectSavedCartItems } from '../store/slices/cartSlice'
+import { useCartActions } from '../hooks/useCartActions'
 
 const clampQuantity = (value) => Math.max(1, value)
-
-const cartSeedItems = initialCartItems.map((item, index) => ({
-  ...item,
-  seller: 'Splinter China Store',
-  freeDelivery: true,
-  displaySubtotal: [60, 100, 30, 90][index] ?? item.price * item.quantity,
-}))
 
 function QuantityStepper({ value, onChange }) {
   return (
@@ -244,7 +240,31 @@ function CartSummary({ itemCount, subtotal, onOpenDelivery }) {
   )
 }
 
-function RailProductCard({ product }) {
+function EmptyCartState() {
+  return (
+    <section className="bg-white px-4 py-14 text-center sm:px-6 sm:py-18 lg:py-20">
+      <div className="mx-auto flex max-w-md flex-col items-center">
+        <span className="flex size-24 items-center justify-center rounded-full bg-red-50 text-auth-primary shadow-sm ring-1 ring-red-100 sm:size-28">
+          <ShoppingBag className="size-11 sm:size-13" strokeWidth={1.8} />
+        </span>
+        <h2 className="mt-6 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+          Your cart is empty!
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
+          Browse our categories and discover our best deals.
+        </p>
+        <Link
+          to="/"
+          className="mt-7 inline-flex min-h-12 items-center justify-center rounded-lg bg-auth-primary px-7 text-sm font-bold text-white shadow-sm transition-colors hover:bg-auth-primary-hover"
+        >
+          Start Shopping
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+function RailProductCard({ product, onAddToCart }) {
   const fullStars = Math.floor(product.rating)
 
   return (
@@ -279,19 +299,20 @@ function RailProductCard({ product }) {
           ))}
           <span className="text-[0.625rem] text-slate-500">({product.reviewCount})</span>
         </div>
-        <Link
-          to="/cart"
+        <button
+          type="button"
+          onClick={() => onAddToCart(product)}
           aria-label={`Add ${product.name} to cart`}
           className="flex h-7 w-10 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:border-auth-primary hover:bg-auth-primary hover:text-white"
         >
           <ShoppingCart className="size-4" strokeWidth={1.8} />
-        </Link>
+        </button>
       </div>
     </article>
   )
 }
 
-function ProductRail({ title, products }) {
+function ProductRail({ title, products, onAddToCart }) {
   return (
     <section className="bg-white px-3 py-4 sm:px-4" aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}>
       <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-xl font-bold text-slate-900">
@@ -299,7 +320,7 @@ function ProductRail({ title, products }) {
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
         {products.slice(0, 5).map((product) => (
-          <RailProductCard key={`${title}-${product.id}`} product={product} />
+          <RailProductCard key={`${title}-${product.id}`} product={product} onAddToCart={onAddToCart} />
         ))}
       </div>
       <div className="mt-5 flex justify-center">
@@ -388,105 +409,80 @@ function DeliveryModal({ open, onClose }) {
 }
 
 export default function CartPage() {
-  const [items, setItems] = useState(cartSeedItems)
-  const [savedItems, setSavedItems] = useState(cartSeedItems)
-  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const items = useSelector(selectCartItems)
+  const savedItems = useSelector(selectSavedCartItems)
+  const {
+    addToCart,
+    updateQuantity,
+    deleteItem,
+    selectItem,
+    clearAll,
+    saveItem,
+    restoreSavedItem,
+    deleteSaved,
+    clearSaved,
+  } = useCartActions()
   const [savedSelectedIds, setSavedSelectedIds] = useState(() => new Set())
   const [deliveryOpen, setDeliveryOpen] = useState(false)
 
   const subtotal = useMemo(
-    () => items.reduce((sum, item) => sum + (item.displaySubtotal ?? item.price * item.quantity), 0),
+    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [items],
   )
 
-  const updateSelection = (setter) => (itemId, checked) => {
-    setter((current) => {
-      const next = new Set(current)
-      if (checked) next.add(itemId)
-      else next.delete(itemId)
-      return next
-    })
-  }
-
-  const updateQuantity = (setter) => (itemId, quantity) => {
-    setter((current) =>
-      current.map((item) =>
-        item.id === itemId
-          ? { ...item, quantity: clampQuantity(quantity), displaySubtotal: item.price * clampQuantity(quantity) }
-          : item,
-      ),
-    )
-  }
-
-  const deleteFrom = (setter, selectionSetter) => (itemId) => {
-    setter((current) => current.filter((item) => item.id !== itemId))
-    selectionSetter((current) => {
-      const next = new Set(current)
-      next.delete(itemId)
-      return next
-    })
-  }
-
-  const moveToSaved = (itemId) => {
-    const item = items.find((current) => current.id === itemId)
-    if (!item) return
-    setItems((current) => current.filter((current) => current.id !== itemId))
-    setSavedItems((current) => (current.some((saved) => saved.id === itemId) ? current : [...current, item]))
-  }
-
-  const moveToCart = (itemId) => {
-    const item = savedItems.find((current) => current.id === itemId)
-    if (!item) return
-    setSavedItems((current) => current.filter((current) => current.id !== itemId))
-    setItems((current) => (current.some((cartItem) => cartItem.id === itemId) ? current : [...current, item]))
-  }
-
   return (
-    <SiteLayout cartCount={items.length}>
+    <SiteLayout>
       <main className="bg-[#f2f2f2] py-6 sm:py-8">
         <Container className="space-y-8">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <ItemTable
-              title="Shopping Cart"
-              subtitle="View your shopping cart and proceed to checkout"
-              items={items}
-              selectedIds={selectedIds}
-              onSelect={updateSelection(setSelectedIds)}
-              onQuantityChange={updateQuantity(setItems)}
-              onDelete={deleteFrom(setItems, setSelectedIds)}
-              onSave={moveToSaved}
-              clearLabel="Clear Cart"
-              onClear={() => {
-                setItems([])
-                setSelectedIds(new Set())
-              }}
-            />
+          {items.length === 0 ? (
+            <EmptyCartState />
+          ) : (
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <ItemTable
+                title="Shopping Cart"
+                subtitle="View your shopping cart and proceed to checkout"
+                items={items}
+                selectedIds={new Set(items.filter((item) => item.selected).map((item) => item.id))}
+                onSelect={selectItem}
+                onQuantityChange={updateQuantity}
+                onDelete={deleteItem}
+                onSave={saveItem}
+                clearLabel="Clear Cart"
+                onClear={clearAll}
+              />
 
-            <div className="pt-14">
-              <CartSummary itemCount={items.length} subtotal={subtotal} onOpenDelivery={() => setDeliveryOpen(true)} />
+              <div className="pt-14">
+                <CartSummary itemCount={items.length} subtotal={subtotal} onOpenDelivery={() => setDeliveryOpen(true)} />
+              </div>
             </div>
-          </div>
+          )}
 
-          <ItemTable
-            title="Saved Items"
-            subtitle="View your shopping cart and proceed to checkout"
-            items={savedItems}
-            selectedIds={savedSelectedIds}
-            onSelect={updateSelection(setSavedSelectedIds)}
-            onQuantityChange={updateQuantity(setSavedItems)}
-            onDelete={deleteFrom(setSavedItems, setSavedSelectedIds)}
-            onSave={moveToCart}
-            saved
-            clearLabel="Clear Saved Items"
-            onClear={() => {
-              setSavedItems([])
-              setSavedSelectedIds(new Set())
-            }}
-          />
+          {savedItems.length > 0 && (
+            <ItemTable
+              title="Saved Items"
+              subtitle="View your shopping cart and proceed to checkout"
+              items={savedItems}
+              selectedIds={savedSelectedIds}
+              onSelect={(itemId, checked) => {
+                setSavedSelectedIds((current) => {
+                  const next = new Set(current)
+                  if (checked) next.add(itemId)
+                  else next.delete(itemId)
+                  return next
+                })
+              }}
+              onQuantityChange={() => {}}
+              onDelete={deleteSaved}
+              onSave={restoreSavedItem}
+              saved
+              clearLabel="Clear Saved Items"
+              onClear={clearSaved}
+            />
+          )}
 
-          <ProductRail title="Best Deals From Seller" products={cartRelatedProducts} />
-          <ProductRail title="Products Related to this Item" products={cartRelatedProducts.slice(1)} />
-          <ProductRail title="See Other Amazing Products" products={cartRelatedProducts.slice(2)} />
+          <ProductRail title="Best Deals From Seller" products={cartRelatedProducts} onAddToCart={addToCart} />
+          <ProductRail title="Products Related to this Item" products={cartRelatedProducts.slice(1)} onAddToCart={addToCart} />
+          <ProductRail title="See Other Amazing Products" products={cartRelatedProducts.slice(2)} onAddToCart={addToCart} />
         </Container>
       </main>
 
