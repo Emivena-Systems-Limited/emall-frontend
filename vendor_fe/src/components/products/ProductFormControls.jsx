@@ -1,30 +1,51 @@
 import FieldError from '../auth/FieldError'
 
+/** Keeps hint rows aligned in multi-column grids without adding gap above inputs. */
+export const FORM_FIELD_HINT_RESERVE_CLASS = 'min-h-9'
+
+export function FormFieldHint({ hint, reserveHintSpace = false }) {
+  if (hint) {
+    return (
+      <span
+        className={`mt-0.5 block text-xs leading-snug text-slate-500 ${
+          reserveHintSpace ? FORM_FIELD_HINT_RESERVE_CLASS : ''
+        }`}
+      >
+        {hint}
+      </span>
+    )
+  }
+
+  if (reserveHintSpace) {
+    return (
+      <span
+        className={`mt-0.5 block text-xs leading-snug text-transparent select-none ${FORM_FIELD_HINT_RESERVE_CLASS}`}
+        aria-hidden="true"
+      >
+        &nbsp;
+      </span>
+    )
+  }
+
+  return null
+}
+
 const inputBase = 'w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60'
 const normalState = 'border-slate-200 focus:border-brand focus:ring-2 focus:ring-brand-light'
 const errorState = 'border-red-400 ring-2 ring-red-100'
 
 function Label({ id, label, hint, reserveHintSpace = false }) {
   return (
-    <label
-      htmlFor={id}
-      className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[3.25rem]' : ''}`}
-    >
+    <label htmlFor={id} className="mb-1.5 block">
       <span className="text-sm font-semibold text-slate-800">{label}</span>
-      {hint ? (
-        <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
-      ) : reserveHintSpace ? (
-        <span className="mt-0.5 block text-xs leading-relaxed text-transparent select-none" aria-hidden="true">
-          &nbsp;
-        </span>
-      ) : null}
+      <FormFieldHint hint={hint} reserveHintSpace={reserveHintSpace} />
     </label>
   )
 }
 
 export function ProductInput({ id, label, hint, error, reserveHintSpace = false, ...props }) {
   return (
-    <div data-field={props.name} className="flex h-full flex-col">
+    <div data-field={props.name}>
       <Label id={id} label={label} hint={hint} reserveHintSpace={reserveHintSpace} />
       <input
         id={id}

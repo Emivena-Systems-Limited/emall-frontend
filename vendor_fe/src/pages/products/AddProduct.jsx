@@ -45,7 +45,7 @@ import { useApprovedBrands } from '../../hooks/useBrands'
 import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
 import { useProductCategoryOptions } from '../../hooks/useCategories'
 import { productListingSchema } from '../../utils/validationSchemas'
-import { buildProductPayload } from '../../utils/productPayload'
+import { buildProductPayload, formatProductPayloadSample } from '../../utils/productPayload'
 import { useCreateProductMutation, useUpdateProductMutation } from '../../hooks/useProductMutations'
 import {
   convertDiscountAmountToPercent,
@@ -61,26 +61,28 @@ import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirst
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
 import notify from '../../lib/notify'
 import { isLocalEnvironment } from '../../utils/environment'
+import { validateProductImageLimits } from '../../utils/productImageUtils'
 
-const steps = [
+const productListingSteps = [
   { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
   { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
   { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
-  { id: 'variations', title: 'Variations',    caption: 'Size, color, weight'     },
+  // Variations are managed after product creation from the products table.
+  // { id: 'variations', title: 'Variations',    caption: 'Size, color, weight'     },
   { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
   { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
 ]
 
-const stepFields = [
+const productListingStepFields = [
   ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'brand_id'],
   [],
-  ['price', 'discount_price', 'discount_percent', 'quantity'],
-  ['variations'],
+  ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
+  // ['variations'],
   [],
   [],
 ]
 
-const initialValues = {
+const productListingInitialValues = {
   name:               '',
   sku:                '',
   description:        '',
@@ -149,14 +151,6 @@ function createVariantValue(value) {
 function getVariantPrimaryPreview(variantValue) {
   if (variantValue?.images?.length > 0) return variantValue.images[0].preview
   return variantValue?.image_url || null
-}
-
-function pruneEmptyVariations(variations = []) {
-  return variations.filter(
-    (variation) =>
-      Boolean(variation.attribute?.trim())
-      || (variation.values ?? []).some((value) => value.value?.trim()),
-  )
 }
 
 function hasVariationStepErrors(variationErrors) {
@@ -236,7 +230,7 @@ function getBrandFieldError(formik) {
 
 // ─── Step 1: Product Info ────────────────────────────────────────────────────
 
-function InfoStep({
+export function InfoStep({
   formik,
   parentCategories,
   categoryTree,
@@ -264,7 +258,7 @@ function InfoStep({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3 md:items-start">
+      <div className="grid items-stretch gap-4 md:grid-cols-3">
         <div className="md:col-span-3">
           <ProductInput
             id="name"
@@ -418,7 +412,7 @@ function InfoStep({
 
 // ─── Step 2: Images ──────────────────────────────────────────────────────────
 
-function ImagesStep({ mainImage, onMainImageChange, mainImageError, subImages, onSubImagesChange }) {
+export function ImagesStep({ mainImage, onMainImageChange, mainImageError, subImages, onSubImagesChange }) {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
@@ -433,6 +427,7 @@ function ImagesStep({ mainImage, onMainImageChange, mainImageError, subImages, o
           image={mainImage}
           onChange={onMainImageChange}
           error={mainImageError}
+          subImages={subImages}
         />
       </section>
 
@@ -441,10 +436,14 @@ function ImagesStep({ mainImage, onMainImageChange, mainImageError, subImages, o
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Gallery</p>
           <h3 className="mt-1 text-sm font-bold text-slate-900">Additional product images</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Optional extra photos — different angles, packaging, or close-ups. Drag to reorder.
+            Optional extra photos — different angles, packaging, or close-ups. Up to 5 images total and 5MB combined across all photos.
           </p>
         </div>
-        <ProductImageUploader images={subImages} onChange={onSubImagesChange} />
+        <ProductImageUploader
+          images={subImages}
+          onChange={onSubImagesChange}
+          mainImage={mainImage}
+        />
       </section>
     </div>
   )
@@ -452,7 +451,7 @@ function ImagesStep({ mainImage, onMainImageChange, mainImageError, subImages, o
 
 // ─── Step 3: Pricing & Inventory ─────────────────────────────────────────────
 
-function PricingStep({ formik }) {
+export function PricingStep({ formik }) {
   const discountMode = formik.values.discount_mode ?? 'amount'
   const { salesPrice, savings, percentOff, hasDiscount } = getDiscountSummary(
     formik.values.price,
@@ -509,7 +508,7 @@ function PricingStep({ formik }) {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+          <div className="grid items-stretch gap-4 sm:grid-cols-2">
             <ProductMoneyInput
               id="price"
               name="price"
@@ -571,13 +570,14 @@ function PricingStep({ formik }) {
             <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Inventory</p>
             <h3 className="mt-1 text-sm font-bold text-slate-900">Stock management</h3>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <ProductInput
               id="quantity"
               name="quantity"
               type="number"
               label="Stock quantity"
-              hint="Current stock level."
+              reserveHintSpace
+              hint="Must be at least the low stock threshold when one is set."
               placeholder="0"
               value={formik.values.quantity}
               onChange={formik.handleChange}
@@ -589,7 +589,8 @@ function PricingStep({ formik }) {
               name="low_stock_threshold"
               type="number"
               label="Low stock threshold · Optional"
-              hint="Alert when stock falls below this."
+              reserveHintSpace
+              hint="Optional. Cannot exceed stock quantity."
               placeholder="10"
               value={formik.values.low_stock_threshold}
               onChange={formik.handleChange}
@@ -600,6 +601,7 @@ function PricingStep({ formik }) {
               id="barcode"
               name="barcode"
               label="Barcode · Optional"
+              reserveHintSpace
               hint="EAN, UPC, or other barcode."
               placeholder="123456789012"
               value={formik.values.barcode}
@@ -660,7 +662,7 @@ function ParentPricingBanner({ values }) {
   )
 }
 
-function VariantPricingSummary({ variantValue, productValues }) {
+export function VariantPricingSummary({ variantValue, productValues }) {
   const pricing = resolveVariantPricing(variantValue, productValues)
   const note = pricing.hasSaleOverride
     ? 'Custom sale price'
@@ -930,11 +932,17 @@ function VariationCard({ formik, varIndex, onRemove }) {
                       name={`variations.${varIndex}.values.${i}.quantity`}
                       type="number"
                       label="Stock quantity"
+                      hint={
+                        formik.values.quantity !== '' && formik.values.quantity != null
+                          ? `Cannot exceed main product stock (${formik.values.quantity}).`
+                          : 'Set main stock on the Pricing step first.'
+                      }
                       reserveHintSpace
                       placeholder="0"
                       value={val.quantity}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
+                      error={getFieldError(formik, `variations.${varIndex}.values.${i}.quantity`)}
                     />
                     <ProductInput
                       id={`variations.${varIndex}.values.${i}.variant_name`}
@@ -957,7 +965,8 @@ function VariationCard({ formik, varIndex, onRemove }) {
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                     />
-                    <ProductInput
+                    {/* Reserved quantity and low stock alert hidden for variant add/edit for now. */}
+                    {/* <ProductInput
                       id={`variations.${varIndex}.values.${i}.low_stock_threshold`}
                       name={`variations.${varIndex}.values.${i}.low_stock_threshold`}
                       type="number"
@@ -978,7 +987,7 @@ function VariationCard({ formik, varIndex, onRemove }) {
                       value={val.reserved_quantity}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                    />
+                    /> */}
                   </div>
                   <div className="mt-4 space-y-3">
                     <VariantPricingSummary variantValue={val} productValues={formik.values} />
@@ -1020,7 +1029,7 @@ function VariationCard({ formik, varIndex, onRemove }) {
   )
 }
 
-function VariationsStep({ formik }) {
+export function VariationsStep({ formik }) {
   const priceRange = getVariationCustomerPriceRange(formik.values.variations, formik.values)
   const rangeLabel = formatCustomerPriceRange(priceRange)
 
@@ -1042,27 +1051,35 @@ function VariationsStep({ formik }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Variants</p>
-          <h3 className="mt-1 text-lg font-bold text-slate-900">Product variations</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Add variation types like Size, Color, or your own (Material, Capacity, etc.). Each option
-            can set its own list price, sale price, stock, and photos.
-          </p>
-          {rangeLabel && formik.values.variations.some((v) => v.values.length > 0) && (
-            <p className="mt-2 text-xs font-semibold text-slate-600">
-              Customer price range: <span className="text-brand">{rangeLabel}</span>
-            </p>
-          )}
+      <div className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Variants</p>
+            <h3 className="mt-1 text-lg font-bold text-slate-900">Product variations</h3>
+          </div>
+          <button
+            type="button"
+            onClick={addVariation}
+            className="inline-flex w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-hover sm:w-auto"
+          >
+            <Plus className="size-4" /> Add variation
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={addVariation}
-          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-hover"
-        >
-          <Plus className="size-4" /> Add variation
-        </button>
+        <p className="text-sm text-slate-500">
+          Add variation types like Size, Color, or your own (Material, Capacity, etc.). Each option
+          can set its own list price, sale price, stock, and photos.
+        </p>
+        {rangeLabel && formik.values.variations.some((v) => v.values.length > 0) && (
+          <p className="text-xs font-semibold leading-relaxed text-slate-600">
+            Customer price range:{' '}
+            <span className="whitespace-nowrap text-brand">{rangeLabel}</span>
+          </p>
+        )}
+        {typeof formik.errors.variations === 'string' && formik.touched.variations && (
+          <p className="text-sm font-medium text-red-600" role="alert">
+            {formik.errors.variations}
+          </p>
+        )}
       </div>
 
       {formik.values.variations.length === 0 ? (
@@ -1095,7 +1112,7 @@ function VariationsStep({ formik }) {
 
 // ─── Step 5: Shipping ─────────────────────────────────────────────────────────
 
-function ShippingStep({ formik }) {
+export function ShippingStep({ formik }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -1167,7 +1184,15 @@ function ShippingStep({ formik }) {
 
 // ─── Step 6: Review ───────────────────────────────────────────────────────────
 
-function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTree, approvedBrands }) {
+export function ReviewStep({
+  formik,
+  mainImage,
+  subImages,
+  parentCategories,
+  categoryTree,
+  approvedBrands,
+  includeVariations = true,
+}) {
   const selectedCategory =
     findCategoryById(categoryTree, formik.values.category_id)
     ?? parentCategories.find((category) => category.id === formik.values.category_id)
@@ -1258,7 +1283,7 @@ function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTr
                   Gallery · {subImages.length}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {subImages.slice(0, 6).map((img, index) => (
+                  {subImages.slice(0, 4).map((img, index) => (
                     <img
                       key={img.id}
                       src={img.preview}
@@ -1266,9 +1291,9 @@ function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTr
                       className="size-16 rounded-xl object-cover ring-1 ring-slate-200"
                     />
                   ))}
-                  {subImages.length > 6 && (
+                  {subImages.length > 4 && (
                     <div className="flex size-16 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
-                      +{subImages.length - 6}
+                      +{subImages.length - 4}
                     </div>
                   )}
                 </div>
@@ -1296,7 +1321,7 @@ function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTr
         ))}
       </div>
 
-      {formik.values.variations.some((variation) => variation.values.length > 0) && (
+      {includeVariations && formik.values.variations.some((variation) => variation.values.length > 0) && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
             <Box className="size-4 text-cyan-700" />
@@ -1345,7 +1370,7 @@ function ReviewStep({ formik, mainImage, subImages, parentCategories, categoryTr
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-function buildCreateProductContext(values, { parentCategories, categoryTree, approvedBrands }) {
+function buildProductMutationContext(values, { parentCategories, categoryTree, approvedBrands }) {
   const selectedCategory =
     findCategoryById(categoryTree, values.category_id)
     ?? parentCategories.find((category) => category.id === values.category_id)
@@ -1428,19 +1453,22 @@ export function ProductListingForm({
         })
         return false
       }
+
+      const imageLimits = validateProductImageLimits(mainImage, subImages)
+      if (!imageLimits.valid) {
+        setMainImageError(imageLimits.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ main_product_image: imageLimits.message })
+        })
+        return false
+      }
+
       setMainImageError('')
       return true
     }
 
-    if (stepIndex === 3) {
-      const prunedVariations = pruneEmptyVariations(formik.values.variations)
-      if (prunedVariations.length !== formik.values.variations.length) {
-        await formik.setFieldValue('variations', prunedVariations, false)
-      }
-    }
-
     const errors = await formik.validateForm()
-    const fields = stepFields[stepIndex]
+    const fields = productListingStepFields[stepIndex]
 
     if (fields.length > 0) {
       formik.setTouched(
@@ -1461,7 +1489,7 @@ export function ProductListingForm({
   const handleNext = async (formik) => {
     const valid = await validateStepBeforeLeave(formik, activeStep)
     if (!valid) return
-    navigateToStep(Math.min(activeStep + 1, steps.length - 1))
+    navigateToStep(Math.min(activeStep + 1, productListingSteps.length - 1))
   }
 
   const handleStepClick = async (formik, stepIndex) => {
@@ -1510,7 +1538,7 @@ export function ProductListingForm({
         </section>
 
         <Formik
-          initialValues={initialFormValues ?? initialValues}
+          initialValues={initialFormValues ?? productListingInitialValues}
           enableReinitialize={isEditMode}
           validationSchema={productListingSchema}
           validateOnBlur
@@ -1524,9 +1552,20 @@ export function ProductListingForm({
                 formValues,
                 mainImage,
                 subImages,
-                { mode: isEditMode ? 'edit' : 'create' },
+                {
+                  mode: isEditMode ? 'edit' : 'create',
+                  includeVariations: false,
+                },
               )
-              const context = buildCreateProductContext(formValues, {
+
+              if (import.meta.env.DEV) {
+                console.log(
+                  `[${isEditMode ? 'update' : 'create'} product] FormData payload:`,
+                  formatProductPayloadSample(payload),
+                )
+              }
+
+              const context = buildProductMutationContext(formValues, {
                 parentCategories,
                 categoryTree,
                 approvedBrands,
@@ -1559,7 +1598,7 @@ export function ProductListingForm({
               {isLocalEnvironment() && (
                 <DevProductFormTools
                   activeStep={activeStep}
-                  stepTitle={steps[activeStep].title}
+                  stepTitle={productListingSteps[activeStep].title}
                   onFillStep={(fixture) => {
                     formik.setValues({ ...formik.values, ...fixture })
                     formik.setErrors({})
@@ -1572,7 +1611,7 @@ export function ProductListingForm({
               )}
 
               <ProductStepper
-                steps={steps}
+                steps={productListingSteps}
                 activeStep={activeStep}
                 onStepClick={(stepIndex) => handleStepClick(formik, stepIndex)}
               />
@@ -1604,9 +1643,10 @@ export function ProductListingForm({
                   />
                 )}
                 {activeStep === 2 && <PricingStep formik={formik} />}
-                {activeStep === 3 && <VariationsStep formik={formik} />}
-                {activeStep === 4 && <ShippingStep formik={formik} />}
-                {activeStep === 5 && (
+                {/* Variations are added later from Products > Manage variations. */}
+                {/* {activeStep === 3 && <VariationsStep formik={formik} />} */}
+                {activeStep === 3 && <ShippingStep formik={formik} />}
+                {activeStep === 4 && (
                   <ReviewStep
                     formik={formik}
                     mainImage={mainImage}
@@ -1614,6 +1654,7 @@ export function ProductListingForm({
                     parentCategories={parentCategories}
                     categoryTree={categoryTree}
                     approvedBrands={approvedBrands}
+                    includeVariations={false}
                   />
                 )}
               </section>
@@ -1628,7 +1669,7 @@ export function ProductListingForm({
                   <ArrowLeft className="size-4" /> Back
                 </button>
 
-                {activeStep < steps.length - 1 ? (
+                {activeStep < productListingSteps.length - 1 ? (
                   <button
                     type="button"
                     onClick={() => handleNext(formik)}
@@ -1671,5 +1712,5 @@ export function ProductListingForm({
 }
 
 export default function AddProduct() {
-  return <ProductListingForm mode="create" />
+    return <ProductListingForm mode="create" />
 }

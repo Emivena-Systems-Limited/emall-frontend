@@ -19,42 +19,6 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
     barcode: '1234567890123',
   },
   3: {
-    variations: [
-      {
-        id: 'var-dev-color',
-        attribute: 'Color',
-        values: [
-          {
-            id: 'val-dev-black',
-            value: 'Black',
-            variant_name: 'Midnight Black',
-            sku: 'AUD-WEP-001-BLK',
-            price: '245.99',
-            discount_price: '199.99',
-            quantity: '25',
-            reserved_quantity: '10',
-            low_stock_threshold: '10',
-            barcode: '1234567890123',
-            images: [],
-          },
-          {
-            id: 'val-dev-white',
-            value: 'White',
-            variant_name: '',
-            sku: 'AUD-WEP-001-WHT',
-            price: '269.99',
-            discount_price: '229.99',
-            quantity: '25',
-            reserved_quantity: '',
-            low_stock_threshold: '',
-            barcode: '',
-            images: [],
-          },
-        ],
-      },
-    ],
-  },
-  4: {
     shipping_weight: '0.2',
     shipping_length: '10',
     shipping_width: '8',
@@ -65,8 +29,7 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
 export const DEV_PRODUCT_FILLABLE_STEPS = [
   { index: 0, label: 'Product info' },
   { index: 2, label: 'Pricing' },
-  { index: 3, label: 'Variations' },
-  { index: 4, label: 'Shipping' },
+  { index: 3, label: 'Shipping' },
 ]
 
 export function getDevProductMergedFixtures() {

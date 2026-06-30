@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Loader2, PenLine, Search, X } from 'lucide-react'
 import FieldError from './FieldError'
+import { FormFieldHint } from '../products/ProductFormControls'
 
 export default function SearchableSelect({
   id,
@@ -151,22 +152,13 @@ export default function SearchableSelect({
   const baseCls  = 'w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400'
 
   return (
-    <div ref={containerRef} data-field={name} className="relative flex h-full flex-col">
-      <label
-        htmlFor={id}
-        className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[3.25rem]' : ''}`}
-      >
+    <div ref={containerRef} data-field={name} className="relative">
+      <label htmlFor={id} className="mb-1.5 block">
         <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
           {Icon && <Icon className="size-4 shrink-0 text-slate-400" strokeWidth={1.75} />}
           {label}
         </span>
-        {hint ? (
-          <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
-        ) : reserveHintSpace ? (
-          <span className="mt-0.5 block text-xs leading-relaxed text-transparent select-none" aria-hidden="true">
-            &nbsp;
-          </span>
-        ) : null}
+        <FormFieldHint hint={hint} reserveHintSpace={reserveHintSpace} />
       </label>
 
       {isCustom ? (

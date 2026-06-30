@@ -1,4 +1,4 @@
-import { AlertTriangle, Boxes, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Boxes, CheckCircle2, CircleOff } from 'lucide-react'
 import { SUMMARY_FILTERS } from '../../constants/productCatalog'
 
 const cards = [
@@ -17,6 +17,13 @@ const cards = [
     tone: 'text-emerald-700 bg-emerald-50 ring-emerald-100',
   },
   {
+    key: SUMMARY_FILTERS.INACTIVE,
+    label: 'Inactive listings',
+    helper: 'Products hidden from customers',
+    icon: CircleOff,
+    tone: 'text-slate-700 bg-slate-100 ring-slate-200',
+  },
+  {
     key: SUMMARY_FILTERS.LOW_STOCK,
     label: 'Low stock',
     helper: 'Products with inventory alerts',
@@ -29,11 +36,12 @@ export default function ProductSummaryCards({ summary, activeFilter, onFilterCha
   const values = {
     [SUMMARY_FILTERS.ALL]: summary.listed,
     [SUMMARY_FILTERS.ACTIVE]: summary.active,
+    [SUMMARY_FILTERS.INACTIVE]: summary.inactive,
     [SUMMARY_FILTERS.LOW_STOCK]: summary.lowStock,
   }
 
   return (
-    <div className="grid gap-2 sm:grid-cols-3">
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(({ key, label, helper, icon: Icon, tone }) => {
         const isActive = activeFilter === key
 
