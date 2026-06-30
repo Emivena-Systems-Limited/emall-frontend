@@ -31,6 +31,7 @@ export const progressLog = [
       'Improved mobile responsiveness for the product details layout, store row, rails, details, reviews, and long text wrapping',
       'Adjusted mobile stacking so gallery is followed by product info/actions before details, feedback, and related products',
       'Kept product detail related-item rails to a single horizontal row with click and keyboard arrow navigation',
+      'Populated product details feedback with normalized backend reviews or review fallback cards when the API has no review records yet',
       'Moved the Share action into the Key Details card top-right position shown in the PDF',
       'Moved Other Items From Seller into the left product-media column below Key Details',
       'Kept Customer Feedback below the purchase panel in the right column',
@@ -43,6 +44,7 @@ export const progressLog = [
       'Matched homepage section background color to the product details page gray (#f2f2f2)',
       'Kept inner product/category cards and controls white for contrast',
       'Updated shared product card images to use object-contain so landing page product images are not cropped',
+      'Removed the extra Explore Your Interests heading under Other Essentials Just For You and tightened the spacing below the delivery banner',
     ],
   },
   {

@@ -28,22 +28,17 @@ export default function ExploreInterestsSection({ products = [] }) {
       <NationwideDeliveryBanner />
 
       <section
-        aria-labelledby="explore-interests-heading"
-        className="bg-[#f2f2f2] py-6 sm:py-8 lg:py-10"
+        aria-labelledby="other-essentials-heading"
+        className="bg-[#f2f2f2] pt-2 pb-6 sm:pt-3 sm:pb-8 lg:pt-4 lg:pb-10"
       >
         <Container>
-          <div className="mb-6 flex items-end justify-between gap-4 sm:mb-8">
-            <div>
-              <p className="text-sm font-semibold text-auth-primary sm:text-[0.9375rem]">
-                Other Essentials Just For You
-              </p>
-              <h2
-                id="explore-interests-heading"
-                className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-[1.75rem] lg:text-3xl"
-              >
-                Explore Your Interests
-              </h2>
-            </div>
+          <div className="mb-5 flex items-end justify-between gap-4 sm:mb-6">
+            <h2
+              id="other-essentials-heading"
+              className="text-sm font-semibold text-auth-primary sm:text-[0.9375rem]"
+            >
+              Other Essentials Just For You
+            </h2>
             <Link
               to="/products/explore"
               className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
