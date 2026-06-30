@@ -71,20 +71,20 @@ export default function PromotionSummaryCards({ summary, activeFilter, onFilterC
             key={key}
             type="button"
             onClick={() => onFilterChange(key)}
-            className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
+            className={`rounded-xl border px-2.5 py-2 text-left transition-all md:px-3 md:py-2.5 ${
               isActive
                 ? 'border-brand/30 bg-brand-light/20 shadow-[0_8px_20px_rgba(199,59,45,0.06)] ring-1 ring-brand/20'
                 : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ${tone}`}>
-                <Icon className="size-4" strokeWidth={2} />
+            <div className="flex items-center gap-2 md:gap-2.5">
+              <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg ring-1 md:size-8 ${tone}`}>
+                <Icon className="size-3.5 md:size-4" strokeWidth={2} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-sans text-lg font-bold leading-none text-slate-950 md:text-xl">{summary[valueKey]}</p>
-                <p className="mt-1 truncate text-[11px] font-semibold text-slate-800 md:text-xs">{label}</p>
-                <p className="mt-0.5 truncate text-[10px] leading-tight text-slate-500 md:text-[11px]">{statusText}</p>
+                <p className="font-sans text-base font-bold leading-none text-slate-950 md:text-lg">{summary[valueKey]}</p>
+                <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-800 md:mt-1 md:text-[11px]">{label}</p>
+                <p className="mt-0.5 truncate text-[9px] leading-tight text-slate-500 md:text-[10px]">{statusText}</p>
               </div>
             </div>
           </button>
