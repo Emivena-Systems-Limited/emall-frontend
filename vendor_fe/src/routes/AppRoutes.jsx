@@ -16,16 +16,18 @@ import VerifyAccount from '../pages/auth_pages/VerifyAccount'
 import GuestOnlyRoute from './GuestOnlyRoute'
 import ProtectedRoute from './ProtectedRoute'
 
-const guestOnly = (page) => <GuestOnlyRoute>{page}</GuestOnlyRoute>
 const protectedPage = (page) => <ProtectedRoute>{page}</ProtectedRoute>
 
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={guestOnly(<Login />)} />
-      <Route path="/signup" element={guestOnly(<Signup />)} />
-      <Route path="/verify-account" element={guestOnly(<VerifyAccount />)} />
+      <Route element={<GuestOnlyRoute />}>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/verify-account" element={<VerifyAccount />} />
+      </Route>
+
       <Route path="/dashboard" element={protectedPage(<Dashboard />)} />
       <Route path="/products" element={protectedPage(<Products />)} />
       <Route path="/products/new" element={protectedPage(<AddProduct />)} />

@@ -258,7 +258,7 @@ export function InfoStep({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3 md:items-start">
+      <div className="grid items-stretch gap-4 md:grid-cols-3">
         <div className="md:col-span-3">
           <ProductInput
             id="name"
@@ -508,7 +508,7 @@ export function PricingStep({ formik }) {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+          <div className="grid items-stretch gap-4 sm:grid-cols-2">
             <ProductMoneyInput
               id="price"
               name="price"

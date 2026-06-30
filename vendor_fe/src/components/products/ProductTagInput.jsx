@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import FieldError from '../auth/FieldError'
+import { FormFieldHint } from './ProductFormControls'
 
 export default function ProductTagInput({
   tags = [],
@@ -33,17 +34,11 @@ export default function ProductTagInput({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-field="tags">
       {label && (
-        <label className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[3.25rem]' : ''}`}>
+        <label className="mb-1.5 block">
           <span className="text-sm font-semibold text-slate-800">{label}</span>
-          {hint ? (
-            <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
-          ) : reserveHintSpace ? (
-            <span className="mt-0.5 block text-xs leading-relaxed text-transparent select-none" aria-hidden="true">
-              &nbsp;
-            </span>
-          ) : null}
+          <FormFieldHint hint={hint} reserveHintSpace={reserveHintSpace} />
         </label>
       )}
       <div
