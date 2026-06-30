@@ -55,7 +55,7 @@ function ProductGallery({ product, activeImage, setActiveImage }) {
         <img
           src={currentImage}
           alt={product.title}
-          className="aspect-square w-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:aspect-[1.45] sm:object-cover motion-safe:group-hover:scale-110"
+          className="aspect-square w-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:aspect-[1.45] motion-safe:group-hover:scale-110"
         />
       </div>
       <div className="flex justify-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -206,13 +206,6 @@ const fallbackReviewCards = [
     date: 'Jan 04, 2026',
     text: 'Looks nice and fits well. Packaging was clean and the product arrived safely.',
   },
-  {
-    id: 'review-4',
-    name: 'Ama Boatemaa',
-    rating: 5,
-    date: 'Dec 29, 2025',
-    text: 'The color and texture matched the photos. Great value for the price.',
-  },
 ]
 
 const fallbackRatingDistribution = [
@@ -240,6 +233,18 @@ function ProductInfoPanel({
   const cartItems = useSelector(selectCartItems)
   const { addToCart } = useCartActions()
   const outOfStock = !product.inStock
+  const colorValueSet = new Set((product.colors ?? []).map((value) => String(value).toLowerCase()))
+  const compatibleModelValues = product.compatibleModels ?? []
+  const sizeValues = product.sizes ?? []
+  const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
+    && colorValueSet.size > 0
+    && compatibleModelValues.every((value) => colorValueSet.has(String(value).toLowerCase()))
+  const isColorVariantGroup = String(product.sizeGroupLabel ?? '').toLowerCase().includes('color')
+  const hasDuplicateSizeValues = sizeValues.length > 0
+    && colorValueSet.size > 0
+    && sizeValues.every((value) => colorValueSet.has(String(value).toLowerCase()))
+  const showCompatibleModels = compatibleModelValues.length > 0 && !hasDuplicateCompatibleModels
+  const showSizeVariants = sizeValues.length > 0 && !isColorVariantGroup && !hasDuplicateSizeValues
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
@@ -298,7 +303,7 @@ function ProductInfoPanel({
           <span className="font-semibold text-slate-600">{product.salesCount.toLocaleString()} sold</span>
         </div>
         <p className="mt-1 text-[0.6875rem] font-semibold text-slate-600">{product.soldIndicator}</p>
-        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-slate-100 pt-3">
+        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <div className="flex min-w-0 items-center gap-2 overflow-hidden">
             <span className="flex size-6 shrink-0 items-center justify-center rounded bg-red-50">
               <ShoppingCart className="size-3.5 text-auth-primary" strokeWidth={2} />
@@ -342,19 +347,19 @@ function ProductInfoPanel({
 
       <ColorSwatches product={product} selected={selectedColor} onSelect={handleColorSelect} />
       
-      {product.compatibleModels && product.compatibleModels.length > 0 && (
+      {showCompatibleModels && (
         <VariantGroup
           label="Compatible Model"
-          values={product.compatibleModels}
+          values={compatibleModelValues}
           selected={selectedCompatibleModel}
           onSelect={setSelectedCompatibleModel}
         />
       )}
 
-      {product.sizes.length > 0 && (
+      {showSizeVariants && (
         <VariantGroup
           label={product.sizeGroupLabel ?? 'Size'}
-          values={product.sizes}
+          values={sizeValues}
           selected={selectedSize}
           onSelect={setSelectedSize}
         />
@@ -432,12 +437,6 @@ function KeyDetails({ product, activeSku }) {
           </div>
         ))}
       </dl>
-      <h2 className="mt-4 text-sm font-bold text-slate-950">About this item</h2>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-700">
-        {product.about.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
     </section>
   )
 }
@@ -856,12 +855,7 @@ function normalizeApiProductDetails(apiProduct) {
     compatibleModels,
     extraVariantGroups,
     colorImages,
-    about: [
-      'High-quality design and build for premium daily use.',
-      'Features reliable and durable construction.',
-      'Designed for optimal comfort and perfect handling.',
-      'Matches the official specifications and quality standards.',
-    ],
+    about: [],
     keyDetails: {
       'Model/SKU': sku,
       'Category': apiProduct.category?.category_name || 'General',
