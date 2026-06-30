@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Flame, Percent, Search, Trash2 } from 'lucide-react'
+import { Link } from 'react-router'
+import { Flame, PackagePlus, Percent, Search, Trash2 } from 'lucide-react'
 import {
   APPLICATION_TYPES,
   APPLICATION_TYPE_OPTIONS,
@@ -12,10 +13,12 @@ import {
 import PromotionScheduleSection, { handlePromotionTypeChange } from './PromotionScheduleSection'
 import ProductThumbnail from '../dashboard/ProductThumbnail'
 import OrderPagination from '../orders/OrderPagination'
+import EmptyState from '../dashboard/EmptyState'
 import {
   filterProductSelectOptions,
   paginateSelectOptions,
 } from '../../utils/promotionFormOptions'
+import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 
 const TYPE_CARDS = [
   {
@@ -331,7 +334,25 @@ export default function PromotionForm({
         {form.applicationType === APPLICATION_TYPES.SPECIFIC_PRODUCTS && (
           <div className="mt-4 space-y-3">
             {productOptions.length === 0 ? (
-              <p className="text-sm text-slate-500">No products available. Add products to your catalogue first.</p>
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <EmptyState
+                  compact
+                  icon={EMPTY_STATE_PRESETS.products.icon}
+                  title="No products available"
+                  description="Add a product to your catalogue before assigning this promotion to specific items."
+                  action={
+                    readOnly ? null : (
+                      <Link
+                        to="/products/new"
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-brand-hover"
+                      >
+                        <PackagePlus className="size-4" />
+                        Add Product
+                      </Link>
+                    )
+                  }
+                />
+              </div>
             ) : (
               <>
                 <label className="block">

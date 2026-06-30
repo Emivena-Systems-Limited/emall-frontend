@@ -18,26 +18,23 @@ import {
   canResumePromotion,
 } from '../../utils/promotionActions'
 
-function PromotionMenuAction({ icon: Icon, tone, label, helper, onClick, danger = false }) {
+function PromotionMenuAction({ icon: Icon, tone, label, onClick, danger = false }) {
   return (
     <button
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="group flex w-full cursor-pointer items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
+      className="group flex w-full cursor-pointer items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
     >
       <span
-        className={`flex size-9 shrink-0 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-[1.03] ${
+        className={`flex size-7 shrink-0 items-center justify-center rounded-lg ring-1 transition-transform group-hover:scale-[1.03] ${
           danger ? 'bg-red-50 text-red-600 ring-red-100' : tone
         }`}
       >
-        <Icon className="size-4" strokeWidth={2} />
+        <Icon className="size-3.5" strokeWidth={2} />
       </span>
-      <span className="min-w-0 flex-1 pt-0.5">
-        <span className={`block text-sm font-semibold ${danger ? 'text-red-700' : 'text-slate-900'}`}>
-          {label}
-        </span>
-        <span className="mt-0.5 block text-xs leading-snug text-slate-500">{helper}</span>
+      <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${danger ? 'text-red-700' : 'text-slate-900'}`}>
+        {label}
       </span>
     </button>
   )
@@ -84,26 +81,22 @@ export default function PromotionActionsMenu({
         open={open}
         onClose={close}
         triggerRef={triggerRef}
-        menuWidth={300}
-        className="overflow-hidden py-0 shadow-[0_20px_50px_rgba(15,23,42,0.14)]"
+        menuWidth={248}
+        className="overflow-hidden py-0 shadow-[0_16px_40px_rgba(15,23,42,0.12)]"
       >
-        <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white px-4 py-3.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-            Promotion actions
+        <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            Actions
           </p>
-          <p className="mt-1 text-sm font-bold text-slate-950">{promotion.name}</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-500">
-            View, edit, or manage the lifecycle of this promotion.
-          </p>
+          <p className="mt-0.5 truncate text-xs font-bold text-slate-950">{promotion.name}</p>
         </div>
 
-        <div className="py-1.5">
+        <div className="max-h-[min(18rem,calc(100dvh-5rem))] overflow-y-auto overscroll-contain py-0.5">
           {!hideViewDetails && (
             <PromotionMenuAction
               icon={Eye}
               tone="bg-cyan-50 text-cyan-700 ring-cyan-100"
               label="View Details"
-              helper="See full promotion settings and performance."
               onClick={() => run(() => navigate(`/promotions/${promotion.id}`))}
             />
           )}
@@ -112,7 +105,6 @@ export default function PromotionActionsMenu({
               icon={Pencil}
               tone="bg-slate-100 text-slate-700 ring-slate-200"
               label="Edit Promotion"
-              helper="Update discount rules, schedule, or product scope."
               onClick={() => run(() => navigate(`/promotions/${promotion.id}/edit`))}
             />
           )}
@@ -120,7 +112,6 @@ export default function PromotionActionsMenu({
             icon={Copy}
             tone="bg-violet-50 text-violet-700 ring-violet-100"
             label="Duplicate Promotion"
-            helper="Create a copy as a draft you can customise."
             onClick={() => run(() => onDuplicate(promotion))}
           />
           {canPausePromotion(promotion.status) && (
@@ -128,7 +119,6 @@ export default function PromotionActionsMenu({
               icon={Pause}
               tone="bg-amber-50 text-amber-700 ring-amber-100"
               label="Pause Promotion"
-              helper="Temporarily stop this promotion from applying."
               onClick={() => run(() => onPause(promotion))}
             />
           )}
@@ -137,7 +127,6 @@ export default function PromotionActionsMenu({
               icon={Play}
               tone="bg-emerald-50 text-emerald-700 ring-emerald-100"
               label="Resume Promotion"
-              helper="Reactivate this promotion within its schedule."
               onClick={() => run(() => onResume(promotion))}
             />
           )}
@@ -146,15 +135,13 @@ export default function PromotionActionsMenu({
               icon={Square}
               tone="bg-orange-50 text-orange-700 ring-orange-100"
               label="End Promotion"
-              helper="Mark as expired and stop new redemptions."
               onClick={() => run(() => onEnd(promotion))}
             />
           )}
-          <div className="mx-3 my-1 border-t border-slate-100" role="separator" />
+          <div className="mx-2.5 my-0.5 border-t border-slate-100" role="separator" />
           <PromotionMenuAction
             icon={Trash2}
             label="Delete Promotion"
-            helper="Permanently remove this promotion from your list."
             onClick={() => run(() => onDelete(promotion))}
             danger
           />
