@@ -5,13 +5,15 @@ import {
   isValidProductImageFile,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
+import FieldError from '../auth/FieldError'
 import notify from '../../lib/notify'
 
 export default function VariantImageUpload({
   images = [],
   onChange,
   label = 'Variant images',
-  hint = 'Optional · JPG or PNG · Max 5MB · First image is primary',
+  hint = 'Required · JPG or PNG · Max 5MB · First image is primary',
+  error,
   compact = false,
 }) {
   const inputRef = useRef(null)
@@ -69,6 +71,7 @@ export default function VariantImageUpload({
   return (
     <div className={`flex h-full flex-col ${compact ? 'rounded-xl border border-slate-200 bg-white p-3' : ''}`}>
       {labelBlock}
+      {error && <FieldError message={error} />}
 
       <div
         role="button"

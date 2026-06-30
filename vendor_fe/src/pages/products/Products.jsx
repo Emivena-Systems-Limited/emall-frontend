@@ -12,6 +12,7 @@ import {
   DuplicateProductConfirmModal,
   DuplicateProductSuccessModal,
 } from '../../components/products/DuplicateProductModals'
+import BulkDeleteProductsModal from '../../components/products/BulkDeleteProductsModal'
 import {
   getCatalogSummary,
   SUMMARY_FILTERS,
@@ -68,22 +69,18 @@ export default function Products() {
   const visibleSelectedCount = filteredProducts.filter((product) => selectedIds.has(product.id)).length
 
   const deleteModalCopy = useMemo(() => {
-    if (!deleteRequest) return null
+    if (!deleteRequest || deleteRequest.type !== 'single') return null
 
-    if (deleteRequest.type === 'single') {
-      return {
-        title: 'Delete product?',
-        description: `"${deleteRequest.product.name}" will be permanently removed from your catalogue. This action cannot be undone.`,
-        confirmLabel: 'Delete product',
-      }
-    }
-
-    const count = deleteRequest.productIds.length
     return {
-      title: `Delete ${count} product${count === 1 ? '' : 's'}?`,
-      description: `The selected product${count === 1 ? '' : 's'} will be permanently removed from your catalogue. This action cannot be undone.`,
-      confirmLabel: `Delete ${count} product${count === 1 ? '' : 's'}`,
+      title: 'Delete product?',
+      description: `"${deleteRequest.product.name}" will be permanently removed from your catalogue. This action cannot be undone.`,
+      confirmLabel: 'Delete product',
     }
+  }, [deleteRequest])
+
+  const bulkDeleteProducts = useMemo(() => {
+    if (!deleteRequest || deleteRequest.type !== 'bulk') return []
+    return deleteRequest.products ?? []
   }, [deleteRequest])
 
   const statusModalCopy = useMemo(() => {
@@ -201,6 +198,7 @@ export default function Products() {
     setDeleteRequest({
       type: 'bulk',
       productIds: Array.from(selectedIds),
+      products: selectedProducts,
     })
   }
 
@@ -385,7 +383,7 @@ export default function Products() {
         )}
 
         <ConfirmModal
-          open={Boolean(deleteRequest && deleteModalCopy)}
+          open={Boolean(deleteRequest?.type === 'single' && deleteModalCopy)}
           title={deleteModalCopy?.title}
           description={deleteModalCopy?.description}
           confirmLabel={deleteModalCopy?.confirmLabel}
@@ -394,6 +392,14 @@ export default function Products() {
           isLoading={deleteProductsMutation.isPending}
           loadingLabel="Deleting…"
           tone="danger"
+        />
+
+        <BulkDeleteProductsModal
+          open={deleteRequest?.type === 'bulk'}
+          products={bulkDeleteProducts}
+          onClose={closeDeleteModal}
+          onConfirm={handleConfirmDelete}
+          isLoading={deleteProductsMutation.isPending}
         />
 
         <ConfirmModal

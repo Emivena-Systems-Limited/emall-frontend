@@ -223,6 +223,17 @@ export function isKeptRemoteProductImage(image) {
   return resolveRemoteProductImageId(image) != null
 }
 
+export function isUsableProductImage(image) {
+  if (!image || typeof image !== 'object') return false
+  if (isFileValue(image.file)) return true
+  return Boolean(String(image.preview ?? '').trim())
+}
+
+export function hasUsableProductImages(images = [], fallbackImageUrl = null) {
+  if (String(fallbackImageUrl ?? '').trim()) return true
+  return Array.isArray(images) && images.some(isUsableProductImage)
+}
+
 export function replaceProductImageWithFile(previousImage, file) {
   if (previousImage) revokeProductImagePreview(previousImage)
   return createProductImageFromFile(file)

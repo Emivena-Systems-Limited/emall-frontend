@@ -216,10 +216,24 @@ export async function deleteProduct(productId) {
   return productId
 }
 
+export async function deleteProductsBulk(productIds = []) {
+  const products = [...new Set(productIds.filter(Boolean))]
+  if (products.length === 0) return []
+
+  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.bulkDelete, { products })
+  assertApiSuccess(data)
+  return products
+}
+
 export async function deleteProducts(productIds = []) {
   const ids = [...new Set(productIds.filter(Boolean))]
-  await Promise.all(ids.map((productId) => deleteProduct(productId)))
-  return ids
+  if (ids.length === 0) return []
+  if (ids.length === 1) {
+    await deleteProduct(ids[0])
+    return ids
+  }
+
+  return deleteProductsBulk(ids)
 }
 
 export { toCatalogProduct }

@@ -566,7 +566,8 @@ function resolveStockStatus(quantity, threshold) {
 }
 
 function svFieldError(formik, name) {
-  return formik.touched[name] && formik.errors[name] ? formik.errors[name] : ''
+  const touched = formik.touched[name] || formik.submitCount > 0
+  return touched && formik.errors[name] ? formik.errors[name] : ''
 }
 
 function getVariantValuePlaceholder(attribute = '') {
@@ -793,8 +794,11 @@ function SingleVariantForm({ mode, initialValues, productValues, onSave, onCance
             <p className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">Variant images</p>
             <VariantImageUpload
               images={formik.values.images}
-              onChange={(images) => formik.setFieldValue('images', images)}
-              hint="Optional · JPG or PNG · Max 5MB · First image is primary"
+              onChange={(images) => {
+                formik.setFieldValue('images', images)
+                formik.setFieldTouched('images', true, false)
+              }}
+              error={svFieldError(formik, 'images')}
             />
           </div>
 

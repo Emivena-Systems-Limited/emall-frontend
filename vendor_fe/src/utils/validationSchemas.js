@@ -1,4 +1,5 @@
 import * as Yup from 'yup'
+import { hasUsableProductImages } from './productImageUtils'
 import { stripHtml } from './richText'
 
 const passwordSchema = Yup.string()
@@ -217,20 +218,19 @@ const productVariationValueSchema = Yup.object({
       }
       return true
     }),
-  quantity: nullableNumber
+  quantity: Yup.number()
+    .typeError('Quantity must be a number')
     .integer('Must be a whole number')
     .min(0, 'Cannot be negative')
+    .required('Stock quantity is required')
     .test(
       'variant-qty-not-exceed-main',
       'Variant stock cannot exceed main product stock',
       function validateVariantQuantity(value) {
-        const variantQty = parseVariantQuantity(value)
-        if (variantQty == null) return true
-
         const mainQty = getMainProductStockQuantity(getRootFormValues(this.from))
         if (mainQty == null) return true
 
-        if (variantQty > mainQty) {
+        if (value > mainQty) {
           return this.createError({
             message: `Variant stock cannot exceed main product stock (${mainQty}).`,
           })
@@ -253,7 +253,15 @@ const productVariationValueSchema = Yup.object({
         preview: Yup.string(),
       }),
     )
-    .default([]),
+    .default([])
+    .test(
+      'variant-images-required',
+      'At least one variant image is required',
+      function validateVariantImages(images) {
+        const { image_url: imageUrl } = this.parent ?? {}
+        return hasUsableProductImages(images, imageUrl)
+      },
+    ),
   image_url: Yup.string().nullable(),
 })
 
@@ -354,12 +362,14 @@ export const singleVariantSchema = Yup.object({
       if (price != null && price !== '' && !Number.isNaN(Number(price))) return value < Number(price)
       return true
     }),
-  quantity: nullableNumber
+  quantity: Yup.number()
+    .typeError('Quantity must be a number')
     .integer('Must be a whole number')
     .min(0, 'Cannot be negative')
+    .required('Stock quantity is required')
     .test('not-exceed-main', 'Cannot exceed main product stock', function validateQty(value) {
       const mainQty = this.options.context?.mainProductQuantity
-      if (mainQty == null || value == null) return true
+      if (mainQty == null) return true
       if (value > mainQty) {
         return this.createError({ message: `Cannot exceed main product stock (${mainQty}).` })
       }
@@ -372,7 +382,13 @@ export const singleVariantSchema = Yup.object({
     .min(1, 'Must be at least 1')
     .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
-  images: Yup.array().default([]),
+  images: Yup.array()
+    .default([])
+    .test(
+      'variant-images-required',
+      'At least one variant image is required',
+      (images) => hasUsableProductImages(images),
+    ),
 })
 
 export const productInfoSchema = productListingSchemaBase.pick([
