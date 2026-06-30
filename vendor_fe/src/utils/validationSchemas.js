@@ -122,6 +122,48 @@ function parseVariantQuantity(value) {
   return Number.isFinite(quantity) ? quantity : null
 }
 
+function parseOptionalStockThreshold(value) {
+  if (value === '' || value == null) return null
+  const threshold = Number(value)
+  return Number.isFinite(threshold) ? threshold : null
+}
+
+function stockQuantityNotBelowThresholdTest(message = 'Stock quantity cannot be less than the low stock threshold') {
+  return function validateQuantity(value) {
+    const threshold = parseOptionalStockThreshold(this.parent.low_stock_threshold)
+    if (threshold == null) return true
+
+    const quantity = parseVariantQuantity(value)
+    if (quantity == null) return true
+
+    if (quantity < threshold) {
+      return this.createError({ message })
+    }
+
+    return true
+  }
+}
+
+function lowStockThresholdNotAboveQuantityTest(
+  message = 'Low stock threshold cannot exceed stock quantity',
+) {
+  return function validateThreshold(value) {
+    if (value == null) return true
+
+    const threshold = parseOptionalStockThreshold(value)
+    if (threshold == null) return true
+
+    const quantity = parseVariantQuantity(this.parent.quantity)
+    if (quantity == null) return true
+
+    if (threshold > quantity) {
+      return this.createError({ message })
+    }
+
+    return true
+  }
+}
+
 function getMainProductStockQuantity(values = {}) {
   const quantity = Number(values.quantity)
   return Number.isFinite(quantity) ? quantity : null
@@ -196,9 +238,13 @@ const productVariationValueSchema = Yup.object({
 
         return true
       },
-    ),
+    )
+    .test('variant-qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
   reserved_quantity: nullableNumber.integer('Must be a whole number').min(0, 'Cannot be negative'),
-  low_stock_threshold: nullableNumber.integer('Must be a whole number').min(1, 'Threshold must be at least 1'),
+  low_stock_threshold: nullableNumber
+    .integer('Must be a whole number')
+    .min(1, 'Threshold must be at least 1')
+    .test('variant-threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
   images: Yup.array()
     .of(
@@ -271,10 +317,12 @@ export const productListingSchemaBase = Yup.object({
     .typeError('Quantity must be a number')
     .integer('Quantity must be a whole number')
     .min(0, 'Quantity cannot be negative')
-    .required('Quantity is required'),
+    .required('Quantity is required')
+    .test('qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
   low_stock_threshold: nullableNumber
     .integer('Must be a whole number')
-    .min(1, 'Threshold must be at least 1'),
+    .min(1, 'Threshold must be at least 1')
+    .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
 
   variations: Yup.array().of(productVariationSchema).default([]),
@@ -316,9 +364,13 @@ export const singleVariantSchema = Yup.object({
         return this.createError({ message: `Cannot exceed main product stock (${mainQty}).` })
       }
       return true
-    }),
+    })
+    .test('qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
   reserved_quantity: nullableNumber.integer('Must be a whole number').min(0, 'Cannot be negative'),
-  low_stock_threshold: nullableNumber.integer('Must be a whole number').min(1, 'Must be at least 1'),
+  low_stock_threshold: nullableNumber
+    .integer('Must be a whole number')
+    .min(1, 'Must be at least 1')
+    .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
   images: Yup.array().default([]),
 })

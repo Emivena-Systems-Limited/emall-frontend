@@ -11,8 +11,8 @@ const STATUS_CONFIG = {
   },
   inactive: {
     label: 'Inactive',
-    dot: 'bg-slate-400',
-    className: 'bg-slate-50 text-slate-600 ring-slate-200',
+    dot: 'bg-red-500',
+    className: 'bg-red-50 text-red-700 ring-red-200/80',
   },
   draft: {
     label: 'Draft',
@@ -30,6 +30,24 @@ function ProductStatusBadge({ status }) {
     >
       <span className={`size-1.5 shrink-0 rounded-full ${config.dot}`} aria-hidden />
       {config.label}
+    </span>
+  )
+}
+
+function ProductThumbnail({ product }) {
+  if (product.image) {
+    return (
+      <img
+        src={product.image}
+        alt={product.name}
+        className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+      />
+    )
+  }
+
+  return (
+    <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200">
+      <Package className="size-5" strokeWidth={1.5} />
     </span>
   )
 }
@@ -94,7 +112,7 @@ function ProductActionsMenu({
           onClick={() => run(onEditVariations)}
           className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
         >
-          <Layers3 className="size-4" /> Edit variations
+          <Layers3 className="size-4" /> Manage variations
         </button>
         <button
           type="button"
@@ -153,28 +171,170 @@ const TABLE_HEAD_CLASS =
 
 const TABLE_PRICE_CLASS = 'whitespace-nowrap px-4 py-4 text-sm tabular-nums text-slate-700'
 
-export default function ProductTable({
+function ProductNameCell({ product }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <ProductThumbnail product={product} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-slate-900" title={product.name}>
+          {product.name}
+        </p>
+        <p className="mt-0.5 truncate text-xs text-slate-500" title={product.sku}>
+          {product.sku}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function ProductActionsCell(props) {
+  return (
+    <ProductActionsMenu
+      product={props.product}
+      onView={props.onView}
+      onEditProductInfo={props.onEditProductInfo}
+      onEditVariations={props.onEditVariations}
+      onActivate={props.onActivate}
+      onDeactivate={props.onDeactivate}
+      onDuplicate={props.onDuplicate}
+      onDelete={props.onDelete}
+    />
+  )
+}
+
+function ProductMobileCard({
+  product,
+  isSelected,
+  onToggleOne,
+  ...actionProps
+}) {
+  const salePrice = formatProductPrice(product.salePrice ?? product.price)
+  const regularPrice = formatProductPrice(product.regularPrice ?? product.listPrice)
+
+  return (
+    <article
+      className={`px-4 py-4 sm:px-5 ${isSelected ? 'bg-brand-light/10' : 'bg-white'}`}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggleOne(product.id)}
+          className="mt-1 size-4 shrink-0 cursor-pointer accent-brand rounded"
+          aria-label={`Select ${product.name}`}
+        />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-3">
+            <ProductThumbnail product={product} />
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900">
+                {product.name}
+              </p>
+              <p className="mt-1 truncate text-xs text-slate-500">{product.sku}</p>
+            </div>
+            <div className="shrink-0">
+              <ProductActionsCell product={product} {...actionProps} />
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <ProductStatusBadge status={product.status} />
+            <span className="text-xs text-slate-500">
+              Stock:{' '}
+              <span className="font-semibold text-slate-800">
+                {product.stock == null ? '—' : product.stock}
+              </span>
+            </span>
+          </div>
+
+          <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2">
+              <dt className="font-semibold uppercase tracking-wide text-slate-400">Category</dt>
+              <dd className="mt-0.5 truncate font-medium text-slate-800">{product.category}</dd>
+            </div>
+            <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2">
+              <dt className="font-semibold uppercase tracking-wide text-slate-400">Brand</dt>
+              <dd className="mt-0.5 truncate font-medium text-slate-800">{product.brand}</dd>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <dt className="font-semibold uppercase tracking-wide text-slate-400">Regular</dt>
+              <dd className="mt-0.5 font-medium tabular-nums text-slate-800">GH₵ {regularPrice}</dd>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <dt className="font-semibold uppercase tracking-wide text-slate-400">Sale</dt>
+              <dd
+                className={`mt-0.5 font-medium tabular-nums ${
+                  product.hasDiscount ? 'text-emerald-700' : 'text-slate-800'
+                }`}
+              >
+                GH₵ {salePrice}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function ProductMobileList({
   products,
   selectedIds,
   onToggleAll,
   onToggleOne,
-  onView,
-  onEditProductInfo,
-  onEditVariations,
-  onActivate,
-  onDeactivate,
-  onDuplicate,
-  onDelete,
+  allSelected,
+  someSelected,
+  actionProps,
 }) {
-  const allSelected = products.length > 0 && products.every((product) => selectedIds.has(product.id))
-  const someSelected = products.some((product) => selectedIds.has(product.id))
-
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-slate-100">
+    <div className="lg:hidden">
+      <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+        <input
+          type="checkbox"
+          checked={allSelected}
+          ref={(input) => {
+            if (input) input.indeterminate = someSelected && !allSelected
+          }}
+          onChange={(event) => onToggleAll(event.target.checked)}
+          className="size-4 cursor-pointer accent-brand rounded"
+          aria-label="Select all products"
+        />
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Select all
+        </span>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        {products.map((product) => (
+          <ProductMobileCard
+            key={product.id}
+            product={product}
+            isSelected={selectedIds.has(product.id)}
+            onToggleOne={onToggleOne}
+            {...actionProps}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ProductDesktopTable({
+  products,
+  selectedIds,
+  onToggleAll,
+  onToggleOne,
+  allSelected,
+  someSelected,
+  actionProps,
+}) {
+  return (
+    <div className="hidden overflow-x-auto lg:block">
+      <table className="w-full min-w-[960px] table-fixed divide-y divide-slate-100">
         <thead className="bg-slate-50/80">
           <tr>
-            <th className="px-4 py-3 text-left">
+            <th className="w-12 px-4 py-3 text-left">
               <input
                 type="checkbox"
                 checked={allSelected}
@@ -186,14 +346,14 @@ export default function ProductTable({
                 aria-label="Select all products"
               />
             </th>
-            <th className={TABLE_HEAD_CLASS}>Product</th>
-            <th className={TABLE_HEAD_CLASS}>Category</th>
-            <th className={TABLE_HEAD_CLASS}>Brand</th>
-            <th className={TABLE_HEAD_CLASS}>Regular price</th>
-            <th className={TABLE_HEAD_CLASS}>Sale price</th>
-            <th className={TABLE_HEAD_CLASS}>Stock</th>
-            <th className={TABLE_HEAD_CLASS}>Status</th>
-            <th className={`${TABLE_HEAD_CLASS} text-right`}>Actions</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[28%]`}>Product</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[14%]`}>Category</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[12%]`}>Brand</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[12%]`}>Regular price</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[12%]`}>Sale price</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[8%]`}>Stock</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[10%]`}>Status</th>
+            <th className={`${TABLE_HEAD_CLASS} w-[4%] text-right`}>Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">
@@ -211,27 +371,15 @@ export default function ProductTable({
                     aria-label={`Select ${product.name}`}
                   />
                 </td>
-                <td className="px-4 py-4">
-                  <div className="flex min-w-[220px] items-center gap-3">
-                    {product.image ? (
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-                      />
-                    ) : (
-                      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200">
-                        <Package className="size-5" strokeWidth={1.5} />
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{product.sku}</p>
-                    </div>
-                  </div>
+                <td className="max-w-0 px-4 py-4">
+                  <ProductNameCell product={product} />
                 </td>
-                <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
-                <td className="px-4 py-4 text-sm text-slate-700">{product.brand}</td>
+                <td className="max-w-0 truncate px-4 py-4 text-sm text-slate-700" title={product.category}>
+                  {product.category}
+                </td>
+                <td className="max-w-0 truncate px-4 py-4 text-sm text-slate-700" title={product.brand}>
+                  {product.brand}
+                </td>
                 <td className={TABLE_PRICE_CLASS}>
                   GH₵&nbsp;{formatProductPrice(product.regularPrice ?? product.listPrice)}
                 </td>
@@ -253,16 +401,7 @@ export default function ProductTable({
                   <ProductStatusBadge status={product.status} />
                 </td>
                 <td className="px-4 py-4 text-right">
-                  <ProductActionsMenu
-                    product={product}
-                    onView={onView}
-                    onEditProductInfo={onEditProductInfo}
-                    onEditVariations={onEditVariations}
-                    onActivate={onActivate}
-                    onDeactivate={onDeactivate}
-                    onDuplicate={onDuplicate}
-                    onDelete={onDelete}
-                  />
+                  <ProductActionsCell product={product} {...actionProps} />
                 </td>
               </tr>
             )
@@ -270,5 +409,49 @@ export default function ProductTable({
         </tbody>
       </table>
     </div>
+  )
+}
+
+export default function ProductTable({
+  products,
+  selectedIds,
+  onToggleAll,
+  onToggleOne,
+  onView,
+  onEditProductInfo,
+  onEditVariations,
+  onActivate,
+  onDeactivate,
+  onDuplicate,
+  onDelete,
+}) {
+  const allSelected = products.length > 0 && products.every((product) => selectedIds.has(product.id))
+  const someSelected = products.some((product) => selectedIds.has(product.id))
+
+  const actionProps = {
+    onView,
+    onEditProductInfo,
+    onEditVariations,
+    onActivate,
+    onDeactivate,
+    onDuplicate,
+    onDelete,
+  }
+
+  const sharedProps = {
+    products,
+    selectedIds,
+    onToggleAll,
+    onToggleOne,
+    allSelected,
+    someSelected,
+    actionProps,
+  }
+
+  return (
+    <>
+      <ProductMobileList {...sharedProps} />
+      <ProductDesktopTable {...sharedProps} />
+    </>
   )
 }

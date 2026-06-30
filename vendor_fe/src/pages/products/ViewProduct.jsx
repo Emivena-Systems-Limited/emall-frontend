@@ -21,9 +21,10 @@ import {
   Truck,
   Warehouse,
 } from 'lucide-react'
-import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import { normalizeQuillDescriptionHtml } from '../../utils/normalizeQuillHtml'
 import ConfirmModal from '../../components/common/ConfirmModal'
 import PortalMenu from '../../components/common/PortalMenu'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { useProduct } from '../../hooks/useProducts'
 import { useDeleteProductsMutation, useUpdateProductStatusMutation } from '../../hooks/useProductMutations'
 import { toCatalogProduct } from '../../utils/normalizeProducts'
@@ -42,7 +43,7 @@ function formatMoney(amount) {
 
 const STATUS_STYLES = {
   active:   'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-  inactive: 'bg-slate-100 text-slate-500 ring-1 ring-slate-200',
+  inactive: 'bg-red-50 text-red-700 ring-1 ring-red-200',
   draft:    'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
   pending:  'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
 }
@@ -186,9 +187,55 @@ function InfoCard({ icon: Icon, label, children, accent = false }) {
 
 // ─── Variants Display ─────────────────────────────────────────────────────────
 
-function VariantGrid({ variants }) {
-  if (!variants?.length) return null
+function VariationsSection({ productId, variants }) {
+  const manageHref = `/products/${productId}/edit?section=variations`
+  const manageLinkClass =
+    'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-brand/30 hover:text-brand'
 
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-bold text-slate-950">
+          Variations
+          {variants.length > 0 && (
+            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+              {variants.length}
+            </span>
+          )}
+        </h2>
+        <Link to={manageHref} className={manageLinkClass}>
+          <Layers3 className="size-4" />
+          Manage variations
+        </Link>
+      </div>
+
+      <div className="px-5 py-4">
+        {variants.length > 0 ? (
+          <VariantGrid variants={variants} />
+        ) : (
+          <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-10 text-center">
+            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-white text-slate-400 ring-1 ring-slate-200">
+              <Layers3 className="size-6" />
+            </span>
+            <p className="text-sm font-bold text-slate-900">No variations yet</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Add size, color, or other options for this product.
+            </p>
+            <Link
+              to={manageHref}
+              className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
+            >
+              <Layers3 className="size-4" />
+              Manage variations
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function VariantGrid({ variants }) {
   return (
     <div className="space-y-2">
       {variants.map((variant) => (
@@ -315,7 +362,7 @@ function ProductEditMenu({ productId, className = '' }) {
           className={menuItemClass}
         >
           <Layers3 className="size-4" />
-          Edit variations
+          Manage variations
         </Link>
       </PortalMenu>
     </>
@@ -628,7 +675,7 @@ export default function ViewProduct() {
                   className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
                 >
                   <Layers3 className="size-4 text-slate-500" />
-                  Edit variations
+                  Manage variations
                 </Link>
                 {canActivateProduct(product.status) && (
                   <button
@@ -672,28 +719,16 @@ export default function ViewProduct() {
                 <h2 className="text-sm font-bold text-slate-950">Description</h2>
               </div>
               <div
-                className="prose prose-sm prose-slate max-w-none px-5 py-4 text-sm leading-relaxed text-slate-700"
-                dangerouslySetInnerHTML={{ __html: product.description }}
+                className="product-description prose prose-sm prose-slate max-w-none px-5 py-4 text-sm leading-relaxed text-slate-700"
+                dangerouslySetInnerHTML={{
+                  __html: normalizeQuillDescriptionHtml(product.description),
+                }}
               />
             </div>
           )}
 
-          {/* Variants */}
-          {variants.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
-              <div className="border-b border-slate-100 px-5 py-4">
-                <h2 className="text-sm font-bold text-slate-950">
-                  Variants
-                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
-                    {variants.length}
-                  </span>
-                </h2>
-              </div>
-              <div className="px-5 py-4">
-                <VariantGrid variants={variants} />
-              </div>
-            </div>
-          )}
+          {/* Variations */}
+          <VariationsSection productId={product.id} variants={variants} />
 
           {/* Tags */}
           {tags.length > 0 && (

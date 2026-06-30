@@ -1,19 +1,40 @@
 import { useRef, useState } from 'react'
 import { ImagePlus, Trash2, Upload } from 'lucide-react'
 import FieldError from '../auth/FieldError'
+import notify from '../../lib/notify'
 import {
-  isValidProductImageFile,
+  formatImageStorageSize,
+  getProductImageLimitsSummary,
+  pickProductImageFiles,
   replaceProductImageWithFile,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
-export default function ProductMainImageUpload({ image, onChange, error }) {
+const IMAGE_HINT = 'JPG or PNG · Up to 5 images total · 5MB combined'
+
+export default function ProductMainImageUpload({
+  image,
+  onChange,
+  error,
+  subImages = [],
+}) {
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const limits = getProductImageLimitsSummary(image, subImages)
 
   const applyFile = (file) => {
-    if (!file || !isValidProductImageFile(file)) return
-    onChange(replaceProductImageWithFile(image, file))
+    const { accepted, notices } = pickProductImageFiles({
+      mainImage: image,
+      subImages,
+      files: [file],
+      target: 'main',
+    })
+
+    notices.forEach((message) => notify.error(message))
+
+    if (accepted.length === 0) return
+
+    onChange(replaceProductImageWithFile(image, accepted[0]))
   }
 
   const processFiles = (fileList) => {
@@ -87,7 +108,7 @@ export default function ProductMainImageUpload({ image, onChange, error }) {
           </span>
           <div className="text-center">
             <p className="text-sm font-semibold text-slate-800">Drag & drop or click to upload main photo</p>
-            <p className="mt-1 text-xs text-slate-500">JPG, PNG · Max 5MB · Shown first to customers</p>
+            <p className="mt-1 text-xs text-slate-500">{IMAGE_HINT}</p>
           </div>
         </div>
       )}
@@ -101,6 +122,11 @@ export default function ProductMainImageUpload({ image, onChange, error }) {
       />
 
       {error && <FieldError message={error} />}
+      {!error && (
+        <p className="text-xs text-slate-400">
+          {limits.count} of {limits.maxCount} images · {formatImageStorageSize(limits.bytes)} of {formatImageStorageSize(limits.maxBytes)} used
+        </p>
+      )}
     </div>
   )
 }

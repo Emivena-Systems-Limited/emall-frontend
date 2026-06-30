@@ -41,6 +41,7 @@ import {
 import { useProduct, productQueryKeys } from '../../hooks/useProducts'
 import { mapProductRecordToFormState } from '../../utils/mapProductToFormValues'
 import { productInfoSchema, singleVariantSchema } from '../../utils/validationSchemas'
+import { validateProductImageLimits } from '../../utils/productImageUtils'
 import {
   buildProductInfoPayload,
   formatProductPayloadSample,
@@ -70,7 +71,7 @@ const productInfoSteps = [
 const productInfoStepFields = [
   ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'brand_id'],
   [],
-  ['price', 'discount_price', 'discount_percent', 'quantity'],
+  ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['shipping_weight', 'shipping_length', 'shipping_width', 'shipping_height'],
   [],
 ]
@@ -256,6 +257,16 @@ function ProductInfoEditForm({
         })
         return false
       }
+
+      const imageLimits = validateProductImageLimits(mainImage, subImages)
+      if (!imageLimits.valid) {
+        setMainImageError(imageLimits.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ main_product_image: imageLimits.message })
+        })
+        return false
+      }
+
       setMainImageError('')
       return true
     }
@@ -308,6 +319,17 @@ function ProductInfoEditForm({
         scrollToFirstError({ main_product_image: 'Add a main product image before saving' })
       })
       notify.error('Add a main product image before saving.')
+      return
+    }
+
+    const imageLimits = validateProductImageLimits(mainImage, subImages)
+    if (!imageLimits.valid) {
+      setMainImageError(imageLimits.message)
+      navigateToStep(1)
+      requestAnimationFrame(() => {
+        scrollToFirstError({ main_product_image: imageLimits.message })
+      })
+      notify.error(imageLimits.message)
       return
     }
 
@@ -719,7 +741,7 @@ function SingleVariantForm({ mode, initialValues, productValues, onSave, onCance
           {/* Inventory */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
             <p className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">Inventory</p>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid items-stretch gap-4 sm:grid-cols-1 lg:max-w-xs">
               <ProductInput
                 id="quantity"
                 name="quantity"
@@ -727,7 +749,7 @@ function SingleVariantForm({ mode, initialValues, productValues, onSave, onCance
                 label="Stock quantity"
                 hint={
                   mainQty != null
-                    ? `Cannot exceed main product stock (${mainQty}).`
+                    ? `Max ${mainQty} units (main product stock).`
                     : 'Set main stock on the product first.'
                 }
                 placeholder="0"
@@ -736,11 +758,13 @@ function SingleVariantForm({ mode, initialValues, productValues, onSave, onCance
                 onBlur={formik.handleBlur}
                 error={svFieldError(formik, 'quantity')}
               />
-              <ProductInput
+              {/* Reserved quantity and low stock alert hidden for variant add/edit for now. */}
+              {/* <ProductInput
                 id="reserved_quantity"
                 name="reserved_quantity"
                 type="number"
                 label="Reserved quantity · Optional"
+                reserveHintSpace
                 hint="Held for pending orders"
                 placeholder="0"
                 value={formik.values.reserved_quantity}
@@ -753,13 +777,14 @@ function SingleVariantForm({ mode, initialValues, productValues, onSave, onCance
                 name="low_stock_threshold"
                 type="number"
                 label="Low stock alert · Optional"
-                hint="Warn when stock drops below this"
+                reserveHintSpace
+                hint="Optional. Cannot exceed stock quantity."
                 placeholder="10"
                 value={formik.values.low_stock_threshold}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
                 error={svFieldError(formik, 'low_stock_threshold')}
-              />
+              /> */}
             </div>
           </div>
 

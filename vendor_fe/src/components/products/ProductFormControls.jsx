@@ -8,7 +8,7 @@ function Label({ id, label, hint, reserveHintSpace = false }) {
   return (
     <label
       htmlFor={id}
-      className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[3.25rem]' : ''}`}
+      className={`mb-1.5 block ${reserveHintSpace ? 'min-h-[4.75rem]' : ''}`}
     >
       <span className="text-sm font-semibold text-slate-800">{label}</span>
       {hint ? (
@@ -24,14 +24,16 @@ function Label({ id, label, hint, reserveHintSpace = false }) {
 
 export function ProductInput({ id, label, hint, error, reserveHintSpace = false, ...props }) {
   return (
-    <div data-field={props.name} className="flex h-full flex-col">
+    <div data-field={props.name} className="flex h-full min-h-0 flex-col">
       <Label id={id} label={label} hint={hint} reserveHintSpace={reserveHintSpace} />
-      <input
-        id={id}
-        className={`${inputBase} ${error ? errorState : normalState}`}
-        {...props}
-      />
-      {error && <FieldError message={error} />}
+      <div className="mt-auto">
+        <input
+          id={id}
+          className={`${inputBase} ${error ? errorState : normalState}`}
+          {...props}
+        />
+        {error && <FieldError message={error} />}
+      </div>
     </div>
   )
 }

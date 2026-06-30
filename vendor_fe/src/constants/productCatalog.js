@@ -6,6 +6,7 @@ export { LOW_STOCK_THRESHOLD }
 export const SUMMARY_FILTERS = {
   ALL: 'all',
   ACTIVE: 'active',
+  INACTIVE: 'inactive',
   LOW_STOCK: 'low_stock',
 }
 
@@ -149,6 +150,7 @@ export function getCatalogSummary(products) {
   return {
     listed: products.length,
     active: products.filter((product) => product.status === 'active').length,
+    inactive: products.filter((product) => product.status === 'inactive').length,
     lowStock: products.filter(isLowStockProduct).length,
   }
 }

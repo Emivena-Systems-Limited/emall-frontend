@@ -1,12 +1,13 @@
 import {
   convertDiscountAmountToPercent,
+  convertDiscountPercentToAmount,
   getDiscountSummary,
   resolveSalesPrice,
   resolveVariantPricing,
   roundMoney,
 } from './productPricing'
 import { DEFAULT_PRODUCT_FULFILLMENT_CHANNEL } from '../constants/products'
-import { isKeptRemoteProductImage, resolveRemoteProductImageId } from './productImageUtils'
+import { isKeptRemoteProductImage, resolveRemoteProductImageId, validateProductImageLimits } from './productImageUtils'
 
 function describeFile(file) {
   if (!file) return null
@@ -23,11 +24,22 @@ export function isFileValue(value) {
 
 export function formatProductPayloadSample(formData) {
   const sample = {}
+  const metadata = []
 
   for (const [key, value] of formData.entries()) {
+    const metadataMatch = key.match(/^metadata\[(\d+)]\[(key|value)]$/)
+    if (metadataMatch) {
+      const index = Number(metadataMatch[1])
+      const field = metadataMatch[2]
+      if (!metadata[index]) metadata[index] = { key: '', value: '' }
+      metadata[index][field] = isFileValue(value) ? describeFile(value) : value
+      continue
+    }
+
     sample[key] = isFileValue(value) ? describeFile(value) : value
   }
 
+  sample.metadata = metadata.filter(Boolean)
   return sample
 }
 
@@ -286,18 +298,8 @@ function appendProductImagesToFormData(
 }
 
 function appendMetadata(formData, metadata) {
-  if (!metadata.length) return
-
-  metadata.forEach((item, index) => {
-    if (item && typeof item === 'object') {
-      Object.entries(item).forEach(([childKey, childValue]) => {
-        appendFormData(formData, `metadata[${index}][${childKey}]`, childValue)
-      })
-      return
-    }
-
-    appendFormData(formData, `metadata[${index}]`, item)
-  })
+  if (!Array.isArray(metadata) || metadata.length === 0) return
+  appendFormData(formData, 'metadata', metadata)
 }
 
 function metadataEntry(key, value) {
@@ -307,7 +309,10 @@ function metadataEntry(key, value) {
 
 function buildPricingMetadata(values) {
   const discountMode = values.discount_mode ?? 'amount'
-  const listPrice = roundMoney(Number(values.price))
+  const listPrice =
+    values.price === '' || values.price == null
+      ? null
+      : roundMoney(Number(values.price))
   const { salesPrice, savings, percentOff, hasDiscount } = getDiscountSummary(
     values.price,
     discountMode,
@@ -315,19 +320,32 @@ function buildPricingMetadata(values) {
     values.discount_percent,
   )
 
-  const enteredDiscountPercent = values.discount_percent
   const enteredDiscountPrice = values.discount_price
-  const computedPercent = hasDiscount && discountMode === 'amount'
-    ? convertDiscountAmountToPercent(values.price, enteredDiscountPrice)
-    : ''
-  const resolvedPercent = enteredDiscountPercent || computedPercent || (hasDiscount ? String(percentOff) : '')
+  const enteredDiscountPercent = values.discount_percent
+  const computedPercent =
+    hasDiscount && discountMode === 'amount'
+      ? convertDiscountAmountToPercent(values.price, enteredDiscountPrice)
+      : ''
+  const computedAmount =
+    hasDiscount && discountMode === 'percent'
+      ? convertDiscountPercentToAmount(values.price, enteredDiscountPercent)
+      : ''
+  const resolvedSalePrice = salesPrice ?? (listPrice ?? values.price ?? null)
+  const resolvedDiscountPrice =
+    enteredDiscountPrice !== '' && enteredDiscountPrice != null
+      ? enteredDiscountPrice
+      : (computedAmount || (hasDiscount ? resolvedSalePrice : null))
+  const resolvedPercent =
+    enteredDiscountPercent !== '' && enteredDiscountPercent != null
+      ? enteredDiscountPercent
+      : (computedPercent || (hasDiscount ? String(percentOff) : ''))
 
   const entries = [
-    metadataEntry('regular_price', listPrice || values.price),
+    metadataEntry('regular_price', listPrice ?? values.price),
     metadataEntry('discount_mode', discountMode),
-    metadataEntry('discount_price', enteredDiscountPrice),
+    metadataEntry('discount_price', resolvedDiscountPrice),
     metadataEntry('discount_percent', resolvedPercent),
-    metadataEntry('sale_price', salesPrice ?? listPrice),
+    metadataEntry('sale_price', resolvedSalePrice),
     metadataEntry('percent_off', hasDiscount ? percentOff : null),
     metadataEntry('savings_amount', hasDiscount ? savings : null),
     metadataEntry('has_discount', hasDiscount ? '1' : '0'),
@@ -351,7 +369,7 @@ function buildShippingMetadata(values) {
   return entries.filter(Boolean)
 }
 
-function mergeProductMetadata(values) {
+export function mergeProductMetadata(values) {
   const pricingMetadata = buildPricingMetadata(values)
   const shippingMetadata = buildShippingMetadata(values)
   const reservedKeys = new Set([
@@ -495,6 +513,12 @@ function appendVariationFiles(formData, variations) {
 
 export function validateProductImageFiles(mainImage, subImages = [], options = {}) {
   const { mode = 'create' } = options
+  const limitsResult = validateProductImageLimits(mainImage, subImages)
+
+  if (!limitsResult.valid) {
+    throw new Error(limitsResult.message)
+  }
+
   const productImages = buildProductImagesPayload(mainImage, subImages)
 
   if (productImages.length === 0) {

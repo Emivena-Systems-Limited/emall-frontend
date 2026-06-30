@@ -1,23 +1,43 @@
 import { useRef, useState } from 'react'
 import { GripVertical, ImagePlus, Trash2, Upload } from 'lucide-react'
 import FieldError from '../auth/FieldError'
+import notify from '../../lib/notify'
 import {
   createProductImageFromFile,
-  isValidProductImageFile,
+  formatImageStorageSize,
+  getProductImageLimitsSummary,
+  pickProductImageFiles,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
-export default function ProductImageUploader({ images, onChange, error }) {
+const IMAGE_HINT = 'JPG or PNG · Up to 5 images total · 5MB combined'
+
+export default function ProductImageUploader({
+  images,
+  onChange,
+  error,
+  mainImage = null,
+}) {
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [draggingIndex, setDraggingIndex] = useState(null)
   const [overIndex, setOverIndex] = useState(null)
+  const limits = getProductImageLimitsSummary(mainImage, images)
+  const atImageLimit = limits.remainingSlots <= 0
 
   const processFiles = (fileList) => {
-    const added = Array.from(fileList)
-      .filter(isValidProductImageFile)
-      .map(createProductImageFromFile)
-    if (added.length > 0) onChange([...images, ...added])
+    const { accepted, notices } = pickProductImageFiles({
+      mainImage,
+      subImages: images,
+      files: Array.from(fileList),
+      target: 'gallery',
+    })
+
+    notices.forEach((message) => notify.error(message))
+
+    if (accepted.length === 0) return
+
+    onChange([...images, ...accepted.map(createProductImageFromFile)])
   }
 
   const removeImage = (id) => {
@@ -29,6 +49,10 @@ export default function ProductImageUploader({ images, onChange, error }) {
   const handleZoneDrop = (event) => {
     event.preventDefault()
     setIsDragOver(false)
+    if (atImageLimit) {
+      notify.error(`You can upload at most ${limits.maxCount} images (including the main photo).`)
+      return
+    }
     processFiles(event.dataTransfer.files)
   }
 
@@ -52,18 +76,34 @@ export default function ProductImageUploader({ images, onChange, error }) {
     <div data-field="sub_product_images" className="space-y-4">
       <div
         role="button"
-        tabIndex={0}
-        onDragOver={(event) => { event.preventDefault(); setIsDragOver(true) }}
+        tabIndex={atImageLimit ? -1 : 0}
+        aria-disabled={atImageLimit}
+        onDragOver={(event) => {
+          if (atImageLimit) return
+          event.preventDefault()
+          setIsDragOver(true)
+        }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleZoneDrop}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed transition-all ${
-          isDragOver
-            ? 'border-brand bg-brand-light/30 px-6 py-10'
-            : images.length === 0
-              ? 'border-slate-200 bg-slate-50/60 px-6 py-12 hover:border-brand/40 hover:bg-brand-light/10'
-              : 'border-slate-200 bg-slate-50/40 px-6 py-5 hover:border-slate-300'
+        onClick={() => {
+          if (atImageLimit) {
+            notify.error(`You can upload at most ${limits.maxCount} images (including the main photo).`)
+            return
+          }
+          inputRef.current?.click()
+        }}
+        onKeyDown={(event) => {
+          if (atImageLimit) return
+          if (event.key === 'Enter') inputRef.current?.click()
+        }}
+        className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed transition-all ${
+          atImageLimit
+            ? 'cursor-not-allowed border-slate-200 bg-slate-100/80 px-6 py-5 opacity-70'
+            : isDragOver
+              ? 'cursor-pointer border-brand bg-brand-light/30 px-6 py-10'
+              : images.length === 0
+                ? 'cursor-pointer border-slate-200 bg-slate-50/60 px-6 py-12 hover:border-brand/40 hover:bg-brand-light/10'
+                : 'cursor-pointer border-slate-200 bg-slate-50/40 px-6 py-5 hover:border-slate-300'
         }`}
       >
         <input
@@ -71,6 +111,7 @@ export default function ProductImageUploader({ images, onChange, error }) {
           type="file"
           accept="image/jpeg,image/png"
           multiple
+          disabled={atImageLimit}
           onChange={(event) => { processFiles(event.target.files); event.target.value = '' }}
           className="sr-only"
         />
@@ -84,10 +125,14 @@ export default function ProductImageUploader({ images, onChange, error }) {
         {images.length === 0 ? (
           <div className="text-center">
             <p className="text-sm font-semibold text-slate-800">Drag & drop or click to upload gallery photos</p>
-            <p className="mt-1 text-xs text-slate-500">JPG, PNG · Max 5MB · Optional additional angles</p>
+            <p className="mt-1 text-xs text-slate-500">{IMAGE_HINT}</p>
           </div>
         ) : (
-          <p className="text-xs font-semibold text-slate-500">Click or drop to add more gallery photos</p>
+          <p className="text-xs font-semibold text-slate-500">
+            {atImageLimit
+              ? 'Maximum image count reached'
+              : 'Click or drop to add more gallery photos'}
+          </p>
         )}
       </div>
 
@@ -136,9 +181,10 @@ export default function ProductImageUploader({ images, onChange, error }) {
       )}
 
       {error && <FieldError message={error} />}
-      {images.length > 0 && !error && (
+      {!error && (
         <p className="text-xs text-slate-400">
-          {images.length} gallery photo{images.length === 1 ? '' : 's'} · Drag to reorder
+          {limits.count} of {limits.maxCount} images · {formatImageStorageSize(limits.bytes)} of {formatImageStorageSize(limits.maxBytes)} used
+          {images.length > 0 ? ' · Drag gallery photos to reorder' : ''}
         </p>
       )}
     </div>

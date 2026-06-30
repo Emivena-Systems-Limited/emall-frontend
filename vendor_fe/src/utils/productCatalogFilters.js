@@ -5,6 +5,7 @@ export function filterProductCatalog(products, { search, category, brand, summar
 
   return products.filter((product) => {
     if (summaryFilter === SUMMARY_FILTERS.ACTIVE && product.status !== 'active') return false
+    if (summaryFilter === SUMMARY_FILTERS.INACTIVE && product.status !== 'inactive') return false
     if (summaryFilter === SUMMARY_FILTERS.LOW_STOCK && !isLowStockProduct(product)) return false
     if (category && product.categorySlug !== category) return false
     if (brand && product.brandSlug !== brand) return false
