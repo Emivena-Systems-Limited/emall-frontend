@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -25,6 +25,8 @@ import { normalizeQuillDescriptionHtml } from '../../utils/normalizeQuillHtml'
 import ConfirmModal from '../../components/common/ConfirmModal'
 import PortalMenu from '../../components/common/PortalMenu'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import OrderProductSwitcher from '../../components/orders/OrderProductSwitcher'
+import { getOrderById } from '../../constants/ordersData'
 import { useProduct } from '../../hooks/useProducts'
 import { useDeleteProductsMutation, useUpdateProductStatusMutation } from '../../hooks/useProductMutations'
 import { toCatalogProduct } from '../../utils/normalizeProducts'
@@ -33,6 +35,7 @@ import {
   canDeactivateProduct,
   getProductStatusActionCopy,
 } from '../../utils/productStatusActions'
+import { getUniqueOrderProducts } from '../../utils/orderProductNavigation'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -373,7 +376,11 @@ function ProductEditMenu({ productId, className = '' }) {
 
 export default function ViewProduct() {
   const { productId } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const orderId = searchParams.get('orderId')
+  const linkedOrder = orderId ? getOrderById(orderId) : null
+  const orderProducts = linkedOrder ? getUniqueOrderProducts(linkedOrder) : []
   const { data: rawRecord, isLoading, isError, refetch } = useProduct(productId)
   const deleteMutation = useDeleteProductsMutation()
   const updateProductStatusMutation = useUpdateProductStatusMutation()
@@ -481,14 +488,21 @@ export default function ViewProduct() {
         {/* ── Top bar ── */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
-            to="/products"
+            to={orderId ? `/orders/${orderId}` : '/products'}
             className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800"
           >
             <ArrowLeft className="size-4" />
-            All Products
+            {orderId ? 'Back to order' : 'All Products'}
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {orderId && orderProducts.length > 1 && (
+              <OrderProductSwitcher
+                orderId={orderId}
+                products={orderProducts}
+                currentProductId={productId}
+              />
+            )}
             <ProductEditMenu
               productId={product.id}
               className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50"
