@@ -7,7 +7,12 @@ import {
   roundMoney,
 } from './productPricing'
 import { DEFAULT_PRODUCT_FULFILLMENT_CHANNEL } from '../constants/products'
-import { isKeptRemoteProductImage, resolveRemoteProductImageId, validateProductImageLimits } from './productImageUtils'
+import {
+  hasUsableProductImages,
+  isKeptRemoteProductImage,
+  resolveRemoteProductImageId,
+  validateProductImageLimits,
+} from './productImageUtils'
 
 function describeFile(file) {
   if (!file) return null
@@ -131,6 +136,31 @@ function buildVariantImagesPayload(images = [], { filesOnly = false } = {}) {
   return filesOnly ? normalized.filter((image) => isFileValue(image.file)) : normalized
 }
 
+function resolveVariantImageLabel(variantValue, variation) {
+  return (
+    variantValue.value?.trim()
+    || variantValue.variant_name?.trim()
+    || variation.attribute?.trim()
+    || 'Variant'
+  )
+}
+
+function assertVariantImagesPresent(variantValue, variation, { mode = 'create' } = {}) {
+  const label = resolveVariantImageLabel(variantValue, variation)
+  const images = variantValue.images ?? []
+
+  if (!hasUsableProductImages(images, variantValue.image_url)) {
+    throw new Error(`"${label}" requires at least one image. Upload a JPG or PNG file and try again.`)
+  }
+
+  if (mode === 'create') {
+    const hasUpload = images.some((image) => isFileValue(image?.file))
+    if (!hasUpload && !String(variantValue.image_url ?? '').trim()) {
+      throw new Error(`"${label}" requires at least one image. Upload a JPG or PNG file and try again.`)
+    }
+  }
+}
+
 function buildSingleVariationData(variantValue, variation, values) {
   const attributeKey = slugifyAttributeKey(variation.attribute ?? '')
   const attributeValue = variantValue.value?.trim()
@@ -158,6 +188,7 @@ function buildVariationsPayload(variations, values) {
 
   for (const variation of variations ?? []) {
     for (const val of variation.values ?? []) {
+      assertVariantImagesPresent(val, variation, { mode: 'create' })
       payload.push(buildSingleVariationData(val, variation, values))
     }
   }
@@ -662,6 +693,12 @@ function buildSingleVariantFormData(variantFormValues, productValues) {
 }
 
 export function buildSingleVariantUpdatePayload(variantFormValues, variantId, productValues) {
+  assertVariantImagesPresent(
+    variantFormValues,
+    { attribute: variantFormValues.attribute ?? '' },
+    { mode: 'edit' },
+  )
+
   const { variationData, normalizedImages, sourceImages } = buildSingleVariantFormData(
     variantFormValues,
     productValues,
@@ -685,6 +722,12 @@ export function buildSingleVariantUpdatePayload(variantFormValues, variantId, pr
 }
 
 export function buildSingleVariantCreatePayload(variantFormValues, productId, productValues) {
+  assertVariantImagesPresent(
+    variantFormValues,
+    { attribute: variantFormValues.attribute ?? '' },
+    { mode: 'create' },
+  )
+
   const { variationData, normalizedImages } = buildSingleVariantFormData(
     variantFormValues,
     productValues,
@@ -716,6 +759,8 @@ export function buildProductVariationsUpdatePayload(productValues) {
   appendPutMethodOverride(formData)
 
   entries.forEach(({ variation, variantValue }, index) => {
+    assertVariantImagesPresent(variantValue, variation, { mode: 'edit' })
+
     const keyPrefix = `variations[${index}]`
     const variationData = normalizeVariantUpdateData(
       buildSingleVariationData(variantValue, variation, productValues),

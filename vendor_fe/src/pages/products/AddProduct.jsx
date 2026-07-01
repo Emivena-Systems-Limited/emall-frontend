@@ -185,7 +185,7 @@ function hasStepErrors(errors, fields) {
 }
 
 function getFieldError(formik, name) {
-  const touched = getIn(formik.touched, name)
+  const touched = getIn(formik.touched, name) || formik.submitCount > 0
   const error = getIn(formik.errors, name)
   return touched && typeof error === 'string' ? error : undefined
 }
@@ -993,9 +993,12 @@ function VariationCard({ formik, varIndex, onRemove }) {
                     <VariantPricingSummary variantValue={val} productValues={formik.values} />
                     <VariantImageUpload
                       images={val.images ?? []}
-                      onChange={(nextImages) =>
-                        formik.setFieldValue(`variations.${varIndex}.values.${i}.images`, nextImages)
-                      }
+                      onChange={(nextImages) => {
+                        const fieldPath = `variations.${varIndex}.values.${i}.images`
+                        formik.setFieldValue(fieldPath, nextImages)
+                        formik.setFieldTouched(fieldPath, true, false)
+                      }}
+                      error={getFieldError(formik, `variations.${varIndex}.values.${i}.images`)}
                     />
                   </div>
                 </div>

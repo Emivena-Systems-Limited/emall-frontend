@@ -8,6 +8,34 @@ import {
 } from '../utils/normalizeProducts'
 import { assertApiSuccess } from './authService'
 
+const COPY_NAME_PATTERN = /\(copy\)|\bcopy\b|\bduplicate\b/i
+
+function pickDuplicatedCatalogProduct(candidates, allProducts, sourceProductId) {
+  if (candidates.length === 0) return null
+  if (candidates.length === 1) return candidates[0]
+
+  const source = allProducts.find((product) => product.id === sourceProductId)
+  const sourceName = source?.name?.trim().toLowerCase() ?? ''
+
+  const nameMatches = candidates.filter((product) => {
+    const name = product.name?.trim().toLowerCase() ?? ''
+    if (!name) return false
+    if (COPY_NAME_PATTERN.test(product.name ?? '')) return true
+    if (!sourceName) return false
+    return name.includes(sourceName) || sourceName.includes(name)
+  })
+
+  const pool = nameMatches.length > 0 ? nameMatches : candidates
+
+  return pool
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return bTime - aTime
+    })[0]
+}
+
 async function fetchProductsPage(page) {
   const { data } = await apiClient.get(PRODUCT_ENDPOINTS.LIST, { params: { page } })
   assertApiSuccess(data)
@@ -135,17 +163,40 @@ export async function deleteProductVariant(productVariantId) {
   return productVariantId
 }
 
-export async function replicateProduct(productId) {
-  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.replicateById(productId))
+export async function duplicateProduct(sourceProductId, knownProductIds = []) {
+  const { data } = await apiClient.get(PRODUCT_ENDPOINTS.duplicateById(sourceProductId))
   assertApiSuccess(data)
 
-  const record = extractProductRecord(data)
-  if (!record?.id) {
-    throw new Error('Product was duplicated but no product id was returned.')
+  const inlineRecord = extractProductRecord(data)
+  if (inlineRecord?.id) {
+    return {
+      record: inlineRecord,
+      catalogProducts: null,
+    }
   }
 
-  return record
+  const catalogProducts = await getAllProducts()
+  const beforeIds = new Set(knownProductIds)
+  const candidates = catalogProducts.filter(
+    (product) => !beforeIds.has(product.id) && product.id !== sourceProductId,
+  )
+
+  const match = pickDuplicatedCatalogProduct(candidates, catalogProducts, sourceProductId)
+  if (!match?.id) {
+    throw new Error(
+      'Product was duplicated successfully but could not be found in your catalogue. Refresh the page and try again.',
+    )
+  }
+
+  const record = await getProductById(match.id)
+  return {
+    record,
+    catalogProducts,
+  }
 }
+
+/** @deprecated Use duplicateProduct */
+export const replicateProduct = duplicateProduct
 
 export async function toggleProductActive(productId) {
   const { data } = await apiClient.put(PRODUCT_ENDPOINTS.toggleActiveById(productId))
@@ -165,10 +216,26 @@ export async function deleteProduct(productId) {
   return productId
 }
 
+export async function deleteProductsBulk(productIds = []) {
+  const product_ids = [...new Set(productIds.filter(Boolean))]
+  if (product_ids.length === 0) return []
+
+  const { data } = await apiClient.delete(PRODUCT_ENDPOINTS.bulkDelete, {
+    data: { product_ids },
+  })
+  assertApiSuccess(data)
+  return product_ids
+}
+
 export async function deleteProducts(productIds = []) {
   const ids = [...new Set(productIds.filter(Boolean))]
-  await Promise.all(ids.map((productId) => deleteProduct(productId)))
-  return ids
+  if (ids.length === 0) return []
+  if (ids.length === 1) {
+    await deleteProduct(ids[0])
+    return ids
+  }
+
+  return deleteProductsBulk(ids)
 }
 
 export { toCatalogProduct }
