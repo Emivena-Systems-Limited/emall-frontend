@@ -157,6 +157,8 @@ export async function resendVendorOtp({ email }) {
 }
 
 export async function logoutVendor() {
-  const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.LOGOUT)
+  const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.LOGOUT, undefined, {
+    skipAuthLogout: true,
+  })
   return assertApiSuccess(data)
 }

@@ -8,7 +8,7 @@ export const PRODUCT_ENDPOINTS = {
   createVariantStore: '/api/product/variant/store',
   deleteVariantById: (productVariantId) => `/api/product/variant/trash/${productVariantId}`,
   deleteById: (productId) => `/api/product/trash/${productId}`,
-  bulkDelete: '/api/product/trash/bulk',
+  bulkDelete: '/api/product/multi-trash',
   duplicateById: (productId) => `/api/product/duplicate/${productId}`,
   toggleActiveById: (productId) => `/api/product/set/is_active/${productId}`,
 }

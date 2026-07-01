@@ -1,24 +1,67 @@
 import { useEffect, useRef, useState } from 'react'
-import Quill from 'quill'
-import 'quill/dist/quill.snow.css'
+import { EditorContent, useEditor } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import Link from '@tiptap/extension-link'
+import Image from '@tiptap/extension-image'
+import Placeholder from '@tiptap/extension-placeholder'
+import { TableKit } from '@tiptap/extension-table'
 import {
+  Bold,
   ImagePlus,
+  Italic,
   Link as LinkIcon,
+  List,
+  ListOrdered,
   Maximize2,
   Minimize2,
+  Quote,
+  Table2,
+  Trash2,
+  Underline as UnderlineIcon,
   Upload,
   X,
 } from 'lucide-react'
 import FieldError from '../auth/FieldError'
+import { isRichTextEmpty } from '../../utils/richText'
 
 const normalState = 'border-slate-200 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-light'
 const errorState = 'border-red-400 ring-2 ring-red-100'
-const emptyHtml = '<p><br></p>'
 
 function readImageFile(file, onLoad) {
   const reader = new FileReader()
   reader.onload = () => onLoad(reader.result)
   reader.readAsDataURL(file)
+}
+
+function readEditorHtml(editor) {
+  const html = editor.getHTML()
+  return isRichTextEmpty(html) ? '' : html
+}
+
+function ToolbarButton({
+  label,
+  active = false,
+  disabled = false,
+  onClick,
+  children,
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex size-8 cursor-pointer items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? 'bg-brand text-white'
+          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+      }`}
+    >
+      {children}
+    </button>
+  )
 }
 
 function ExpandButton({ expanded, onToggle }) {
@@ -37,7 +80,16 @@ function ExpandButton({ expanded, onToggle }) {
   )
 }
 
-function ImageInsertPanel({ open, imageUrl, onClose, onImageUrlChange, onInsertUrl, onUploadClick, fileInputRef, onFileChange }) {
+function ImageInsertPanel({
+  open,
+  imageUrl,
+  onClose,
+  onImageUrlChange,
+  onInsertUrl,
+  onUploadClick,
+  fileInputRef,
+  onFileChange,
+}) {
   if (!open) return null
 
   return (
@@ -91,40 +143,245 @@ function ImageInsertPanel({ open, imageUrl, onClose, onImageUrlChange, onInsertU
   )
 }
 
-function EditorToolbar({ toolbarRef, expanded, onToggleExpand, onOpenImagePanel }) {
+function EditorToolbar({
+  editor,
+  expanded,
+  onToggleExpand,
+  onOpenImagePanel,
+  tableMenuOpen,
+  onToggleTableMenu,
+  tableMenuRef,
+}) {
+  if (!editor) return null
+
+  const inTable = editor.isActive('table')
+
+  const setLink = () => {
+    const previousUrl = editor.getAttributes('link').href
+    const url = window.prompt('Enter link URL. Leave blank to remove the link.', previousUrl || 'https://')
+
+    if (url === null) return
+    if (url.trim() === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run()
+      return
+    }
+
+    const href = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`
+    editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-2 py-2">
-      <div ref={toolbarRef} className="product-quill-toolbar flex flex-wrap items-center gap-1">
-        <span className="ql-formats">
-          <select className="ql-header" defaultValue="">
-            <option value="2">Heading</option>
-            <option value="">Normal</option>
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="mr-1 inline-flex items-center">
+          <select
+            value={
+              editor.isActive('heading', { level: 2 })
+                ? 'h2'
+                : editor.isActive('heading', { level: 3 })
+                  ? 'h3'
+                  : 'p'
+            }
+            onChange={(event) => {
+              if (event.target.value === 'h2') {
+                editor.chain().focus().setHeading({ level: 2 }).run()
+                return
+              }
+              if (event.target.value === 'h3') {
+                editor.chain().focus().setHeading({ level: 3 }).run()
+                return
+              }
+              editor.chain().focus().setParagraph().run()
+            }}
+            className="h-8 cursor-pointer rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none transition-colors focus:border-brand"
+            aria-label="Text style"
+          >
+            <option value="p">Normal</option>
+            <option value="h2">Heading 2</option>
+            <option value="h3">Heading 3</option>
           </select>
         </span>
-        <span className="ql-formats">
-          <button type="button" className="ql-bold" aria-label="Bold" />
-          <button type="button" className="ql-italic" aria-label="Italic" />
-          <button type="button" className="ql-underline" aria-label="Underline" />
-        </span>
-        <span className="ql-formats">
-          <button type="button" className="ql-list" value="ordered" aria-label="Numbered list" />
-          <button type="button" className="ql-list" value="bullet" aria-label="Bullet list" />
-          <button type="button" className="ql-blockquote" aria-label="Quote" />
-        </span>
-        <span className="ql-formats">
-          <button type="button" className="ql-link" aria-label="Link" />
-          <button
-            type="button"
-            aria-label="Image"
-            onClick={onOpenImagePanel}
-            className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+
+        <ToolbarButton
+          label="Bold"
+          active={editor.isActive('bold')}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+        >
+          <Bold className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Italic"
+          active={editor.isActive('italic')}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+        >
+          <Italic className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Underline"
+          active={editor.isActive('underline')}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        >
+          <UnderlineIcon className="size-4" />
+        </ToolbarButton>
+
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+
+        <ToolbarButton
+          label="Bullet list"
+          active={editor.isActive('bulletList')}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
+          <List className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Numbered list"
+          active={editor.isActive('orderedList')}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        >
+          <ListOrdered className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Quote"
+          active={editor.isActive('blockquote')}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
+          <Quote className="size-4" />
+        </ToolbarButton>
+
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+
+        <ToolbarButton
+          label="Link"
+          active={editor.isActive('link')}
+          onClick={setLink}
+        >
+          <LinkIcon className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Image" onClick={onOpenImagePanel}>
+          <ImagePlus className="size-4" />
+        </ToolbarButton>
+
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+
+        <div className="relative" ref={tableMenuRef}>
+          <ToolbarButton
+            label="Table"
+            active={inTable || tableMenuOpen}
+            onClick={onToggleTableMenu}
           >
-            <ImagePlus className="size-4" />
-          </button>
-        </span>
-        <span className="ql-formats">
-          <button type="button" className="ql-clean" aria-label="Clear formatting" />
-        </span>
+            <Table2 className="size-4" />
+          </ToolbarButton>
+
+          {tableMenuOpen && (
+            <div className="absolute left-0 top-full z-20 mt-1 min-w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              {!inTable ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+                    onToggleTableMenu()
+                  }}
+                  className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Insert 3×3 table
+                </button>
+              ) : (
+                <>
+                  <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Rows
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addRowBefore().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Add row above
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addRowAfter().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Add row below
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().deleteRow().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Delete row
+                  </button>
+                  <p className="mt-1 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Columns
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addColumnBefore().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Add column left
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addColumnAfter().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Add column right
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().deleteColumn().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Delete column
+                  </button>
+                  <p className="mt-1 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Cells
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().mergeCells().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Merge selected cells
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().splitCell().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Split cell
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().toggleHeaderRow().run()}
+                    className="flex w-full cursor-pointer rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Toggle header row
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().deleteTable().run()
+                      onToggleTableMenu()
+                    }}
+                    className="mt-1 flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete table
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <ToolbarButton
+          label="Clear formatting"
+          onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+        >
+          <span className="text-[11px] font-bold">Tx</span>
+        </ToolbarButton>
       </div>
 
       <ExpandButton expanded={expanded} onToggle={onToggleExpand} />
@@ -155,14 +412,6 @@ function FieldLabel({ id, label, hint }) {
   )
 }
 
-function insertImage(quill, src) {
-  if (!quill || !src) return
-  const range = quill.getSelection(true)
-  const index = range?.index ?? quill.getLength()
-  quill.insertEmbed(index, 'image', src, 'user')
-  quill.setSelection(index + 1, 0, 'silent')
-}
-
 export default function ProductRichTextEditor({
   id,
   name = 'description',
@@ -174,95 +423,115 @@ export default function ProductRichTextEditor({
   error,
   placeholder = 'Describe product benefits, compatibility, package contents, and warranty information.',
 }) {
-  const editorContainerRef = useRef(null)
-  const toolbarRef = useRef(null)
   const fileInputRef = useRef(null)
   const panelRef = useRef(null)
-  const quillRef = useRef(null)
-  const initialValueRef = useRef(value)
+  const tableMenuRef = useRef(null)
+  const editorRef = useRef(null)
+  const lastEmittedHtmlRef = useRef(value ?? '')
   const onChangeRef = useRef(onChange)
   const onBlurRef = useRef(onBlur)
   const [expanded, setExpanded] = useState(false)
   const [imagePanelOpen, setImagePanelOpen] = useState(false)
+  const [tableMenuOpen, setTableMenuOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState('')
 
   useClickOutside(imagePanelOpen, panelRef, () => setImagePanelOpen(false))
+  useClickOutside(tableMenuOpen, tableMenuRef, () => setTableMenuOpen(false))
 
   useEffect(() => {
     onChangeRef.current = onChange
     onBlurRef.current = onBlur
   }, [onBlur, onChange])
 
-  useEffect(() => {
-    if (!editorContainerRef.current || !toolbarRef.current || quillRef.current) return undefined
-
-    const editorNode = editorContainerRef.current
-    const quill = new Quill(editorNode, {
-      theme: 'snow',
-      placeholder,
-      modules: {
-        toolbar: toolbarRef.current,
-        clipboard: {
-          matchVisual: false,
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [2, 3] },
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-brand underline underline-offset-2',
         },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'product-rich-text-image',
+        },
+      }),
+      Placeholder.configure({ placeholder }),
+      TableKit.configure({
+        table: {
+          resizable: true,
+          HTMLAttributes: {
+            class: 'product-rich-text-table',
+          },
+        },
+      }),
+    ],
+    content: value || '',
+    onUpdate: ({ editor: currentEditor }) => {
+      const html = readEditorHtml(currentEditor)
+      lastEmittedHtmlRef.current = html
+      onChangeRef.current(html)
+    },
+    onBlur: () => onBlurRef.current?.({ target: { name } }),
+    editorProps: {
+      attributes: {
+        id,
+        class: 'product-tiptap-editor',
+        'aria-label': label || 'Product description',
       },
-    })
+      handlePaste: (_view, event) => {
+        const file = Array.from(event.clipboardData?.files ?? []).find((item) =>
+          item.type.startsWith('image/'),
+        )
+        if (!file) return false
 
-    quillRef.current = quill
-    if (initialValueRef.current) {
-      quill.clipboard.dangerouslyPasteHTML(initialValueRef.current, 'silent')
-    }
+        readImageFile(file, (src) => {
+          editorRef.current?.chain().focus().setImage({ src }).run()
+        })
+        return true
+      },
+      handleDrop: (_view, event) => {
+        const file = Array.from(event.dataTransfer?.files ?? []).find((item) =>
+          item.type.startsWith('image/'),
+        )
+        if (!file) return false
 
-    const handleTextChange = () => {
-      const html = quill.root.innerHTML
-      onChangeRef.current(html === emptyHtml ? '' : html)
-    }
-
-    const handleBlur = () => onBlurRef.current?.({ target: { name } })
-
-    const handlePaste = (event) => {
-      const file = Array.from(event.clipboardData?.files ?? []).find((item) => item.type.startsWith('image/'))
-      if (!file) return
-      event.preventDefault()
-      readImageFile(file, (src) => insertImage(quill, src))
-    }
-
-    const handleDrop = (event) => {
-      const file = Array.from(event.dataTransfer?.files ?? []).find((item) => item.type.startsWith('image/'))
-      if (!file) return
-      event.preventDefault()
-      readImageFile(file, (src) => insertImage(quill, src))
-    }
-
-    quill.on('text-change', handleTextChange)
-    quill.root.addEventListener('blur', handleBlur)
-    quill.root.addEventListener('paste', handlePaste)
-    quill.root.addEventListener('drop', handleDrop)
-
-    return () => {
-      quill.off('text-change', handleTextChange)
-      quill.root.removeEventListener('blur', handleBlur)
-      quill.root.removeEventListener('paste', handlePaste)
-      quill.root.removeEventListener('drop', handleDrop)
-      quillRef.current = null
-      editorNode.innerHTML = ''
-    }
-  }, [name, placeholder])
+        event.preventDefault()
+        readImageFile(file, (src) => {
+          editorRef.current?.chain().focus().setImage({ src }).run()
+        })
+        return true
+      },
+    },
+  })
 
   useEffect(() => {
-    const quill = quillRef.current
-    if (!quill) return
+    editorRef.current = editor
+  }, [editor])
 
-    const next = value || emptyHtml
-    if (next !== quill.root.innerHTML) {
-      quill.clipboard.dangerouslyPasteHTML(next, 'silent')
-    }
-  }, [value])
+  useEffect(() => {
+    if (!editor) return
+
+    const next = value ?? ''
+    if (next === lastEmittedHtmlRef.current) return
+
+    lastEmittedHtmlRef.current = next
+    editor.commands.setContent(next || '', false)
+  }, [editor, value])
+
+  const insertImage = (src) => {
+    if (!editor || !src) return
+    editor.chain().focus().setImage({ src }).run()
+  }
 
   const handleInsertImageUrl = () => {
     const src = imageUrl.trim()
     if (!src) return
-    insertImage(quillRef.current, src)
+    insertImage(src)
     setImageUrl('')
     setImagePanelOpen(false)
   }
@@ -270,7 +539,7 @@ export default function ProductRichTextEditor({
   const handleFileChange = (event) => {
     const file = event.target.files?.[0]
     if (!file?.type.startsWith('image/')) return
-    readImageFile(file, (src) => insertImage(quillRef.current, src))
+    readImageFile(file, insertImage)
     event.target.value = ''
     setImagePanelOpen(false)
   }
@@ -280,10 +549,13 @@ export default function ProductRichTextEditor({
       <FieldLabel id={id} label={label} hint={hint} />
       <div className={`rounded-xl border bg-white transition-all ${error ? errorState : normalState}`}>
         <EditorToolbar
-          toolbarRef={toolbarRef}
+          editor={editor}
           expanded={expanded}
           onToggleExpand={() => setExpanded((current) => !current)}
           onOpenImagePanel={() => setImagePanelOpen((current) => !current)}
+          tableMenuOpen={tableMenuOpen}
+          onToggleTableMenu={() => setTableMenuOpen((current) => !current)}
+          tableMenuRef={tableMenuRef}
         />
         <div ref={panelRef}>
           <ImageInsertPanel
@@ -300,11 +572,11 @@ export default function ProductRichTextEditor({
         <div
           className={`product-rich-text-body ${expanded ? 'product-rich-text-body--expanded' : ''}`}
         >
-          <div ref={editorContainerRef} />
+          <EditorContent editor={editor} />
         </div>
       </div>
       <p className="mt-1.5 text-[11px] text-slate-400">
-        Drag the bottom edge to resize, or use the expand button in the toolbar.
+        Use the table button to insert or edit tables. Drag the bottom edge to resize, or expand for more space.
       </p>
       {error && <FieldError message={error} />}
     </div>

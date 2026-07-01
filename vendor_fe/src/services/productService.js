@@ -217,12 +217,14 @@ export async function deleteProduct(productId) {
 }
 
 export async function deleteProductsBulk(productIds = []) {
-  const products = [...new Set(productIds.filter(Boolean))]
-  if (products.length === 0) return []
+  const product_ids = [...new Set(productIds.filter(Boolean))]
+  if (product_ids.length === 0) return []
 
-  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.bulkDelete, { products })
+  const { data } = await apiClient.delete(PRODUCT_ENDPOINTS.bulkDelete, {
+    data: { product_ids },
+  })
   assertApiSuccess(data)
-  return products
+  return product_ids
 }
 
 export async function deleteProducts(productIds = []) {
