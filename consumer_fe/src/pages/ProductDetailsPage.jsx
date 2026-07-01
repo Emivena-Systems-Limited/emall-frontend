@@ -17,7 +17,7 @@ import { getProductBySlug, getRelatedProducts } from '../constants/productDetail
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
 import { formatCedi } from '../utils/formatCurrency'
-import { normalizeLandingProduct } from '../utils/normalizeLandingProducts'
+import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
 import { notify } from '../lib/notify'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
@@ -887,7 +887,7 @@ export default function ProductDetailsPage() {
     for (const sec of sections) {
       const list = landingData[sec]
       if (Array.isArray(list)) {
-        const found = list.find((p) => p && p.slug === slug)
+        const found = list.find((p) => p && p.slug === slug && isProductActive(p))
         if (found) return found
       }
     }
@@ -904,7 +904,7 @@ export default function ProductDetailsPage() {
   })
 
   const product = useMemo(() => {
-    if (apiProduct) {
+    if (apiProduct && isProductActive(apiProduct)) {
       return normalizeApiProductDetails(apiProduct)
     }
     if (landingProduct) {
@@ -1069,7 +1069,7 @@ export default function ProductDetailsPage() {
       const list = landingData[sec]
       if (Array.isArray(list)) {
         list.forEach((p) => {
-          if (p && !seenIds.has(p.id)) {
+          if (p && isProductActive(p) && !seenIds.has(p.id)) {
             seenIds.add(p.id)
             const normalized = normalizeLandingProduct(p)
             if (normalized) {

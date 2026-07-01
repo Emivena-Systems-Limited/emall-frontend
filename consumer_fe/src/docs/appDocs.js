@@ -114,6 +114,7 @@ export const progressLog = [
     items: [
       'Removed static dummy product fallbacks from homepage Recommended, Best Sellers, Flash Sales, and Explore product sections',
       'Homepage product sections now render only products returned by GET /landing-page/home',
+      'Landing page and product detail API products are filtered so records with is_active:false do not render',
       'Adjusted landing page query cache settings to reduce repeated loading/refetch cycles for database-backed homepage data',
     ],
   },

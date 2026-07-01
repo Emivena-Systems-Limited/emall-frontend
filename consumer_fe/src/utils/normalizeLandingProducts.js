@@ -18,6 +18,16 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback
 }
 
+export function isProductActive(product) {
+  if (!product || typeof product !== 'object') return false
+  const status = firstValue(product.is_active, product.isActive, product.active)
+  if (status === undefined) return true
+  if (typeof status === 'boolean') return status
+  if (typeof status === 'number') return status === 1
+  const normalized = String(status).trim().toLowerCase()
+  return ['true', '1', 'yes', 'active'].includes(normalized)
+}
+
 function slugify(value) {
   return String(value ?? 'product')
     .toLowerCase()
@@ -94,6 +104,7 @@ function getMetadataValue(metadata, key) {
 
 export function normalizeLandingProduct(product, index = 0, options = {}) {
   if (!product || typeof product !== 'object') return null
+  if (!isProductActive(product)) return null
 
   const variation = toArray(product.variants || product.variations)[0]
   const metadata = toArray(product.metadata)
