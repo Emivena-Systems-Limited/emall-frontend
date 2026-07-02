@@ -1,42 +1,119 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import {
   ChevronLeft,
   ChevronRight,
+  Heart,
+  ImageIcon,
   Minus,
   Plus,
   Share2,
   ShoppingCart,
   Star,
+  Truck,
+  UserPlus,
 } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
+import ProductImageGallery from '../components/product/ProductImageGallery'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
-import { formatCedi } from '../utils/formatCurrency'
+import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
 import { notify } from '../lib/notify'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
+import {
+  formatProductCondition,
+  isReservedKeyDetailKey,
+  sortKeyDetailEntries,
+} from '../utils/keyDetailsOrder'
 
-function Stars({ rating, size = 'size-4' }) {
-  const full = Math.floor(rating)
-  const half = rating % 1 >= 0.5
+const SHOW_PRODUCT_VARIANTS = false
+
+const STAR_FILL = '#F59E0B'
+const STAR_EMPTY_FILL = '#E2E8F0'
+
+const TRUST_INFO = {
+  refund: {
+    title: '30-day refund/replacement',
+    description:
+      'You can request a refund or replacement within 30 days of delivery if the item is damaged, defective, or not as described. Contact support with your order details to get started.',
+  },
+  secure: {
+    title: 'Secure transaction',
+    description:
+      'Your payment is processed through encrypted, trusted payment partners. EZ-Stores does not store your full card or mobile money details on our servers.',
+  },
+}
+
+function TrustInfoComment({ label, triggerText, infoKey, isOpen, onToggle, align = 'left' }) {
+  const info = TRUST_INFO[infoKey]
+  const bubbleId = `trust-info-${infoKey}`
 
   return (
-    <span className="inline-flex items-center gap-0.5">
+    <div className="relative">
+      <span className="text-[0.625rem] text-slate-500">
+        {label}{' '}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={bubbleId}
+          className={`font-bold text-blue-600 underline-offset-2 ${
+            isOpen ? 'underline' : 'hover:underline'
+          }`}
+        >
+          {triggerText}
+        </button>
+      </span>
+
+      {isOpen && (
+        <div
+          id={bubbleId}
+          role="region"
+          aria-label={info.title}
+          className={`absolute top-full z-20 mt-2 w-[min(18rem,calc(100vw-2.5rem))] ${
+            align === 'right' ? 'right-0' : 'left-0'
+          }`}
+        >
+          <div
+            aria-hidden="true"
+            className={`absolute -top-1.5 size-2.5 rotate-45 border border-slate-200 border-b-0 border-r-0 bg-white ${
+              align === 'right' ? 'right-5' : 'left-5'
+            }`}
+          />
+          <div className="relative rounded-xl border border-slate-200 bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+            <p className="text-xs font-semibold leading-5 text-slate-900">{info.title}</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{info.description}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Stars({ rating, size = 'size-4' }) {
+  const normalizedRating = Math.max(0, Math.min(5, Number(rating) || 0))
+
+  return (
+    <span className="inline-flex items-center gap-0.5" aria-hidden="true">
       {Array.from({ length: 5 }, (_, index) => {
-        const filled = index < full
-        const halfFilled = !filled && index === full && half
+        const fill = Math.max(0, Math.min(1, normalizedRating - index))
+        const fillWidth = `${fill * 100}%`
+
         return (
-          <span key={index} className={`relative inline-flex ${size}`}>
-            <Star className="size-full text-slate-200" fill="currentColor" strokeWidth={0} />
-            {(filled || halfFilled) && (
-              <span className="absolute inset-0 overflow-hidden" style={{ width: halfFilled ? '50%' : '100%' }}>
-                <Star className="size-full text-auth-primary" fill="currentColor" strokeWidth={0} />
+          <span key={index} className={`relative inline-flex shrink-0 ${size}`}>
+            <Star className="size-full" fill={STAR_EMPTY_FILL} strokeWidth={0} />
+            {fill > 0 && (
+              <span
+                className="absolute inset-y-0 left-0 overflow-hidden"
+                style={{ width: fillWidth }}
+              >
+                <Star className="size-full" fill={STAR_FILL} strokeWidth={0} />
               </span>
             )}
           </span>
@@ -46,33 +123,56 @@ function Stars({ rating, size = 'size-4' }) {
   )
 }
 
-function ProductGallery({ product, activeImage, setActiveImage }) {
-  const currentImage = activeImage || product.gallery[0]
+function splitSoldIndicator(text = '') {
+  const match = String(text).match(/^(.+?\sbought)\s+(in .+)$/i)
+  if (match) {
+    return { highlight: match[1], suffix: match[2] }
+  }
 
+  return { highlight: text, suffix: '' }
+}
+
+function formatStockAvailability(stockCount, lowStockThreshold = 10) {
+  if (stockCount <= 0) {
+    return {
+      headline: 'Out of Stock',
+      subtext: 'Currently unavailable',
+      tone: 'out',
+    }
+  }
+
+  if (stockCount <= lowStockThreshold) {
+    return {
+      headline: `Only ${stockCount} Items Left`,
+      subtext: "Don't miss it",
+      tone: 'low',
+    }
+  }
+
+  let headline
+  if (stockCount >= 1000) {
+    headline = `${Math.floor(stockCount / 1000)}K+`
+  } else if (stockCount >= 100) {
+    headline = `${Math.floor(stockCount / 100) * 100}+`
+  } else {
+    headline = `${Math.floor(stockCount / 10) * 10}+`
+  }
+
+  return {
+    headline,
+    subtext: 'Available now',
+    tone: 'in',
+  }
+}
+
+function ProductGallery({ product, activeImage, setActiveImage }) {
   return (
-    <div className="space-y-3">
-      <div className="group overflow-hidden bg-white">
-        <img
-          src={currentImage}
-          alt={product.title}
-          className="aspect-square w-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:aspect-[1.45] motion-safe:group-hover:scale-110"
-        />
-      </div>
-      <div className="flex justify-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {product.gallery.map((image, index) => (
-          <button
-            key={`${image}-${index}`}
-            type="button"
-            onClick={() => setActiveImage(image)}
-            className={`size-13 shrink-0 overflow-hidden border bg-white p-0.5 transition-colors sm:size-15 ${
-              currentImage === image ? 'border-auth-primary' : 'border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            <img src={image} alt="" className="size-full object-cover" />
-          </button>
-        ))}
-      </div>
-    </div>
+    <ProductImageGallery
+      images={product.gallery}
+      title={product.title}
+      activeImage={activeImage}
+      onActiveImageChange={setActiveImage}
+    />
   )
 }
 
@@ -133,25 +233,25 @@ function VariantGroup({ label, values, selected, onSelect }) {
 
 function QuantitySelector({ value, onChange, disabled }) {
   return (
-    <div className="inline-flex h-10 min-w-30 items-center justify-between rounded-full bg-slate-50 px-2">
+    <div className="inline-flex h-12 min-w-36 items-center justify-between rounded-full bg-slate-50 px-2.5 sm:h-14 sm:min-w-40 sm:px-3">
       <button
         type="button"
         aria-label="Decrease quantity"
         disabled={disabled || value <= 1}
         onClick={() => onChange(Math.max(1, value - 1))}
-        className="flex size-7 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex size-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary disabled:cursor-not-allowed disabled:opacity-40 sm:size-10"
       >
-        <Minus className="size-4" />
+        <Minus className="size-5" />
       </button>
-      <span className="min-w-8 text-center text-sm font-bold text-auth-primary">{value}</span>
+      <span className="min-w-10 text-center text-base font-bold text-auth-primary sm:min-w-12 sm:text-lg">{value}</span>
       <button
         type="button"
         aria-label="Increase quantity"
         disabled={disabled}
         onClick={() => onChange(value + 1)}
-        className="flex size-7 items-center justify-center rounded-full text-auth-primary transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex size-9 items-center justify-center rounded-full text-auth-primary transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 sm:size-10"
       >
-        <Plus className="size-4" />
+        <Plus className="size-5" />
       </button>
     </div>
   )
@@ -184,27 +284,29 @@ async function shareProduct(product) {
   }
 }
 
+const SIDEBAR_REVIEW_LIMIT = 3
+
 const fallbackReviewCards = [
   {
     id: 'review-1',
     name: 'Isaac Morgan',
     rating: 5,
-    date: 'Jan 09, 2026',
-    text: 'This item is exactly as described. The finishing feels solid and delivery was quick.',
+    date: 'Feb 2024',
+    text: 'This item is so durable, I love it.',
   },
   {
     id: 'review-2',
     name: 'Akua Mensah',
     rating: 5,
-    date: 'Jan 06, 2026',
-    text: 'Good quality and comfortable to use every day. I would buy from this seller again.',
+    date: 'Jan 28, 2026',
+    text: 'Good quality and comfortable to use every day.',
   },
   {
     id: 'review-3',
-    name: 'Isaac Morgan',
+    name: 'Kwame Asante',
     rating: 4,
-    date: 'Jan 04, 2026',
-    text: 'Looks nice and fits well. Packaging was clean and the product arrived safely.',
+    date: 'Jan 22, 2026',
+    text: 'Looks nice and fits well. Packaging was clean.',
   },
 ]
 
@@ -229,6 +331,8 @@ function ProductInfoPanel({
   displayPriceInfo
 }) {
   const [quantity, setQuantity] = useState(1)
+  const [trustInfoOpen, setTrustInfoOpen] = useState(null)
+  const trustInfoRef = useRef(null)
   const navigate = useNavigate()
   const cartItems = useSelector(selectCartItems)
   const { addToCart } = useCartActions()
@@ -243,8 +347,13 @@ function ProductInfoPanel({
   const hasDuplicateSizeValues = sizeValues.length > 0
     && colorValueSet.size > 0
     && sizeValues.every((value) => colorValueSet.has(String(value).toLowerCase()))
-  const showCompatibleModels = compatibleModelValues.length > 0 && !hasDuplicateCompatibleModels
-  const showSizeVariants = sizeValues.length > 0 && !isColorVariantGroup && !hasDuplicateSizeValues
+  const showCompatibleModels = SHOW_PRODUCT_VARIANTS
+    && compatibleModelValues.length > 0
+    && !hasDuplicateCompatibleModels
+  const showSizeVariants = SHOW_PRODUCT_VARIANTS
+    && sizeValues.length > 0
+    && !isColorVariantGroup
+    && !hasDuplicateSizeValues
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
@@ -254,7 +363,31 @@ function ProductInfoPanel({
     }
   }
 
-  const isLowStock = !outOfStock && product.stockCount <= (product.lowStockThreshold ?? 10)
+  useEffect(() => {
+    if (!trustInfoOpen) return undefined
+
+    const handlePointerDown = (event) => {
+      if (!trustInfoRef.current?.contains(event.target)) {
+        setTrustInfoOpen(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [trustInfoOpen])
+
+  const toggleTrustInfo = (infoKey) => {
+    setTrustInfoOpen((current) => (current === infoKey ? null : infoKey))
+  }
+
+  const stockAvailability = formatStockAvailability(product.stockCount, product.lowStockThreshold ?? 10)
+  const soldCopy = splitSoldIndicator(product.soldIndicator)
+  const currentPriceParts = formatProductPriceParts(displayPriceInfo.price)
+  const hasSalePrice =
+    displayPriceInfo.compareAt != null &&
+    displayPriceInfo.discountPercent != null &&
+    displayPriceInfo.compareAt > displayPriceInfo.price
+  const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
   const activeCartKey = [
     product.id,
     activeVariant?.id,
@@ -286,66 +419,55 @@ function ProductInfoPanel({
 
   return (
     <aside className="min-w-0 bg-white p-3 sm:p-4">
-      <div className="border-b border-slate-200 pb-3">
-        <h1 className="break-words text-lg font-bold leading-snug text-slate-950">{product.title}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-          {product.reviewCount > 0 ? (
-            <>
-              <span className="font-bold text-slate-950">{product.rating.toFixed(1)}</span>
-              <Stars rating={product.rating} size="size-3" />
-              <Link to="#reviews" className="font-semibold text-blue-600 hover:underline">
-                ({product.reviewCount.toLocaleString()})
-              </Link>
-            </>
-          ) : (
-            <span className="font-medium text-slate-500">No reviews yet</span>
-          )}
-          <span className="font-semibold text-slate-600">{product.salesCount.toLocaleString()} sold</span>
-        </div>
-        <p className="mt-1 text-[0.6875rem] font-semibold text-slate-600">{product.soldIndicator}</p>
-        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded bg-red-50">
-              <ShoppingCart className="size-3.5 text-auth-primary" strokeWidth={2} />
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="wrap-break-word text-lg font-medium capitalize leading-snug tracking-tight text-slate-900 sm:text-xl">
+            {product.title}
+          </h1>
+
+          <StoreInfo product={product} />
+
+        <div className="mt-3">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200/80 bg-linear-to-r from-emerald-50 to-[#E6F4EA] px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm ring-1 ring-emerald-100/80">
+            <span className="flex size-5 items-center justify-center rounded-full bg-white/80 text-emerald-600">
+              <Truck className="size-3" strokeWidth={2.25} aria-hidden="true" />
             </span>
-            <Link to="/stores" className="shrink-0 text-xs font-bold text-blue-600 hover:underline">
-              Visit the {product.storeName}
-            </Link>
-            <span className="min-w-0 flex-1 truncate text-[0.625rem] font-semibold text-slate-500">
-              110 Followers | 150k+ Followers | {product.rating.toFixed(1)} ★
+            Free delivery
+          </span>
+        </div>
+
+        {product.soldIndicator && (
+          <p className="mt-2 text-sm leading-5 text-slate-950">
+            <span className="font-bold">{soldCopy.highlight}</span>
+            {soldCopy.suffix ? ` ${soldCopy.suffix}` : ''}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1 py-3">
+        <div className={`flex gap-x-2 ${hasSalePrice ? 'items-end' : ''}`}>
+          {hasSalePrice && (
+            <span className="pb-1 text-2xl font-semibold leading-none text-[#C73B2D]">
+              -{displayPriceInfo.discountPercent}%
+            </span>
+          )}
+          <div className="inline-flex items-start gap-0.5 leading-none">
+            <span className="pt-1 text-sm font-normal text-slate-950">{currentPriceParts.currency}</span>
+            <span className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-[2.5rem]">
+              {currentPriceParts.amount}
             </span>
           </div>
-          <button
-            type="button"
-            className="shrink-0 rounded-full border border-slate-300 px-4 py-1.5 text-[0.625rem] font-bold text-slate-800 transition-colors hover:bg-slate-50 sm:px-5"
-          >
-            Follow
-          </button>
         </div>
+        {hasSalePrice && (
+          <p className="text-sm text-slate-500">
+            List Price:{' '}
+            <span className="line-through">{formatProductListPrice(listPriceValue)}</span>
+          </p>
+        )}
       </div>
 
-      <div className="space-y-2 py-3">
-        <p className="w-fit rounded-sm bg-auth-primary px-2 py-1 text-[0.625rem] font-bold text-white">
-          Limited time deal
-        </p>
-        <div className="flex flex-wrap items-end gap-2">
-          {displayPriceInfo.discountPercent && (
-            <span className="text-xl font-bold text-auth-primary">-{displayPriceInfo.discountPercent}%</span>
-          )}
-          <span className="text-2xl font-extrabold text-slate-950">{formatCedi(displayPriceInfo.price)}</span>
-          {displayPriceInfo.compareAt && (
-            <span className="pb-0.5 text-xs text-slate-400 line-through">{formatCedi(displayPriceInfo.compareAt)}</span>
-          )}
-        </div>
-        <p className="text-xs font-medium text-slate-500">
-          List Price:{' '}
-          <span className={displayPriceInfo.compareAt ? 'line-through' : ''}>
-            {displayPriceInfo.compareAt ? formatCedi(displayPriceInfo.compareAt) : formatCedi(displayPriceInfo.price)}
-          </span>
-        </p>
-      </div>
-
-      <ColorSwatches product={product} selected={selectedColor} onSelect={handleColorSelect} />
+      {SHOW_PRODUCT_VARIANTS && (
+        <ColorSwatches product={product} selected={selectedColor} onSelect={handleColorSelect} />
+      )}
       
       {showCompatibleModels && (
         <VariantGroup
@@ -367,15 +489,21 @@ function ProductInfoPanel({
 
       <div className="mt-4 border-t border-slate-200 pt-4">
         <p className="text-xs font-bold text-slate-950">Quantity</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3 sm:gap-4">
+        <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
           <QuantitySelector value={quantity} onChange={setQuantity} disabled={outOfStock} />
-          <p className="text-[0.625rem] leading-4">
-            <span className={outOfStock ? 'font-bold text-red-600' : isLowStock ? 'font-bold text-auth-primary' : 'font-bold text-emerald-600'}>
-              {outOfStock ? 'Out of Stock' : isLowStock ? `Only ${product.stockCount} Items Left` : 'In Stock'}
+          <p className="text-sm leading-5">
+            <span
+              className={
+                stockAvailability.tone === 'out'
+                  ? 'font-bold text-red-600'
+                  : stockAvailability.tone === 'low'
+                    ? 'font-bold text-auth-primary'
+                    : 'font-bold text-emerald-600'
+              }
+            >
+              {stockAvailability.headline}
             </span>
-            <span className="block text-slate-500">
-              {outOfStock ? 'Currently unavailable' : isLowStock ? "Don't miss it" : 'Available now'}
-            </span>
+            <span className="block text-slate-500">{stockAvailability.subtext}</span>
           </p>
         </div>
       </div>
@@ -398,9 +526,25 @@ function ProductInfoPanel({
         </button>
       </div>
 
-      <div className="mt-3 grid gap-1.5 text-[0.625rem] text-slate-500 min-[480px]:flex min-[480px]:items-center min-[480px]:justify-between min-[480px]:gap-3">
-        <span>Returns <b className="text-blue-600">30-day refund/replacement</b></span>
-        <span>Payment <b className="text-blue-600">Secure transaction</b></span>
+      <div
+        ref={trustInfoRef}
+        className="relative mt-3 flex flex-col gap-2 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between min-[480px]:gap-6"
+      >
+        <TrustInfoComment
+          label="Returns"
+          triggerText="30-day refund/replacement"
+          infoKey="refund"
+          isOpen={trustInfoOpen === 'refund'}
+          onToggle={() => toggleTrustInfo('refund')}
+        />
+        <TrustInfoComment
+          label="Payment"
+          triggerText="Secure transaction"
+          infoKey="secure"
+          isOpen={trustInfoOpen === 'secure'}
+          onToggle={() => toggleTrustInfo('secure')}
+          align="right"
+        />
       </div>
     </aside>
   )
@@ -416,24 +560,24 @@ function KeyDetails({ product, activeSku }) {
   delete detailsList['Status']
   delete detailsList['status']
 
+  const sortedEntries = sortKeyDetailEntries(Object.entries(detailsList))
+
   return (
-    <section className="min-w-0 bg-white p-3 sm:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-slate-950">Key Details</h2>
-        <button
-          type="button"
-          onClick={() => shareProduct(product)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 px-4 py-1.5 text-[0.6875rem] font-bold text-slate-700 transition-colors hover:bg-slate-50"
-        >
-          <Share2 className="size-3.5" strokeWidth={2.4} />
-          Share
-        </button>
-      </div>
+    <section className="relative min-w-0 bg-white p-3 sm:p-4">
+      <button
+        type="button"
+        onClick={() => shareProduct(product)}
+        className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 sm:right-4 sm:top-4"
+      >
+        <Share2 className="size-3.5" strokeWidth={2.2} />
+        Share
+      </button>
+      <h2 className="pr-24 text-sm font-bold text-slate-950">Key Details</h2>
       <dl className="mt-2 grid gap-1 text-[0.6875rem] leading-4 text-slate-700">
-        {Object.entries(detailsList).map(([key, value]) => (
+        {sortedEntries.map(([key, value]) => (
           <div key={key} className="grid min-w-0 gap-1 sm:grid-cols-[11rem_1fr]">
             <dt className="font-bold">{key}:</dt>
-            <dd className="break-words">{value}</dd>
+            <dd className="wrap-break-word">{value}</dd>
           </div>
         ))}
       </dl>
@@ -441,52 +585,84 @@ function KeyDetails({ product, activeSku }) {
   )
 }
 
-function ReviewSummary({ product }) {
+const fallbackAboutItems = [
+  'Thoughtfully designed with easy to use details throughout.',
+  'Premium feel and practical protection for everyday use.',
+  'Smooth finish with dependable grip for secure everyday handling.',
+  'Shaped for comfortable handling with a clean, modern look.',
+  'Available from EZ-Stores Marketplace with fast, reliable delivery.',
+]
+
+function AboutThisItem({ product }) {
+  const items = product.about?.length ? product.about : fallbackAboutItems
+
   return (
-    <section id="reviews" className="min-w-0 bg-white p-3 sm:p-4">
-      <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
-      <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
-      <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
-      <button className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800" type="button">
-        Write a customer review
-      </button>
-
-      {product.reviewCount > 0 ? (
-        <>
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <span className="text-sm font-extrabold text-slate-950">{product.reviewCount.toLocaleString()} reviews | {product.rating.toFixed(1)}</span>
-            <Stars rating={product.rating} size="size-3" />
-            <span className="rounded-sm bg-emerald-50 px-2 py-1 text-[0.5rem] font-bold text-emerald-700 sm:ml-auto">
-              All ratings are by verified purchases
-            </span>
-          </div>
-
-          <div className="mt-5 space-y-2">
-            {product.ratingDistribution.map((row) => (
-              <div key={row.label} className="grid grid-cols-[4.5rem_1fr_2rem] items-center gap-3 text-[0.625rem] text-slate-600">
-                <span className="truncate">{row.label}</span>
-                <span className="h-1.5 overflow-hidden rounded-full bg-slate-200">
-                  <span className="block h-full rounded-full bg-slate-950" style={{ width: `${row.value}%` }} />
-                </span>
-                <span className="text-right">{row.value}%</span>
-              </div>
-            ))}
-          </div>
-        </>
-      ) : (
-        <p className="mt-4 text-xs text-slate-500">No ratings yet for this product.</p>
-      )}
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {['Nice', 'Perfect Fitting', 'Comfy'].map((tag) => (
-          <span key={tag} className="rounded-full bg-slate-100 px-3 py-1 text-[0.625rem] font-semibold text-slate-600">
-            {tag}
-          </span>
+    <section className="min-w-0 bg-white p-3 sm:p-4">
+      <h2 className="text-sm font-bold text-slate-950">About this item</h2>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.6875rem] leading-4 text-slate-700">
+        {items.map((item, index) => (
+          <li key={`${item}-${index}`} className="wrap-break-word">{item}</li>
         ))}
+      </ul>
+    </section>
+  )
+}
+
+function ReviewSummary({ product, minHeight = null }) {
+  const isHeightAligned = minHeight != null
+  const visibleReviews = product.reviews.slice(0, SIDEBAR_REVIEW_LIMIT)
+
+  return (
+    <section
+      id="reviews"
+      className={`min-w-0 bg-white p-3 sm:p-4 ${isHeightAligned ? 'flex flex-col' : ''}`}
+      style={isHeightAligned ? { minHeight } : undefined}
+    >
+      <div className="shrink-0">
+        <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
+        <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
+        <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
+        <button className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800" type="button">
+          Write a customer review
+        </button>
+
+        {product.reviewCount > 0 ? (
+          <>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-extrabold text-slate-950">{product.reviewCount.toLocaleString()} reviews | {product.rating.toFixed(1)}</span>
+              <Stars rating={product.rating} size="size-3" />
+              <span className="rounded-sm bg-emerald-50 px-2 py-1 text-[0.5rem] font-bold text-emerald-700 sm:ml-auto">
+                All ratings are by verified purchases
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {product.ratingDistribution.map((row) => (
+                <div key={row.label} className="grid grid-cols-[4.5rem_1fr_2rem] items-center gap-3 text-[0.625rem] text-slate-600">
+                  <span className="truncate">{row.label}</span>
+                  <span className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                    <span className="block h-full rounded-full bg-slate-950" style={{ width: `${row.value}%` }} />
+                  </span>
+                  <span className="text-right">{row.value}%</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="mt-4 text-xs text-slate-500">No ratings yet for this product.</p>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {['Nice', 'Perfect Fitting', 'Comfy'].map((tag) => (
+            <span key={tag} className="rounded-full bg-slate-100 px-3 py-1 text-[0.625rem] font-semibold text-slate-600">
+              {tag}
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {product.reviews.map((review) => (
+      <div className={`space-y-3 ${isHeightAligned ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}>
+        {visibleReviews.map((review) => (
           <article key={review.id} className="border-t border-slate-200 pt-3">
             <div className="flex items-start gap-2">
               <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-pink-600 text-xs font-bold text-white">
@@ -498,14 +674,14 @@ function ReviewSummary({ product }) {
                   <span className="text-[0.5625rem] text-slate-500">on {review.date}</span>
                 </div>
                 <Stars rating={review.rating} size="size-3" />
-                <p className="mt-1 break-words text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
+                <p className="mt-1 wrap-break-word text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
               </div>
             </div>
           </article>
         ))}
       </div>
 
-      <div className="mt-5 text-center">
+      <div className={`text-center ${isHeightAligned ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}>
         <button type="button" className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800">
           See All Reviews
         </button>
@@ -514,67 +690,68 @@ function ReviewSummary({ product }) {
   )
 }
 
-function SellerShowcase({ product }) {
+function RailPriceDisplay({ price }) {
+  const parts = formatProductPriceParts(price)
+  const [whole, fraction] = parts.amount.includes('.')
+    ? parts.amount.split('.')
+    : [parts.amount, null]
+
   return (
-    <section className="bg-white p-3 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex size-13 items-center justify-center rounded-full bg-red-50">
-            <ShoppingCart className="size-6 text-auth-primary" />
-          </span>
-          <div>
-            <h2 className="text-base font-bold text-blue-600">Visit the {product.storeName}</h2>
-            <p className="text-xs text-slate-500">110 Followers | 150k+ Followers | {product.rating.toFixed(1)} ★</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" className="rounded-full border border-slate-300 px-5 py-2 text-xs font-bold text-slate-800">Follow</button>
-          <button type="button" className="rounded-full border border-slate-300 px-5 py-2 text-xs font-bold text-slate-800">Shop all items</button>
-        </div>
-      </div>
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3">
-        {product.gallery.slice(1, 5).map((image, index) => (
-          <img key={`${image}-${index}`} src={image} alt="" className="aspect-square w-full bg-slate-100 object-cover" />
-        ))}
-      </div>
-      <div className="mt-5 text-center">
-        <button type="button" className="rounded-full border border-slate-300 px-7 py-2 text-xs font-semibold text-slate-800 sm:px-8 sm:py-2.5 sm:text-sm">See All</button>
-      </div>
-    </section>
+    <span className="inline-flex items-baseline leading-none text-slate-950">
+      <span className="mr-1 text-[0.625rem] font-normal">{parts.currency}</span>
+      <span className="text-sm font-extrabold">{whole}</span>
+      {fraction != null && (
+        <span className="relative -top-0.5 text-[0.55rem] font-extrabold leading-none">.{fraction}</span>
+      )}
+    </span>
   )
 }
 
 function RailProductCard({ product }) {
-  const fullStars = Math.floor(product.rating)
-
+  const fullStars = Math.floor(product.rating ?? 0)
   const productHref = product.href?.replace(/^\/products\//, '/')
 
   return (
-    <article className="min-w-0">
+    <article className="min-w-0 bg-white">
       <Link to={productHref} className="block">
-        <span className="relative block aspect-square overflow-hidden bg-slate-100">
-          <img src={product.image} alt={product.name} className="size-full object-cover" loading="lazy" />
-          {product.discountPercent != null && (
-            <span className="absolute left-1 top-1 bg-yellow-300 px-1.5 py-0.5 text-[0.5rem] font-bold text-slate-900">
-              {product.discountPercent}% OFF
-            </span>
-          )}
+        <span className="relative block aspect-square overflow-hidden bg-slate-50">
+          <img src={product.image} alt={product.name} className="size-full object-contain p-1" loading="lazy" />
+          <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
+            {product.discountPercent != null && (
+              <span className="rounded-sm bg-[#F5D020] px-1.5 py-0.5 text-[0.5rem] font-bold leading-none text-slate-900">
+                {product.discountPercent}% OFF
+              </span>
+            )}
+            {product.isHot && (
+              <span className="rounded-sm bg-auth-primary px-1.5 py-0.5 text-[0.5rem] font-bold leading-none text-white">
+                HOT
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-label={`Save ${product.name}`}
+            onClick={(event) => event.preventDefault()}
+            className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center"
+          >
+            <Heart className="size-3.5 text-white drop-shadow-sm" strokeWidth={2} />
+          </button>
         </span>
-        <span className="mt-1 block truncate text-[0.6875rem] font-bold text-slate-900">{product.name}</span>
-        <span className="block text-[0.6875rem] font-extrabold text-slate-950">{formatCedi(product.price)}</span>
+        <span className="mt-1.5 block truncate text-xs font-bold text-slate-900">{product.name}</span>
       </Link>
+      <RailPriceDisplay price={product.price} />
       <div className="mt-1 flex items-center justify-between gap-2">
         {product.reviewCount > 0 ? (
           <div className="flex min-w-0 items-center gap-0.5">
             {Array.from({ length: 5 }, (_, index) => (
               <Star
                 key={index}
-                className={`size-2.5 ${index < fullStars ? 'text-auth-primary' : 'text-slate-300'}`}
-                fill="currentColor"
+                className="size-2.5"
+                fill={index < fullStars ? STAR_FILL : '#CBD5E1'}
                 strokeWidth={0}
               />
             ))}
-            <span className="ml-1 text-[0.5625rem] text-slate-500">({product.reviewCount})</span>
+            <span className="ml-0.5 text-[0.5625rem] text-slate-500">({product.reviewCount})</span>
           </div>
         ) : (
           <span className="text-[0.5625rem] text-slate-400">No reviews</span>
@@ -582,7 +759,7 @@ function RailProductCard({ product }) {
         <Link
           to="/cart"
           aria-label={`Add ${product.name} to cart`}
-          className="flex size-6 items-center justify-center rounded-full border border-slate-300 text-slate-500"
+          className="flex size-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-500 transition-colors hover:border-auth-primary hover:text-auth-primary"
         >
           <ShoppingCart className="size-3" strokeWidth={1.8} />
         </Link>
@@ -591,17 +768,15 @@ function RailProductCard({ product }) {
   )
 }
 
-function HorizontalProductRail({ title, products, visibleCount }) {
+function HorizontalProductRail({ title, products, visibleCount = 5 }) {
   const railRef = useRef(null)
-  const desktopAutoCols = visibleCount === 3
-    ? 'lg:auto-cols-[calc((100%-1.5rem)/3)]'
-    : 'lg:auto-cols-[calc((100%-3rem)/5)]'
+  const gapCount = Math.max(visibleCount - 1, 1)
 
   const scrollRail = (direction) => {
     const rail = railRef.current
     if (!rail) return
     rail.scrollBy({
-      left: direction * Math.max(rail.clientWidth * 0.85, 240),
+      left: direction * rail.clientWidth,
       behavior: 'smooth',
     })
   }
@@ -618,26 +793,27 @@ function HorizontalProductRail({ title, products, visibleCount }) {
   }
 
   return (
-    <section className="min-w-0 bg-white p-3 sm:p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+    <section className="min-w-0 border-t border-slate-200 bg-white p-3 sm:p-4">
+      <div className="mb-3 flex items-center justify-between gap-4">
         <h2 className="text-base font-bold text-slate-950">{title}</h2>
-        <span className="text-xs font-semibold text-slate-600">Page 1 Of 50</span>
+        <span className="shrink-0 text-xs font-semibold text-slate-600">Page 1 Of 50</span>
       </div>
-      <div className="relative">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden sm:gap-3">
         <button
           type="button"
           onClick={() => scrollRail(-1)}
           aria-label={`Previous ${title}`}
-          className="absolute left-0 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-300 bg-white"
+          className="flex size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:size-9"
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-4 sm:size-5" strokeWidth={2} />
         </button>
         <div
           ref={railRef}
           tabIndex={0}
           onKeyDown={handleRailKeyDown}
           aria-label={`${title} product carousel`}
-          className={`grid auto-cols-[7rem] grid-flow-col grid-rows-1 gap-2 overflow-x-auto scroll-smooth px-8 pb-1 outline-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/40 min-[390px]:auto-cols-[7.5rem] sm:auto-cols-[9rem] sm:gap-3 ${desktopAutoCols} [&::-webkit-scrollbar]:hidden`}
+          style={{ gridAutoColumns: `calc((100% - ${gapCount * 0.5}rem) / ${visibleCount})` }}
+          className="grid min-w-0 flex-1 grid-flow-col grid-rows-1 gap-2 overflow-x-auto scroll-smooth outline-none [scrollbar-width:none] [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/40 sm:gap-2 [&::-webkit-scrollbar]:hidden"
         >
           {products.map((item) => (
             <div key={`${item.slug}-${title}`} className="min-w-0">
@@ -649,12 +825,128 @@ function HorizontalProductRail({ title, products, visibleCount }) {
           type="button"
           onClick={() => scrollRail(1)}
           aria-label={`Next ${title}`}
-          className="absolute right-0 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-300 bg-white"
+          className="flex size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:size-9"
         >
-          <ChevronRight className="size-4" />
+          <ChevronRight className="size-4 sm:size-5" strokeWidth={2} />
         </button>
       </div>
     </section>
+  )
+}
+
+function mapDescriptiveImageUrls(descriptiveImages) {
+  if (!Array.isArray(descriptiveImages)) return []
+
+  return descriptiveImages
+    .map((image) => {
+      if (typeof image === 'string') return image.trim()
+      return String(image?.image_url ?? image?.url ?? image?.preview ?? '').trim()
+    })
+    .filter(Boolean)
+}
+
+const DESCRIPTIVE_GRID_SIZE = 4
+
+function buildDescriptiveGridImages(product) {
+  const descriptive = (product.descriptiveImages ?? []).filter(Boolean)
+  const gallery = (product.gallery ?? []).filter(Boolean)
+  const used = new Set(descriptive)
+  const fillerPool = gallery.filter((url) => !used.has(url))
+
+  // Stable variety: shuffle fillers by product slug so fills don't always pick the same order.
+  const seed = String(product.slug ?? product.id ?? '')
+  const shuffledFillers = [...fillerPool].sort((a, b) => {
+    const score = (value) => {
+      let hash = 0
+      const key = `${seed}:${value}`
+      for (let i = 0; i < key.length; i += 1) {
+        hash = (hash * 31 + key.charCodeAt(i)) | 0
+      }
+      return hash
+    }
+    return score(a) - score(b)
+  })
+
+  const combined = [...descriptive]
+  shuffledFillers.forEach((url) => {
+    if (combined.length < DESCRIPTIVE_GRID_SIZE) combined.push(url)
+  })
+
+  if (combined.length < DESCRIPTIVE_GRID_SIZE && gallery.length > 0) {
+    let index = 0
+    while (combined.length < DESCRIPTIVE_GRID_SIZE) {
+      combined.push(gallery[index % gallery.length])
+      index += 1
+    }
+  }
+
+  return Array.from({ length: DESCRIPTIVE_GRID_SIZE }, (_, index) => combined[index] ?? null)
+}
+
+function DescriptiveImagePlaceholder() {
+  return <ImageIcon className="size-7 text-slate-300 sm:size-8" strokeWidth={1.5} />
+}
+
+function DescriptiveImagesGrid({ product }) {
+  const images = buildDescriptiveGridImages(product)
+  const hasDescriptive = (product.descriptiveImages ?? []).length > 0
+
+  return (
+    <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
+      <h3 className="font-bold text-slate-950">Product Images</h3>
+      <div className="grid w-full grid-cols-2 gap-2 sm:gap-3">
+        {images.map((src, index) => (
+          <div
+            key={index}
+            className="flex aspect-square items-center justify-center overflow-hidden rounded-sm bg-slate-100 p-2.5 sm:p-3"
+          >
+            {src
+              ? (
+                <img
+                  src={src}
+                  alt={hasDescriptive ? `Product detail ${index + 1}` : `Product image ${index + 1}`}
+                  className="max-h-full max-w-full object-contain"
+                  loading="lazy"
+                />
+              )
+              : <DescriptiveImagePlaceholder />
+            }
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StoreInfo({ product }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <div className="min-w-0 flex-1">
+        <Link
+          to={product.vendorId ? `/stores/${product.vendorId}` : '/stores'}
+          className="text-sm font-bold leading-snug text-[#2E71A1] hover:underline"
+        >
+          {product.storeName}
+        </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+          <span>
+            <b className="text-slate-800">110</b> Followers
+          </span>
+          <span className="text-slate-300" aria-hidden="true">|</span>
+          <span className="inline-flex items-center gap-1">
+            <Stars rating={product.rating ?? 4.5} size="size-3" />
+            <b className="text-slate-800">{product.rating?.toFixed(1) ?? '4.5'}</b>
+          </span>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-800 transition-colors hover:border-auth-primary hover:text-auth-primary sm:px-4"
+      >
+        <UserPlus className="size-3.5" strokeWidth={2.2} />
+        Follow
+      </button>
+    </div>
   )
 }
 
@@ -671,12 +963,12 @@ function ProductDescription({ product }) {
         {Object.entries(detailsList).map(([key, value]) => (
           <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
             <dt className="font-bold text-slate-950">{key}</dt>
-            <dd className="break-words text-slate-700">{value}</dd>
+            <dd className="wrap-break-word text-slate-700">{value}</dd>
           </div>
         ))}
         <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
           <dt className="font-bold text-slate-950">Description</dt>
-          <dd className="space-y-4 break-words text-slate-700">
+          <dd className="space-y-4 wrap-break-word text-slate-700">
             <p>{product.description}</p>
             <div>
               <h3 className="font-bold text-slate-950">Key Features:</h3>
@@ -691,14 +983,7 @@ function ProductDescription({ product }) {
         </div>
       </div>
 
-      <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
-        <h3 className="font-bold text-slate-950">Product Images</h3>
-        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-          {product.gallery.slice(1).concat(product.gallery.slice(1, 3)).slice(0, 6).map((image, index) => (
-            <img key={`${image}-description-${index}`} src={image} alt="" className="aspect-square w-full bg-slate-100 object-cover" />
-          ))}
-        </div>
-      </div>
+      <DescriptiveImagesGrid product={product} />
     </section>
   )
 }
@@ -707,6 +992,35 @@ function getMetadataValue(metadata, key) {
   if (!Array.isArray(metadata)) return undefined
   const item = metadata.find((m) => m && (m.key === key || m.meta_key === key))
   return item ? item.value ?? item.meta_value : undefined
+}
+
+function formatPackageDimensions(metadata, fallback = 'Standard retail package') {
+  const length = getMetadataValue(metadata, 'shipping_length')
+  const width = getMetadataValue(metadata, 'shipping_width')
+  const height = getMetadataValue(metadata, 'shipping_height')
+  const dimensions = [length, width, height].filter(
+    (value) => value !== undefined && value !== null && String(value).trim() !== '',
+  )
+
+  if (dimensions.length > 0) {
+    return `${dimensions.join(' x ')} cm`
+  }
+
+  const packageDimensions = getMetadataValue(metadata, 'package_dimensions')
+  if (packageDimensions && String(packageDimensions).trim()) {
+    return String(packageDimensions).trim()
+  }
+
+  return fallback
+}
+
+function formatItemWeight(metadata, fallback = 'Lightweight everyday carry') {
+  const weight = getMetadataValue(metadata, 'shipping_weight')
+  if (weight !== undefined && weight !== null && String(weight).trim() !== '') {
+    return `${String(weight).trim()} kg`
+  }
+
+  return fallback
 }
 
 function toArray(value) {
@@ -837,13 +1151,34 @@ function normalizeApiProductDetails(apiProduct) {
       : 91
   const rating = toNumber(apiProduct.rating ?? apiProduct.average_rating ?? apiProduct.avg_rating ?? core.rating, 4.5)
 
+  const categoryName = apiProduct.category?.category_name || 'General'
+  const barcode = getMetadataValue(metadata, 'barcode') || apiProduct.barcode || apiProduct.variants?.[0]?.barcode
+  const condition = formatProductCondition(getMetadataValue(metadata, 'condition'))
+  const brandName = apiProduct.brand?.brand_name
+    || apiProduct.brand?.name
+    || apiProduct.brand_name
+    || null
+
+  const customKeyDetails = {}
+  toArray(apiProduct.key_details).forEach((item) => {
+    const property = String(item?.property ?? item?.key ?? '').trim()
+    const value = String(item?.value ?? '').trim()
+    if (property && value && !isReservedKeyDetailKey(property)) {
+      customKeyDetails[property] = value
+    }
+  })
+
   return {
     ...core,
     slug: apiProduct.slug,
     title: core.name,
-    storeName: 'EZ Stores',
+    storeName: apiProduct.vendor?.store_name
+      || apiProduct.vendor?.business_name
+      || apiProduct.store?.name
+      || 'EZ Stores',
+    vendorId: apiProduct.vendor?.id ?? apiProduct.store?.id ?? null,
     salesCount: 120,
-    soldIndicator: '100+ bought in past month',
+    soldIndicator: '1K+ bought in past month',
     inStock,
     stockCount: quantity,
     lowStockThreshold,
@@ -855,11 +1190,18 @@ function normalizeApiProductDetails(apiProduct) {
     compatibleModels,
     extraVariantGroups,
     colorImages,
-    about: [],
+    about: fallbackAboutItems,
     keyDetails: {
+      Category: categoryName,
       'Model/SKU': sku,
-      'Category': apiProduct.category?.category_name || 'General',
+      ...(barcode ? { Barcode: String(barcode).trim() } : {}),
+      ...(condition ? { Condition: condition } : {}),
+      ...(brandName ? { Brand: brandName } : {}),
+      'Package Dimensions': formatPackageDimensions(metadata),
+      'Item Weight': formatItemWeight(metadata),
+      ...customKeyDetails,
     },
+    descriptiveImages: mapDescriptiveImageUrls(apiProduct.descriptive_images),
     description: cleanDescription || 'No description available for this product.',
     details: {
       SKU: sku,
@@ -880,6 +1222,10 @@ function normalizeApiProductDetails(apiProduct) {
 export default function ProductDetailsPage() {
   const { slug } = useParams()
   const { data: landingData } = useLandingPageData()
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [slug])
 
   const landingProduct = useMemo(() => {
     if (!landingData) return null
@@ -913,29 +1259,25 @@ export default function ProductDetailsPage() {
     return getProductBySlug(slug)
   }, [apiProduct, landingProduct, slug])
 
-  const [activeImage, setActiveImage] = useState(null)
-  const [selectedColor, setSelectedColor] = useState('')
-  const [selectedSize, setSelectedSize] = useState('')
-  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState('')
+  return (
+    <ProductDetailsView
+      key={product.slug ?? slug}
+      product={product}
+      apiProduct={apiProduct}
+      landingData={landingData}
+    />
+  )
+}
 
-  // Sync selectedColor, selectedSize, and activeImage when product changes
-  useEffect(() => {
-    if (product) {
-      setSelectedColor(product.colors?.[0] ?? '')
-      setSelectedSize(product.sizes?.[0] ?? '')
-      setSelectedCompatibleModel(product.compatibleModels?.[0] ?? '')
-      if (product.gallery && product.gallery[0]) {
-        setActiveImage(product.gallery[0])
-      } else {
-        setActiveImage(null)
-      }
-    } else {
-      setSelectedColor('')
-      setSelectedSize('')
-      setSelectedCompatibleModel('')
-      setActiveImage(null)
-    }
-  }, [product])
+function ProductDetailsView({ product, apiProduct, landingData }) {
+  const [activeImage, setActiveImage] = useState(product.gallery?.[0] ?? null)
+  const [selectedColor, setSelectedColor] = useState(product.colors?.[0] ?? '')
+  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] ?? '')
+  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(product.compatibleModels?.[0] ?? '')
+  const [reviewSectionHeight, setReviewSectionHeight] = useState(null)
+  const productInfoRef = useRef(null)
+  const galleryRef = useRef(null)
+  const leftContentRef = useRef(null)
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
@@ -1123,24 +1465,69 @@ export default function ProductDetailsPage() {
     return otherReal.slice(0, 8)
   }, [apiProduct, product.id, product.slug, allApiProducts])
 
+  useEffect(() => {
+    const LG_BREAKPOINT = 1024
+    const COLUMN_GAP = 16
+
+    const syncReviewSectionHeight = () => {
+      if (window.innerWidth < LG_BREAKPOINT) {
+        setReviewSectionHeight(null)
+        return
+      }
+
+      const infoEl = productInfoRef.current
+      const leftContentEl = leftContentRef.current
+      if (!infoEl || !leftContentEl) return
+
+      const nextHeight = leftContentEl.getBoundingClientRect().bottom
+        - infoEl.getBoundingClientRect().bottom
+        - COLUMN_GAP
+
+      if (nextHeight <= 0) {
+        setReviewSectionHeight(null)
+        return
+      }
+
+      setReviewSectionHeight(Math.max(nextHeight, 280))
+    }
+
+    syncReviewSectionHeight()
+
+    const resizeObserver = new ResizeObserver(syncReviewSectionHeight)
+    ;[galleryRef, leftContentRef, productInfoRef].forEach((ref) => {
+      if (ref.current) resizeObserver.observe(ref.current)
+    })
+
+    window.addEventListener('resize', syncReviewSectionHeight)
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', syncReviewSectionHeight)
+    }
+  }, [product.slug, product.gallery?.length, product.descriptiveImages?.length])
+
   return (
     <SiteLayout>
       <main className="bg-[#f2f2f2] py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)]">
             <div className="contents lg:block lg:min-w-0 lg:space-y-4">
-              <div className="order-1 min-w-0">
+              <div ref={galleryRef} className="order-1 min-w-0">
                 <ProductGallery product={product} activeImage={activeImage} setActiveImage={setActiveImage} />
               </div>
-              <div className="order-3 min-w-0">
-                <KeyDetails product={product} activeSku={activeSku} />
-              </div>
-              <div className="order-5 min-w-0">
-                <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
+              <div ref={leftContentRef} className="contents lg:block lg:min-w-0 lg:space-y-4">
+                <div className="order-3 min-w-0">
+                  <KeyDetails product={product} activeSku={activeSku} />
+                </div>
+                <div className="order-4 min-w-0">
+                  <AboutThisItem product={product} />
+                </div>
+                <div className="order-5 min-w-0">
+                  <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
+                </div>
               </div>
             </div>
             <div className="contents lg:block lg:min-w-0 lg:space-y-4">
-              <div className="order-2 min-w-0">
+              <div ref={productInfoRef} className="order-2 min-w-0">
                 <ProductInfoPanel
                   product={product}
                   setActiveImage={setActiveImage}
@@ -1156,8 +1543,8 @@ export default function ProductDetailsPage() {
                   displayPriceInfo={displayPriceInfo}
                 />
               </div>
-              <div className="order-4 min-w-0">
-                <ReviewSummary product={product} />
+              <div className="order-6 min-w-0">
+                <ReviewSummary product={product} minHeight={reviewSectionHeight} />
               </div>
             </div>
           </section>

@@ -106,11 +106,13 @@ function buildDetails(product, index) {
       'Note: Actual color may vary slightly because of lighting and screen settings.',
     ],
     keyDetails: {
+      Category: 'General accessories',
+      'Model/SKU': `SKU-${slug.toUpperCase().slice(0, 8)}`,
+      Condition: 'Brand New',
       'Package Dimensions': isCase ? '187 x 304 x 35 inches; 705 ounces' : 'Standard retail package',
-      'Item model number': slug,
+      'Item Weight': isCase ? '705 ounces' : 'Lightweight everyday carry',
       Department: 'General accessories',
       'Date First Available': 'September 5, 2025',
-      Manufacturer: product.storeName ?? 'EZ-Stores Marketplace',
       ASIN: `EZ-${slug.toUpperCase().slice(0, 10)}`,
     },
     description:

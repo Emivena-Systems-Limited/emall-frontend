@@ -98,7 +98,7 @@ function CartItemRow({
               {Array.from({ length: 5 }, (_, index) => (
                 <Star
                   key={index}
-                  className="size-2.5 text-auth-primary"
+                  className="size-2.5 text-[#F59E0B]"
                   fill="currentColor"
                   strokeWidth={0}
                 />
@@ -330,7 +330,7 @@ function RailProductCard({ product, onAddToCart }) {
           {Array.from({ length: 5 }, (_, index) => (
             <Star
               key={index}
-              className={`size-3 ${index < fullStars ? 'text-auth-primary' : 'text-slate-300'}`}
+              className={`size-3 ${index < fullStars ? 'text-[#F59E0B]' : 'text-slate-300'}`}
               fill="currentColor"
               strokeWidth={0}
             />
