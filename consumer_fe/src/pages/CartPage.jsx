@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useSelector } from 'react-redux'
 import { Heart, Minus, Plus, ShoppingBag, ShoppingCart, Star, X } from 'lucide-react'
 import Container from '../components/layout/Container'
@@ -188,7 +188,7 @@ function ItemTable({
   )
 }
 
-function CartSummary({ itemCount, subtotal, onOpenDelivery }) {
+function CartSummary({ itemCount, subtotal, onOpenDelivery, onProceedCheckout }) {
   const tax = 80
   const deliveryFee = 70
   const freeDelivery = 70
@@ -223,12 +223,13 @@ function CartSummary({ itemCount, subtotal, onOpenDelivery }) {
           <span className="font-extrabold text-slate-950">{formatCedi(total)}</span>
         </div>
       </div>
-      <Link
-        to="/checkout"
+      <button
+        type="button"
+        onClick={onProceedCheckout}
         className="mt-5 flex w-full items-center justify-center rounded-md bg-auth-primary px-5 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover"
       >
         Proceed to checkout
-      </Link>
+      </button>
       <button
         type="button"
         onClick={onOpenDelivery}
@@ -237,6 +238,43 @@ function CartSummary({ itemCount, subtotal, onOpenDelivery }) {
         View Delivery Information
       </button>
     </aside>
+  )
+}
+
+function CheckoutChoiceModal({ open, onClose }) {
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-950">Continue to checkout</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Checkout as a guest or sign in to use your saved account details.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close checkout options">
+            <X className="size-6 text-slate-700" />
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          <Link
+            to="/checkout/guest"
+            className="flex min-h-12 items-center justify-center rounded-lg bg-auth-primary px-5 text-sm font-bold text-white hover:bg-auth-primary-hover"
+          >
+            Checkout as Guest
+          </Link>
+          <Link
+            to="/login"
+            className="flex min-h-12 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-bold text-slate-900 hover:border-auth-primary hover:text-auth-primary"
+          >
+            Login to Checkout
+          </Link>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -335,7 +373,7 @@ function ProductRail({ title, products, onAddToCart }) {
   )
 }
 
-function DeliveryModal({ open, onClose }) {
+function DeliveryModal({ open, onClose, onProceedCheckout }) {
   if (!open) return null
 
   return (
@@ -396,12 +434,13 @@ function DeliveryModal({ open, onClose }) {
           >
             Add to Cart
           </button>
-          <Link
-            to="/checkout"
+          <button
+            type="button"
+            onClick={onProceedCheckout}
             className="w-full rounded-full bg-auth-primary px-8 py-3 text-center text-base font-bold text-white sm:w-auto sm:px-9 sm:py-4 sm:text-xl"
           >
             Proceed to checkout
-          </Link>
+          </button>
         </div>
       </div>
     </div>
@@ -409,8 +448,10 @@ function DeliveryModal({ open, onClose }) {
 }
 
 export default function CartPage() {
+  const navigate = useNavigate()
   const items = useSelector(selectCartItems)
   const savedItems = useSelector(selectSavedCartItems)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const {
     addToCart,
     updateQuantity,
@@ -424,11 +465,21 @@ export default function CartPage() {
   } = useCartActions()
   const [savedSelectedIds, setSavedSelectedIds] = useState(() => new Set())
   const [deliveryOpen, setDeliveryOpen] = useState(false)
+  const [checkoutChoiceOpen, setCheckoutChoiceOpen] = useState(false)
 
   const subtotal = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [items],
   )
+
+  const handleProceedCheckout = () => {
+    if (isAuthenticated) {
+      navigate('/checkout')
+      return
+    }
+
+    setCheckoutChoiceOpen(true)
+  }
 
   return (
     <SiteLayout>
@@ -452,7 +503,12 @@ export default function CartPage() {
               />
 
               <div className="pt-14">
-                <CartSummary itemCount={items.length} subtotal={subtotal} onOpenDelivery={() => setDeliveryOpen(true)} />
+                <CartSummary
+                  itemCount={items.length}
+                  subtotal={subtotal}
+                  onOpenDelivery={() => setDeliveryOpen(true)}
+                  onProceedCheckout={handleProceedCheckout}
+                />
               </div>
             </div>
           )}
@@ -486,7 +542,15 @@ export default function CartPage() {
         </Container>
       </main>
 
-      <DeliveryModal open={deliveryOpen} onClose={() => setDeliveryOpen(false)} />
+      <DeliveryModal
+        open={deliveryOpen}
+        onClose={() => setDeliveryOpen(false)}
+        onProceedCheckout={() => {
+          setDeliveryOpen(false)
+          handleProceedCheckout()
+        }}
+      />
+      <CheckoutChoiceModal open={checkoutChoiceOpen} onClose={() => setCheckoutChoiceOpen(false)} />
     </SiteLayout>
   )
 }

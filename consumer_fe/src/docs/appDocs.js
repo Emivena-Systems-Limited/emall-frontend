@@ -216,6 +216,8 @@ export const progressLog = [
       'Grouped checkout items by store with store subtotals, delivery fees, and store totals',
       'Added promo code handling, order total breakdown, payment method selection, and disabled Place Order rules',
       'Cart Proceed to checkout now navigates to /checkout',
+      'Updated checkout UI to match the new two-column layout with delivery form, payment details, order summary, delivery date, promo code, and checkout actions',
+      'Restored the shared app navbar/footer on checkout, added guest/login checkout choice from cart, wired GET /checkout/preview and GET /checkout, and limited the visible order-summary list to four items before scrolling',
     ],
   },
   {

@@ -1,176 +1,123 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useSelector } from 'react-redux'
-import {
-  CreditCard,
-  LockKeyhole,
-  MapPin,
-  Minus,
-  Plus,
-  Smartphone,
-  TicketPercent,
-  Trash2,
-  X,
-} from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { CreditCard, Minus, Plus, Trash2 } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
-import { initialCartItems } from '../constants/cartProducts'
-import { formatCedi } from '../utils/formatCurrency'
-
-const DELIVERY_FEES = {
-  'Noble Phones': 10,
-  'Style Hub': 8,
-}
-
-const STORES = ['Noble Phones', 'Style Hub']
-
-const savedAddress = {
-  name: 'John Doe',
-  phone: '+233 55 123 4567',
-  address: '23 Independence Avenue, Osu, Accra, Greater Accra',
-}
+import { notify } from '../lib/notify'
+import { getCheckout, getCheckoutPreview } from '../services/checkoutService'
+import { useCartActions } from '../hooks/useCartActions'
+import { selectCartItems } from '../store/slices/cartSlice'
 
 const paymentOptions = [
-  { id: 'card', label: 'Debit/Credit Card', icon: CreditCard },
-  { id: 'mtn', label: 'MTN MoMo', badge: 'MTN' },
-  { id: 'telecel', label: 'Telecel Cash', badge: 'tc' },
-  { id: 'airteltigo', label: 'AirtelTigo Cash', badge: 'at' },
+  { id: 'card', label: 'Debit/Credit Card', type: 'card' },
+  { id: 'mtn', label: 'MTN MoMo', type: 'mtn' },
+  { id: 'telecel', label: 'Telecel Cash', type: 'telecel' },
+  { id: 'airteltigo', label: 'AirtelTigo Cash', type: 'airteltigo' },
 ]
 
-const checkoutItems = initialCartItems.map((item, index) => ({
-  ...item,
-  store: STORES[index % STORES.length],
-}))
+const initialAddress = {
+  firstName: '',
+  lastName: '',
+  region: '',
+  town: '',
+  address: '',
+  phone: '',
+}
 
-function QuantityStepper({ value, onChange }) {
+function formatCheckoutAmount(value) {
+  return `₵${Number(value || 0).toFixed(2)}`
+}
+
+function normalizePreviewTotals(preview) {
+  const source = preview?.summary ?? preview?.totals ?? preview?.order_total ?? preview ?? {}
+  return {
+    tax: Number(source.tax ?? source.vat ?? 80),
+    deliveryFee: Number(source.delivery_fee ?? source.deliveryFee ?? source.total_delivery_fee ?? 70),
+    freeDelivery: Number(source.free_delivery ?? source.freeDelivery ?? 70),
+    couponDiscount: Number(source.coupon_discount ?? source.couponDiscount ?? source.discount ?? 0),
+  }
+}
+
+function Field({ label, name, value, onChange, placeholder = '' }) {
   return (
-    <div className="inline-flex h-9 min-w-24 items-center justify-between rounded-full bg-slate-50 px-2">
-      <button
-        type="button"
-        aria-label="Decrease quantity"
-        onClick={() => onChange(Math.max(1, value - 1))}
-        disabled={value <= 1}
-        className="flex size-7 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <Minus className="size-4" />
-      </button>
-      <span className="min-w-7 text-center text-sm font-bold tabular-nums text-auth-primary">{value}</span>
-      <button
-        type="button"
-        aria-label="Increase quantity"
-        onClick={() => onChange(value + 1)}
-        className="flex size-7 items-center justify-center rounded-full text-auth-primary transition-colors hover:bg-white"
-      >
-        <Plus className="size-4" />
-      </button>
-    </div>
+    <label className="grid gap-2 text-sm text-slate-800">
+      <span>{label}</span>
+      <input
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-sm outline-none transition-colors placeholder:text-slate-300 focus:border-auth-primary sm:h-13"
+      />
+    </label>
   )
 }
 
 function CheckoutIntro({ isGuest }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-            {isGuest ? 'Checkout as Guest' : 'Checkout'}
-          </h1>
-          <p className="mt-2 text-sm text-slate-700">
-            {isGuest ? 'Sign in to save you information for faster checkout' : 'Save your information for faster checkout'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">
-            <LockKeyhole className="size-4 text-auth-primary" />
-            Secure Checkout
-          </span>
-          {isGuest && (
-            <Link
-              to="/login"
-              className="inline-flex rounded-md border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:border-auth-primary hover:text-auth-primary"
-            >
-              Sign In
-            </Link>
-          )}
-        </div>
-      </div>
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+        {isGuest ? 'Checkout as Guest' : 'Checkout'}
+      </h1>
+      <p className="mt-2 text-sm text-slate-800">Save your information for faster checkout</p>
     </section>
   )
 }
 
-function AddressSection({ isGuest }) {
+function DeliveryInformation({ address, onAddressChange }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Information</h2>
-        {!isGuest && (
-          <Link
-            to="/account/address"
-            className="rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:border-auth-primary hover:text-auth-primary"
-          >
-            Edit
-          </Link>
-        )}
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
+      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Information</h2>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-5">
+        <Field label="First name" name="firstName" value={address.firstName} onChange={onAddressChange} />
+        <Field label="First name" name="lastName" value={address.lastName} onChange={onAddressChange} />
+        <Field label="Region" name="region" value={address.region} onChange={onAddressChange} />
+        <Field label="Town" name="town" value={address.town} onChange={onAddressChange} />
+        <Field label="Address" name="address" value={address.address} onChange={onAddressChange} />
+        <Field label="Phone Number" name="phone" value={address.phone} onChange={onAddressChange} />
       </div>
-
-      {isGuest ? (
-        <div className="mt-5 flex min-h-44 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 text-center">
-          <div>
-            <MapPin className="mx-auto size-8 text-auth-primary" strokeWidth={1.8} />
-            <Link
-              to="/account/address"
-              className="mt-4 inline-flex rounded-lg bg-auth-primary px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-auth-primary-hover"
-            >
-              Add Address
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <article className="mt-5 rounded-xl border border-slate-200 p-4 sm:p-5">
-          <div className="flex gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-auth-primary">
-              <MapPin className="size-5" strokeWidth={1.8} />
-            </span>
-            <div className="min-w-0">
-              <h3 className="text-base font-bold text-slate-950">{savedAddress.name}</h3>
-              <p className="mt-1 text-sm text-slate-600">{savedAddress.phone}</p>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">{savedAddress.address}</p>
-            </div>
-          </div>
-        </article>
-      )}
+      <label className="mt-5 flex items-center gap-3 text-sm text-slate-800">
+        <input type="checkbox" defaultChecked className="size-4 rounded border-slate-400 accent-auth-primary" />
+        Save this information for next time
+      </label>
     </section>
   )
 }
 
-function PaymentSection({ selectedPayment, onSelectPayment }) {
+function PaymentBadge({ type }) {
+  if (type === 'card') return <CreditCard className="size-7 text-sky-500" strokeWidth={1.8} />
+  if (type === 'mtn') {
+    return <span className="flex h-7 w-10 items-center justify-center bg-yellow-300 text-[0.55rem] font-black text-slate-950">MTN</span>
+  }
+  if (type === 'telecel') {
+    return <span className="flex h-7 w-10 items-center justify-center rounded bg-white text-xl font-black text-red-600">t</span>
+  }
+  return <span className="flex h-7 w-10 items-center justify-center rounded bg-white text-xl font-black text-[#3155c7]">at</span>
+}
+
+function PaymentDetails({ selectedPayment, onSelectPayment }) {
   const isCard = selectedPayment === 'card'
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Information</h2>
-
-      <div className="mt-5 space-y-3">
-        {paymentOptions.map(({ id, label, icon: Icon, badge }) => {
-          const selected = selectedPayment === id
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
+      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Payment Details</h2>
+      <div className="mt-4 space-y-3">
+        {paymentOptions.map((option) => {
+          const selected = selectedPayment === option.id
           return (
             <button
               type="button"
-              key={id}
-              onClick={() => onSelectPayment(id)}
-              className={`flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 text-left transition-colors ${
-                selected ? 'border-auth-primary ring-1 ring-auth-primary' : 'border-slate-300 hover:border-auth-primary'
+              key={option.id}
+              onClick={() => onSelectPayment(option.id)}
+              className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border px-3 text-left transition-colors ${
+                selected ? 'border-auth-primary ring-1 ring-auth-primary' : 'border-slate-300'
               }`}
             >
               <span className={`size-5 rounded-full border ${selected ? 'border-auth-primary bg-auth-primary' : 'border-slate-300'}`} />
-              {Icon ? (
-                <Icon className="size-7 text-sky-500" strokeWidth={1.8} />
-              ) : (
-                <span className="flex h-7 min-w-12 items-center justify-center rounded-sm bg-yellow-300 px-2 text-xs font-black text-slate-950">
-                  {badge}
-                </span>
-              )}
-              <span className="text-sm font-semibold text-slate-800">{label}</span>
+              <PaymentBadge type={option.type} />
+              <span className="text-sm font-semibold text-slate-800">{option.label}</span>
             </button>
           )
         })}
@@ -178,23 +125,11 @@ function PaymentSection({ selectedPayment, onSelectPayment }) {
 
       {isCard && (
         <div className="mt-5 grid gap-4">
-          <label className="grid gap-2 text-sm text-slate-800">
-            <span>Name on Card</span>
-            <input className="h-12 rounded-xl border border-slate-300 px-4 outline-none focus:border-auth-primary" placeholder="Yaw Ofosu" />
-          </label>
-          <label className="grid gap-2 text-sm text-slate-800">
-            <span>Card Number</span>
-            <input className="h-12 rounded-xl border border-slate-300 px-4 outline-none focus:border-auth-primary" placeholder="1234458768549839" />
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm text-slate-800">
-              <span>Expiry Date</span>
-              <input className="h-12 rounded-xl border border-slate-300 px-4 outline-none focus:border-auth-primary" placeholder="MM/YY" />
-            </label>
-            <label className="grid gap-2 text-sm text-slate-800">
-              <span>CV</span>
-              <input className="h-12 rounded-xl border border-slate-300 px-4 outline-none focus:border-auth-primary" placeholder="123" />
-            </label>
+          <Field label="Name on Card" name="cardName" value="" onChange={() => {}} placeholder="Yaw Ofosu" />
+          <Field label="Card Number" name="cardNumber" value="" onChange={() => {}} placeholder="1234458768549839" />
+          <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+            <Field label="Expiry Date" name="expiry" value="" onChange={() => {}} placeholder="MM/YY" />
+            <Field label="CV" name="cv" value="" onChange={() => {}} placeholder="123" />
           </div>
         </div>
       )}
@@ -202,273 +137,260 @@ function PaymentSection({ selectedPayment, onSelectPayment }) {
   )
 }
 
-function StoreReviewCard({ store, items, deliveryFee }) {
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-
+function QuantityPill({ value, onDecrease, onIncrease }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h3 className="text-base font-bold text-slate-950">{store}</h3>
-          <p className="mt-1 text-xs text-slate-500">{items.length} items</p>
-        </div>
-        <p className="text-sm font-bold text-slate-950">{formatCedi(subtotal + deliveryFee)}</p>
-      </div>
-
-      <div className="divide-y divide-slate-200">
-        {items.map((item) => (
-          <div key={item.id} className="grid grid-cols-[4.75rem_minmax(0,1fr)_auto] gap-3 py-4 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:gap-4">
-            <img
-              src={item.image}
-              alt={item.name}
-              className="size-19 rounded-lg border border-red-100 object-cover sm:size-22"
-            />
-            <div className="min-w-0">
-              <h4 className="truncate text-sm font-bold text-slate-900 sm:text-base">{item.name}</h4>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Color:{item.variant} <span className="mx-1 text-slate-300">Storage:{item.storage}</span>
-              </p>
-              <p className="mt-3 text-xs font-semibold text-slate-500">Qty {item.quantity}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-slate-950 sm:text-base">{formatCedi(item.price)}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <dl className="space-y-3 border-t border-slate-200 pt-4 text-sm">
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-600">Store item subtotal</dt>
-          <dd className="font-bold text-slate-950">{formatCedi(subtotal)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-600">Store delivery fee</dt>
-          <dd className="font-bold text-slate-950">{formatCedi(deliveryFee)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="font-bold text-slate-950">Store total</dt>
-          <dd className="font-extrabold text-slate-950">{formatCedi(subtotal + deliveryFee)}</dd>
-        </div>
-      </dl>
-    </article>
+    <div className="inline-flex h-8 min-w-24 items-center justify-between rounded-full bg-slate-50 px-2">
+      <button type="button" aria-label="Decrease quantity" onClick={onDecrease} disabled={value <= 1} className="flex size-7 items-center justify-center text-slate-400 disabled:cursor-not-allowed disabled:opacity-40">
+        <Minus className="size-4" />
+      </button>
+      <span className="min-w-7 text-center text-sm font-semibold text-auth-primary">{value}</span>
+      <button type="button" aria-label="Increase quantity" onClick={onIncrease} className="flex size-7 items-center justify-center text-auth-primary">
+        <Plus className="size-4" />
+      </button>
+    </div>
   )
 }
 
-function CouponCard({ couponCode, setCouponCode, coupon, setCoupon }) {
-  const [message, setMessage] = useState('')
+function OrderSummary({ items, onQuantityChange, onDelete }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
+      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Order Summary</h2>
+      <div className={`mt-4 divide-y divide-slate-300 ${items.length > 4 ? 'max-h-[31rem] overflow-y-auto pr-1' : ''}`}>
+        {items.map((item) => (
+          <article
+            key={item.id}
+            className="grid grid-cols-[5.25rem_minmax(0,1fr)_auto] gap-3 py-3 sm:grid-cols-[6.5rem_minmax(0,1fr)_auto] sm:gap-4"
+          >
+            <img src={item.image} alt={item.name} className="h-21 w-21 rounded-lg border border-red-100 object-cover sm:h-27 sm:w-27" />
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-bold text-slate-900">{item.name}</h3>
+              <p className="mt-1 truncate text-[0.6875rem] text-slate-500">
+                Color:{item.variant} <span className="ml-2">Storage:{item.storage}</span>
+              </p>
+              <div className="mt-5">
+                <QuantityPill
+                  value={item.quantity}
+                  onDecrease={() => onQuantityChange(item.id, Math.max(1, item.quantity - 1))}
+                  onIncrease={() => onQuantityChange(item.id, item.quantity + 1)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col items-end justify-between">
+              <p className="text-base font-bold text-slate-950">{formatCheckoutAmount(item.price)}</p>
+              <button type="button" onClick={() => onDelete(item.id)} aria-label={`Remove ${item.name}`} className="text-auth-primary">
+                <Trash2 className="size-5" strokeWidth={1.8} />
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
 
-  const applyCoupon = () => {
-    if (couponCode.trim().toUpperCase() === 'EZ-TE56') {
-      setCoupon({ code: 'EZ-TE56', amount: 15 })
-      setMessage('Coupon applied successfully.')
-      return
-    }
-    setCoupon(null)
-    setMessage('Invalid coupon code.')
-  }
-
-  const removeCoupon = () => {
-    setCoupon(null)
-    setCouponCode('')
-    setMessage('')
-  }
+function OrderTotal({ itemCount, subtotal, totals }) {
+  const total = subtotal + totals.tax + totals.deliveryFee - totals.freeDelivery - totals.couponDiscount
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
+      <h2 className="text-xl font-semibold text-slate-900">Order Total</h2>
+      <dl className="mt-4 space-y-4 border-t border-slate-200 pt-5 text-sm">
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-slate-700">Items</dt>
+          <dd className="font-semibold text-slate-950">{itemCount}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-slate-700">Subtotal</dt>
+          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(subtotal)}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-slate-700">Tax</dt>
+          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(totals.tax)}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-slate-700">Delivery Fee</dt>
+          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(totals.deliveryFee)}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-slate-700">Free Delivery</dt>
+          <dd className="font-semibold text-slate-400 line-through">{formatCheckoutAmount(totals.freeDelivery)}</dd>
+        </div>
+        {totals.couponDiscount > 0 && (
+          <div className="flex items-center justify-between gap-4 text-auth-primary">
+            <dt>Coupon Discount</dt>
+            <dd className="font-semibold">-{formatCheckoutAmount(totals.couponDiscount)}</dd>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-4 border-t border-slate-300 pt-4 text-base">
+          <dt className="font-bold text-slate-950">Total</dt>
+          <dd className="font-extrabold text-slate-950">{formatCheckoutAmount(total)}</dd>
+        </div>
+      </dl>
+    </section>
+  )
+}
+
+function DeliveryDate() {
+  return (
+    <section className="px-2 py-3">
+      <div className="grid gap-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div>
+          <h2 className="font-semibold text-slate-900">Estimated Delivery Date</h2>
+          <p className="mt-1 text-xs text-slate-500">Estimated day product is expected to be delivered</p>
+        </div>
+        <p className="font-semibold text-slate-900 sm:text-right">1 - 2 days (23-25 June)</p>
+      </div>
+      <div className="mt-8 text-right">
+        <button type="button" className="text-xs font-semibold text-auth-primary underline">
+          View Delivery Information
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function PromoCode({ coupon, onCouponChange, onApplyCoupon, couponMessage }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
       <h2 className="text-lg font-semibold text-slate-900">Promo Code</h2>
       <div className="mt-4 flex gap-3">
         <input
-          value={couponCode}
-          onChange={(event) => setCouponCode(event.target.value)}
+          value={coupon}
+          onChange={(event) => onCouponChange(event.target.value)}
           placeholder="EZ-te56"
-          className="h-14 min-w-0 flex-1 rounded-xl border border-slate-300 px-4 outline-none focus:border-auth-primary"
+          className="h-13 min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 text-sm outline-none placeholder:text-slate-300 focus:border-auth-primary"
         />
-        <button
-          type="button"
-          onClick={applyCoupon}
-          className="min-w-20 rounded-xl bg-auth-primary px-5 text-sm font-bold text-white transition-colors hover:bg-auth-primary-hover"
-        >
+        <button type="button" onClick={onApplyCoupon} className="min-w-22 rounded-2xl bg-auth-primary px-5 text-base font-bold text-white">
           Apply
         </button>
       </div>
-      {message && (
-        <div className={`mt-3 flex items-center justify-between gap-3 text-sm ${coupon ? 'text-emerald-700' : 'text-red-600'}`}>
-          <span>{message}</span>
-          {coupon && (
-            <button type="button" onClick={removeCoupon} className="inline-flex items-center gap-1 font-bold text-auth-primary">
-              <X className="size-4" />
-              Remove
-            </button>
-          )}
-        </div>
-      )}
+      {couponMessage && <p className="mt-2 text-xs font-semibold text-auth-primary">{couponMessage}</p>}
     </section>
-  )
-}
-
-function OrderTotal({ subtotal, deliveryFees, couponDiscount }) {
-  const total = Math.max(subtotal + deliveryFees - couponDiscount, 0)
-
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-      <h2 className="text-lg font-semibold text-slate-900">Order Total</h2>
-      <dl className="mt-5 space-y-4 text-sm">
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Items subtotal</dt>
-          <dd className="font-medium text-slate-950">{formatCedi(subtotal)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Total delivery fees</dt>
-          <dd className="font-medium text-slate-950">{formatCedi(deliveryFees)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Coupon discount</dt>
-          <dd className="font-medium text-red-600">-{formatCedi(couponDiscount)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4 border-t border-slate-300 pt-4 text-base">
-          <dt className="font-bold text-slate-950">Total</dt>
-          <dd className="font-extrabold text-slate-950">{formatCedi(total)}</dd>
-        </div>
-      </dl>
-    </section>
-  )
-}
-
-function CheckoutSummary({
-  items,
-  groupedItems,
-  deliveryFees,
-  couponCode,
-  setCouponCode,
-  coupon,
-  setCoupon,
-  subtotal,
-  canPlaceOrder,
-}) {
-  return (
-    <aside className="space-y-5 lg:sticky lg:top-24">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Order Summary</h2>
-        <div className="mt-4 divide-y divide-slate-300">
-          {items.map((item) => (
-            <article key={`${item.id}-summary`} className="grid grid-cols-[4.75rem_minmax(0,1fr)_auto] gap-3 py-3 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto]">
-              <img src={item.image} alt={item.name} className="size-19 rounded-lg border border-red-100 object-cover sm:size-22" />
-              <div className="min-w-0">
-                <h3 className="truncate text-sm font-bold text-slate-900 sm:text-base">{item.name}</h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Color:{item.variant} <span className="mx-1 text-slate-300">Storage:{item.storage}</span>
-                </p>
-                <div className="mt-3">
-                  <QuantityStepper value={item.quantity} onChange={() => {}} />
-                </div>
-              </div>
-              <div className="flex flex-col items-end justify-between">
-                <p className="text-sm font-bold text-slate-950 sm:text-base">{formatCedi(item.price)}</p>
-                <button type="button" aria-label={`Remove ${item.name}`} className="text-auth-primary">
-                  <Trash2 className="size-5" strokeWidth={1.7} />
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <CouponCard couponCode={couponCode} setCouponCode={setCouponCode} coupon={coupon} setCoupon={setCoupon} />
-      <OrderTotal subtotal={subtotal} deliveryFees={deliveryFees} couponDiscount={coupon?.amount ?? 0} />
-
-      <div className="space-y-3">
-        <button
-          type="submit"
-          form="checkout-form"
-          disabled={!canPlaceOrder}
-          className="w-full rounded-lg bg-auth-primary px-5 py-4 text-base font-bold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Place Order
-        </button>
-        <Link
-          to="/cart"
-          className="flex w-full items-center justify-center rounded-lg border border-slate-400 px-5 py-4 text-base font-bold text-slate-800 transition-colors hover:border-auth-primary hover:text-auth-primary"
-        >
-          Continue Shopping
-        </Link>
-      </div>
-      <span className="sr-only">{Object.keys(groupedItems).join(', ')}</span>
-    </aside>
   )
 }
 
 export default function CheckoutPage() {
   const { mode } = useParams()
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
-  const isGuest = mode === 'guest' || (!isAuthenticated && mode !== 'user')
-  const [items] = useState(checkoutItems)
+  const { isAuthenticated } = useSelector((state) => state.auth)
+  const items = useSelector(selectCartItems)
+  const { updateQuantity, deleteItem } = useCartActions()
+  const [address, setAddress] = useState(initialAddress)
   const [selectedPayment, setSelectedPayment] = useState('card')
-  const [couponCode, setCouponCode] = useState('')
-  const [coupon, setCoupon] = useState(null)
+  const [coupon, setCoupon] = useState('')
+  const [couponDiscount, setCouponDiscount] = useState(0)
+  const [couponMessage, setCouponMessage] = useState('')
 
-  const groupedItems = useMemo(
-    () =>
-      items.reduce((groups, item) => {
-        groups[item.store] = groups[item.store] ? [...groups[item.store], item] : [item]
-        return groups
-      }, {}),
-    [items],
-  )
-
+  const isGuest = mode === 'guest' || !isAuthenticated
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items])
-  const deliveryFees = useMemo(
-    () => Object.keys(groupedItems).reduce((sum, store) => sum + (DELIVERY_FEES[store] ?? 0), 0),
-    [groupedItems],
-  )
-  const hasAddress = !isGuest
-  const canPlaceOrder = hasAddress && Boolean(selectedPayment) && items.length > 0
+
+  const previewQuery = useQuery({
+    queryKey: ['checkout-preview', isAuthenticated],
+    queryFn: getCheckoutPreview,
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+    retry: 1,
+  })
+
+  useEffect(() => {
+    if (previewQuery.isError) {
+      notify.fromError(previewQuery.error, 'Checkout preview is not available yet')
+    }
+  }, [previewQuery.error, previewQuery.isError])
+
+  const previewTotals = normalizePreviewTotals(previewQuery.data)
+  const totals = {
+    ...previewTotals,
+    couponDiscount,
+  }
+
+  const hasAddress = Object.values(address).every((value) => String(value).trim())
+  const canPlaceOrder = items.length > 0 && selectedPayment && hasAddress
+
+  const handleAddressChange = (event) => {
+    const { name, value } = event.target
+    setAddress((current) => ({ ...current, [name]: value }))
+  }
+
+  const handleApplyCoupon = () => {
+    if (!coupon.trim()) {
+      setCouponDiscount(0)
+      setCouponMessage('Enter a promo code')
+      return
+    }
+
+    if (coupon.trim().toLowerCase() === 'ez-te56') {
+      setCouponDiscount(15)
+      setCouponMessage('Promo code applied')
+      return
+    }
+
+    setCouponDiscount(0)
+    setCouponMessage('Invalid promo code')
+  }
+
+  const handlePlaceOrder = async () => {
+    if (!canPlaceOrder) return
+
+    try {
+      if (isAuthenticated) {
+        await getCheckout()
+      }
+      notify.success('Checkout information is ready')
+    } catch (error) {
+      notify.fromError(error, 'Unable to place order')
+    }
+  }
 
   return (
-    <SiteLayout cartCount={items.length}>
-      <form id="checkout-form" onSubmit={(event) => event.preventDefault()}>
-        <section className="bg-white py-7 sm:py-9 lg:py-11">
-          <Container>
+    <SiteLayout>
+      <main className="bg-white py-7 sm:py-8">
+        <Container>
+          {items.length === 0 ? (
+            <section className="rounded-xl border border-slate-200 bg-white px-5 py-14 text-center">
+              <h1 className="text-2xl font-semibold text-slate-950">Checkout</h1>
+              <p className="mt-2 text-sm text-slate-600">Your cart is empty.</p>
+              <Link to="/" className="mt-6 inline-flex rounded-lg bg-auth-primary px-6 py-3 text-sm font-bold text-white">
+                Continue Shopping
+              </Link>
+            </section>
+          ) : (
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
               <div className="space-y-6">
                 <CheckoutIntro isGuest={isGuest} />
-                <AddressSection isGuest={isGuest} />
-
-                <section className="space-y-4">
-                  {Object.entries(groupedItems).map(([store, storeItems]) => (
-                    <StoreReviewCard
-                      key={store}
-                      store={store}
-                      items={storeItems}
-                      deliveryFee={DELIVERY_FEES[store] ?? 0}
-                    />
-                  ))}
-                </section>
-
-                <PaymentSection selectedPayment={selectedPayment} onSelectPayment={setSelectedPayment} />
+                <DeliveryInformation address={address} onAddressChange={handleAddressChange} />
+                <PaymentDetails selectedPayment={selectedPayment} onSelectPayment={setSelectedPayment} />
               </div>
-
-              <CheckoutSummary
-                items={items}
-                groupedItems={groupedItems}
-                deliveryFees={deliveryFees}
-                couponCode={couponCode}
-                setCouponCode={setCouponCode}
-                coupon={coupon}
-                setCoupon={setCoupon}
-                subtotal={subtotal}
-                canPlaceOrder={canPlaceOrder}
-              />
+              <aside className="space-y-5">
+                <OrderSummary items={items} onQuantityChange={updateQuantity} onDelete={deleteItem} />
+                <OrderTotal itemCount={items.length} subtotal={subtotal} totals={totals} />
+                <DeliveryDate />
+                <PromoCode
+                  coupon={coupon}
+                  onCouponChange={setCoupon}
+                  onApplyCoupon={handleApplyCoupon}
+                  couponMessage={couponMessage}
+                />
+                <div className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={handlePlaceOrder}
+                    disabled={!canPlaceOrder}
+                    className="w-full rounded-lg bg-auth-primary px-5 py-4 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Place Order
+                  </button>
+                  <Link
+                    to="/cart"
+                    className="flex w-full items-center justify-center rounded-lg border border-slate-400 px-5 py-4 text-base font-bold text-slate-800"
+                  >
+                    Continue Shopping
+                  </Link>
+                </div>
+              </aside>
             </div>
-          </Container>
-        </section>
-      </form>
-
-      {!canPlaceOrder && (
-        <span className="sr-only">
-          Place Order is disabled until delivery address, payment method, and cart items are available.
-        </span>
-      )}
+          )}
+        </Container>
+      </main>
     </SiteLayout>
   )
 }
