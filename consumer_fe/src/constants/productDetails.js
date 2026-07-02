@@ -109,7 +109,7 @@ function buildDetails(product, index) {
       Category: 'General accessories',
       'Model/SKU': `SKU-${slug.toUpperCase().slice(0, 8)}`,
       Condition: 'Brand New',
-      'Package Dimensions': isCase ? '187 x 304 x 35 inches; 705 ounces' : 'Standard retail package',
+      ...(isCase ? { 'Package Dimensions': '187 x 304 x 35 inches; 705 ounces' } : {}),
       'Item Weight': isCase ? '705 ounces' : 'Lightweight everyday carry',
       Department: 'General accessories',
       'Date First Available': 'September 5, 2025',

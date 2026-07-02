@@ -12,8 +12,6 @@ import {
   Share2,
   ShoppingCart,
   Star,
-  Truck,
-  UserPlus,
 } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
@@ -121,15 +119,6 @@ function Stars({ rating, size = 'size-4' }) {
       })}
     </span>
   )
-}
-
-function splitSoldIndicator(text = '') {
-  const match = String(text).match(/^(.+?\sbought)\s+(in .+)$/i)
-  if (match) {
-    return { highlight: match[1], suffix: match[2] }
-  }
-
-  return { highlight: text, suffix: '' }
 }
 
 function formatStockAvailability(stockCount, lowStockThreshold = 10) {
@@ -381,7 +370,6 @@ function ProductInfoPanel({
   }
 
   const stockAvailability = formatStockAvailability(product.stockCount, product.lowStockThreshold ?? 10)
-  const soldCopy = splitSoldIndicator(product.soldIndicator)
   const currentPriceParts = formatProductPriceParts(displayPriceInfo.price)
   const hasSalePrice =
     displayPriceInfo.compareAt != null &&
@@ -419,46 +407,55 @@ function ProductInfoPanel({
 
   return (
     <aside className="min-w-0 bg-white p-3 sm:p-4">
-        <div className="border-b border-slate-200 pb-4">
-          <h1 className="wrap-break-word text-lg font-medium capitalize leading-snug tracking-tight text-slate-900 sm:text-xl">
-            {product.title}
-          </h1>
+      <div className="border-b border-slate-200 pb-4">
+        <h1 className="wrap-break-word text-lg font-bold capitalize leading-snug tracking-tight text-slate-950 sm:text-xl">
+          {product.title}
+        </h1>
 
-          <StoreInfo product={product} />
-
-        <div className="mt-3">
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200/80 bg-linear-to-r from-emerald-50 to-[#E6F4EA] px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm ring-1 ring-emerald-100/80">
-            <span className="flex size-5 items-center justify-center rounded-full bg-white/80 text-emerald-600">
-              <Truck className="size-3" strokeWidth={2.25} aria-hidden="true" />
-            </span>
-            Free delivery
-          </span>
-        </div>
+        <p className="mt-2 text-xs font-semibold text-slate-500">
+          {product.reviewCount > 0
+            ? `${product.rating.toFixed(1)} (${product.reviewCount.toLocaleString()} reviews)`
+            : 'No reviews yet'}{' '}
+          {(product.salesCount ?? 0).toLocaleString()} sold
+        </p>
 
         {product.soldIndicator && (
-          <p className="mt-2 text-sm leading-5 text-slate-950">
-            <span className="font-bold">{soldCopy.highlight}</span>
-            {soldCopy.suffix ? ` ${soldCopy.suffix}` : ''}
+          <p className="mt-1 text-[0.6875rem] font-semibold text-slate-600">
+            {product.soldIndicator}
           </p>
         )}
+
+        <StoreInfo product={product} />
       </div>
 
-      <div className="space-y-1 py-3">
-        <div className={`flex gap-x-2 ${hasSalePrice ? 'items-end' : ''}`}>
+      <div className="space-y-2 py-3">
+        {hasSalePrice && (
+          <p className="w-fit rounded-sm bg-auth-primary px-2 py-1 text-[0.625rem] font-bold leading-none text-white">
+            Limited time deal
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
           {hasSalePrice && (
-            <span className="pb-1 text-2xl font-semibold leading-none text-[#C73B2D]">
+            <span className="pb-0.5 text-xl font-bold leading-none text-auth-primary sm:text-2xl">
               -{displayPriceInfo.discountPercent}%
             </span>
           )}
           <div className="inline-flex items-start gap-0.5 leading-none">
             <span className="pt-1 text-sm font-normal text-slate-950">{currentPriceParts.currency}</span>
-            <span className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-[2.5rem]">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-[2.5rem]">
               {currentPriceParts.amount}
             </span>
           </div>
+          {hasSalePrice && (
+            <span className="pb-1 text-sm text-slate-400 line-through sm:text-base">
+              {formatProductListPrice(listPriceValue)}
+            </span>
+          )}
         </div>
+
         {hasSalePrice && (
-          <p className="text-sm text-slate-500">
+          <p className="text-xs font-medium text-slate-500">
             List Price:{' '}
             <span className="line-through">{formatProductListPrice(listPriceValue)}</span>
           </p>
@@ -608,15 +605,13 @@ function AboutThisItem({ product }) {
   )
 }
 
-function ReviewSummary({ product, minHeight = null }) {
-  const isHeightAligned = minHeight != null
+function ReviewSummary({ product, fillHeight = false }) {
   const visibleReviews = product.reviews.slice(0, SIDEBAR_REVIEW_LIMIT)
 
   return (
     <section
       id="reviews"
-      className={`min-w-0 bg-white p-3 sm:p-4 ${isHeightAligned ? 'flex flex-col' : ''}`}
-      style={isHeightAligned ? { minHeight } : undefined}
+      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex h-full min-h-[280px] flex-col' : ''}`}
     >
       <div className="shrink-0">
         <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
@@ -661,7 +656,7 @@ function ReviewSummary({ product, minHeight = null }) {
         </div>
       </div>
 
-      <div className={`space-y-3 ${isHeightAligned ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}>
+      <div className={`space-y-3 ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}>
         {visibleReviews.map((review) => (
           <article key={review.id} className="border-t border-slate-200 pt-3">
             <div className="flex items-start gap-2">
@@ -681,7 +676,7 @@ function ReviewSummary({ product, minHeight = null }) {
         ))}
       </div>
 
-      <div className={`text-center ${isHeightAligned ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}>
+      <div className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}>
         <button type="button" className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800">
           See All Reviews
         </button>
@@ -919,31 +914,33 @@ function DescriptiveImagesGrid({ product }) {
 }
 
 function StoreInfo({ product }) {
+  const ratingLabel = product.rating?.toFixed(1) ?? '4.5'
+
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-      <div className="min-w-0 flex-1">
-        <Link
-          to={product.vendorId ? `/stores/${product.vendorId}` : '/stores'}
-          className="text-sm font-bold leading-snug text-[#2E71A1] hover:underline"
-        >
-          {product.storeName}
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-          <span>
-            <b className="text-slate-800">110</b> Followers
-          </span>
-          <span className="text-slate-300" aria-hidden="true">|</span>
-          <span className="inline-flex items-center gap-1">
-            <Stars rating={product.rating ?? 4.5} size="size-3" />
-            <b className="text-slate-800">{product.rating?.toFixed(1) ?? '4.5'}</b>
-          </span>
+    <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-red-50">
+          <ShoppingCart className="size-3.5 text-auth-primary" strokeWidth={2} aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <Link
+            to={product.vendorId ? `/stores/${product.vendorId}` : '/stores'}
+            className="block truncate text-xs font-bold text-[#2E71A1] hover:underline sm:text-sm"
+          >
+            Visit the {product.storeName}
+          </Link>
+          <p className="mt-0.5 truncate text-[0.625rem] font-semibold text-slate-500 sm:text-xs">
+            <span className="text-slate-700">110</span> Followers
+            <span className="mx-1 text-slate-300" aria-hidden="true">|</span>
+            <span className="text-slate-700">{ratingLabel}</span>
+            <span className="text-slate-400" aria-hidden="true"> ★</span>
+          </p>
         </div>
       </div>
       <button
         type="button"
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-800 transition-colors hover:border-auth-primary hover:text-auth-primary sm:px-4"
+        className="shrink-0 rounded-full border border-slate-300 bg-white px-4 py-1.5 text-[0.625rem] font-bold text-slate-950 transition-colors hover:border-auth-primary hover:text-auth-primary sm:px-5 sm:text-xs"
       >
-        <UserPlus className="size-3.5" strokeWidth={2.2} />
         Follow
       </button>
     </div>
@@ -994,7 +991,7 @@ function getMetadataValue(metadata, key) {
   return item ? item.value ?? item.meta_value : undefined
 }
 
-function formatPackageDimensions(metadata, fallback = 'Standard retail package') {
+function formatPackageDimensions(metadata) {
   const length = getMetadataValue(metadata, 'shipping_length')
   const width = getMetadataValue(metadata, 'shipping_width')
   const height = getMetadataValue(metadata, 'shipping_height')
@@ -1011,7 +1008,7 @@ function formatPackageDimensions(metadata, fallback = 'Standard retail package')
     return String(packageDimensions).trim()
   }
 
-  return fallback
+  return null
 }
 
 function formatItemWeight(metadata, fallback = 'Lightweight everyday carry') {
@@ -1168,6 +1165,8 @@ function normalizeApiProductDetails(apiProduct) {
     }
   })
 
+  const packageDimensions = formatPackageDimensions(metadata)
+
   return {
     ...core,
     slug: apiProduct.slug,
@@ -1197,7 +1196,7 @@ function normalizeApiProductDetails(apiProduct) {
       ...(barcode ? { Barcode: String(barcode).trim() } : {}),
       ...(condition ? { Condition: condition } : {}),
       ...(brandName ? { Brand: brandName } : {}),
-      'Package Dimensions': formatPackageDimensions(metadata),
+      ...(packageDimensions ? { 'Package Dimensions': packageDimensions } : {}),
       'Item Weight': formatItemWeight(metadata),
       ...customKeyDetails,
     },
@@ -1274,10 +1273,6 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const [selectedColor, setSelectedColor] = useState(product.colors?.[0] ?? '')
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] ?? '')
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(product.compatibleModels?.[0] ?? '')
-  const [reviewSectionHeight, setReviewSectionHeight] = useState(null)
-  const productInfoRef = useRef(null)
-  const galleryRef = useRef(null)
-  const leftContentRef = useRef(null)
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
@@ -1465,87 +1460,46 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     return otherReal.slice(0, 8)
   }, [apiProduct, product.id, product.slug, allApiProducts])
 
-  useEffect(() => {
-    const LG_BREAKPOINT = 1024
-    const COLUMN_GAP = 16
-
-    const syncReviewSectionHeight = () => {
-      if (window.innerWidth < LG_BREAKPOINT) {
-        setReviewSectionHeight(null)
-        return
-      }
-
-      const infoEl = productInfoRef.current
-      const leftContentEl = leftContentRef.current
-      if (!infoEl || !leftContentEl) return
-
-      const nextHeight = leftContentEl.getBoundingClientRect().bottom
-        - infoEl.getBoundingClientRect().bottom
-        - COLUMN_GAP
-
-      if (nextHeight <= 0) {
-        setReviewSectionHeight(null)
-        return
-      }
-
-      setReviewSectionHeight(Math.max(nextHeight, 280))
-    }
-
-    syncReviewSectionHeight()
-
-    const resizeObserver = new ResizeObserver(syncReviewSectionHeight)
-    ;[galleryRef, leftContentRef, productInfoRef].forEach((ref) => {
-      if (ref.current) resizeObserver.observe(ref.current)
-    })
-
-    window.addEventListener('resize', syncReviewSectionHeight)
-    return () => {
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', syncReviewSectionHeight)
-    }
-  }, [product.slug, product.gallery?.length, product.descriptiveImages?.length])
-
   return (
     <SiteLayout>
       <main className="bg-[#f2f2f2] py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)]">
-            <div className="contents lg:block lg:min-w-0 lg:space-y-4">
-              <div ref={galleryRef} className="order-1 min-w-0">
-                <ProductGallery product={product} activeImage={activeImage} setActiveImage={setActiveImage} />
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
+            <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
+              <ProductGallery product={product} activeImage={activeImage} setActiveImage={setActiveImage} />
+            </div>
+
+            <div className="order-3 flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-2 lg:h-full">
+              <div className="min-w-0">
+                <KeyDetails product={product} activeSku={activeSku} />
               </div>
-              <div ref={leftContentRef} className="contents lg:block lg:min-w-0 lg:space-y-4">
-                <div className="order-3 min-w-0">
-                  <KeyDetails product={product} activeSku={activeSku} />
-                </div>
-                <div className="order-4 min-w-0">
-                  <AboutThisItem product={product} />
-                </div>
-                <div className="order-5 min-w-0">
-                  <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
-                </div>
+              <div className="min-w-0">
+                <AboutThisItem product={product} />
+              </div>
+              <div className="mt-auto min-w-0">
+                <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
               </div>
             </div>
-            <div className="contents lg:block lg:min-w-0 lg:space-y-4">
-              <div ref={productInfoRef} className="order-2 min-w-0">
-                <ProductInfoPanel
-                  product={product}
-                  setActiveImage={setActiveImage}
-                  selectedColor={selectedColor}
-                  setSelectedColor={handleColorSelect}
-                  selectedSize={selectedSize}
-                  setSelectedSize={setSelectedSize}
-                  selectedCompatibleModel={selectedCompatibleModel}
-                  setSelectedCompatibleModel={handleCompatibleModelSelect}
-                  activeImage={activeImage}
-                  activeVariant={activeVariant}
-                  activeSku={activeSku}
-                  displayPriceInfo={displayPriceInfo}
-                />
-              </div>
-              <div className="order-6 min-w-0">
-                <ReviewSummary product={product} minHeight={reviewSectionHeight} />
-              </div>
+
+            <div className="order-2 min-w-0 lg:col-start-2 lg:row-start-1 lg:w-full">
+              <ProductInfoPanel
+                product={product}
+                setActiveImage={setActiveImage}
+                selectedColor={selectedColor}
+                setSelectedColor={handleColorSelect}
+                selectedSize={selectedSize}
+                setSelectedSize={setSelectedSize}
+                selectedCompatibleModel={selectedCompatibleModel}
+                setSelectedCompatibleModel={handleCompatibleModelSelect}
+                activeImage={activeImage}
+                activeVariant={activeVariant}
+                activeSku={activeSku}
+                displayPriceInfo={displayPriceInfo}
+              />
+            </div>
+
+            <div className="order-6 min-w-0 w-full lg:col-start-2 lg:row-start-2 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
+              <ReviewSummary product={product} fillHeight />
             </div>
           </section>
 
