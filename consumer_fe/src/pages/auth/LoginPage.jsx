@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import AuthLayout from '../../components/auth/AuthLayout'
 import AuthTabs from '../../components/auth/AuthTabs'
@@ -14,6 +14,7 @@ import PhoneInput from '../../components/auth/PhoneInput'
 import notify from '../../lib/notify'
 import { useRequestOtpMutation } from '../../hooks/useAuthMutations'
 import { AUTH_METHODS, AUTH_FLOW } from '../../constants/auth'
+import { saveAuthOtpSession } from '../../utils/authOtpSession'
 import {
   formatGhanaPhoneDisplay,
   normalizeGhanaPhone,
@@ -35,6 +36,8 @@ const LOGIN_FIELD_ORDER = {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = location.state?.from
   const [activeTab, setActiveTab] = useState('phone')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -113,13 +116,17 @@ export default function LoginPage() {
         notify.info('Use the verification code already sent to continue login.')
       }
 
+      const otpSession = {
+        flow: AUTH_FLOW.LOGIN,
+        method,
+        contact,
+        displayContact,
+        ...(redirectTo ? { redirectTo } : {}),
+      }
+      saveAuthOtpSession(otpSession)
+
       navigate('/login/verify', {
-        state: {
-          flow: AUTH_FLOW.LOGIN,
-          method,
-          contact,
-          displayContact,
-        },
+        state: otpSession,
       })
     } catch (error) {
       notify.fromError(error, 'Could not send verification code')

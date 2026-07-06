@@ -1,29 +1,59 @@
 import { createSlice } from '@reduxjs/toolkit'
+import { REHYDRATE } from 'redux-persist'
+import { AUTH_PERSIST_KEY } from '../authPersist'
 
-const initialState = {
+export const initialAuthState = {
   user: null,
   accessToken: null,
+  applicationToken: null,
   isAuthenticated: false,
+}
+
+function resolveIsAuthenticated(auth) {
+  return Boolean(auth?.accessToken && auth?.applicationToken && auth?.user)
 }
 
 const authSlice = createSlice({
   name: 'auth',
-  initialState,
+  initialState: initialAuthState,
   reducers: {
     setCredentials: (state, action) => {
-      const { user, accessToken } = action.payload
-      state.user = user
-      state.accessToken = accessToken
-      state.isAuthenticated = true
+      const { user, accessToken, applicationToken } = action.payload
+      state.user = user ?? null
+      state.accessToken = accessToken ?? null
+      state.applicationToken =
+        applicationToken ??
+        user?.application_token ??
+        user?.applicationToken ??
+        null
+      state.isAuthenticated = resolveIsAuthenticated(state)
     },
     updateUser: (state, action) => {
+      if (!state.user) {
+        state.user = action.payload
+        state.isAuthenticated = resolveIsAuthenticated(state)
+        return
+      }
       state.user = { ...state.user, ...action.payload }
     },
-    logout: (state) => {
-      state.user = null
-      state.accessToken = null
-      state.isAuthenticated = false
-    },  
+    logout: () => initialAuthState,
+  },
+  extraReducers: (builder) => {
+    builder.addCase(REHYDRATE, (state, action) => {
+      if (action.key !== AUTH_PERSIST_KEY) return
+
+      const incoming = action.payload
+      if (!incoming) return
+
+      state.user = incoming.user ?? null
+      state.accessToken = incoming.accessToken ?? null
+      state.applicationToken =
+        incoming.applicationToken ??
+        incoming.user?.application_token ??
+        incoming.user?.applicationToken ??
+        null
+      state.isAuthenticated = resolveIsAuthenticated(state)
+    })
   },
 })
 

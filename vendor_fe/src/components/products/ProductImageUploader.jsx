@@ -6,32 +6,59 @@ import {
   createProductImageFromFile,
   formatImageStorageSize,
   getProductImageLimitsSummary,
+  getStandaloneImageLimitsSummary,
   pickProductImageFiles,
+  pickStandaloneImageFiles,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
-const IMAGE_HINT = 'JPG or PNG · Up to 5 images total · 5MB combined'
+const DEFAULT_IMAGE_HINT = 'JPG or PNG · Up to 5 images total · 5MB combined'
 
 export default function ProductImageUploader({
   images,
   onChange,
   error,
   mainImage = null,
+  standalone = false,
+  maxCount,
+  maxBytes,
+  maxFileBytes,
+  dataField = 'sub_product_images',
+  emptyTitle = 'Drag & drop or click to upload gallery photos',
+  emptyHint = DEFAULT_IMAGE_HINT,
+  zoneHint,
+  reorderHint = ' · Drag gallery photos to reorder',
+  limitMessage,
 }) {
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [draggingIndex, setDraggingIndex] = useState(null)
   const [overIndex, setOverIndex] = useState(null)
-  const limits = getProductImageLimitsSummary(mainImage, images)
+  const limits = standalone
+    ? getStandaloneImageLimitsSummary(images, { maxCount, maxBytes })
+    : getProductImageLimitsSummary(mainImage, images)
   const atImageLimit = limits.remainingSlots <= 0
+  const resolvedLimitMessage = limitMessage
+    ?? (standalone
+      ? `You can upload at most ${limits.maxCount} image${limits.maxCount === 1 ? '' : 's'}.`
+      : `You can upload at most ${limits.maxCount} images (including the main photo).`)
 
   const processFiles = (fileList) => {
-    const { accepted, notices } = pickProductImageFiles({
-      mainImage,
-      subImages: images,
-      files: Array.from(fileList),
-      target: 'gallery',
-    })
+    const files = Array.from(fileList)
+    const { accepted, notices } = standalone
+      ? pickStandaloneImageFiles({
+        images,
+        files,
+        maxCount: limits.maxCount,
+        maxBytes: limits.maxBytes,
+        maxFileBytes,
+      })
+      : pickProductImageFiles({
+        mainImage,
+        subImages: images,
+        files,
+        target: 'gallery',
+      })
 
     notices.forEach((message) => notify.error(message))
 
@@ -50,7 +77,7 @@ export default function ProductImageUploader({
     event.preventDefault()
     setIsDragOver(false)
     if (atImageLimit) {
-      notify.error(`You can upload at most ${limits.maxCount} images (including the main photo).`)
+      notify.error(resolvedLimitMessage)
       return
     }
     processFiles(event.dataTransfer.files)
@@ -73,7 +100,7 @@ export default function ProductImageUploader({
   }
 
   return (
-    <div data-field="sub_product_images" className="space-y-4">
+    <div data-field={dataField} className="space-y-4">
       <div
         role="button"
         tabIndex={atImageLimit ? -1 : 0}
@@ -87,7 +114,7 @@ export default function ProductImageUploader({
         onDrop={handleZoneDrop}
         onClick={() => {
           if (atImageLimit) {
-            notify.error(`You can upload at most ${limits.maxCount} images (including the main photo).`)
+            notify.error(resolvedLimitMessage)
             return
           }
           inputRef.current?.click()
@@ -109,7 +136,7 @@ export default function ProductImageUploader({
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png"
+          accept="image/jpeg,image/png,image/webp"
           multiple
           disabled={atImageLimit}
           onChange={(event) => { processFiles(event.target.files); event.target.value = '' }}
@@ -124,14 +151,14 @@ export default function ProductImageUploader({
         </span>
         {images.length === 0 ? (
           <div className="text-center">
-            <p className="text-sm font-semibold text-slate-800">Drag & drop or click to upload gallery photos</p>
-            <p className="mt-1 text-xs text-slate-500">{IMAGE_HINT}</p>
+            <p className="text-sm font-semibold text-slate-800">{emptyTitle}</p>
+            <p className="mt-1 text-xs text-slate-500">{emptyHint}</p>
           </div>
         ) : (
           <p className="text-xs font-semibold text-slate-500">
             {atImageLimit
               ? 'Maximum image count reached'
-              : 'Click or drop to add more gallery photos'}
+              : (zoneHint ?? 'Click or drop to add more gallery photos')}
           </p>
         )}
       </div>
@@ -184,7 +211,7 @@ export default function ProductImageUploader({
       {!error && (
         <p className="text-xs text-slate-400">
           {limits.count} of {limits.maxCount} images · {formatImageStorageSize(limits.bytes)} of {formatImageStorageSize(limits.maxBytes)} used
-          {images.length > 0 ? ' · Drag gallery photos to reorder' : ''}
+          {images.length > 0 ? reorderHint : ''}
         </p>
       )}
     </div>

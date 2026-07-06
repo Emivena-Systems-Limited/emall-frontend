@@ -1,4 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit'
+import { REHYDRATE } from 'redux-persist'
+import { CART_PERSIST_KEY } from '../authPersist'
+import { isValidGuestCartId } from '../../utils/guestCartId'
+import { logout } from './authSlice'
 
 const getProductId = (product) =>
   product?.productId ?? product?.product_id ?? product?.backendId ?? product?.id ?? product?.slug
@@ -10,7 +14,7 @@ const getCartKey = ({ productId, variantId, sku }) =>
   [productId, variantId, sku].filter(Boolean).join(':')
 
 export function buildCartItem(product, options = {}) {
-  const productId = getProductId(product)
+  const productId = options.productId ?? getProductId(product)
   const variantId = options.variantId ?? getVariantId(product)
   const sku = options.sku ?? product?.sku ?? product?.activeSku ?? product?.variant
   const quantity = Math.max(1, Number(options.quantity ?? product?.quantity ?? 1))
@@ -36,13 +40,50 @@ export function buildCartItem(product, options = {}) {
     selected: product?.selected ?? true,
     seller: product?.seller ?? product?.storeName ?? product?.store_name ?? 'EZ-Stores',
     freeDelivery: product?.freeDelivery ?? true,
-    syncable: Boolean(options.syncable ?? product?.syncable ?? product?.backendId ?? product?.product_id),
+    syncable: Boolean(
+      options.syncable ??
+      product?.syncable ??
+      product?.backendId ??
+      product?.product_id ??
+      product?.id,
+    ),
   }
+}
+
+/** Upserts incoming items into the existing list, keyed by cart key or line item id. */
+function mergeItemsIntoList(existingItems, incomingRaw) {
+  const incomingItems = Array.isArray(incomingRaw) ? incomingRaw.map((item) => buildCartItem(item)) : []
+  const items = [...existingItems]
+
+  incomingItems.forEach((item) => {
+    const existingIndex = items.findIndex((current) => current.key === item.key || current.id === item.id)
+    if (existingIndex >= 0) {
+      items[existingIndex] = {
+        ...items[existingIndex],
+        ...item,
+        quantity: item.quantity || items[existingIndex].quantity,
+        selected: item.selected ?? items[existingIndex].selected,
+      }
+      return
+    }
+    items.push(item)
+  })
+
+  return items
+}
+
+const initialCartMeta = {
+  // idle -> syncing -> synced | error. Drives the one-time guest-to-account cart merge on login.
+  syncStatus: 'idle',
+  syncedUserId: null,
+  error: null,
 }
 
 const initialState = {
   items: [],
   savedItems: [],
+  guestCartId: null,
+  meta: initialCartMeta,
 }
 
 const cartSlice = createSlice({
@@ -75,18 +116,7 @@ const cartSlice = createSlice({
       state.items = Array.isArray(action.payload) ? action.payload.map((item) => buildCartItem(item)) : []
     },
     mergeItems(state, action) {
-      const incomingItems = Array.isArray(action.payload) ? action.payload.map((item) => buildCartItem(item)) : []
-      incomingItems.forEach((item) => {
-        const existing = state.items.find((current) => current.key === item.key || current.id === item.id)
-        if (existing) {
-          Object.assign(existing, item, {
-            quantity: item.quantity || existing.quantity,
-            selected: item.selected ?? existing.selected,
-          })
-          return
-        }
-        state.items.push(item)
-      })
+      state.items = mergeItemsIntoList(state.items, action.payload)
     },
     setQuantity(state, action) {
       const { itemId, quantity } = action.payload
@@ -126,6 +156,53 @@ const cartSlice = createSlice({
     clearSavedItems(state) {
       state.savedItems = []
     },
+    setGuestCartId(state, action) {
+      const nextId = String(action.payload ?? '').trim()
+      state.guestCartId = isValidGuestCartId(nextId) ? nextId : null
+    },
+    clearGuestCartId(state) {
+      state.guestCartId = null
+    },
+
+    /** One-time guest→account cart merge lifecycle, driven by useCartAuthSync. */
+    cartSyncStarted(state) {
+      state.meta.syncStatus = 'syncing'
+      state.meta.error = null
+    },
+    cartSyncSucceeded(state, action) {
+      const { items, userId } = action.payload
+      state.items = mergeItemsIntoList(state.items, items)
+      state.guestCartId = null
+      state.meta.syncStatus = 'synced'
+      state.meta.syncedUserId = userId ?? null
+      state.meta.error = null
+    },
+    cartSyncFailed(state, action) {
+      state.meta.syncStatus = 'error'
+      state.meta.error = action.payload ?? 'Cart sync failed'
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(logout, (state) => {
+        // Logging out returns the device to a clean guest cart so the next
+        // session (guest or a different account) never sees another user's items.
+        state.items = []
+        state.savedItems = []
+        state.guestCartId = null
+        state.meta = initialCartMeta
+      })
+      .addCase(REHYDRATE, (state, action) => {
+        if (action.key !== CART_PERSIST_KEY) return
+        if (state.guestCartId && !isValidGuestCartId(state.guestCartId)) {
+          state.guestCartId = null
+        }
+        // A persisted "syncing" flag means the tab closed mid-request — there is
+        // no request actually in flight anymore, so treat it as idle again.
+        if (state.meta?.syncStatus === 'syncing') {
+          state.meta.syncStatus = 'idle'
+        }
+      })
   },
 })
 
@@ -142,11 +219,20 @@ export const {
   moveSavedToCart,
   removeSavedItem,
   clearSavedItems,
+  setGuestCartId,
+  clearGuestCartId,
+  cartSyncStarted,
+  cartSyncSucceeded,
+  cartSyncFailed,
 } = cartSlice.actions
 
 export const selectCartItems = (state) => state.cart.items
 export const selectSavedCartItems = (state) => state.cart.savedItems
+export const selectGuestCartId = (state) => state.cart.guestCartId
 export const selectCartCount = (state) =>
   state.cart.items.reduce((total, item) => total + Number(item.quantity || 0), 0)
+export const selectCartSyncStatus = (state) => state.cart.meta.syncStatus
+export const selectCartSyncedUserId = (state) => state.cart.meta.syncedUserId
+export const selectCartSyncError = (state) => state.cart.meta.error
 
 export default cartSlice.reducer

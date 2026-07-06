@@ -1,42 +1,22 @@
-import { useEffect } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { getAuthenticatedCart } from '../services/cartService'
-import { mergeItems } from '../store/slices/cartSlice'
-import { extractCartItems } from '../utils/normalizeCart'
+import { useSelector } from 'react-redux'
+import { useAuthenticatedCart } from './useAuthenticatedCart'
+import { useCartAuthSync } from './useCartAuthSync'
+import { useGuestCart } from './useGuestCart'
+import { selectCartSyncStatus } from '../store/slices/cartSlice'
 
-let bootstrappedAccessToken = null
-
+/**
+ * Mounted once at the app shell (SiteLayout) so it covers every page:
+ * 1. useCartAuthSync — one-time guest→account handoff on login/signup.
+ * 2. useGuestCart — restore guest cart from GET /api/cart/guest when a
+ *    persisted guest_cart_id exists.
+ * 3. useAuthenticatedCart — routine GET /cart refresh for logged-in users.
+ */
 export function useCartBootstrap() {
-  const dispatch = useDispatch()
-  const { accessToken, isAuthenticated } = useSelector((state) => state.auth)
+  useCartAuthSync()
+  const syncStatus = useSelector(selectCartSyncStatus)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const cartSyncReady = syncStatus !== 'syncing'
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadCart() {
-      if (!isAuthenticated || !accessToken) {
-        bootstrappedAccessToken = null
-        return
-      }
-
-      if (bootstrappedAccessToken === accessToken) return
-      bootstrappedAccessToken = accessToken
-
-      try {
-        const cart = await getAuthenticatedCart()
-        if (!cancelled) {
-          dispatch(mergeItems(extractCartItems(cart)))
-        }
-      } catch {
-        bootstrappedAccessToken = null
-        // Keep the persisted/local cart when the backend cart is unavailable.
-      }
-    }
-
-    loadCart()
-
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken, dispatch, isAuthenticated])
+  useGuestCart({ enabled: !isAuthenticated && cartSyncReady })
+  useAuthenticatedCart({ strategy: 'merge', enabled: isAuthenticated && cartSyncReady })
 }

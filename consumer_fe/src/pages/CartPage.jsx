@@ -1,15 +1,38 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useSelector } from 'react-redux'
-import { Heart, Minus, Plus, ShoppingBag, ShoppingCart, Star, X } from 'lucide-react'
+import { Heart, Loader2, Minus, Plus, ShoppingBag, ShoppingCart, Star, X } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import { cartRelatedProducts } from '../constants/cartProducts'
 import { formatCedi } from '../utils/formatCurrency'
+import { calculateOrderTotal, normalizeCartSummary } from '../utils/checkoutTotals'
 import { selectCartItems, selectSavedCartItems } from '../store/slices/cartSlice'
 import { useCartActions } from '../hooks/useCartActions'
+import { useCartPageQueries } from '../hooks/useCartPageQueries'
+import { extractCartRecommendations } from '../utils/normalizeCart'
+import { normalizeLandingProducts } from '../utils/normalizeLandingProducts'
+import { notify } from '../lib/notify'
+
+const STAR_FILL = '#F59E0B'
+const STAR_EMPTY_FILL = '#E2E8F0'
 
 const clampQuantity = (value) => Math.max(1, value)
+
+function formatCartItemOptions(item) {
+  const variant = String(item.variant ?? '').trim()
+  const storage = String(item.storage ?? '').trim()
+  const parts = []
+
+  if (variant && variant.toLowerCase() !== 'default') {
+    parts.push(variant)
+  }
+  if (storage && storage !== variant && storage !== String(item.sku ?? '').trim()) {
+    parts.push(storage)
+  }
+
+  return parts.join(' · ')
+}
 
 function QuantityStepper({ value, onChange }) {
   return (
@@ -62,72 +85,84 @@ function CartItemRow({
   onDelete,
   onSave,
   saved = false,
+  readOnlyQuantity = false,
 }) {
   const subtotal = item.displaySubtotal ?? item.price * item.quantity
+  const optionLabel = formatCartItemOptions(item)
+  const productHref = item.href?.replace(/^\/products\//, '/') ?? '/'
 
   return (
-    <article className="grid gap-3 border-b border-slate-200 px-3 py-5 last:border-b-0 sm:px-4 md:grid-cols-[1fr_140px_150px_120px] md:items-center md:gap-4 lg:px-5">
+    <article className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-4 last:border-b-0 sm:px-4 lg:grid lg:grid-cols-[minmax(0,1fr)_120px_140px_110px] lg:items-center lg:gap-4 lg:px-5 lg:py-5">
       <div className="flex min-w-0 items-start gap-3 sm:items-center">
         <input
           type="checkbox"
           checked={selected}
           onChange={(event) => onSelect(event.target.checked)}
           aria-label={`Select ${item.name}`}
-          className="size-3.5 shrink-0 rounded border-slate-300 text-auth-primary focus:ring-auth-primary"
+          className="mt-1 size-3.5 shrink-0 rounded border-slate-300 text-auth-primary focus:ring-auth-primary lg:mt-0"
         />
-        <img
-          src={item.image}
-          alt={item.name}
-          className="size-16 shrink-0 rounded-md border border-red-100 object-cover sm:size-20"
-        />
-        <div className="min-w-0">
-          <h3 className="truncate text-sm font-bold text-slate-900">{item.name}</h3>
-          <p className="mt-1 text-[0.625rem] leading-relaxed text-slate-500">
-            Color:{item.variant} <span className="mx-1">Storage:{item.storage}</span>
-          </p>
+        <Link to={productHref} className="shrink-0">
+          <img
+            src={item.image}
+            alt={item.name}
+            className="size-16 rounded-md border border-red-100 object-cover sm:size-20"
+          />
+        </Link>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <Link
+            to={productHref}
+            className="block text-sm font-bold leading-snug text-slate-900 hover:text-auth-primary line-clamp-2 wrap-anywhere"
+          >
+            {item.name}
+          </Link>
+          {optionLabel && (
+            <p className="mt-1 text-[0.625rem] leading-relaxed text-slate-500 wrap-anywhere">
+              {optionLabel}
+            </p>
+          )}
+          {item.sku && (
+            <p className="mt-1 truncate text-[0.5625rem] font-semibold uppercase tracking-wide text-slate-400">
+              SKU: {item.sku}
+            </p>
+          )}
           {item.freeDelivery && (
-            <p className="mt-1 w-fit rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-emerald-700">
+            <p className="mt-1 w-fit max-w-full rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-emerald-700">
               Free Delivery
             </p>
           )}
-          <div className="mt-1 flex flex-wrap items-center gap-1 text-[0.5625rem]">
-            <Link to="/" className="font-semibold text-auth-primary underline">
-              {item.seller}
-            </Link>
-            <span className="flex items-center gap-px">
-              {Array.from({ length: 5 }, (_, index) => (
-                <Star
-                  key={index}
-                  className="size-2.5 text-[#F59E0B]"
-                  fill="currentColor"
-                  strokeWidth={0}
-                />
-              ))}
-            </span>
-            <span className="text-slate-500">(91)</span>
-          </div>
+          {item.seller && (
+            <p className="mt-1 text-[0.5625rem] text-slate-500 wrap-anywhere">
+              Sold by <span className="font-semibold text-slate-700">{item.seller}</span>
+            </p>
+          )}
           <ItemActions saved={saved} onDelete={onDelete} onSave={onSave} />
         </div>
       </div>
 
-      <div>
-        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 md:hidden">Price</p>
+      <div className="mt-3 grid min-w-0 grid-cols-3 gap-2 border-t border-slate-100 pt-3 sm:gap-3 lg:mt-0 lg:contents lg:border-0 lg:pt-0">
+      <div className="min-w-0">
+        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 lg:hidden">Price</p>
         <p className="text-sm font-extrabold text-slate-900">{formatCedi(item.price)}</p>
-        {item.compareAt && (
+        {item.compareAt && item.compareAt > item.price && (
           <p className="mt-1 text-[0.5625rem] font-semibold text-slate-400 line-through">
             {formatCedi(item.compareAt)}
           </p>
         )}
       </div>
 
-      <div>
-        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 md:hidden">Quantity</p>
-        <QuantityStepper value={item.quantity} onChange={onQuantityChange} />
+      <div className="min-w-0">
+        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 lg:hidden">Quantity</p>
+        {readOnlyQuantity ? (
+          <p className="text-sm font-bold text-slate-900">{item.quantity}</p>
+        ) : (
+          <QuantityStepper value={item.quantity} onChange={onQuantityChange} />
+        )}
       </div>
 
-      <div>
-        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 md:hidden">Subtotal</p>
+      <div className="min-w-0 text-right lg:text-left">
+        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 lg:hidden">Subtotal</p>
         <p className="text-sm font-extrabold text-slate-900">{formatCedi(subtotal)}</p>
+      </div>
       </div>
     </article>
   )
@@ -143,20 +178,21 @@ function ItemTable({
   onDelete,
   onSave,
   saved = false,
+  readOnlyQuantity = false,
   clearLabel,
   onClear,
 }) {
   return (
-    <section aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}>
+    <section className="min-w-0" aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}>
       <div className="mb-4">
-        <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-xl font-bold text-slate-950">
+        <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-lg font-bold text-slate-950 sm:text-xl">
           {title}
         </h2>
-        <p className="mt-2 text-xs text-slate-500">{subtitle}</p>
+        <p className="mt-2 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
       </div>
 
-      <div className="overflow-hidden bg-white">
-        <div className="hidden bg-auth-primary px-4 py-4 text-sm font-bold text-white md:grid md:grid-cols-[1fr_140px_150px_120px] md:gap-4 lg:px-5">
+      <div className="overflow-hidden rounded-xl bg-white">
+        <div className="hidden bg-auth-primary px-4 py-3 text-sm font-bold text-white lg:grid lg:grid-cols-[minmax(0,1fr)_120px_140px_110px] lg:gap-4 lg:px-5">
           <span>Product</span>
           <span>Price</span>
           <span>Quantity</span>
@@ -167,6 +203,7 @@ function ItemTable({
             key={item.id}
             item={item}
             saved={saved}
+            readOnlyQuantity={readOnlyQuantity}
             selected={selectedIds.has(item.id)}
             onSelect={(checked) => onSelect(item.id, checked)}
             onQuantityChange={(quantity) => onQuantityChange(item.id, quantity)}
@@ -188,16 +225,27 @@ function ItemTable({
   )
 }
 
-function CartSummary({ itemCount, subtotal, onOpenDelivery, onProceedCheckout }) {
-  const tax = 80
-  const deliveryFee = 70
-  const freeDelivery = 70
-  const total = subtotal + tax + deliveryFee - freeDelivery
+function CartSummary({
+  itemCount,
+  subtotal,
+  totals,
+  total,
+  isLoadingTotals = false,
+  hasSelectedItems,
+  onOpenDelivery,
+  onProceedCheckout,
+}) {
+  const { tax, deliveryFee, freeDelivery } = totals
 
   return (
-    <aside className="rounded-xl bg-white p-5 lg:sticky lg:top-24">
-      <h2 className="text-lg font-bold text-slate-900">Order Total</h2>
-      <div className="mt-4 space-y-4 border-t border-slate-200 pt-4 text-sm">
+    <aside className="rounded-xl bg-white p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-slate-900">Order Total</h2>
+        {isLoadingTotals && (
+          <Loader2 className="size-4 animate-spin text-auth-primary" aria-label="Updating totals" />
+        )}
+      </div>
+      <div className="mt-4 space-y-3 border-t border-slate-200 pt-4 text-sm sm:space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-slate-600">Items</span>
           <span className="font-bold text-slate-900">{itemCount}</span>
@@ -226,7 +274,8 @@ function CartSummary({ itemCount, subtotal, onOpenDelivery, onProceedCheckout })
       <button
         type="button"
         onClick={onProceedCheckout}
-        className="mt-5 flex w-full items-center justify-center rounded-md bg-auth-primary px-5 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover"
+        disabled={!hasSelectedItems}
+        className="mt-5 flex w-full items-center justify-center rounded-md bg-auth-primary px-5 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         Proceed to checkout
       </button>
@@ -238,43 +287,6 @@ function CartSummary({ itemCount, subtotal, onOpenDelivery, onProceedCheckout })
         View Delivery Information
       </button>
     </aside>
-  )
-}
-
-function CheckoutChoiceModal({ open, onClose }) {
-  if (!open) return null
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-950">Continue to checkout</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Checkout as a guest or sign in to use your saved account details.
-            </p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close checkout options">
-            <X className="size-6 text-slate-700" />
-          </button>
-        </div>
-
-        <div className="mt-6 grid gap-3">
-          <Link
-            to="/checkout/guest"
-            className="flex min-h-12 items-center justify-center rounded-lg bg-auth-primary px-5 text-sm font-bold text-white hover:bg-auth-primary-hover"
-          >
-            Checkout as Guest
-          </Link>
-          <Link
-            to="/login"
-            className="flex min-h-12 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-bold text-slate-900 hover:border-auth-primary hover:text-auth-primary"
-          >
-            Login to Checkout
-          </Link>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -303,7 +315,7 @@ function EmptyCartState() {
 }
 
 function RailProductCard({ product, onAddToCart }) {
-  const fullStars = Math.floor(product.rating)
+  const fullStars = Math.floor(product.rating ?? 0)
 
   return (
     <article className="min-w-0">
@@ -315,9 +327,11 @@ function RailProductCard({ product, onAddToCart }) {
             className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
           />
-          <span className="absolute left-2 top-2 rounded-sm bg-emerald-500 px-2 py-1 text-[0.5625rem] font-bold text-white">
-            Free Delivery
-          </span>
+          {product.freeDelivery !== false && (
+            <span className="absolute left-2 top-2 rounded-sm bg-emerald-500 px-2 py-1 text-[0.5625rem] font-bold text-white">
+              Free Delivery
+            </span>
+          )}
           <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full text-white">
             <Heart className="size-5" strokeWidth={2.2} />
           </span>
@@ -326,17 +340,21 @@ function RailProductCard({ product, onAddToCart }) {
         <span className="mt-1 block text-sm font-extrabold text-slate-950">{formatCedi(product.price)}</span>
       </Link>
       <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          {Array.from({ length: 5 }, (_, index) => (
-            <Star
-              key={index}
-              className={`size-3 ${index < fullStars ? 'text-[#F59E0B]' : 'text-slate-300'}`}
-              fill="currentColor"
-              strokeWidth={0}
-            />
-          ))}
-          <span className="text-[0.625rem] text-slate-500">({product.reviewCount})</span>
-        </div>
+        {product.reviewCount > 0 ? (
+          <div className="flex items-center gap-1">
+            {Array.from({ length: 5 }, (_, index) => (
+              <Star
+                key={index}
+                className="size-3"
+                fill={index < fullStars ? STAR_FILL : STAR_EMPTY_FILL}
+                strokeWidth={0}
+              />
+            ))}
+            <span className="text-[0.625rem] text-slate-500">({product.reviewCount})</span>
+          </div>
+        ) : (
+          <span className="text-[0.625rem] text-slate-400">No reviews</span>
+        )}
         <button
           type="button"
           onClick={() => onAddToCart(product)}
@@ -351,15 +369,27 @@ function RailProductCard({ product, onAddToCart }) {
 }
 
 function ProductRail({ title, products, onAddToCart }) {
+  if (products.length === 0) return null
+
   return (
-    <section className="bg-white px-3 py-4 sm:px-4" aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}>
-      <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-xl font-bold text-slate-900">
+    <section
+      className="min-w-0 overflow-hidden rounded-xl bg-white px-3 py-4 sm:px-4"
+      aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}
+    >
+      <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-lg font-bold text-slate-900 sm:text-xl">
         {title}
       </h2>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
-        {products.slice(0, 5).map((product) => (
-          <RailProductCard key={`${title}-${product.id}`} product={product} onAddToCart={onAddToCart} />
-        ))}
+      <div className="mt-4 -mx-1 snap-x snap-mandatory overflow-x-auto px-1 pb-1 scrollbar-none [-ms-overflow-style:none] lg:overflow-visible lg:snap-none [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-3 lg:grid lg:grid-cols-5 lg:gap-4">
+          {products.slice(0, 5).map((product) => (
+            <div
+              key={`${title}-${product.id}`}
+              className="w-[calc(50%-0.375rem)] shrink-0 snap-start sm:w-[calc(33.333%-0.5rem)] md:w-[calc(25%-0.5625rem)] lg:w-auto lg:shrink"
+            >
+              <RailProductCard product={product} onAddToCart={onAddToCart} />
+            </div>
+          ))}
+        </div>
       </div>
       <div className="mt-5 flex justify-center">
         <Link
@@ -370,6 +400,30 @@ function ProductRail({ title, products, onAddToCart }) {
         </Link>
       </div>
     </section>
+  )
+}
+
+function MobileCheckoutBar({ itemCount, total, hasSelectedItems, onProceedCheckout }) {
+  if (!hasSelectedItems) return null
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-500">
+            {itemCount} item{itemCount === 1 ? '' : 's'} selected
+          </p>
+          <p className="truncate text-lg font-extrabold text-slate-950">{formatCedi(total)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onProceedCheckout}
+          className="shrink-0 rounded-lg bg-auth-primary px-5 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover"
+        >
+          Checkout
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -386,58 +440,59 @@ function DeliveryModal({ open, onClose, onProceedCheckout }) {
           </button>
         </div>
 
-        <div className="grid gap-7 pt-6 text-slate-950 sm:gap-9 sm:pt-8">
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
+        <div className="grid gap-5 pt-5 text-slate-950 sm:gap-6 sm:pt-6">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-4">
             <div>
-              <h3 className="text-lg sm:text-2xl">Delivery Method:</h3>
-              <p className="mt-2 text-base text-slate-500 sm:mt-3 sm:text-2xl">Method of delivery used by seller</p>
+              <h3 className="text-base font-bold sm:text-lg">Delivery Method</h3>
+              <p className="mt-1 text-sm text-slate-500">Method of delivery used by seller</p>
             </div>
-            <span className="flex size-14 items-center justify-center bg-black text-base font-bold text-white sm:size-16 sm:text-lg">
+            <span className="inline-flex h-10 items-center justify-center bg-black px-4 text-sm font-bold text-white sm:h-11">
               Uber
             </span>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
             <div>
-              <h3 className="text-lg sm:text-2xl">Driver Name:</h3>
-              <p className="mt-2 text-base text-slate-500 sm:mt-3 sm:text-2xl">Name of Delivery driver</p>
+              <h3 className="text-base font-bold sm:text-lg">Driver Name</h3>
+              <p className="mt-1 text-sm text-slate-500">Name of delivery driver</p>
             </div>
-            <p className="text-xl font-bold text-slate-500 sm:text-2xl">Victor Mensah</p>
+            <p className="text-sm font-bold text-slate-700 sm:text-base">Victor Mensah</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
             <div>
-              <h3 className="text-lg sm:text-2xl">Phone Number:</h3>
-              <p className="mt-2 text-base text-slate-500 sm:mt-3 sm:text-2xl">Contact driver via displayed number</p>
+              <h3 className="text-base font-bold sm:text-lg">Phone Number</h3>
+              <p className="mt-1 text-sm text-slate-500">Contact driver via displayed number</p>
             </div>
-            <p className="text-xl font-bold text-slate-500 sm:text-2xl">0244123456</p>
+            <p className="text-sm font-bold text-slate-700 sm:text-base">0244123456</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-4">
             <div>
-              <h3 className="text-lg sm:text-2xl">Expected Delivery Date</h3>
-              <p className="mt-2 text-base text-slate-500 sm:mt-3 sm:text-2xl">
+              <h3 className="text-base font-bold sm:text-lg">Expected Delivery Date</h3>
+              <p className="mt-1 text-sm text-slate-500">
                 Estimated day product is expected to be delivered
               </p>
             </div>
-            <p className="text-left text-base font-bold text-slate-500 sm:text-right sm:text-xl">
+            <p className="text-sm font-bold text-slate-700 sm:text-right sm:text-base">
               Estimated Delivery (1 - 2 days)
-              <span className="block font-normal">(23 - 25 June)</span>
+              <span className="mt-0.5 block font-normal text-slate-500">(23 - 25 June)</span>
             </p>
           </div>
         </div>
 
-        <div className="mt-8 flex flex-col justify-end gap-4 sm:flex-row">
+        <div className="mt-6 flex flex-col justify-end gap-3 sm:mt-8 sm:flex-row sm:gap-4">
           <button
             type="button"
-            className="w-full rounded-full border-2 border-slate-500 px-8 py-3 text-base font-bold text-slate-500 sm:w-auto sm:px-12 sm:py-4 sm:text-xl"
+            onClick={onClose}
+            className="w-full rounded-full border-2 border-slate-300 px-6 py-3 text-sm font-bold text-slate-600 sm:w-auto sm:px-10"
           >
-            Add to Cart
+            Close
           </button>
           <button
             type="button"
             onClick={onProceedCheckout}
-            className="w-full rounded-full bg-auth-primary px-8 py-3 text-center text-base font-bold text-white sm:w-auto sm:px-9 sm:py-4 sm:text-xl"
+            className="w-full rounded-full bg-auth-primary px-6 py-3 text-center text-sm font-bold text-white sm:w-auto sm:px-10"
           >
             Proceed to checkout
           </button>
@@ -465,30 +520,87 @@ export default function CartPage() {
   } = useCartActions()
   const [savedSelectedIds, setSavedSelectedIds] = useState(() => new Set())
   const [deliveryOpen, setDeliveryOpen] = useState(false)
-  const [checkoutChoiceOpen, setCheckoutChoiceOpen] = useState(false)
 
-  const subtotal = useMemo(
-    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  const { summaryQuery, recommendationsQuery } = useCartPageQueries()
+
+  const selectedItems = useMemo(
+    () => items.filter((item) => item.selected !== false),
     [items],
   )
 
+  const subtotal = useMemo(
+    () => selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    [selectedItems],
+  )
+
+  const selectedItemCount = useMemo(
+    () => selectedItems.reduce((sum, item) => sum + item.quantity, 0),
+    [selectedItems],
+  )
+
+  useEffect(() => {
+    if (summaryQuery.isError) {
+      notify.fromError(summaryQuery.error, 'Live cart summary is unavailable. Showing estimates.')
+    }
+  }, [summaryQuery.error, summaryQuery.isError])
+
+  const cartSummary = normalizeCartSummary(summaryQuery.data)
+  const displayItemCount = cartSummary.itemCount ?? selectedItemCount
+  const displaySubtotal = cartSummary.subtotal ?? subtotal
+  const orderTotals = {
+    tax: cartSummary.tax,
+    deliveryFee: cartSummary.deliveryFee,
+    freeDelivery: cartSummary.freeDelivery,
+    couponDiscount: cartSummary.couponDiscount,
+  }
+  const orderTotal = cartSummary.total ?? calculateOrderTotal(displaySubtotal, orderTotals)
+
+  const cartRecommendations = useMemo(
+    () => extractCartRecommendations(recommendationsQuery.data),
+    [recommendationsQuery.data],
+  )
+
+  const apiDealsProducts = useMemo(
+    () => normalizeLandingProducts(cartRecommendations.bestSellers, { prefix: 'cart-deal' }),
+    [cartRecommendations.bestSellers],
+  )
+  const apiRelatedProducts = useMemo(
+    () => normalizeLandingProducts(cartRecommendations.related, { prefix: 'cart-related' }),
+    [cartRecommendations.related],
+  )
+  const apiRecommendedProducts = useMemo(
+    () => normalizeLandingProducts(cartRecommendations.recommended, { prefix: 'cart-recommended' }),
+    [cartRecommendations.recommended],
+  )
+
+  const dealsProducts = apiDealsProducts.length > 0 ? apiDealsProducts : cartRelatedProducts
+  const relatedProducts = apiRelatedProducts.length > 0
+    ? apiRelatedProducts
+    : apiRecommendedProducts.length > 0
+      ? apiRecommendedProducts
+      : cartRelatedProducts.slice(1)
+  const amazingProducts = apiRecommendedProducts.length > 0
+    ? apiRecommendedProducts
+    : cartRelatedProducts.slice(2)
+
   const handleProceedCheckout = () => {
-    if (isAuthenticated) {
-      navigate('/checkout')
+    if (selectedItems.length === 0) {
+      notify.error('Select at least one item to checkout.')
       return
     }
 
-    setCheckoutChoiceOpen(true)
+    navigate('/checkout')
   }
 
   return (
     <SiteLayout>
-      <main className="bg-[#f2f2f2] py-6 sm:py-8">
-        <Container className="space-y-8">
+      <main className={`overflow-x-hidden bg-[#f2f2f2] py-4 sm:py-8 ${items.length > 0 ? 'pb-24 lg:pb-8' : ''}`}>
+        <Container className="min-w-0 space-y-6 sm:space-y-8">
           {items.length === 0 ? (
             <EmptyCartState />
           ) : (
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8">
+              <div className="min-w-0">
               <ItemTable
                 title="Shopping Cart"
                 subtitle="View your shopping cart and proceed to checkout"
@@ -501,22 +613,25 @@ export default function CartPage() {
                 clearLabel="Clear Cart"
                 onClear={clearAll}
               />
-
-              <div className="pt-14">
-                <CartSummary
-                  itemCount={items.length}
-                  subtotal={subtotal}
-                  onOpenDelivery={() => setDeliveryOpen(true)}
-                  onProceedCheckout={handleProceedCheckout}
-                />
               </div>
+
+              <CartSummary
+                itemCount={displayItemCount}
+                subtotal={displaySubtotal}
+                totals={orderTotals}
+                total={orderTotal}
+                isLoadingTotals={summaryQuery.isFetching && isAuthenticated}
+                hasSelectedItems={selectedItems.length > 0}
+                onOpenDelivery={() => setDeliveryOpen(true)}
+                onProceedCheckout={handleProceedCheckout}
+              />
             </div>
           )}
 
           {savedItems.length > 0 && (
             <ItemTable
               title="Saved Items"
-              subtitle="View your shopping cart and proceed to checkout"
+              subtitle="Items you saved for later. Move them back to your cart when you're ready to buy."
               items={savedItems}
               selectedIds={savedSelectedIds}
               onSelect={(itemId, checked) => {
@@ -531,16 +646,24 @@ export default function CartPage() {
               onDelete={deleteSaved}
               onSave={restoreSavedItem}
               saved
+              readOnlyQuantity
               clearLabel="Clear Saved Items"
               onClear={clearSaved}
             />
           )}
 
-          <ProductRail title="Best Deals From Seller" products={cartRelatedProducts} onAddToCart={addToCart} />
-          <ProductRail title="Products Related to this Item" products={cartRelatedProducts.slice(1)} onAddToCart={addToCart} />
-          <ProductRail title="See Other Amazing Products" products={cartRelatedProducts.slice(2)} onAddToCart={addToCart} />
+          <ProductRail title="Best Deals From Seller" products={dealsProducts} onAddToCart={addToCart} />
+          <ProductRail title="Products Related to this Item" products={relatedProducts} onAddToCart={addToCart} />
+          <ProductRail title="See Other Amazing Products" products={amazingProducts} onAddToCart={addToCart} />
         </Container>
       </main>
+
+      <MobileCheckoutBar
+        itemCount={displayItemCount}
+        total={orderTotal}
+        hasSelectedItems={selectedItems.length > 0 && items.length > 0}
+        onProceedCheckout={handleProceedCheckout}
+      />
 
       <DeliveryModal
         open={deliveryOpen}
@@ -550,7 +673,6 @@ export default function CartPage() {
           handleProceedCheckout()
         }}
       />
-      <CheckoutChoiceModal open={checkoutChoiceOpen} onClose={() => setCheckoutChoiceOpen(false)} />
     </SiteLayout>
   )
 }

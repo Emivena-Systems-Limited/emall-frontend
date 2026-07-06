@@ -1,4 +1,4 @@
-import { Link, Navigate } from 'react-router'
+import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
 import {
   Heart,
@@ -28,11 +28,7 @@ const getDisplayName = (user) => {
 }
 
 export default function AccountPage() {
-  const { isAuthenticated, user } = useSelector((state) => state.auth)
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
-  }
+  const { user } = useSelector((state) => state.auth)
 
   const displayName = getDisplayName(user)
   const email = user?.email

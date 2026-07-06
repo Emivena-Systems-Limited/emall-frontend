@@ -52,3 +52,114 @@ body {
     rgba(199, 59, 45, 0.018) 29px
   );
 }
+
+/* Rich text product descriptions from vendor editor (TipTap/Quill HTML) */
+.product-description {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.product-description > :first-child {
+  margin-top: 0;
+}
+
+.product-description > :last-child {
+  margin-bottom: 0;
+}
+
+.product-description p {
+  margin: 0.75rem 0;
+}
+
+.product-description p:empty {
+  display: none;
+}
+
+.product-description strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.product-description a {
+  color: var(--color-auth-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.product-description a:hover {
+  color: var(--color-auth-primary-hover);
+}
+
+.product-description h2,
+.product-description h3 {
+  margin: 1rem 0 0.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.product-description h2 {
+  font-size: 1rem;
+}
+
+.product-description h3 {
+  font-size: 0.9375rem;
+}
+
+.product-description ul {
+  list-style-type: disc;
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+
+.product-description ol {
+  list-style-type: decimal;
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+
+.product-description li {
+  margin: 0.375rem 0;
+}
+
+.product-description li p {
+  margin: 0;
+}
+
+.product-description li::marker {
+  color: #64748b;
+}
+
+.product-description blockquote {
+  margin: 0.75rem 0;
+  border-left: 3px solid #e2e8f0;
+  padding-left: 0.875rem;
+  color: #475569;
+}
+
+.product-description img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border-radius: 0.375rem;
+}
+
+.product-description table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  table-layout: fixed;
+}
+
+.product-description td,
+.product-description th {
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem 0.625rem;
+  vertical-align: top;
+}
+
+.product-description th {
+  background: #f8fafc;
+  font-weight: 600;
+}

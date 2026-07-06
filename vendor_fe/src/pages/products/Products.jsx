@@ -27,7 +27,7 @@ import {
 } from '../../hooks/useProductMutations'
 import { useProducts } from '../../hooks/useProducts'
 import { exportProductsToExcel } from '../../utils/exportProductCatalog'
-import { buildCatalogFilterOptions, filterProductCatalog } from '../../utils/productCatalogFilters'
+import { buildCatalogFilterOptions, filterProductCatalog, sortCatalogProductsLatestFirst } from '../../utils/productCatalogFilters'
 import { getProductStatusActionCopy } from '../../utils/productStatusActions'
 import { toCatalogProduct } from '../../services/productService'
 
@@ -56,7 +56,9 @@ export default function Products() {
   const summary = useMemo(() => getCatalogSummary(products), [products])
 
   const filteredProducts = useMemo(
-    () => filterProductCatalog(products, { search, category, brand, summaryFilter }),
+    () => sortCatalogProductsLatestFirst(
+      filterProductCatalog(products, { search, category, brand, summaryFilter }),
+    ),
     [products, search, category, brand, summaryFilter],
   )
 

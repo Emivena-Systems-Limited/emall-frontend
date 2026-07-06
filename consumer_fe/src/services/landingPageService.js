@@ -10,7 +10,7 @@ function assertApiSuccess(data) {
 }
 
 export async function getLandingPageHome() {
-  const { data } = await apiClient.get(LANDING_PAGE_ENDPOINTS.HOME)
+  const { data } = await apiClient.get(LANDING_PAGE_ENDPOINTS.HOME, { skipAuthLogout: true })
   assertApiSuccess(data)
 
   return data?.data ?? data ?? {}
@@ -18,7 +18,7 @@ export async function getLandingPageHome() {
 
 export async function getProductById(productId) {
   if (!productId) return null
-  const { data } = await apiClient.get(`/product/${productId}`)
+  const { data } = await apiClient.get(`/product/${productId}`, { skipAuthLogout: true })
   assertApiSuccess(data)
 
   return data?.data ?? data ?? {}

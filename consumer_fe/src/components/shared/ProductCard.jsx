@@ -7,17 +7,17 @@ function PriceDisplay({ price, compareAt }) {
   const [integer, decimal] = formatCedi(price).split('.')
 
   return (
-    <div className="flex items-start gap-2">
-      <span className="text-base font-bold leading-tight text-slate-900">
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-base font-bold leading-tight text-slate-900 tabular-nums">
         {integer}
         {decimal && (
           <sup className="text-[0.6rem] font-bold">.{decimal}</sup>
         )}
-      </span>
+      </p>
       {compareAt && (
-        <span className="mt-0.5 text-[0.6875rem] text-slate-400 line-through">
+        <p className="mt-0.5 truncate text-[0.6875rem] leading-tight text-slate-400 line-through tabular-nums">
           {formatCedi(compareAt)}
-        </span>
+        </p>
       )}
     </div>
   )
@@ -73,7 +73,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition-shadow duration-300 hover:shadow-[0_8px_30px_-6px_rgba(15,23,42,0.15)]">
       <Link
         to={productHref}
-        className="relative block aspect-square w-full overflow-hidden bg-slate-50"
+        className="relative block aspect-square w-full overflow-hidden bg-white"
         tabIndex={-1}
         aria-hidden="true"
       >
@@ -102,7 +102,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
         </div>
       </Link>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-3.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-3 sm:p-3.5">
         <Link to={productHref} className="block min-w-0">
           <h3 className="truncate text-sm font-semibold leading-snug text-slate-900 transition-colors group-hover:text-auth-primary sm:text-[0.9375rem]">
             {product.name}
@@ -114,7 +114,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
 
         <StarRating rating={product.rating} count={product.reviewCount} />
 
-        <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+        <div className="mt-auto flex min-w-0 items-end justify-between gap-2 pt-1">
           <PriceDisplay price={product.price} compareAt={product.compareAt} />
 
           <button
@@ -127,7 +127,10 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
                 return
               }
 
-              addToCart(product)
+              addToCart(product, {
+                productId: product.backendId ?? product.id,
+                syncable: Boolean(product.backendId ?? product.id),
+              })
             }}
             className="flex size-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-auth-primary hover:bg-auth-primary hover:text-white sm:size-9"
           >

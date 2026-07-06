@@ -164,28 +164,42 @@ function formatCatalogCategoryLabel(record, context = {}) {
   return parentName
 }
 
-function resolveCatalogListPrice(record, firstVariant, context, meta = {}) {
-  const raw =
-    context.price
-    ?? record.price
-    ?? (meta.regular_price != null && meta.regular_price !== '' ? Number(meta.regular_price) : null)
-    ?? firstVariant?.price
-    ?? null
+function isUsableCatalogPrice(value) {
+  if (value == null || value === '') return false
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0
+}
 
-  return raw != null ? Number(raw) : 0
+function resolveCatalogListPrice(record, firstVariant, context, meta = {}) {
+  const candidates = [
+    context.price,
+    record.regular_price,
+    record.price,
+    firstVariant?.regular_price,
+    firstVariant?.price,
+  ]
+
+  for (const candidate of candidates) {
+    if (isUsableCatalogPrice(candidate)) return Number(candidate)
+  }
+
+  return 0
 }
 
 function resolveCatalogSalePrice(record, firstVariant, context, meta = {}) {
-  const raw =
-    context.salePrice
-    ?? record.discount_price
-    ?? (meta.has_discount === '1' && meta.sale_price != null && meta.sale_price !== ''
-      ? Number(meta.sale_price)
-      : null)
-    ?? firstVariant?.discount_price
-    ?? null
+  const candidates = [
+    context.salePrice,
+    record.regular_discount_price,
+    record.discount_price,
+    firstVariant?.regular_discount_price,
+    firstVariant?.discount_price,
+  ]
 
-  return raw != null && raw !== '' ? Number(raw) : null
+  for (const candidate of candidates) {
+    if (isUsableCatalogPrice(candidate)) return Number(candidate)
+  }
+
+  return null
 }
 
 export function extractProductRecord(body) {

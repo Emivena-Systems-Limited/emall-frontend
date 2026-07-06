@@ -1,5 +1,22 @@
 import { isLowStockProduct, SUMMARY_FILTERS } from '../constants/productCatalog'
 
+export function sortCatalogProductsLatestFirst(products = []) {
+  return [...products].sort((a, b) => {
+    const aTime = a.createdAt ? Date.parse(a.createdAt) : Number.NaN
+    const bTime = b.createdAt ? Date.parse(b.createdAt) : Number.NaN
+
+    if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
+      return bTime - aTime
+    }
+
+    if (Number.isFinite(aTime) !== Number.isFinite(bTime)) {
+      return Number.isFinite(bTime) - Number.isFinite(aTime)
+    }
+
+    return String(b.id ?? '').localeCompare(String(a.id ?? ''))
+  })
+}
+
 export function filterProductCatalog(products, { search, category, brand, summaryFilter }) {
   const query = search.trim().toLowerCase()
 

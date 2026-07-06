@@ -24,6 +24,7 @@ import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import ProductStepper from '../../components/products/ProductStepper'
 import ProductRichTextEditor from '../../components/products/ProductRichTextEditor'
 import ProductImageUploader from '../../components/products/ProductImageUploader'
+import ProductKeyDetailsInput from '../../components/products/ProductKeyDetailsInput'
 import ProductMainImageUpload from '../../components/products/ProductMainImageUpload'
 import VariantImageUpload from '../../components/products/VariantImageUpload'
 import DevProductFormTools from '../../components/products/DevProductFormTools'
@@ -32,9 +33,19 @@ import SearchableSelect from '../../components/auth/SearchableSelect'
 import FieldError from '../../components/auth/FieldError'
 import {
   GuidanceCard,
+  // OptionalBadge,
+  OptionalSection,
+  OptionalSectionHeader,
   ProductInput,
   ProductMoneyInput,
+  ProductSelect,
 } from '../../components/products/ProductFormControls'
+import {
+  MAX_DESCRIPTIVE_IMAGE_COUNT,
+  MAX_DESCRIPTIVE_IMAGE_FILE_BYTES,
+  MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES,
+  PRODUCT_CONDITION_OPTIONS,
+} from '../../constants/products'
 import {
   findCategoryById,
   getSubcategoriesForParentId,
@@ -61,7 +72,12 @@ import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirst
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
 import notify from '../../lib/notify'
 import { isLocalEnvironment } from '../../utils/environment'
-import { validateProductImageLimits } from '../../utils/productImageUtils'
+import { getProductConditionLabel } from '../../utils/productMetadata'
+import {
+  validateProductImageLimits,
+  validateDescriptiveImageLimits,
+  validateGalleryImagesRequired,
+} from '../../utils/productImageUtils'
 
 const productListingSteps = [
   { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
@@ -74,7 +90,7 @@ const productListingSteps = [
 ]
 
 const productListingStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'brand_id'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'brand_id', 'condition', 'key_details'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   // ['variations'],
@@ -89,7 +105,9 @@ const productListingInitialValues = {
   category_id:        '',
   subcategory_id:     '',
   brand_id:           '',
+  condition:          '',
   tags:               [],
+  key_details:        [],
   price:              '',
   discount_mode:      'amount',
   discount_price:     '',
@@ -107,6 +125,12 @@ const productListingInitialValues = {
 
 function getTouchedForFields(fields, values) {
   return fields.reduce((touched, field) => {
+    if (field === 'key_details') {
+      return {
+        ...touched,
+        key_details: (values.key_details ?? []).map(() => ({ key: true, value: true })),
+      }
+    }
     if (field === 'variations') {
       return {
         ...touched,
@@ -180,6 +204,14 @@ function hasVariationStepErrors(variationErrors) {
 function hasStepErrors(errors, fields) {
   return fields.some((field) => {
     if (field === 'variations') return hasVariationStepErrors(errors?.variations)
+    if (field === 'key_details') {
+      const keyDetailErrors = errors?.key_details
+      if (!keyDetailErrors) return false
+      if (typeof keyDetailErrors === 'string') return true
+      if (Array.isArray(keyDetailErrors)) {
+        return keyDetailErrors.some((item) => item && (item.key || item.value))
+      }
+    }
     return Boolean(getIn(errors, field))
   })
 }
@@ -290,6 +322,7 @@ export function InfoStep({
           label="Tags"
           hint="Press Enter or comma to add. Max 15 tags."
           reserveHintSpace
+          optional
         />
         <SearchableSelect
           id="brand_id"
@@ -382,6 +415,18 @@ export function InfoStep({
             onBlur={formik.handleBlur}
             error={getFieldError(formik, 'subcategory_id')}
           />
+          <ProductSelect
+            id="condition"
+            name="condition"
+            label="Product condition"
+            hint="Required. Describe the physical state of the item."
+            placeholder="Select condition"
+            options={PRODUCT_CONDITION_OPTIONS}
+            value={formik.values.condition}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'condition')}
+          />
         </div>
         {selectedCategory && (
           <div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3">
@@ -394,6 +439,14 @@ export function InfoStep({
           </div>
         )}
       </section>
+
+      <ProductKeyDetailsInput
+        pairs={formik.values.key_details ?? []}
+        onChange={(pairs) => formik.setFieldValue('key_details', pairs)}
+        errors={formik.errors.key_details}
+        touched={formik.touched.key_details}
+        submitCount={formik.submitCount}
+      />
 
       <ProductRichTextEditor
         id="description"
@@ -412,7 +465,17 @@ export function InfoStep({
 
 // ─── Step 2: Images ──────────────────────────────────────────────────────────
 
-export function ImagesStep({ mainImage, onMainImageChange, mainImageError, subImages, onSubImagesChange }) {
+export function ImagesStep({
+  mainImage,
+  onMainImageChange,
+  mainImageError,
+  subImages,
+  onSubImagesChange,
+  subImagesError = '',
+  descriptiveImages = [],
+  onDescriptiveImagesChange,
+  descriptiveImagesError = '',
+}) {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
@@ -436,15 +499,38 @@ export function ImagesStep({ mainImage, onMainImageChange, mainImageError, subIm
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Gallery</p>
           <h3 className="mt-1 text-sm font-bold text-slate-900">Additional product images</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Optional extra photos — different angles, packaging, or close-ups. Up to 5 images total and 5MB combined across all photos.
+            Required. Add at least one extra photo — different angles, packaging, or close-ups. Up to 5 images total and 5MB combined across all photos (including the main photo).
           </p>
         </div>
         <ProductImageUploader
           images={subImages}
           onChange={onSubImagesChange}
           mainImage={mainImage}
+          error={subImagesError}
         />
       </section>
+
+      <OptionalSection dataField="descriptive_product_images">
+        <OptionalSectionHeader
+          eyebrow="Descriptive photos"
+          title="Detail images"
+          description={`Lifestyle or detail shots — packaging, labels, or close-ups. Up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} images, 1MB each, 4MB combined.`}
+        />
+        <ProductImageUploader
+          images={descriptiveImages}
+          onChange={onDescriptiveImagesChange}
+          standalone
+          maxCount={MAX_DESCRIPTIVE_IMAGE_COUNT}
+          maxBytes={MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES}
+          maxFileBytes={MAX_DESCRIPTIVE_IMAGE_FILE_BYTES}
+          dataField="descriptive_product_images"
+          emptyTitle="Drag & drop or click to upload descriptive photos"
+          emptyHint={`JPG or PNG · Up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} images · 1MB each · 4MB total`}
+          zoneHint="Click or drop to add more descriptive photos"
+          reorderHint=" · Drag descriptive photos to reorder"
+          error={descriptiveImagesError}
+        />
+      </OptionalSection>
     </div>
   )
 }
@@ -486,7 +572,10 @@ export function PricingStep({ formik }) {
             <h3 className="mt-1 text-sm font-bold text-slate-900">Set your prices</h3>
           </div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-sm font-semibold text-slate-800">Discount · Optional</span>
+            <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">
+              {/* Discount type
+              <OptionalBadge /> */}
+            </span>
             <div className="inline-flex w-fit rounded-lg bg-slate-100 p-0.5 ring-1 ring-slate-200">
               {[
                 { value: 'amount', label: 'Sale price' },
@@ -519,13 +608,13 @@ export function PricingStep({ formik }) {
               onBlur={formik.handleBlur}
               error={getFieldError(formik, 'price')}
             />
-
             {discountMode === 'amount' ? (
               <ProductMoneyInput
                 id="discount_price"
                 name="discount_price"
                 label="Sale price (GH₵)"
-                hint="Enter the discounted selling price. Up to 2 decimal places."
+                hint="Optional discounted price. Up to 2 decimal places."
+                optional
                 value={formik.values.discount_price}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
@@ -541,7 +630,8 @@ export function PricingStep({ formik }) {
                 max="99.99"
                 inputMode="decimal"
                 label="Discount percentage (%)"
-                hint="Enter a value between 0.01 and 99.99."
+                hint="Optional. Enter a value between 0.01 and 99.99."
+                optional
                 placeholder="e.g. 20"
                 value={formik.values.discount_percent}
                 onChange={formik.handleChange}
@@ -588,9 +678,10 @@ export function PricingStep({ formik }) {
               id="low_stock_threshold"
               name="low_stock_threshold"
               type="number"
-              label="Low stock threshold · Optional"
+              label="Low stock threshold"
               reserveHintSpace
-              hint="Optional. Cannot exceed stock quantity."
+              optional
+              hint="Cannot exceed stock quantity."
               placeholder="10"
               value={formik.values.low_stock_threshold}
               onChange={formik.handleChange}
@@ -600,8 +691,9 @@ export function PricingStep({ formik }) {
             <ProductInput
               id="barcode"
               name="barcode"
-              label="Barcode · Optional"
+              label="Barcode"
               reserveHintSpace
+              optional
               hint="EAN, UPC, or other barcode."
               placeholder="123456789012"
               value={formik.values.barcode}
@@ -888,6 +980,7 @@ function VariationCard({ formik, varIndex, onRemove }) {
                       id={`variations.${varIndex}.values.${i}.sku`}
                       name={`variations.${varIndex}.values.${i}.sku`}
                       label="Variant SKU"
+                      optional
                       reserveHintSpace
                       placeholder="AUD-001-BLK"
                       value={val.sku}
@@ -902,8 +995,9 @@ function VariationCard({ formik, varIndex, onRemove }) {
                     <ProductMoneyInput
                       id={`variations.${varIndex}.values.${i}.price`}
                       name={`variations.${varIndex}.values.${i}.price`}
-                      label="List price (GH₵) · Optional"
+                      label="List price (GH₵)"
                       hint="Leave empty to inherit base product price."
+                      optional
                       reserveHintSpace
                       placeholder={formatMoney(pricing.parent.regularPrice)}
                       value={val.price}
@@ -914,8 +1008,9 @@ function VariationCard({ formik, varIndex, onRemove }) {
                     <ProductMoneyInput
                       id={`variations.${varIndex}.values.${i}.discount_price`}
                       name={`variations.${varIndex}.values.${i}.discount_price`}
-                      label="Sale price (GH₵) · Optional"
+                      label="Sale price (GH₵)"
                       hint="Leave empty to inherit base sale price."
+                      optional
                       reserveHintSpace
                       placeholder={
                         pricing.parent.salePrice != null
@@ -947,8 +1042,9 @@ function VariationCard({ formik, varIndex, onRemove }) {
                     <ProductInput
                       id={`variations.${varIndex}.values.${i}.variant_name`}
                       name={`variations.${varIndex}.values.${i}.variant_name`}
-                      label="Variant display name · Optional"
+                      label="Variant display name"
                       hint={`Defaults to "${val.value}" if empty.`}
+                      optional
                       reserveHintSpace
                       placeholder={val.value}
                       value={val.variant_name}
@@ -958,7 +1054,8 @@ function VariationCard({ formik, varIndex, onRemove }) {
                     <ProductInput
                       id={`variations.${varIndex}.values.${i}.barcode`}
                       name={`variations.${varIndex}.values.${i}.barcode`}
-                      label="Barcode · Optional"
+                      label="Barcode"
+                      optional
                       reserveHintSpace
                       placeholder="1234567890123"
                       value={val.barcode}
@@ -1118,20 +1215,19 @@ export function VariationsStep({ formik }) {
 export function ShippingStep({ formik }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="mb-5">
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Shipping</p>
-          <h3 className="mt-1 text-lg font-bold text-slate-900">Weight & dimensions</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            All fields are optional. Accurate values improve delivery cost calculations for customers.
-          </p>
-        </div>
+      <OptionalSection className="p-5">
+        <OptionalSectionHeader
+          eyebrow="Shipping"
+          title="Weight & dimensions"
+          description="Accurate values improve delivery cost calculations for customers at checkout."
+        />
         <div className="grid gap-4 sm:grid-cols-2">
           <ProductInput
             id="shipping_weight"
             name="shipping_weight"
             type="number"
-            label="Weight (kg) · Optional"
+            label="Weight (kg)"
+            optional
             hint="Product weight in kilograms."
             placeholder="0.00"
             value={formik.values.shipping_weight}
@@ -1143,7 +1239,8 @@ export function ShippingStep({ formik }) {
             id="shipping_length"
             name="shipping_length"
             type="number"
-            label="Length (cm) · Optional"
+            label="Length (cm)"
+            optional
             hint="Package length in centimetres."
             placeholder="0.00"
             value={formik.values.shipping_length}
@@ -1155,7 +1252,8 @@ export function ShippingStep({ formik }) {
             id="shipping_width"
             name="shipping_width"
             type="number"
-            label="Width (cm) · Optional"
+            label="Width (cm)"
+            optional
             hint="Package width in centimetres."
             placeholder="0.00"
             value={formik.values.shipping_width}
@@ -1167,7 +1265,8 @@ export function ShippingStep({ formik }) {
             id="shipping_height"
             name="shipping_height"
             type="number"
-            label="Height (cm) · Optional"
+            label="Height (cm)"
+            optional
             hint="Package height in centimetres."
             placeholder="0.00"
             value={formik.values.shipping_height}
@@ -1176,7 +1275,7 @@ export function ShippingStep({ formik }) {
             error={getFieldError(formik, 'shipping_height')}
           />
         </div>
-      </section>
+      </OptionalSection>
       <GuidanceCard icon={Ruler} title="Why fill this in?">
         <p>Weight and dimensions help calculate accurate delivery costs shown to customers at checkout.</p>
         <p>Even approximate values improve shipping rate accuracy.</p>
@@ -1191,6 +1290,7 @@ export function ReviewStep({
   formik,
   mainImage,
   subImages,
+  descriptiveImages = [],
   parentCategories,
   categoryTree,
   approvedBrands,
@@ -1211,6 +1311,10 @@ export function ReviewStep({
     formik.values.discount_percent,
   )
 
+  const filledKeyDetails = (formik.values.key_details ?? []).filter(
+    (item) => item?.key?.trim() && item?.value?.trim(),
+  )
+
   const summaryRows = [
     {
       title: 'Product info',
@@ -1221,6 +1325,7 @@ export function ReviewStep({
         ['Category', selectedCategory?.name],
         ['Sub category', selectedSubcategory?.name],
         ['Brand', selectedBrandLabel],
+        ['Condition', getProductConditionLabel(formik.values.condition)],
         ['Tags', formik.values.tags.length ? formik.values.tags.join(', ') : null],
       ],
     },
@@ -1228,8 +1333,16 @@ export function ReviewStep({
       title: 'Pricing & inventory',
       icon: BadgePercent,
       items: [
-        ['Regular price', price ? `GH₵ ${formatMoney(price)}` : null],
-        ['Sale price', hasDiscount && salesPrice != null ? `GH₵ ${formatMoney(salesPrice)}` : null],
+        [
+          'Price',
+          price
+            ? (
+              hasDiscount && salesPrice != null
+                ? `GH₵ ${formatMoney(price)} → GH₵ ${formatMoney(salesPrice)}`
+                : `GH₵ ${formatMoney(price)}`
+            )
+            : null,
+        ],
         ['Discount', hasDiscount ? `${percentOff % 1 === 0 ? percentOff : percentOff.toFixed(1)}% off` : null],
         ['Stock quantity', formik.values.quantity || null],
         ['Low stock alert', formik.values.low_stock_threshold || null],
@@ -1258,7 +1371,7 @@ export function ReviewStep({
         </p>
       </div>
 
-      {(mainImage || subImages.length > 0) && (
+      {(mainImage || subImages.length > 0 || descriptiveImages.length > 0) && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
             <ImagePlus className="size-4 text-cyan-700" />
@@ -1302,7 +1415,43 @@ export function ReviewStep({
                 </div>
               </div>
             )}
+            {descriptiveImages.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  Descriptive · {descriptiveImages.length}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {descriptiveImages.slice(0, 4).map((img, index) => (
+                    <img
+                      key={img.id}
+                      src={img.preview}
+                      alt={`Descriptive image ${index + 1}`}
+                      className="size-16 rounded-xl object-cover ring-1 ring-slate-200"
+                    />
+                  ))}
+                  {descriptiveImages.length > 4 && (
+                    <div className="flex size-16 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                      +{descriptiveImages.length - 4}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
+        </section>
+      )}
+
+      {filledKeyDetails.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 text-sm font-bold text-slate-900">Key details</h3>
+          <dl className="space-y-2">
+            {filledKeyDetails.map((item) => (
+              <div key={item.id ?? item.key} className="flex items-start justify-between gap-3">
+                <dt className="shrink-0 text-xs font-semibold text-slate-400">{item.key}</dt>
+                <dd className="text-right text-xs font-bold text-slate-900">{item.value}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       )}
 
@@ -1403,12 +1552,16 @@ export function ProductListingForm({
   initialFormValues = null,
   initialMainImage = null,
   initialSubImages = null,
+  initialDescriptiveImages = null,
 }) {
   const isEditMode = mode === 'edit'
   const [activeStep, setActiveStep] = useState(0)
   const [mainImage, setMainImage] = useState(initialMainImage ?? null)
   const [subImages, setSubImages] = useState(initialSubImages ?? [])
+  const [descriptiveImages, setDescriptiveImages] = useState(initialDescriptiveImages ?? [])
   const [mainImageError, setMainImageError] = useState('')
+  const [galleryImagesError, setGalleryImagesError] = useState('')
+  const [descriptiveImagesError, setDescriptiveImagesError] = useState('')
   const stepDirectionRef = useRef('forward')
   const isInitialStepMount = useRef(true)
   const navigate = useNavigate()
@@ -1457,6 +1610,15 @@ export function ProductListingForm({
         return false
       }
 
+      const galleryResult = validateGalleryImagesRequired(mainImage, subImages)
+      if (!galleryResult.valid) {
+        setGalleryImagesError(galleryResult.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ sub_product_images: galleryResult.message })
+        })
+        return false
+      }
+
       const imageLimits = validateProductImageLimits(mainImage, subImages)
       if (!imageLimits.valid) {
         setMainImageError(imageLimits.message)
@@ -1466,7 +1628,18 @@ export function ProductListingForm({
         return false
       }
 
+      const descriptiveLimits = validateDescriptiveImageLimits(descriptiveImages)
+      if (!descriptiveLimits.valid) {
+        setDescriptiveImagesError(descriptiveLimits.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ descriptive_product_images: descriptiveLimits.message })
+        })
+        return false
+      }
+
       setMainImageError('')
+      setGalleryImagesError('')
+      setDescriptiveImagesError('')
       return true
     }
 
@@ -1558,6 +1731,7 @@ export function ProductListingForm({
                 {
                   mode: isEditMode ? 'edit' : 'create',
                   includeVariations: false,
+                  descriptiveImages,
                 },
               )
 
@@ -1642,7 +1816,21 @@ export function ProductListingForm({
                     }}
                     mainImageError={mainImageError}
                     subImages={subImages}
-                    onSubImagesChange={setSubImages}
+                    onSubImagesChange={(images) => {
+                      setSubImages(images)
+                      if (images.length >= 1 && validateGalleryImagesRequired(mainImage, images).valid) {
+                        setGalleryImagesError('')
+                      }
+                    }}
+                    subImagesError={galleryImagesError}
+                    descriptiveImages={descriptiveImages}
+                    onDescriptiveImagesChange={(images) => {
+                      setDescriptiveImages(images)
+                      if (images.length === 0 || validateDescriptiveImageLimits(images).valid) {
+                        setDescriptiveImagesError('')
+                      }
+                    }}
+                    descriptiveImagesError={descriptiveImagesError}
                   />
                 )}
                 {activeStep === 2 && <PricingStep formik={formik} />}
@@ -1654,6 +1842,7 @@ export function ProductListingForm({
                     formik={formik}
                     mainImage={mainImage}
                     subImages={subImages}
+                    descriptiveImages={descriptiveImages}
                     parentCategories={parentCategories}
                     categoryTree={categoryTree}
                     approvedBrands={approvedBrands}

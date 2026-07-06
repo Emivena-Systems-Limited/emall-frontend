@@ -5,6 +5,8 @@ import { ChevronDown, LogOut, Package, UserRound } from 'lucide-react'
 import notify from '../../../lib/notify'
 import { useLogoutMutation } from '../../../hooks/useAuthMutations'
 import { logout } from '../../../store/slices/authSlice'
+import { persistor } from '../../../store/store'
+import { clearAuthOtpSession } from '../../../utils/authOtpSession'
 
 export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
   const navigate = useNavigate()
@@ -26,6 +28,8 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
       // Clear the local session even if the backend logout endpoint is unavailable.
     } finally {
       dispatch(logout())
+      clearAuthOtpSession()
+      persistor.persist()
       setOpen(false)
       onNavigate?.()
       navigate('/')

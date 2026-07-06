@@ -1,3 +1,5 @@
+import { formatProductCondition as formatProductConditionFromConstants } from '../constants/productConditions'
+
 export const KEY_DETAIL_PRIORITY = [
   'category',
   'model/sku',
@@ -56,16 +58,6 @@ export function isReservedKeyDetailKey(key) {
   return RESERVED_KEY_DETAIL_KEYS.has(normalizeKeyDetailKey(key))
 }
 
-const CONDITION_LABELS = {
-  new: 'New',
-  like_new: 'Like new',
-  good: 'Good',
-  fair: 'Fair',
-  refurbished: 'Refurbished',
-}
-
 export function formatProductCondition(value) {
-  const normalized = String(value ?? '').trim().toLowerCase()
-  if (!normalized) return null
-  return CONDITION_LABELS[normalized] ?? String(value).trim()
+  return formatProductConditionFromConstants(value)
 }

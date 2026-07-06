@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Heart,
   ImageIcon,
+  Loader2,
   Minus,
   Plus,
   Share2,
@@ -29,6 +30,7 @@ import {
   isReservedKeyDetailKey,
   sortKeyDetailEntries,
 } from '../utils/keyDetailsOrder'
+import { normalizeProductDescription } from '../utils/productDescriptionHtml'
 
 const SHOW_PRODUCT_VARIANTS = false
 
@@ -273,7 +275,7 @@ async function shareProduct(product) {
   }
 }
 
-const SIDEBAR_REVIEW_LIMIT = 3
+const SIDEBAR_REVIEW_LIMIT = 5
 
 const fallbackReviewCards = [
   {
@@ -296,6 +298,20 @@ const fallbackReviewCards = [
     rating: 4,
     date: 'Jan 22, 2026',
     text: 'Looks nice and fits well. Packaging was clean.',
+  },
+  {
+    id: 'review-4',
+    name: 'Efua Boateng',
+    rating: 5,
+    date: 'Jan 15, 2026',
+    text: 'Fast delivery and exactly as described. Very happy with this purchase.',
+  },
+  {
+    id: 'review-5',
+    name: 'Daniel Osei',
+    rating: 4,
+    date: 'Dec 2025',
+    text: 'Solid quality for the price. Would recommend to anyone looking for value.',
   },
 ]
 
@@ -320,6 +336,7 @@ function ProductInfoPanel({
   displayPriceInfo
 }) {
   const [quantity, setQuantity] = useState(1)
+  const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [trustInfoOpen, setTrustInfoOpen] = useState(null)
   const trustInfoRef = useRef(null)
   const navigate = useNavigate()
@@ -393,16 +410,32 @@ function ProductInfoPanel({
       return
     }
 
-    await addToCart(product, {
-      quantity,
-      price: displayPriceInfo.price,
-      compareAt: displayPriceInfo.compareAt,
-      variantId: activeVariant?.id,
-      sku: activeSku,
-      variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
-      size: selectedSize || selectedCompatibleModel || activeSku,
-      image: activeImage || product.gallery?.[0] || product.image,
-    })
+    if (isAddingToCart) return
+
+    setIsAddingToCart(true)
+    try {
+      await addToCart(
+        {
+          ...product,
+          productId: product.backendId ?? product.id,
+          product_id: product.backendId ?? product.id,
+        },
+        {
+          productId: product.backendId ?? product.id,
+          syncable: Boolean(product.backendId ?? product.id),
+          quantity,
+          price: displayPriceInfo.price,
+          compareAt: displayPriceInfo.compareAt,
+          variantId: activeVariant?.id,
+          sku: activeSku,
+          variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
+          size: selectedSize || selectedCompatibleModel || activeSku,
+          image: activeImage || product.gallery?.[0] || product.image,
+        },
+      )
+    } finally {
+      setIsAddingToCart(false)
+    }
   }
 
   return (
@@ -515,11 +548,19 @@ function ProductInfoPanel({
         </button>
         <button
           type="button"
-          disabled={outOfStock}
+          disabled={outOfStock || isAddingToCart}
           onClick={handleAddToCart}
-          className="rounded-full border border-auth-primary px-6 py-3 text-xs font-bold text-auth-primary transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-busy={isAddingToCart}
+          className="inline-flex items-center justify-center gap-2 rounded-full border border-auth-primary px-6 py-3 text-xs font-bold text-auth-primary transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isInCart ? 'View Cart' : 'Add to Cart'}
+          {isAddingToCart ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Adding...
+            </>
+          ) : (
+            isInCart ? 'View Cart' : 'Add to Cart'
+          )}
         </button>
       </div>
 
@@ -611,7 +652,7 @@ function ReviewSummary({ product, fillHeight = false }) {
   return (
     <section
       id="reviews"
-      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex h-full min-h-[280px] flex-col' : ''}`}
+      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-[280px] flex-1 flex-col' : ''}`}
     >
       <div className="shrink-0">
         <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
@@ -763,8 +804,30 @@ function RailProductCard({ product }) {
   )
 }
 
-function HorizontalProductRail({ title, products, visibleCount = 5 }) {
+function useRailVisibleCount(maxVisible) {
+  const computeCount = (max) => {
+    if (typeof window === 'undefined') return Math.min(max, 2)
+    if (window.matchMedia('(min-width: 1024px)').matches) return max
+    if (window.matchMedia('(min-width: 640px)').matches) return Math.min(max, 3)
+    return Math.min(max, 2)
+  }
+
+  const [visibleCount, setVisibleCount] = useState(() => computeCount(maxVisible))
+
+  useEffect(() => {
+    const update = () => setVisibleCount(computeCount(maxVisible))
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [maxVisible])
+
+  return visibleCount
+}
+
+function HorizontalProductRail({ title, products, visibleCount: maxVisible = 5 }) {
   const railRef = useRef(null)
+  const visibleCount = useRailVisibleCount(maxVisible)
+  const gapRem = 0.5
   const gapCount = Math.max(visibleCount - 1, 1)
 
   const scrollRail = (direction) => {
@@ -788,17 +851,17 @@ function HorizontalProductRail({ title, products, visibleCount = 5 }) {
   }
 
   return (
-    <section className="min-w-0 border-t border-slate-200 bg-white p-3 sm:p-4">
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <h2 className="text-base font-bold text-slate-950">{title}</h2>
-        <span className="shrink-0 text-xs font-semibold text-slate-600">Page 1 Of 50</span>
+    <section className="min-w-0 overflow-hidden border-t border-slate-200 bg-white p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h2 className="min-w-0 text-sm font-bold text-slate-950 sm:text-base">{title}</h2>
+        <span className="shrink-0 text-[0.625rem] font-semibold text-slate-600 sm:text-xs">Page 1 Of 50</span>
       </div>
-      <div className="flex min-w-0 items-center gap-2 overflow-hidden sm:gap-3">
+      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden sm:gap-3">
         <button
           type="button"
           onClick={() => scrollRail(-1)}
           aria-label={`Previous ${title}`}
-          className="flex size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:size-9"
+          className="hidden size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:flex sm:size-9"
         >
           <ChevronLeft className="size-4 sm:size-5" strokeWidth={2} />
         </button>
@@ -807,11 +870,14 @@ function HorizontalProductRail({ title, products, visibleCount = 5 }) {
           tabIndex={0}
           onKeyDown={handleRailKeyDown}
           aria-label={`${title} product carousel`}
-          style={{ gridAutoColumns: `calc((100% - ${gapCount * 0.5}rem) / ${visibleCount})` }}
-          className="grid min-w-0 flex-1 grid-flow-col grid-rows-1 gap-2 overflow-x-auto scroll-smooth outline-none [scrollbar-width:none] [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/40 sm:gap-2 [&::-webkit-scrollbar]:hidden"
+          style={{ gridAutoColumns: `calc((100% - ${gapCount * gapRem}rem) / ${visibleCount})` }}
+          className="grid min-w-0 flex-1 grid-flow-col grid-rows-1 gap-2 overflow-x-auto scroll-smooth overscroll-x-contain outline-none snap-x snap-mandatory scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/40 sm:gap-2 [&::-webkit-scrollbar]:hidden"
         >
-          {products.map((item) => (
-            <div key={`${item.slug}-${title}`} className="min-w-0">
+          {products.map((item, index) => (
+            <div
+              key={item.id ?? item.backendId ?? item.slug ?? item.href ?? `${title}-${index}`}
+              className="min-w-0 snap-start"
+            >
               <RailProductCard product={item} />
             </div>
           ))}
@@ -820,7 +886,7 @@ function HorizontalProductRail({ title, products, visibleCount = 5 }) {
           type="button"
           onClick={() => scrollRail(1)}
           aria-label={`Next ${title}`}
-          className="flex size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:size-9"
+          className="hidden size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:flex sm:size-9"
         >
           <ChevronRight className="size-4 sm:size-5" strokeWidth={2} />
         </button>
@@ -965,17 +1031,15 @@ function ProductDescription({ product }) {
         ))}
         <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
           <dt className="font-bold text-slate-950">Description</dt>
-          <dd className="space-y-4 wrap-break-word text-slate-700">
-            <p>{product.description}</p>
-            <div>
-              <h3 className="font-bold text-slate-950">Key Features:</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                <li>Stylish design with a bold finish</li>
-                <li>Durable construction for everyday protection</li>
-                <li>Smooth feel and reliable grip</li>
-                <li>Precise openings and comfortable handling</li>
-              </ul>
-            </div>
+          <dd className="min-w-0 text-slate-700">
+            {product.descriptionHtml ? (
+              <div
+                className="product-description text-sm leading-relaxed text-slate-700"
+                dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
+              />
+            ) : (
+              <p className="wrap-break-word text-sm leading-relaxed">{product.description}</p>
+            )}
           </dd>
         </div>
       </div>
@@ -1136,9 +1200,7 @@ function normalizeApiProductDetails(apiProduct) {
     ? [...new Set(apiProduct.variants.map(v => v.variant_name).filter(Boolean))]
     : []
 
-  // Strip HTML tags from description
-  const rawDescription = apiProduct.description || ''
-  const cleanDescription = rawDescription.replace(/<[^>]*>/g, '').trim()
+  const { descriptionHtml, description } = normalizeProductDescription(apiProduct.description)
   const reviews = normalizeProductReviews(apiProduct)
   const explicitReviewCount = apiProduct.reviews_count ?? apiProduct.review_count ?? apiProduct.total_reviews
   const reviewCount = explicitReviewCount !== undefined && explicitReviewCount !== null
@@ -1201,7 +1263,8 @@ function normalizeApiProductDetails(apiProduct) {
       ...customKeyDetails,
     },
     descriptiveImages: mapDescriptiveImageUrls(apiProduct.descriptive_images),
-    description: cleanDescription || 'No description available for this product.',
+    descriptionHtml,
+    description,
     details: {
       SKU: sku,
       Condition: 'Brand New',
@@ -1481,7 +1544,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
               </div>
             </div>
 
-            <div className="order-2 min-w-0 lg:col-start-2 lg:row-start-1 lg:w-full">
+            <div className="order-2 flex min-w-0 flex-col gap-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-full">
               <ProductInfoPanel
                 product={product}
                 setActiveImage={setActiveImage}
@@ -1496,9 +1559,6 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
               />
-            </div>
-
-            <div className="order-6 min-w-0 w-full lg:col-start-2 lg:row-start-2 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
               <ReviewSummary product={product} fillHeight />
             </div>
           </section>

@@ -1,3 +1,5 @@
+import { enrichLandingProductForFilters } from './extractProductVariantFacets'
+
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80'
 
@@ -84,22 +86,48 @@ function getVariantText(product) {
   return parts.join('  ') || firstValue(product.variant, category, store, 'E-Mall product')
 }
 
+function isUsablePrice(value) {
+  if (value === '' || value == null) return false
+  const num = Number(String(value).replace(/[^\d.-]/g, ''))
+  return Number.isFinite(num) && num > 0
+}
+
+function pickFirstUsablePrice(...candidates) {
+  for (const candidate of candidates) {
+    if (isUsablePrice(candidate)) return toNumber(candidate)
+  }
+  return null
+}
+
+function resolveProductCardPrices(product, variation) {
+  const listPrice = pickFirstUsablePrice(
+    product.regular_price,
+    variation?.regular_price,
+  )
+
+  const salePrice = pickFirstUsablePrice(
+    product.regular_discount_price,
+    product.discount_price,
+    variation?.regular_discount_price,
+    variation?.discount_price,
+  )
+
+  const price = salePrice ?? listPrice ?? 0
+  const compareAt = listPrice != null && salePrice != null && listPrice > salePrice ? listPrice : null
+
+  return { price, compareAt }
+}
+
 function getDiscountPercent(product, price, compareAt) {
   const explicit = firstValue(product.discount_percent, product.discountPercentage, product.discount)
   if (explicit !== undefined) {
     const explicitDiscount = toNumber(explicit, null)
     return explicitDiscount > 0 ? explicitDiscount : null
   }
-  if (compareAt > price && price > 0) {
+  if (compareAt != null && compareAt > price && price > 0) {
     return Math.round(((compareAt - price) / compareAt) * 100)
   }
   return null
-}
-
-function getMetadataValue(metadata, key) {
-  if (!Array.isArray(metadata)) return undefined
-  const item = metadata.find((m) => m && (m.key === key || m.meta_key === key))
-  return item ? item.value ?? item.meta_value : undefined
 }
 
 export function normalizeLandingProduct(product, index = 0, options = {}) {
@@ -107,58 +135,52 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
   if (!isProductActive(product)) return null
 
   const variation = toArray(product.variants || product.variations)[0]
-  const metadata = toArray(product.metadata)
-  const id = firstValue(product.id, product.product_id, product.uuid, product.slug, `${options.prefix ?? 'product'}-${index}`)
+  const backendId = firstValue(product.id, product.product_id, product.uuid)
+  const id = backendId ?? `${options.prefix ?? 'product'}-${index}`
   const name = firstValue(product.name, product.product_name, product.title, variation?.name, 'Product')
   const slug = firstValue(product.slug, product.product_slug, slugify(`${name}-${id}`))
-  const price = toNumber(
-    firstValue(
-      product.discount_price,
-      product.sale_price,
-      product.selling_price,
-      product.price,
-      product.min_price,
-      getMetadataValue(metadata, 'discount_price'),
-      getMetadataValue(metadata, 'sale_price'),
-      getMetadataValue(metadata, 'price'),
-      variation?.discount_price,
-      variation?.sale_price,
-      variation?.price,
-    ),
-  )
-  const compareAt = toNumber(
-    firstValue(
-      product.original_price,
-      product.regular_price,
-      product.compare_at,
-      product.compareAt,
-      product.market_price,
-      product.old_price,
-      getMetadataValue(metadata, 'original_price'),
-      getMetadataValue(metadata, 'regular_price'),
-      getMetadataValue(metadata, 'compare_at'),
-      variation?.original_price,
-      variation?.regular_price,
-      variation?.price,
-    ),
-    null,
-  )
+  const { price, compareAt } = resolveProductCardPrices(product, variation)
   const discountPercent = getDiscountPercent(product, price, compareAt)
+  const categoryRecord = product.category && typeof product.category === 'object' ? product.category : null
+  const subcategoryRecord =
+    product.subcategory && typeof product.subcategory === 'object' ? product.subcategory : null
+  const filterFields = enrichLandingProductForFilters(product, index, options)
+  const priceRange = { min: filterFields.minPrice, max: filterFields.maxPrice }
 
   return {
     id,
-    backendId: id,
-    syncable: true,
+    backendId: backendId ?? null,
+    syncable: Boolean(backendId),
     name,
     variant: getVariantText(product),
     price,
-    compareAt: compareAt > price ? compareAt : null,
+    compareAt,
     rating: toNumber(firstValue(product.rating, product.average_rating, product.avg_rating), 4.5),
     reviewCount: toNumber(firstValue(product.reviews_count, product.review_count, product.total_reviews), 0),
     href: `/${slug}`,
     image: getProductImage(product),
     discountPercent,
     isHot: Boolean(firstValue(product.is_hot, product.hot, product.is_flash_sale, options.isHot)),
+    category: firstValue(
+      categoryRecord?.category_name,
+      categoryRecord?.name,
+      product.category_name,
+      typeof product.category === 'string' ? product.category : null,
+    ),
+    categorySlug: firstValue(categoryRecord?.slug, product.category_slug),
+    subcategory: firstValue(
+      subcategoryRecord?.category_name,
+      subcategoryRecord?.name,
+      product.subcategory_name,
+      typeof product.subcategory === 'string' ? product.subcategory : null,
+    ),
+    subcategorySlug: firstValue(subcategoryRecord?.slug, product.subcategory_slug),
+    variants: filterFields.variants,
+    variantFacets: filterFields.variantFacets,
+    brand: filterFields.brand,
+    condition: filterFields.condition,
+    minPrice: priceRange.min,
+    maxPrice: priceRange.max,
   }
 }
 

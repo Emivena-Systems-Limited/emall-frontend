@@ -1,6 +1,30 @@
 import * as Yup from 'yup'
+import { PRODUCT_CONDITION_OPTIONS } from '../constants/products'
 import { hasUsableProductImages } from './productImageUtils'
 import { stripHtml } from './richText'
+
+const productConditionValues = PRODUCT_CONDITION_OPTIONS.map((option) => option.value)
+
+const productKeyDetailPairSchema = Yup.object({
+  id: Yup.string(),
+  key: Yup.string().trim(),
+  value: Yup.string().trim(),
+}).test('pair-complete', 'Complete both property and value', function validatePair(pair) {
+  const key = pair?.key?.trim()
+  const value = pair?.value?.trim()
+  if (!key && !value) return true
+  if (key && value) return true
+  if (!key) {
+    return this.createError({
+      path: `${this.path}.key`,
+      message: 'Property is required when a value is entered',
+    })
+  }
+  return this.createError({
+    path: `${this.path}.value`,
+    message: 'Property value is required when a property is entered',
+  })
+})
 
 const passwordSchema = Yup.string()
   .min(8, 'Password must be at least 8 characters')
@@ -290,7 +314,11 @@ export const productListingSchemaBase = Yup.object({
   category_id: Yup.string().required('Category is required'),
   subcategory_id: Yup.string().required('Subcategory is required'),
   brand_id: Yup.string().required('Brand is required'),
+  condition: Yup.string()
+    .oneOf(productConditionValues, 'Select a valid product condition')
+    .required('Product condition is required'),
   tags: Yup.array().of(Yup.string().trim().min(1)).default([]),
+  key_details: Yup.array().of(productKeyDetailPairSchema).default([]),
 
   price: Yup.number()
     .typeError('Price must be a valid amount')
@@ -398,7 +426,9 @@ export const productInfoSchema = productListingSchemaBase.pick([
   'category_id',
   'subcategory_id',
   'brand_id',
+  'condition',
   'tags',
+  'key_details',
   'price',
   'discount_mode',
   'discount_price',

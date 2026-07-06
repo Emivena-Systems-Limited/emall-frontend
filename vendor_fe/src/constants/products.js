@@ -14,3 +14,15 @@ export const PRODUCT_ENDPOINTS = {
 }
 
 export const DEFAULT_PRODUCT_FULFILLMENT_CHANNEL = 'vendor'
+
+export const PRODUCT_CONDITION_OPTIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'like_new', label: 'Like new' },
+  { value: 'good', label: 'Good' },
+  { value: 'fair', label: 'Fair' },
+  { value: 'refurbished', label: 'Refurbished' },
+]
+
+export const MAX_DESCRIPTIVE_IMAGE_COUNT = 4
+export const MAX_DESCRIPTIVE_IMAGE_FILE_BYTES = 1 * 1024 * 1024
+export const MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES = 4 * 1024 * 1024

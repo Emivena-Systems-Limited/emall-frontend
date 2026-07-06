@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { useDispatch } from 'react-redux'
 import { AnimatePresence, motion } from 'framer-motion'
 import AuthLayout from '../../components/auth/AuthLayout'
@@ -11,18 +11,17 @@ import {
   useResendOtpMutation,
   useVerifyOtpMutation,
 } from '../../hooks/useAuthMutations'
+import { useAuthOtpFlow, useAuthOtpSession } from '../../hooks/useAuthOtpSession'
 import { AUTH_FLOW, OTP_LENGTH } from '../../constants/auth'
 import { setCredentials } from '../../store/slices/authSlice'
+import { persistor } from '../../store/store'
+import { clearAuthOtpSession } from '../../utils/authOtpSession'
 
 export default function VerifyOtpPage() {
-  const location = useLocation()
   const navigate = useNavigate()
   const dispatch = useDispatch()
-  const session = location.state
-
-  const isRegisterFlow = location.pathname.startsWith('/register')
-  const flow = session?.flow ?? (isRegisterFlow ? AUTH_FLOW.REGISTER : AUTH_FLOW.LOGIN)
-  const fallbackPath = flow === AUTH_FLOW.REGISTER ? '/register' : '/login'
+  const session = useAuthOtpSession()
+  const flow = useAuthOtpFlow(session)
 
   const [otp, setOtp] = useState('')
   const [hasError, setHasError] = useState(false)
@@ -30,11 +29,7 @@ export default function VerifyOtpPage() {
   const verifyOtpMutation = useVerifyOtpMutation()
   const resendOtpMutation = useResendOtpMutation()
 
-  if (!session?.contact || !session?.method) {
-    return <Navigate to={fallbackPath} replace />
-  }
-
-  const { method, contact, displayContact, profile } = session
+  const { method, contact, displayContact, profile, redirectTo } = session
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -50,11 +45,19 @@ export default function VerifyOtpPage() {
 
     try {
       const data = await verifyOtpMutation.mutateAsync({ method, contact, otp, profile, flow })
-      dispatch(setCredentials({ user: data.user, accessToken: data.accessToken }))
+      dispatch(setCredentials({
+        user: data.user,
+        accessToken: data.accessToken,
+        applicationToken: data.applicationToken,
+      }))
+      clearAuthOtpSession()
       notify.success(
         flow === AUTH_FLOW.REGISTER ? 'Account verified successfully' : 'Login successful',
       )
-      navigate('/', { replace: true })
+      await persistor.persist()
+      // The cart's guest→account merge (useCartAuthSync) kicks off the moment
+      // isAuthenticated flips true, so it's already in flight by the time we land here.
+      navigate(redirectTo || '/', { replace: true })
     } catch (error) {
       setHasError(true)
       setIsVerifying(false)

@@ -9,7 +9,11 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
     category_id: '',
     subcategory_id: '',
     brand_id: '',
+    condition: 'new',
     tags: ['wireless', 'audio', 'earbuds'],
+    key_details: [
+      { id: 'kd-material', key: 'Material', value: 'ABS plastic' },
+    ],
   },
   2: {
     price: '245.99',

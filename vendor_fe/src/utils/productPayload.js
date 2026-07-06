@@ -1,17 +1,18 @@
 import {
-  convertDiscountAmountToPercent,
-  convertDiscountPercentToAmount,
   getDiscountSummary,
   resolveSalesPrice,
   resolveVariantPricing,
   roundMoney,
 } from './productPricing'
 import { DEFAULT_PRODUCT_FULFILLMENT_CHANNEL } from '../constants/products'
+import { normalizeKeyDetailsForPayload } from './productMetadata'
 import {
   hasUsableProductImages,
   isKeptRemoteProductImage,
   resolveRemoteProductImageId,
   validateProductImageLimits,
+  validateDescriptiveImageLimits,
+  validateGalleryImagesRequired,
 } from './productImageUtils'
 
 function describeFile(file) {
@@ -30,6 +31,7 @@ export function isFileValue(value) {
 export function formatProductPayloadSample(formData) {
   const sample = {}
   const metadata = []
+  const keyDetails = []
 
   for (const [key, value] of formData.entries()) {
     const metadataMatch = key.match(/^metadata\[(\d+)]\[(key|value)]$/)
@@ -41,10 +43,27 @@ export function formatProductPayloadSample(formData) {
       continue
     }
 
+    const keyDetailsMatch = key.match(/^key_details\[(\d+)]\[(property|value)]$/)
+    if (keyDetailsMatch) {
+      const index = Number(keyDetailsMatch[1])
+      const field = keyDetailsMatch[2]
+      if (!keyDetails[index]) keyDetails[index] = { property: '', value: '' }
+      keyDetails[index][field] = isFileValue(value) ? describeFile(value) : value
+      continue
+    }
+
+    if (key === 'key_details[]' && value === '') {
+      sample.key_details = []
+      continue
+    }
+
     sample[key] = isFileValue(value) ? describeFile(value) : value
   }
 
   sample.metadata = metadata.filter(Boolean)
+  if (keyDetails.length > 0) {
+    sample.key_details = keyDetails.filter(Boolean)
+  }
   return sample
 }
 
@@ -57,6 +76,42 @@ function toNumberOrNull(val) {
 function toMoneyOrNull(val) {
   const num = toNumberOrNull(val)
   return num == null ? null : roundMoney(num)
+}
+
+function resolveProductPricingValues(values = {}) {
+  const discountMode = values.discount_mode ?? 'amount'
+  const listPrice = toMoneyOrNull(values.price)
+  const salePrice = resolveSalesPrice(
+    values.price,
+    discountMode,
+    values.discount_price,
+    values.discount_percent,
+  )
+
+  return {
+    discountMode,
+    listPrice,
+    salePrice,
+    discountPercent: toNumberOrNull(values.discount_percent),
+    discountAmount: toNumberOrNull(values.discount_price),
+  }
+}
+
+function appendRootPricingFields(formData, values = {}) {
+  const { discountMode, listPrice, salePrice, discountPercent, discountAmount } =
+    resolveProductPricingValues(values)
+
+  appendFormData(formData, 'regular_price', listPrice)
+  appendFormData(formData, 'price', listPrice)
+  appendFormData(formData, 'discount_mode', discountMode)
+
+  if (discountMode === 'percent') {
+    appendFormData(formData, 'discount_percent', discountPercent)
+  } else {
+    appendFormData(formData, 'discount_price', discountAmount ?? salePrice)
+  }
+
+  appendFormData(formData, 'regular_discount_price', salePrice)
 }
 
 function slugifyAttributeKey(value) {
@@ -173,7 +228,9 @@ function buildSingleVariationData(variantValue, variation, values) {
     low_stock_threshold: toNumberOrNull(variantValue.low_stock_threshold),
     barcode: variantValue.barcode?.trim() || null,
     price: pricing.listPrice,
+    regular_price: pricing.listPrice,
     discount_price: pricing.salePrice,
+    regular_discount_price: pricing.salePrice,
     sku: variantValue.sku?.trim() || null,
     attributes:
       attributeKey && attributeValue
@@ -302,6 +359,113 @@ function appendNewProductImageFiles(formData, productImages = []) {
   })
 }
 
+function buildDescriptiveImagesPayload(descriptiveImages = []) {
+  return (Array.isArray(descriptiveImages) ? descriptiveImages : [])
+    .filter(Boolean)
+    .map((image) => {
+      const file = resolveImageFile(image)
+
+      return {
+        file,
+        remoteId: image?.remoteId ?? null,
+        imageUrl: image?.isRemote ? image.preview : null,
+      }
+    })
+}
+
+function appendDescriptiveImageFiles(formData, descriptiveImages) {
+  let index = 0
+
+  descriptiveImages.forEach((image) => {
+    if (!isFileValue(image.file)) return
+
+    formData.append(`descriptive_images[${index}]`, image.file, image.file.name)
+    index += 1
+  })
+}
+
+function collectKeepDescriptiveImageIds(descriptiveImages = []) {
+  return (Array.isArray(descriptiveImages) ? descriptiveImages : [])
+    .filter(Boolean)
+    .filter(isKeptRemoteProductImage)
+    .map((image) => resolveRemoteProductImageId(image))
+    .filter(Boolean)
+}
+
+function appendNewDescriptiveImageFiles(formData, descriptiveImages = []) {
+  let newImageIndex = 0
+
+  descriptiveImages.forEach((image) => {
+    if (!isFileValue(image.file)) return
+
+    formData.append(
+      `descriptive_images[${newImageIndex}]`,
+      image.file,
+      image.file.name,
+    )
+    newImageIndex += 1
+  })
+}
+
+function appendKeyDetailsToFormData(formData, keyDetails = []) {
+  const normalized = normalizeKeyDetailsForPayload(keyDetails)
+
+  if (normalized.length === 0) {
+    appendFormDataEmptyArray(formData, 'key_details')
+    return
+  }
+
+  normalized.forEach((item, index) => {
+    formData.append(`key_details[${index}][property]`, item.property)
+    formData.append(`key_details[${index}][value]`, item.value)
+  })
+}
+
+function appendDescriptiveImagesToFormData(
+  formData,
+  descriptiveImages,
+  { mode = 'create', sourceImages = [] } = {},
+) {
+  if (mode === 'edit') {
+    collectKeepDescriptiveImageIds(sourceImages).forEach((id, index) => {
+      formData.append(`keep_descriptive_image_ids[${index}]`, id)
+    })
+    appendNewDescriptiveImageFiles(formData, descriptiveImages)
+    return
+  }
+
+  appendDescriptiveImageFiles(formData, descriptiveImages)
+}
+
+export function validateDescriptiveImageFiles(descriptiveImages = [], options = {}) {
+  const { mode = 'create' } = options
+  const images = Array.isArray(descriptiveImages) ? descriptiveImages : []
+
+  if (images.length === 0) return []
+
+  const limitsResult = validateDescriptiveImageLimits(images)
+
+  if (!limitsResult.valid) {
+    throw new Error(limitsResult.message)
+  }
+
+  const payload = buildDescriptiveImagesPayload(images)
+
+  payload.forEach((image, index) => {
+    if (mode === 'edit' && !image.file && (image.remoteId || image.imageUrl)) {
+      return
+    }
+
+    if (!isFileValue(image.file)) {
+      throw new Error(`Descriptive image ${index + 1} is invalid. Re-upload the image and try again.`)
+    }
+  })
+
+  return mode === 'edit'
+    ? payload.filter((image) => isFileValue(image.file))
+    : payload
+}
+
 function appendProductImagesToFormData(
   formData,
   productImages,
@@ -339,51 +503,22 @@ function metadataEntry(key, value) {
 }
 
 function buildPricingMetadata(values) {
-  const discountMode = values.discount_mode ?? 'amount'
-  const listPrice =
-    values.price === '' || values.price == null
-      ? null
-      : roundMoney(Number(values.price))
-  const { salesPrice, savings, percentOff, hasDiscount } = getDiscountSummary(
+  const { discountMode } = resolveProductPricingValues(values)
+  const { savings, percentOff, hasDiscount } = getDiscountSummary(
     values.price,
     discountMode,
     values.discount_price,
     values.discount_percent,
   )
 
-  const enteredDiscountPrice = values.discount_price
-  const enteredDiscountPercent = values.discount_percent
-  const computedPercent =
-    hasDiscount && discountMode === 'amount'
-      ? convertDiscountAmountToPercent(values.price, enteredDiscountPrice)
-      : ''
-  const computedAmount =
-    hasDiscount && discountMode === 'percent'
-      ? convertDiscountPercentToAmount(values.price, enteredDiscountPercent)
-      : ''
-  const resolvedSalePrice = salesPrice ?? (listPrice ?? values.price ?? null)
-  const resolvedDiscountPrice =
-    enteredDiscountPrice !== '' && enteredDiscountPrice != null
-      ? enteredDiscountPrice
-      : (computedAmount || (hasDiscount ? resolvedSalePrice : null))
-  const resolvedPercent =
-    enteredDiscountPercent !== '' && enteredDiscountPercent != null
-      ? enteredDiscountPercent
-      : (computedPercent || (hasDiscount ? String(percentOff) : ''))
-
   const entries = [
-    metadataEntry('regular_price', listPrice ?? values.price),
-    metadataEntry('discount_mode', discountMode),
-    metadataEntry('discount_price', resolvedDiscountPrice),
-    metadataEntry('discount_percent', resolvedPercent),
-    metadataEntry('sale_price', resolvedSalePrice),
-    metadataEntry('percent_off', hasDiscount ? percentOff : null),
-    metadataEntry('savings_amount', hasDiscount ? savings : null),
-    metadataEntry('has_discount', hasDiscount ? '1' : '0'),
+    metadataEntry('sku', values.sku?.trim()),
     metadataEntry('quantity', values.quantity),
     metadataEntry('low_stock_threshold', values.low_stock_threshold),
     metadataEntry('barcode', values.barcode?.trim()),
-    metadataEntry('sku', values.sku?.trim()),
+    metadataEntry('percent_off', hasDiscount ? percentOff : null),
+    metadataEntry('savings_amount', hasDiscount ? savings : null),
+    metadataEntry('has_discount', hasDiscount ? '1' : '0'),
   ]
 
   return entries.filter(Boolean)
@@ -403,18 +538,8 @@ function buildShippingMetadata(values) {
 export function mergeProductMetadata(values) {
   const pricingMetadata = buildPricingMetadata(values)
   const shippingMetadata = buildShippingMetadata(values)
-  const reservedKeys = new Set([
-    ...pricingMetadata.map((item) => item.key),
-    ...shippingMetadata.map((item) => item.key),
-  ])
-  const customMetadata = Array.isArray(values.metadata)
-    ? values.metadata
-      .filter((item) => item?.key?.trim() && item?.value != null && item?.value !== '')
-      .map((item) => ({ key: item.key.trim(), value: String(item.value).trim() }))
-      .filter((item) => !reservedKeys.has(item.key))
-    : []
 
-  return [...pricingMetadata, ...shippingMetadata, ...customMetadata]
+  return [...pricingMetadata, ...shippingMetadata]
 }
 
 function appendNewVariantImageFiles(formData, productImages = [], prefix = 'variations[0][images]') {
@@ -510,7 +635,19 @@ function normalizeVariantUpdateData(variationData, variantValue, variation, prod
       ?? 1,
     barcode: variationData.barcode || productValues.barcode?.trim() || '',
     price: variationData.price ?? toNumberOrNull(productValues.price) ?? 0,
-    discount_price: variationData.discount_price ?? variationData.price ?? toNumberOrNull(productValues.price) ?? 0,
+    regular_price:
+      variationData.regular_price
+      ?? variationData.price
+      ?? toNumberOrNull(productValues.price)
+      ?? 0,
+    discount_price:
+      variationData.discount_price
+      ?? variationData.regular_discount_price
+      ?? null,
+    regular_discount_price:
+      variationData.regular_discount_price
+      ?? variationData.discount_price
+      ?? null,
     sku: variationData.sku || productValues.sku?.trim() || '',
     attributes,
   }
@@ -544,6 +681,11 @@ function appendVariationFiles(formData, variations) {
 
 export function validateProductImageFiles(mainImage, subImages = [], options = {}) {
   const { mode = 'create' } = options
+  const galleryResult = validateGalleryImagesRequired(mainImage, subImages)
+  if (!galleryResult.valid) {
+    throw new Error(galleryResult.message)
+  }
+
   const limitsResult = validateProductImageLimits(mainImage, subImages)
 
   if (!limitsResult.valid) {
@@ -574,20 +716,18 @@ export function validateProductImageFiles(mainImage, subImages = [], options = {
 }
 
 export function buildProductPayload(values, mainImage, subImages = [], options = {}) {
-  const { mode = 'create', includeVariations = true } = options
+  const {
+    mode = 'create',
+    includeVariations = true,
+    descriptiveImages = [],
+  } = options
   const productImages = validateProductImageFiles(mainImage, subImages, { mode })
+  const descriptiveImagePayload = validateDescriptiveImageFiles(descriptiveImages, { mode })
   const variations = includeVariations
     ? buildVariationsPayload(values.variations, values)
     : []
   const metadata = mergeProductMetadata(values)
   const tags = values.tags ?? []
-  const listPrice = roundMoney(Number(values.price))
-  const salePrice = resolveSalesPrice(
-    values.price,
-    values.discount_mode ?? 'amount',
-    values.discount_price,
-    values.discount_percent,
-  )
 
   const formData = new FormData()
 
@@ -597,6 +737,7 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
   appendFormData(formData, 'category_id', values.category_id)
   appendFormData(formData, 'subcategory_id', values.subcategory_id)
   appendFormData(formData, 'brand_id', values.brand_id)
+  appendFormData(formData, 'condition', values.condition)
   appendFormData(
     formData,
     'fulfillment_channel',
@@ -604,15 +745,13 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
   )
   appendFormData(formData, 'is_active', values.status === 'active' ? true : Boolean(values.is_active))
   appendFormData(formData, 'status', values.status)
-  appendFormData(formData, 'price', listPrice)
-  if (salePrice != null) {
-    appendFormData(formData, 'discount_price', salePrice)
-  }
+  appendRootPricingFields(formData, values)
   appendFormData(formData, 'quantity', Number(values.quantity))
   appendFormData(formData, 'low_stock_threshold', toNumberOrNull(values.low_stock_threshold))
   appendFormData(formData, 'barcode', values.barcode?.trim() || null)
 
   appendFormData(formData, 'tags', tags)
+  appendKeyDetailsToFormData(formData, values.key_details)
   appendMetadata(formData, metadata)
   appendFormData(formData, 'shipping', {
     weight: toMoneyOrNull(values.shipping_weight),
@@ -622,6 +761,10 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
   })
 
   appendProductImagesToFormData(formData, productImages, { mode, mainImage, subImages })
+  appendDescriptiveImagesToFormData(formData, descriptiveImagePayload, {
+    mode,
+    sourceImages: descriptiveImages,
+  })
 
   if (includeVariations) {
     appendVariationFiles(formData, variations)
@@ -639,6 +782,7 @@ export function buildProductInfoPayload(values, mainImage, subImages = [], optio
     ...options,
     mode: options.mode ?? 'edit',
     includeVariations: false,
+    descriptiveImages: options.descriptiveImages ?? [],
   })
 
   appendPutMethodOverride(formData)

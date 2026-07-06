@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
   Building2,
@@ -28,6 +28,7 @@ import {
   useRegisterUserMutation,
 } from '../../hooks/useAuthMutations'
 import { AUTH_FLOW, AUTH_METHODS } from '../../constants/auth'
+import { saveAuthOtpSession } from '../../utils/authOtpSession'
 import {
   GENDER_OPTIONS,
   GHANA_LOCATIONS,
@@ -75,6 +76,8 @@ const initialForm = {
 
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = location.state?.from
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const [acceptedTerms, setAcceptedTerms] = useState(false)
@@ -221,14 +224,18 @@ export default function RegisterPage() {
     try {
       await registerUserMutation.mutateAsync(profile)
 
+      const otpSession = {
+        flow: AUTH_FLOW.REGISTER,
+        method: AUTH_METHODS.EMAIL,
+        contact: profile.email,
+        displayContact: profile.email,
+        profile,
+        ...(redirectTo ? { redirectTo } : {}),
+      }
+      saveAuthOtpSession(otpSession)
+
       navigate('/register/verify', {
-        state: {
-          flow: AUTH_FLOW.REGISTER,
-          method: AUTH_METHODS.EMAIL,
-          contact: profile.email,
-          displayContact: profile.email,
-          profile,
-        },
+        state: otpSession,
       })
     } catch (error) {
       notify.fromError(error, 'Could not complete registration')

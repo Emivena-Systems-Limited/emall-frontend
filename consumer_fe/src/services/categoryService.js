@@ -11,7 +11,14 @@ function assertApiSuccess(data) {
 }
 
 export async function getParentCategories() {
-  const { data } = await apiClient.get(CATEGORY_ENDPOINTS.GET_PARENTS)
+  const { data } = await apiClient.get(CATEGORY_ENDPOINTS.GET_PARENTS, { skipAuthLogout: true })
+  assertApiSuccess(data)
+
+  return extractCategoryList(data)
+}
+
+export async function getCategoriesWithChildren() {
+  const { data } = await apiClient.get(CATEGORY_ENDPOINTS.GET_WITH_CHILDREN, { skipAuthLogout: true })
   assertApiSuccess(data)
 
   return extractCategoryList(data)

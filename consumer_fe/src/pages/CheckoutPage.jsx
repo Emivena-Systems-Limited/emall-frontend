@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
 import { useQuery } from '@tanstack/react-query'
 import { CreditCard, Minus, Plus, Trash2 } from 'lucide-react'
@@ -9,6 +9,7 @@ import { notify } from '../lib/notify'
 import { getCheckout, getCheckoutPreview } from '../services/checkoutService'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
+import { normalizePreviewTotals } from '../utils/checkoutTotals'
 
 const paymentOptions = [
   { id: 'card', label: 'Debit/Credit Card', type: 'card' },
@@ -30,16 +31,6 @@ function formatCheckoutAmount(value) {
   return `₵${Number(value || 0).toFixed(2)}`
 }
 
-function normalizePreviewTotals(preview) {
-  const source = preview?.summary ?? preview?.totals ?? preview?.order_total ?? preview ?? {}
-  return {
-    tax: Number(source.tax ?? source.vat ?? 80),
-    deliveryFee: Number(source.delivery_fee ?? source.deliveryFee ?? source.total_delivery_fee ?? 70),
-    freeDelivery: Number(source.free_delivery ?? source.freeDelivery ?? 70),
-    couponDiscount: Number(source.coupon_discount ?? source.couponDiscount ?? source.discount ?? 0),
-  }
-}
-
 function Field({ label, name, value, onChange, placeholder = '' }) {
   return (
     <label className="grid gap-2 text-sm text-slate-800">
@@ -55,12 +46,10 @@ function Field({ label, name, value, onChange, placeholder = '' }) {
   )
 }
 
-function CheckoutIntro({ isGuest }) {
+function CheckoutIntro() {
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
-        {isGuest ? 'Checkout as Guest' : 'Checkout'}
-      </h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Checkout</h1>
       <p className="mt-2 text-sm text-slate-800">Save your information for faster checkout</p>
     </section>
   )
@@ -270,8 +259,6 @@ function PromoCode({ coupon, onCouponChange, onApplyCoupon, couponMessage }) {
 }
 
 export default function CheckoutPage() {
-  const { mode } = useParams()
-  const { isAuthenticated } = useSelector((state) => state.auth)
   const items = useSelector(selectCartItems)
   const { updateQuantity, deleteItem } = useCartActions()
   const [address, setAddress] = useState(initialAddress)
@@ -280,13 +267,11 @@ export default function CheckoutPage() {
   const [couponDiscount, setCouponDiscount] = useState(0)
   const [couponMessage, setCouponMessage] = useState('')
 
-  const isGuest = mode === 'guest' || !isAuthenticated
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items])
 
   const previewQuery = useQuery({
-    queryKey: ['checkout-preview', isAuthenticated],
+    queryKey: ['checkout-preview'],
     queryFn: getCheckoutPreview,
-    enabled: isAuthenticated,
     staleTime: 60_000,
     retry: 1,
   })
@@ -332,9 +317,7 @@ export default function CheckoutPage() {
     if (!canPlaceOrder) return
 
     try {
-      if (isAuthenticated) {
-        await getCheckout()
-      }
+      await getCheckout()
       notify.success('Checkout information is ready')
     } catch (error) {
       notify.fromError(error, 'Unable to place order')
@@ -356,7 +339,7 @@ export default function CheckoutPage() {
           ) : (
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
               <div className="space-y-6">
-                <CheckoutIntro isGuest={isGuest} />
+                <CheckoutIntro />
                 <DeliveryInformation address={address} onAddressChange={handleAddressChange} />
                 <PaymentDetails selectedPayment={selectedPayment} onSelectPayment={setSelectedPayment} />
               </div>

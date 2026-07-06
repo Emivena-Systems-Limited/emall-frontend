@@ -1,74 +1,93 @@
 import { Link } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
+import BrowseCategoriesHero from '../components/category/BrowseCategoriesHero'
+import CategoryDepartmentsList from '../components/category/CategoryDepartmentsList'
+import { FEATURED_CATEGORY_SPOTLIGHTS } from '../constants/featuredCategorySpotlights'
+import { useCategoryCatalog } from '../hooks/useCategoryCatalog'
+import { buildAllCategoryDepartments, sortParentCategoriesForDisplay } from '../utils/buildCategoryDepartments'
+import { resolveCategoryLayout, getDepartmentAccent, resolveGridColumns } from '../constants/categoryPageLayouts'
 import { topCategories } from '../constants/topCategories'
-import { getParentCategories } from '../services/categoryService'
 
-function getCategoryImage(category, index) {
-  return category.image ?? topCategories[index % topCategories.length]?.image ?? null
+function resolveSpotlights(apiCategories = []) {
+  return FEATURED_CATEGORY_SPOTLIGHTS.map((spotlight) => {
+    const apiMatch = apiCategories.find((category) => category.slug === spotlight.slug)
+    if (!apiMatch) return spotlight
+
+    return {
+      ...spotlight,
+      href: `/categories/${apiMatch.slug}`,
+      title: spotlight.featured ? spotlight.title : (apiMatch.name ?? spotlight.title),
+    }
+  })
 }
 
-function mapApiCategory(category, index) {
-  return {
-    id: category.id ?? category.slug,
-    label: category.name,
-    href: `/categories/${category.slug}`,
-    image: getCategoryImage(category, index),
-  }
+function buildFallbackDepartments() {
+  const sorted = sortParentCategoriesForDisplay(
+    topCategories.map((category) => ({
+      id: category.id,
+      parentSlug: category.href.replace('/categories/', ''),
+      title: category.label,
+      viewAllHref: category.href,
+      subcategories: [],
+    })),
+  )
+
+  return sorted.map((department, index) => ({
+    ...department,
+    layout: resolveCategoryLayout(department.parentSlug, index),
+    gridColumns: resolveGridColumns(department.parentSlug),
+    accent: getDepartmentAccent(index),
+  }))
 }
 
 export default function CategoriesPage() {
-  const { data: apiCategories = [] } = useQuery({
-    queryKey: ['parent-categories'],
-    queryFn: getParentCategories,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  })
+  const { parentCategories, categoryTree, isLoading } = useCategoryCatalog()
 
-  const categories = apiCategories.length ? apiCategories.map(mapApiCategory) : topCategories
+  const spotlights = useMemo(
+    () => resolveSpotlights(parentCategories),
+    [parentCategories],
+  )
+
+  const departments = useMemo(() => {
+    if (!parentCategories.length) {
+      return isLoading ? [] : buildFallbackDepartments()
+    }
+
+    return buildAllCategoryDepartments(parentCategories, categoryTree)
+  }, [parentCategories, categoryTree, isLoading])
+
+  const heroSpotlights = spotlights.length ? spotlights : FEATURED_CATEGORY_SPOTLIGHTS
+  const departmentsLoading = isLoading && departments.length === 0
 
   return (
     <SiteLayout>
-      <section className="bg-white py-6 sm:py-8 lg:py-10">
+      <section className="bg-white py-4 sm:py-6">
         <Container>
-          <div className="mb-6 sm:mb-8">
-            <Link
-              to="/"
-              className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-auth-primary"
-            >
-              <ArrowLeft className="size-4" strokeWidth={2.2} />
-              Back to home
-            </Link>
-            <p className="text-sm font-semibold text-auth-primary">Shop by category</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
-              All Categories
-            </h1>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {categories.map((category) => (
+          <BrowseCategoriesHero
+            spotlights={heroSpotlights}
+            headerAction={(
               <Link
-                key={category.id}
-                to={category.href}
-                className="group flex min-h-40 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center transition-shadow hover:shadow-[0_8px_30px_-6px_rgba(15,23,42,0.15)]"
+                to="/"
+                className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-200/90 bg-linear-to-b from-white to-slate-50/80 p-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all hover:border-auth-primary/25 hover:from-white hover:to-auth-primary/5 hover:text-auth-primary hover:shadow-[0_4px_14px_-8px_rgba(199,59,45,0.35)] sm:gap-2.5 sm:py-2 sm:pl-2 sm:pr-4 sm:text-sm"
               >
-                <span className="flex size-24 items-center justify-center overflow-hidden rounded-full bg-white p-4 shadow-[0_4px_14px_-2px_rgba(15,23,42,0.12)] ring-1 ring-slate-100 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105">
-                  {category.image ? (
-                    <img
-                      src={category.image}
-                      alt=""
-                      className="size-full object-contain"
-                      loading="lazy"
-                    />
-                  ) : null}
+                <span className="inline-flex size-7 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200/80 transition-all group-hover:bg-auth-primary group-hover:text-white group-hover:ring-auth-primary/30 sm:size-8">
+                  <ArrowLeft className="size-3.5 sm:size-4" strokeWidth={2.25} aria-hidden />
                 </span>
-                <span className="mt-4 text-sm font-semibold leading-snug text-slate-800">
-                  {category.label}
-                </span>
+                <span className="hidden sm:inline">Back to home</span>
+                <span className="sr-only sm:hidden">Back to home</span>
               </Link>
-            ))}
+            )}
+          />
+
+          <div className="mt-6 sm:mt-8">
+            <CategoryDepartmentsList
+              departments={departments}
+              isLoading={departmentsLoading}
+              skeletonCount={Math.max(parentCategories.length, 8)}
+            />
           </div>
         </Container>
       </section>

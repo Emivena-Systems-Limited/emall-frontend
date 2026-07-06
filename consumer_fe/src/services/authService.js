@@ -7,29 +7,103 @@ export const AUTH_ENDPOINTS = {
   LOGOUT: '/user/auth/logout',
 }
 
-const unwrapResponseData = (response) => response?.data ?? response
+const TOKEN_FIELDS = new Set([
+  'token',
+  'access_token',
+  'accessToken',
+  'application_token',
+  'applicationToken',
+])
 
-const getAccessToken = (data) =>
-  data?.accessToken ??
-  data?.access_token ??
-  data?.token ??
-  data?.application_token ??
-  data?.authorisation?.token ??
-  data?.authorization?.token ??
-  data?.data?.accessToken ??
-  data?.data?.access_token ??
-  data?.data?.token ??
-  data?.data?.application_token
+function isRecord(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
 
-const getUser = (data, fallbackProfile) =>
-  data?.user ??
-  data?.data?.user ??
-  data?.consumer ??
-  data?.data?.consumer ??
-  data?.customer ??
-  data?.data?.customer ??
-  fallbackProfile ??
-  null
+function isConsumerRecord(value) {
+  return isRecord(value) && Boolean(
+    value.id ||
+    value.email ||
+    value.phone_number ||
+    value.first_name ||
+    value.last_name ||
+    value.name,
+  )
+}
+
+function stripAuthTokens(record) {
+  const user = { ...record }
+  TOKEN_FIELDS.forEach((field) => {
+    delete user[field]
+  })
+  return user
+}
+
+function getAccessToken(...sources) {
+  for (const source of sources) {
+    const token =
+      source?.token ??
+      source?.access_token ??
+      source?.accessToken ??
+      source?.authorisation?.token ??
+      source?.authorization?.token
+
+    if (token) return token
+  }
+
+  return null
+}
+
+function getApplicationToken(...sources) {
+  for (const source of sources) {
+    const token = source?.application_token ?? source?.applicationToken
+    if (token) return token
+  }
+
+  return null
+}
+
+function resolveApiEnvelope(response) {
+  if (!isRecord(response)) return response
+
+  if ('in_error' in response || 'status_code' in response) {
+    return response
+  }
+
+  if (isRecord(response.data) && ('in_error' in response.data || 'status_code' in response.data)) {
+    return response.data
+  }
+
+  return response
+}
+
+function extractConsumerUser(...records) {
+  for (const record of records) {
+    if (!isRecord(record)) continue
+
+    const nested = [record.user, record.consumer, record.customer].find(isConsumerRecord)
+    if (nested) return stripAuthTokens(nested)
+
+    if (isConsumerRecord(record)) return stripAuthTokens(record)
+  }
+
+  return null
+}
+
+function buildUserFromRegisterProfile(profile) {
+  if (!isRecord(profile)) return null
+
+  const user = {
+    first_name: profile.firstName ?? profile.first_name,
+    last_name: profile.lastName ?? profile.last_name,
+    email: profile.email,
+    phone_number: profile.phone ?? profile.phone_number,
+    region: profile.region,
+    district: profile.district,
+    city_or_town: profile.city ?? profile.city_or_town,
+  }
+
+  return isConsumerRecord(user) ? user : null
+}
 
 function assertApiSuccess(data) {
   if (!data?.in_error) return data
@@ -40,17 +114,31 @@ function assertApiSuccess(data) {
 }
 
 function normalizeAuthResponse(response, fallbackProfile) {
-  const data = unwrapResponseData(response)
-  assertApiSuccess(data)
+  const envelope = resolveApiEnvelope(response)
+  assertApiSuccess(envelope)
 
-  const accessToken = getAccessToken(data)
-  const user = getUser(data, fallbackProfile)
+  const payload = isRecord(envelope?.data) ? envelope.data : envelope
+  const nestedPayload = isRecord(payload?.data) && !Array.isArray(payload.data) ? payload.data : null
+
+  const accessToken = getAccessToken(payload, nestedPayload, envelope)
+  const applicationToken = getApplicationToken(payload, nestedPayload, envelope)
+  const user =
+    extractConsumerUser(payload, nestedPayload, envelope?.data, envelope) ??
+    buildUserFromRegisterProfile(fallbackProfile)
 
   if (!accessToken) {
     throw new Error('Authentication succeeded but no access token was returned')
   }
 
-  return { ...data, user, accessToken }
+  if (!applicationToken) {
+    throw new Error('Authentication succeeded but no application token was returned')
+  }
+
+  if (!user) {
+    throw new Error('Authentication succeeded but no user profile was returned')
+  }
+
+  return { user, accessToken, applicationToken }
 }
 
 const stripPhonePlus = (phoneNumber) => String(phoneNumber ?? '').replace(/^\+/, '')
@@ -131,6 +219,6 @@ export async function resendOtp({ method, contact }) {
 }
 
 export async function logoutUser(payload = {}) {
-  const { data } = await apiClient.post(AUTH_ENDPOINTS.LOGOUT, payload)
+  const { data } = await apiClient.post(AUTH_ENDPOINTS.LOGOUT, payload, { skipAuthLogout: true })
   return assertApiSuccess(data)
 }

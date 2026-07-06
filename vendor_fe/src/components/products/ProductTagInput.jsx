@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import FieldError from '../auth/FieldError'
-import { FormFieldHint } from './ProductFormControls'
+import { FormFieldHint, OptionalBadge } from './ProductFormControls'
 
 export default function ProductTagInput({
   tags = [],
@@ -11,6 +11,7 @@ export default function ProductTagInput({
   hint,
   maxTags = 15,
   reserveHintSpace = false,
+  optional = false,
 }) {
   const [input, setInput] = useState('')
   const inputRef = useRef(null)
@@ -34,10 +35,16 @@ export default function ProductTagInput({
   }
 
   return (
-    <div data-field="tags">
+    <div
+      data-field="tags"
+      className={optional ? 'rounded-xl border border-dashed border-slate-200 bg-slate-50/30 p-3' : undefined}
+    >
       {label && (
         <label className="mb-1.5 block">
-          <span className="text-sm font-semibold text-slate-800">{label}</span>
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-slate-800">{label}</span>
+            {optional ? <OptionalBadge /> : null}
+          </span>
           <FormFieldHint hint={hint} reserveHintSpace={reserveHintSpace} />
         </label>
       )}

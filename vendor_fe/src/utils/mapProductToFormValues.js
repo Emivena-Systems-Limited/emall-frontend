@@ -5,7 +5,8 @@ import {
   resolveBrandId,
   resolveSubcategoryRecord,
 } from './normalizeProducts'
-import { createProductImageFromRemote } from './productImageUtils'
+import { createProductImageFromRemote, isGalleryProductImage, isPrimaryProductImage } from './productImageUtils'
+import { isDescriptiveProductImage, mapKeyDetailsFromRecord } from './productMetadata'
 
 function humanizeAttributeKey(key = '') {
   return key
@@ -70,22 +71,35 @@ function resolveCategoryFields(record) {
   }
 }
 
+function isUsablePrice(value) {
+  if (value === '' || value == null) return false
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0
+}
+
+function pickFirstUsablePrice(...candidates) {
+  for (const candidate of candidates) {
+    if (isUsablePrice(candidate)) return candidate
+  }
+  return null
+}
+
 function resolvePricingFields(record, firstVariant, metadataMap = {}) {
-  const listPrice =
-    record.price
-    ?? (metadataMap.regular_price ? Number(metadataMap.regular_price) : undefined)
-    ?? firstVariant?.price
-    ?? ''
+  const listPrice = pickFirstUsablePrice(
+    record.regular_price,
+    record.price,
+    firstVariant?.regular_price,
+    firstVariant?.price,
+  )
 
-  const rawSalePrice =
-    record.discount_price
-    ?? (metadataMap.has_discount === '1' && metadataMap.sale_price
-      ? Number(metadataMap.sale_price)
-      : undefined)
-    ?? firstVariant?.discount_price
-    ?? ''
+  const rawSalePrice = pickFirstUsablePrice(
+    record.regular_discount_price,
+    record.discount_price,
+    firstVariant?.regular_discount_price,
+    firstVariant?.discount_price,
+  )
 
-  const hasSalePrice = rawSalePrice !== '' && rawSalePrice != null && Number(rawSalePrice) > 0
+  const hasSalePrice = rawSalePrice != null
 
   const discountMode = metadataMap.discount_mode ?? 'amount'
   const discountPercent = metadataMap.discount_percent
@@ -94,7 +108,7 @@ function resolvePricingFields(record, firstVariant, metadataMap = {}) {
       : '')
 
   return {
-    price: listPrice === '' || listPrice == null ? '' : String(listPrice),
+    price: listPrice == null ? '' : String(listPrice),
     discount_mode: discountMode,
     discount_price: hasSalePrice && discountMode === 'amount' ? String(rawSalePrice) : '',
     discount_percent: hasSalePrice && discountMode === 'percent' ? String(discountPercent) : discountPercent,
@@ -147,14 +161,31 @@ function mapVariantsToFormVariations(variants = []) {
   return Array.from(grouped.values())
 }
 
-export function mapProductImagesToFormState(images = []) {
-  const sorted = [...(Array.isArray(images) ? images : [])]
-    .sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0))
-    .map(createProductImageFromRemote)
+function sortProductImages(images = []) {
+  return [...images].sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0))
+}
+
+export function mapProductImagesToFormState(images = [], descriptiveImages = []) {
+  const productSource = sortProductImages(
+    (Array.isArray(images) ? images : []).filter((image) => !isDescriptiveProductImage(image)),
+  )
+  const descriptiveSource = sortProductImages([
+    ...(Array.isArray(descriptiveImages) ? descriptiveImages : []),
+    ...(Array.isArray(images) ? images : []).filter(isDescriptiveProductImage),
+  ])
+
+  const hasPrimaryFlag = productSource.some(isPrimaryProductImage)
+  const mainRecord = hasPrimaryFlag
+    ? productSource.find(isPrimaryProductImage) ?? null
+    : productSource[0] ?? null
+  const galleryRecords = hasPrimaryFlag
+    ? productSource.filter(isGalleryProductImage)
+    : productSource.filter((image) => image !== mainRecord)
 
   return {
-    mainImage: sorted[0] ?? null,
-    subImages: sorted.slice(1),
+    mainImage: mainRecord ? createProductImageFromRemote(mainRecord) : null,
+    subImages: galleryRecords.map(createProductImageFromRemote),
+    descriptiveImages: descriptiveSource.map(createProductImageFromRemote),
   }
 }
 
@@ -182,7 +213,9 @@ export function mapProductRecordToFormValues(record) {
     category_id,
     subcategory_id,
     brand_id: resolveBrandId(record),
+    condition: record.condition ?? metadataMap.condition ?? '',
     tags: normalizeTags(record.tags),
+    key_details: mapKeyDetailsFromRecord(record),
     ...pricing,
     quantity: resolveQuantity(),
     low_stock_threshold: record.low_stock_threshold != null
@@ -197,7 +230,6 @@ export function mapProductRecordToFormValues(record) {
     status: mapApiProductStatus(record.status, record.is_active),
     fulfillment_channel: record.fulfillment_channel ?? 'vendor',
     is_active: record.is_active === true || record.is_active === 1 || record.is_active === '1',
-    metadata: Array.isArray(record.metadata) ? record.metadata : [],
   }
 }
 
@@ -205,13 +237,15 @@ export function mapProductRecordToFormState(record) {
   const formValues = mapProductRecordToFormValues(record)
   if (!formValues) return null
 
-  const { mainImage, subImages } = mapProductImagesToFormState(
+  const { mainImage, subImages, descriptiveImages } = mapProductImagesToFormState(
     record.images ?? record.product_images,
+    record.descriptive_images,
   )
 
   return {
     formValues,
     mainImage,
     subImages,
+    descriptiveImages,
   }
 }

@@ -496,8 +496,8 @@ export const reduxSlices = [
     name: 'cart',
     file: 'src/store/slices/cartSlice.js',
     persisted: true,
-    purpose: 'Guest/auth cart items, saved items, selected items, quantities, and navbar cart count',
-    actions: ['addItem', 'upsertItem', 'replaceItems', 'setQuantity', 'removeItem', 'clearCart', 'setSelected', 'saveForLater', 'moveSavedToCart'],
+    purpose: 'Guest/auth cart items, saved items, selected items, quantities, navbar cart count, and the one-time guest\u2192account merge sync status (meta.syncStatus/syncedUserId). Auto-clears on authSlice logout.',
+    actions: ['addItem', 'upsertItem', 'replaceItems', 'mergeItems', 'setQuantity', 'removeItem', 'clearCart', 'setSelected', 'saveForLater', 'moveSavedToCart', 'cartSyncStarted', 'cartSyncSucceeded', 'cartSyncFailed'],
   },
 ]
 
@@ -545,7 +545,12 @@ export const queryHooks = [
   {
     name: 'useCartBootstrap',
     file: 'src/hooks/useCartBootstrap.js',
-    purpose: 'Loads GET /cart for authenticated users while preserving local guest cart fallback',
+    purpose: 'Mounted in SiteLayout for every page. Runs useCartAuthSync, then loads GET /cart (paused while a merge is in flight) to keep the cart fresh',
+  },
+  {
+    name: 'useCartAuthSync',
+    file: 'src/hooks/useCartAuthSync.js',
+    purpose: 'Fires once per login/signup: POSTs the guest cart to /cart/merge, merges the server response back into Redux, and seeds the GET /cart query cache',
   },
 ]
 
@@ -620,6 +625,30 @@ export const apiIntegrations = [
     method: 'DELETE',
     endpoint: '/cart/items/{itemId}',
     purpose: 'Remove item from authenticated user cart',
+    status: 'wired',
+  },
+  {
+    method: 'PATCH',
+    endpoint: '/cart/items/{itemId}/selection',
+    purpose: 'Select or deselect a cart line item for checkout',
+    status: 'wired',
+  },
+  {
+    method: 'GET',
+    endpoint: '/cart/summary',
+    purpose: 'Fetch subtotal, tax, delivery fee, and total for the authenticated cart',
+    status: 'wired',
+  },
+  {
+    method: 'GET',
+    endpoint: '/cart/recommendations',
+    purpose: 'Fetch best-seller/related/recommended products for the cart page rails',
+    status: 'wired',
+  },
+  {
+    method: 'POST',
+    endpoint: '/cart/merge',
+    purpose: 'Merge a guest\u2019s local cart lines into the authenticated user\u2019s cart on login/signup (falls back to POST /cart + POST /cart/items per line if 404)',
     status: 'wired',
   },
 ]
