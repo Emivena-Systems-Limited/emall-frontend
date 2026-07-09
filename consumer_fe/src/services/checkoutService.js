@@ -24,3 +24,11 @@ export async function getCheckout() {
   assertApiSuccess(data)
   return data?.data ?? data ?? {}
 }
+
+export async function placeCheckoutOrder(payload) {
+  const { data } = await apiClient.post(CHECKOUT_ENDPOINTS.CHECKOUT, payload, {
+    skipAuthLogout: true,
+  })
+  assertApiSuccess(data)
+  return data?.data ?? data ?? {}
+}

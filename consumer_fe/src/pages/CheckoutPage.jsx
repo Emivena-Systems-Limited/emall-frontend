@@ -6,7 +6,12 @@ import { CreditCard, Minus, Plus, Trash2 } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import { notify } from '../lib/notify'
-import { getCheckout, getCheckoutPreview } from '../services/checkoutService'
+import { getCheckoutPreview, placeCheckoutOrder } from '../services/checkoutService'
+import {
+  createUserAddress,
+  getUserAddresses,
+  updateUserAddress,
+} from '../services/addressService'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
 import { normalizePreviewTotals } from '../utils/checkoutTotals'
@@ -19,12 +24,60 @@ const paymentOptions = [
 ]
 
 const initialAddress = {
+  id: null,
   firstName: '',
   lastName: '',
   region: '',
   town: '',
   address: '',
   phone: '',
+}
+
+function getAddressList(response) {
+  if (Array.isArray(response)) return response
+  if (Array.isArray(response?.addresses)) return response.addresses
+  if (Array.isArray(response?.data)) return response.data
+  return []
+}
+
+function normalizeAddress(address) {
+  if (!address || typeof address !== 'object') return initialAddress
+
+  const fullName = address.name ?? address.full_name ?? ''
+  const [firstName = '', ...lastNameParts] = String(fullName).trim().split(/\s+/)
+
+  return {
+    id: address.id ?? address.address_id ?? null,
+    firstName: address.first_name ?? address.firstName ?? firstName,
+    lastName: address.last_name ?? address.lastName ?? lastNameParts.join(' '),
+    region: address.region ?? '',
+    town: address.city ?? address.town ?? address.city_or_town ?? '',
+    address: address.address ?? address.street_address ?? '',
+    phone: address.phone ?? address.phone_number ?? '',
+  }
+}
+
+function buildAddressPayload(address) {
+  const firstName = String(address.firstName ?? '').trim()
+  const lastName = String(address.lastName ?? '').trim()
+  const name = [firstName, lastName].filter(Boolean).join(' ')
+
+  return {
+    name,
+    phone: String(address.phone ?? '').trim(),
+    address: String(address.address ?? '').trim(),
+    city: String(address.town ?? '').trim(),
+    country: 'Ghana',
+  }
+}
+
+function buildCheckoutPayload(address) {
+  const checkoutAddress = buildAddressPayload(address)
+
+  return {
+    shipping_address: checkoutAddress,
+    billing_address: checkoutAddress,
+  }
 }
 
 function formatCheckoutAmount(value) {
@@ -276,11 +329,31 @@ export default function CheckoutPage() {
     retry: 1,
   })
 
+  const addressesQuery = useQuery({
+    queryKey: ['user-addresses'],
+    queryFn: getUserAddresses,
+    staleTime: 60_000,
+    retry: 1,
+  })
+
   useEffect(() => {
     if (previewQuery.isError) {
       notify.fromError(previewQuery.error, 'Checkout preview is not available yet')
     }
   }, [previewQuery.error, previewQuery.isError])
+
+  useEffect(() => {
+    if (addressesQuery.isError) {
+      notify.fromError(addressesQuery.error, 'Saved addresses are not available yet')
+    }
+  }, [addressesQuery.error, addressesQuery.isError])
+
+  useEffect(() => {
+    const [firstAddress] = getAddressList(addressesQuery.data)
+    if (!firstAddress || address.id || address.address) return
+
+    setAddress(normalizeAddress(firstAddress))
+  }, [address.address, address.id, addressesQuery.data])
 
   const previewTotals = normalizePreviewTotals(previewQuery.data)
   const totals = {
@@ -288,7 +361,8 @@ export default function CheckoutPage() {
     couponDiscount,
   }
 
-  const hasAddress = Object.values(address).every((value) => String(value).trim())
+  const hasAddress = [address.firstName, address.lastName, address.town, address.address, address.phone]
+    .every((value) => String(value).trim())
   const canPlaceOrder = items.length > 0 && selectedPayment && hasAddress
 
   const handleAddressChange = (event) => {
@@ -317,8 +391,17 @@ export default function CheckoutPage() {
     if (!canPlaceOrder) return
 
     try {
-      await getCheckout()
-      notify.success('Checkout information is ready')
+      const addressPayload = buildAddressPayload(address)
+      if (address.id) {
+        await updateUserAddress(address.id, addressPayload)
+      } else {
+        const createdAddress = await createUserAddress(addressPayload)
+        const normalizedAddress = normalizeAddress(createdAddress?.address ?? createdAddress)
+        if (normalizedAddress.id) setAddress(normalizedAddress)
+      }
+
+      await placeCheckoutOrder(buildCheckoutPayload(address))
+      notify.success('Order placed successfully')
     } catch (error) {
       notify.fromError(error, 'Unable to place order')
     }
