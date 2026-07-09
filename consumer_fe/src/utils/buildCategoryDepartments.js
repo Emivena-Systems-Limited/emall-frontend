@@ -19,7 +19,7 @@ export function buildSubcategoryDisplay(parentSlug, child) {
     label: child.name ?? child.label ?? slug.replace(/-/g, ' '),
     href: `/categories/${parentSlug}/${slug}`,
     image: resolveSubcategoryImage(child, parentSlug),
-    productCount: child.productCount ?? 0,
+    productCount: 0,
   }
 }
 
@@ -99,7 +99,7 @@ export function buildDepartmentSubcategories(department, categoryTree = []) {
         { ...item, image: item.image ?? staticMatch?.image },
         department.parentSlug,
       ),
-      productCount: staticMatch?.productCount ?? item.productCount ?? 0,
+      productCount: 0,
     }
   })
 }

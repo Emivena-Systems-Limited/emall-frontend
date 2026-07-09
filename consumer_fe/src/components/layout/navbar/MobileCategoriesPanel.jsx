@@ -3,55 +3,27 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
   ArrowRight,
-  Camera,
   ChevronRight,
-  Gamepad2,
-  Glasses,
-  Headphones,
-  Keyboard,
-  Laptop,
-  MapPin,
-  Smartphone,
+  PackageSearch,
   Sparkles,
-  Tv,
-  Watch,
+  Tag,
   X,
-  Zap,
 } from 'lucide-react'
 import { Link } from 'react-router'
-import {
-  categoryMenuItems,
-  DEFAULT_CATEGORY_ID,
-} from '../../../constants/categoriesMenu'
+import { useNavbarCategoryMenu } from '../../../hooks/useNavbarCategoryMenu'
 import { formatCedi } from '../../../utils/formatCurrency'
 
 const panelEase = [0.16, 1, 0.3, 1]
 
-const categoryIcons = {
-  'computer-laptop': Laptop,
-  'computer-accessories': Keyboard,
-  smartphone: Smartphone,
-  headphone: Headphones,
-  'mobile-accessories': Zap,
-  'gaming-console': Gamepad2,
-  'camera-photo': Camera,
-  'tv-appliances': Tv,
-  watches: Watch,
-  'gps-navigation': MapPin,
-  'wearable-tech': Glasses,
-}
-
 function CategoryGridCard({ category, onSelect }) {
-  const Icon = categoryIcons[category.id] ?? Sparkles
-
   return (
     <button
       type="button"
       onClick={() => onSelect(category)}
-      className="group flex flex-col items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 text-left shadow-sm transition-all active:scale-[0.98] sm:p-4"
+      className="group flex flex-col items-start gap-2.5 rounded-xl border border-slate-200/80 bg-white p-3 text-left shadow-sm transition-all active:scale-[0.98]"
     >
-      <span className="flex size-10 items-center justify-center rounded-xl bg-auth-primary/10 text-auth-primary transition-colors group-hover:bg-auth-primary group-hover:text-white">
-        <Icon className="size-5" strokeWidth={2} />
+      <span className="flex size-9 items-center justify-center rounded-lg bg-auth-primary/10 text-auth-primary transition-colors group-hover:bg-auth-primary group-hover:text-white">
+        <Sparkles className="size-4" strokeWidth={2} />
       </span>
       <span className="text-sm font-semibold leading-snug text-slate-800">{category.label}</span>
       <span className="mt-auto flex items-center gap-1 text-xs font-medium text-slate-400">
@@ -62,7 +34,25 @@ function CategoryGridCard({ category, onSelect }) {
   )
 }
 
+function FeaturedCarouselEmptyState() {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-300 ring-1 ring-slate-200">
+        <PackageSearch className="size-4.5" strokeWidth={1.75} aria-hidden />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-slate-800">No featured products yet</p>
+        <p className="mt-0.5 text-xs text-slate-500">Curated picks coming soon.</p>
+      </div>
+    </div>
+  )
+}
+
 function FeaturedCarousel({ products, onNavigate }) {
+  if (!products.length) {
+    return <FeaturedCarouselEmptyState />
+  }
+
   return (
     <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 overscroll-x-contain [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">
       {products.map((product) => (
@@ -96,6 +86,30 @@ function FeaturedCarousel({ products, onNavigate }) {
   )
 }
 
+function MobilePromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-dashed border-[#E8D48A] bg-[#FFF9E6]">
+      <div className="flex flex-col items-center px-4 py-8 text-center">
+        <div className="flex size-11 items-center justify-center rounded-full bg-white/80 text-[#C9A227] shadow-sm">
+          <Tag className="size-5" strokeWidth={1.75} aria-hidden />
+        </div>
+        <p className="mt-3 text-sm font-bold text-slate-900">No promotions yet</p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+          Special offers for {categoryLabel ?? 'this category'} are coming soon.
+        </p>
+        <Link
+          to={categoryHref}
+          onClick={onNavigate}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-3 text-xs font-bold tracking-[0.08em] text-white"
+        >
+          Browse category
+          <ArrowRight className="size-3.5" strokeWidth={2.5} />
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function MobilePromoCard({ promo, onNavigate }) {
   return (
     <div className="overflow-hidden rounded-2xl bg-[#FFF4C2]">
@@ -123,21 +137,11 @@ function MobilePromoCard({ promo, onNavigate }) {
   )
 }
 
-function getDefaultCategory() {
-  return categoryMenuItems.find((item) => item.id === DEFAULT_CATEGORY_ID) ?? categoryMenuItems[0]
-}
-
-function getDefaultSubcategoryId(category) {
-  return category.subcategories[1]?.id ?? category.subcategories[0]?.id ?? 'all'
-}
-
 function MobileCategoriesPanelContent({ onClose }) {
-  const defaultCategory = getDefaultCategory()
+  const { menuItems, isLoading, getDefaultSubcategoryId } = useNavbarCategoryMenu()
   const [view, setView] = useState('grid')
-  const [activeCategory, setActiveCategory] = useState(defaultCategory)
-  const [activeSubcategoryId, setActiveSubcategoryId] = useState(() =>
-    getDefaultSubcategoryId(defaultCategory),
-  )
+  const [activeCategory, setActiveCategory] = useState(null)
+  const [activeSubcategoryId, setActiveSubcategoryId] = useState('all')
 
   useEffect(() => {
     const handleEscape = (event) => {
@@ -166,7 +170,7 @@ function MobileCategoriesPanelContent({ onClose }) {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="fixed inset-x-0 bottom-0 top-44 z-55 bg-slate-950/40 sm:top-48 lg:hidden"
+        className="fixed inset-x-0 bottom-0 top-[7.25rem] z-55 bg-slate-950/40 lg:hidden"
         onClick={onClose}
       />
 
@@ -179,7 +183,7 @@ function MobileCategoriesPanelContent({ onClose }) {
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ duration: 0.34, ease: panelEase }}
-        className="fixed inset-x-0 bottom-0 top-44 z-70 flex flex-col overflow-hidden rounded-t-[1.75rem] bg-slate-50 shadow-[0_-20px_60px_-10px_rgba(15,23,42,0.35)] sm:top-48 lg:hidden"
+        className="fixed inset-x-0 bottom-0 top-[7.25rem] z-70 flex flex-col overflow-hidden rounded-t-2xl bg-slate-50 shadow-[0_-20px_60px_-10px_rgba(15,23,42,0.35)] lg:hidden"
       >
         <div className="flex shrink-0 flex-col items-center border-b border-slate-200/80 bg-white px-4 pb-3 pt-3">
           <span className="mb-3 h-1 w-10 rounded-full bg-slate-200" aria-hidden="true" />
@@ -203,7 +207,7 @@ function MobileCategoriesPanelContent({ onClose }) {
                 {view === 'grid' ? 'Browse' : 'Category'}
               </p>
               <h2 className="truncate text-base font-bold text-slate-900">
-                {view === 'grid' ? 'Shop by Category' : activeCategory.label}
+                {view === 'grid' ? 'Shop by Category' : (activeCategory?.label ?? 'Category')}
               </h2>
             </div>
             <button
@@ -218,6 +222,9 @@ function MobileCategoriesPanelContent({ onClose }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          {isLoading ? (
+            <p className="py-6 text-center text-sm text-slate-500">Loading categories...</p>
+          ) : (
           <AnimatePresence mode="wait">
             {view === 'grid' ? (
               <motion.div
@@ -226,13 +233,13 @@ function MobileCategoriesPanelContent({ onClose }) {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -16 }}
                 transition={{ duration: 0.24, ease: panelEase }}
-                className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+                className="grid grid-cols-2 gap-2.5 sm:grid-cols-3"
               >
-                {categoryMenuItems.map((category) => (
+                {menuItems.map((category) => (
                   <CategoryGridCard key={category.id} category={category} onSelect={openCategory} />
                 ))}
               </motion.div>
-            ) : (
+            ) : activeCategory ? (
               <motion.div
                 key={`detail-${activeCategory.id}`}
                 initial={{ opacity: 0, x: 20 }}
@@ -242,7 +249,7 @@ function MobileCategoriesPanelContent({ onClose }) {
                 className="space-y-5"
               >
                 <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 overscroll-x-contain [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">
-                  {categoryMenuItems.map((category) => {
+                  {menuItems.map((category) => {
                     const isActive = category.id === activeCategory.id
 
                     return (
@@ -250,7 +257,7 @@ function MobileCategoriesPanelContent({ onClose }) {
                         key={category.id}
                         type="button"
                         onClick={() => openCategory(category)}
-                        className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
+                        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                           isActive
                             ? 'bg-auth-primary text-white'
                             : 'bg-white text-slate-600 ring-1 ring-slate-200'
@@ -285,7 +292,7 @@ function MobileCategoriesPanelContent({ onClose }) {
                           to={sub.href}
                           onClick={onClose}
                           onMouseEnter={() => setActiveSubcategoryId(sub.id)}
-                          className={`rounded-xl px-3.5 py-2 text-sm font-medium transition-colors ${
+                          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                             isActive
                               ? 'bg-slate-900 text-white'
                               : 'bg-white text-slate-700 ring-1 ring-slate-200'
@@ -300,17 +307,29 @@ function MobileCategoriesPanelContent({ onClose }) {
 
                 <section>
                   <h3 className="mb-2.5 text-xs font-bold tracking-[0.12em] text-slate-400 uppercase">
-                    {activeCategory.featuredTitle}
+                    {activeCategory.featuredTitle ?? 'Featured Products'}
                   </h3>
-                  <FeaturedCarousel products={activeCategory.featured} onNavigate={onClose} />
+                  <FeaturedCarousel
+                    products={activeCategory.featured ?? []}
+                    onNavigate={onClose}
+                  />
                 </section>
 
                 <section>
-                  <MobilePromoCard promo={activeCategory.promo} onNavigate={onClose} />
+                  {activeCategory.promo ? (
+                    <MobilePromoCard promo={activeCategory.promo} onNavigate={onClose} />
+                  ) : (
+                    <MobilePromoEmptyState
+                      categoryHref={activeCategory.href}
+                      categoryLabel={activeCategory.label}
+                      onNavigate={onClose}
+                    />
+                  )}
                 </section>
               </motion.div>
-            )}
+            ) : null}
           </AnimatePresence>
+          )}
         </div>
       </motion.div>
     </>

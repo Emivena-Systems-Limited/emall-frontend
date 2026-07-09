@@ -169,46 +169,44 @@ export const CATEGORY_DEPARTMENT_STATIC_FALLBACKS = {
   'sports-outdoors': HEALTH_FITNESS_DEPARTMENT_SECTION,
 }
 
-export const CATEGORIES_PAGE_FEATURED_SLUGS = new Set(['electronics', 'fashion'])
-
-export const FASHION_PROMO_SECTION = {
+export const CATEGORY_PROMO_BENTO_FALLBACK = {
   featured: {
-    id: 'new-chic',
-    title: 'The New Chic',
-    description: 'Timeless styles and high-end fashion for the modern wardrobe.',
-    href: '/categories/fashion/womens-wear',
+    id: 'computing',
+    title: 'Computing',
+    description: 'Laptops, monitors, and accessories built for work, study, and play.',
+    href: '/categories/computing',
     cta: 'Shop Now',
     image:
-      'https://images.pexels.com/photos/1485031/pexels-photo-1485031.jpeg?auto=compress&cs=tinysrgb&w=1200',
+      'https://images.pexels.com/photos/1496181133206-80ce9b88a853?auto=compress&cs=tinysrgb&w=1200',
   },
   tiles: [
     {
-      id: 'kids',
-      title: 'Fun Finds For Kids',
-      href: '/categories/fashion/kids-wear',
+      id: 'home-kitchen',
+      title: 'Home & Kitchen',
+      href: '/categories/home-kitchen',
       image:
-        'https://images.pexels.com/photos/8613089/pexels-photo-8613089.jpeg?auto=compress&cs=tinysrgb&w=900',
+        'https://images.pexels.com/photos/1080721/pexels-photo-1080721.jpeg?auto=compress&cs=tinysrgb&w=900',
     },
     {
-      id: 'makeup',
-      title: 'Make Up Kits',
+      id: 'beauty-personal-care',
+      title: 'Beauty & Personal Care',
       href: '/categories/beauty-personal-care',
       image:
         'https://images.pexels.com/photos/2533266/pexels-photo-2533266.jpeg?auto=compress&cs=tinysrgb&w=900',
     },
     {
-      id: 'fitness',
-      title: 'Fitness',
+      id: 'sports-outdoors',
+      title: 'Sports & Outdoors',
       href: '/categories/sports-outdoors',
       image:
         'https://images.pexels.com/photos/19090/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=900',
     },
     {
-      id: 'home',
-      title: 'Home',
-      href: '/categories/home-kitchen',
+      id: 'toys-games',
+      title: 'Toys & Games',
+      href: '/categories/toys-games',
       image:
-        'https://images.pexels.com/photos/1080721/pexels-photo-1080721.jpeg?auto=compress&cs=tinysrgb&w=900',
+        'https://images.pexels.com/photos/8613089/pexels-photo-8613089.jpeg?auto=compress&cs=tinysrgb&w=900',
     },
   ],
 }

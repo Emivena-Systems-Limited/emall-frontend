@@ -8,23 +8,22 @@ export const CATEGORIES_PAGE_HEADER = {
 
 export const FEATURED_CATEGORY_SPOTLIGHTS = [
   {
-    id: 'electronics',
-    slug: 'electronics',
-    href: '/categories/electronics',
+    id: 'phones_and_accessories',
+    slug: 'phones_and_accessories',
+    href: '/categories/phones_and_accessories',
     featured: true,
-    badge: 'Featured Department',
-    title: 'Next-Gen Electronics',
-    subtitle: 'Upgrade your productivity with our latest arrivals.',
-    image:Images.categories.electronicsImage
+    badge: 'New Arrivals',
+    title: 'Phones and Accessories',
+    subtitle: 'Explore our latest phones and accessories.',
+    image:Images.categories.phones_and_accessoriesImage
   },
   {
-    id: 'fashion',
-    slug: 'fashion',
-    href: '/categories/fashion',
+    id: 'home_and_kitchen',
+    slug: 'home_and_kitchen',
+    href: '/categories/home_and_kitchen',
     featured: false,
-    title: 'Curated Fashion',
-    subtitle: "Defining tomorrow's style today.",
-    image:
-      'https://images.pexels.com/photos/1926769/pexels-photo-1926769.jpeg?auto=compress&cs=tinysrgb&w=900',
+    title: 'Home and Kitchen',
+    subtitle: "Explore our latest home and kitchen products.",
+    image:Images.categories.home_and_kitchenImage
   },
 ]

@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronRight, PackageSearch, Tag } from 'lucide-react'
 import { Link } from 'react-router'
 import Container from '../Container'
-import {
-  categoryMenuItems,
-  DEFAULT_CATEGORY_ID,
-  DEFAULT_SUBCATEGORY_ID,
-} from '../../../constants/categoriesMenu'
+import { useNavbarCategoryMenu } from '../../../hooks/useNavbarCategoryMenu'
 import { formatCedi } from '../../../utils/formatCurrency'
 
 const panelEase = [0.16, 1, 0.3, 1]
@@ -50,6 +46,20 @@ function FeaturedProductCard({ product, onNavigate }) {
   )
 }
 
+function FeaturedProductsEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-white text-slate-300 shadow-sm ring-1 ring-slate-200">
+        <PackageSearch className="size-5" strokeWidth={1.75} aria-hidden />
+      </div>
+      <p className="mt-3 text-sm font-semibold text-slate-800">No featured products yet</p>
+      <p className="mt-1 max-w-[12rem] text-xs leading-relaxed text-slate-500">
+        Curated picks for this category will appear here soon.
+      </p>
+    </div>
+  )
+}
+
 function PromoBanner({ promo, onNavigate }) {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-[#FFF4C2]">
@@ -89,7 +99,35 @@ function PromoBanner({ promo, onNavigate }) {
   )
 }
 
+function PromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
+  return (
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-dashed border-[#E8D48A] bg-[#FFF9E6]">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-white/80 text-[#C9A227] shadow-sm">
+          <Tag className="size-5" strokeWidth={1.75} aria-hidden />
+        </div>
+        <p className="mt-3 text-sm font-bold text-slate-900">No promotions yet</p>
+        <p className="mt-1 max-w-[10rem] text-xs leading-relaxed text-slate-600">
+          Special offers and deals for {categoryLabel ?? 'this category'} are coming soon.
+        </p>
+        <Link
+          to={categoryHref}
+          onClick={onNavigate}
+          className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-2.5 text-xs font-bold tracking-[0.08em] text-white transition-colors hover:bg-auth-primary-hover"
+        >
+          Browse category
+          <ArrowRight className="size-3.5" strokeWidth={2.5} />
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChange, onNavigate }) {
+  const featured = category.featured ?? []
+  const hasFeatured = featured.length > 0
+  const hasPromo = Boolean(category.promo)
+
   return (
     <motion.div
       key={category.id}
@@ -97,9 +135,9 @@ function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChan
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -8 }}
       transition={{ duration: 0.22, ease: panelEase }}
-      className="grid min-h-88 grid-cols-[9.5rem_minmax(0,1fr)_17.5rem] xl:grid-cols-[10rem_minmax(0,1fr)_19rem]"
+      className="grid min-h-88 grid-cols-[minmax(14rem,max-content)_minmax(0,1fr)_17.5rem] xl:grid-cols-[minmax(15rem,max-content)_minmax(0,1fr)_19rem]"
     >
-      <nav aria-label="Subcategories" className="border-r border-slate-100 py-2 pr-1">
+      <nav aria-label="Subcategories" className="shrink-0 border-r border-slate-100 py-2 pr-2">
         <ul className="space-y-0.5">
           {category.subcategories.map((sub) => {
             const isActive = sub.id === activeSubcategoryId
@@ -111,7 +149,7 @@ function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChan
                   onClick={onNavigate}
                   onMouseEnter={() => onSubcategoryChange(sub.id)}
                   onFocus={() => onSubcategoryChange(sub.id)}
-                  className={`flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                  className={`flex items-center whitespace-nowrap rounded-lg px-3 py-2.5 text-sm transition-colors ${
                     isActive
                       ? 'bg-slate-100 font-semibold text-slate-900'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -127,28 +165,41 @@ function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChan
 
       <div className="border-r border-slate-100 px-4 py-4">
         <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-slate-400">
-          {category.featuredTitle}
+          {category.featuredTitle ?? 'FEATURED PRODUCTS'}
         </p>
         <div className="mt-2.5 space-y-2">
-          {category.featured.map((product) => (
-            <FeaturedProductCard key={product.id} product={product} onNavigate={onNavigate} />
-          ))}
+          {hasFeatured ? (
+            featured.map((product) => (
+              <FeaturedProductCard key={product.id} product={product} onNavigate={onNavigate} />
+            ))
+          ) : (
+            <FeaturedProductsEmptyState />
+          )}
         </div>
       </div>
 
       <div className="p-3 pl-4">
-        <PromoBanner promo={category.promo} onNavigate={onNavigate} />
+        {hasPromo ? (
+          <PromoBanner promo={category.promo} onNavigate={onNavigate} />
+        ) : (
+          <PromoEmptyState
+            categoryHref={category.href}
+            categoryLabel={category.label}
+            onNavigate={onNavigate}
+          />
+        )}
       </div>
     </motion.div>
   )
 }
 
 export default function CategoriesMegaMenu({ open, onClose }) {
-  const [activeCategoryId, setActiveCategoryId] = useState(DEFAULT_CATEGORY_ID)
-  const [activeSubcategoryId, setActiveSubcategoryId] = useState(DEFAULT_SUBCATEGORY_ID)
+  const { menuItems, isLoading, defaultCategoryId, getDefaultSubcategoryId } = useNavbarCategoryMenu()
+  const [activeCategoryId, setActiveCategoryId] = useState(null)
+  const [activeSubcategoryId, setActiveSubcategoryId] = useState('all')
 
   const activeCategory =
-    categoryMenuItems.find((item) => item.id === activeCategoryId) ?? categoryMenuItems[0]
+    menuItems.find((item) => item.id === activeCategoryId) ?? menuItems[0]
 
   useEffect(() => {
     if (!open) return undefined
@@ -162,15 +213,16 @@ export default function CategoriesMegaMenu({ open, onClose }) {
   }, [open, onClose])
 
   useEffect(() => {
-    if (open) {
-      setActiveCategoryId(DEFAULT_CATEGORY_ID)
-      setActiveSubcategoryId(DEFAULT_SUBCATEGORY_ID)
+    if (open && defaultCategoryId) {
+      const category = menuItems.find((item) => item.id === defaultCategoryId) ?? menuItems[0]
+      setActiveCategoryId(category?.id ?? null)
+      setActiveSubcategoryId(getDefaultSubcategoryId(category))
     }
-  }, [open])
+  }, [open, defaultCategoryId, menuItems, getDefaultSubcategoryId])
 
   const handleCategoryEnter = (category) => {
     setActiveCategoryId(category.id)
-    setActiveSubcategoryId(category.subcategories[1]?.id ?? category.subcategories[0]?.id ?? 'all')
+    setActiveSubcategoryId(getDefaultSubcategoryId(category))
   }
 
   return (
@@ -201,51 +253,57 @@ export default function CategoriesMegaMenu({ open, onClose }) {
           >
             <Container className="py-0">
               <div className="overflow-hidden rounded-b-2xl border border-slate-100 border-t-0 bg-white shadow-[0_28px_60px_-20px_rgba(15,23,42,0.22)]">
-                <div className="grid grid-cols-[10.5rem_minmax(0,1fr)] xl:grid-cols-[11rem_minmax(0,1fr)]">
-                <nav aria-label="Product categories" className="border-r border-slate-100 py-3 pr-1">
-                  <ul className="space-y-0.5">
-                    {categoryMenuItems.map((category) => {
-                      const isActive = category.id === activeCategoryId
+                {isLoading ? (
+                  <div className="px-6 py-8 text-sm text-slate-500">Loading categories...</div>
+                ) : (
+                  <div className="grid grid-cols-[10.5rem_minmax(0,1fr)] xl:grid-cols-[11rem_minmax(0,1fr)]">
+                    <nav aria-label="Product categories" className="border-r border-slate-100 py-3 pr-1">
+                      <ul className="space-y-0.5">
+                        {menuItems.map((category) => {
+                          const isActive = category.id === activeCategoryId
 
-                      return (
-                        <li key={category.id}>
-                          <Link
-                            to={category.href}
-                            onClick={onClose}
-                            onMouseEnter={() => handleCategoryEnter(category)}
-                            onFocus={() => handleCategoryEnter(category)}
-                            className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                              isActive
-                                ? 'bg-slate-100 font-medium text-slate-900'
-                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                            }`}
-                          >
-                            <span className="min-w-0 truncate">{category.label}</span>
-                            {isActive && (
-                              <ChevronRight
-                                className="size-4 shrink-0 text-slate-400"
-                                strokeWidth={2.25}
-                              />
-                            )}
-                          </Link>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </nav>
+                          return (
+                            <li key={category.id}>
+                              <Link
+                                to={category.href}
+                                onClick={onClose}
+                                onMouseEnter={() => handleCategoryEnter(category)}
+                                onFocus={() => handleCategoryEnter(category)}
+                                className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                                  isActive
+                                    ? 'bg-slate-100 font-medium text-slate-900'
+                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                }`}
+                              >
+                                <span className="min-w-0 truncate">{category.label}</span>
+                                {isActive && (
+                                  <ChevronRight
+                                    className="size-4 shrink-0 text-slate-400"
+                                    strokeWidth={2.25}
+                                  />
+                                )}
+                              </Link>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </nav>
 
-                <div className="min-w-0 overflow-hidden">
-                  <AnimatePresence mode="wait">
-                    <CategoryPanelContent
-                      key={activeCategory.id}
-                      category={activeCategory}
-                      activeSubcategoryId={activeSubcategoryId}
-                      onSubcategoryChange={setActiveSubcategoryId}
-                      onNavigate={onClose}
-                    />
-                  </AnimatePresence>
-                </div>
-                </div>
+                    <div className="min-w-0 overflow-hidden">
+                      {activeCategory ? (
+                        <AnimatePresence mode="wait">
+                          <CategoryPanelContent
+                            key={activeCategory.id}
+                            category={activeCategory}
+                            activeSubcategoryId={activeSubcategoryId}
+                            onSubcategoryChange={setActiveSubcategoryId}
+                            onNavigate={onClose}
+                          />
+                        </AnimatePresence>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
               </div>
             </Container>
           </motion.div>

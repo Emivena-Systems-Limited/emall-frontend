@@ -1,14 +1,19 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  CATEGORIES_PAGE_FEATURED_SLUGS,
-  CATEGORY_DEPARTMENT_STATIC_FALLBACKS,
-} from '../../constants/categoryDepartmentSections'
+import { CATEGORY_DEPARTMENT_STATIC_FALLBACKS } from '../../constants/categoryDepartmentSections'
 import { getParentCategories } from '../../services/categoryService'
-import { buildDepartmentSubcategories } from '../../utils/buildCategoryDepartments'
+import {
+  buildDepartmentSubcategories,
+  sortParentCategoriesForDisplay,
+} from '../../utils/buildCategoryDepartments'
 import CategorySubcategoryCarousel from './CategorySubcategoryCarousel'
 
-export default function RemainingCategoryDepartmentsSection() {
+export default function RemainingCategoryDepartmentsSection({
+  skip = 0,
+  limit,
+  skeletonCount = 3,
+  deprioritizeSlugs = [],
+}) {
   const { data: parentCategories = [], isLoading } = useQuery({
     queryKey: ['parent-categories'],
     queryFn: getParentCategories,
@@ -16,9 +21,15 @@ export default function RemainingCategoryDepartmentsSection() {
     retry: 1,
   })
 
+  const deprioritizeSet = useMemo(
+    () => new Set(deprioritizeSlugs),
+    [deprioritizeSlugs],
+  )
+
   const departments = useMemo(() => {
-    return parentCategories
-      .filter((category) => !CATEGORIES_PAGE_FEATURED_SLUGS.has(category.slug))
+    const sorted = sortParentCategoriesForDisplay(parentCategories)
+
+    const all = sorted
       .map((parent) => {
         const staticFallback = CATEGORY_DEPARTMENT_STATIC_FALLBACKS[parent.slug]
         const subcategories = buildDepartmentSubcategories(
@@ -37,14 +48,24 @@ export default function RemainingCategoryDepartmentsSection() {
         }
       })
       .filter((department) => department.subcategories.length > 0)
-  }, [parentCategories])
+
+    const prioritized = all.filter((department) => !deprioritizeSet.has(department.parentSlug))
+    const deprioritized = all.filter((department) => deprioritizeSet.has(department.parentSlug))
+    const ordered = [...prioritized, ...deprioritized]
+
+    if (limit != null) {
+      return ordered.slice(skip, skip + limit)
+    }
+
+    return ordered.slice(skip)
+  }, [parentCategories, skip, limit, deprioritizeSet])
 
   if (isLoading) {
     return (
       <>
-        {Array.from({ length: 3 }, (_, index) => (
+        {Array.from({ length: skeletonCount }, (_, index) => (
           <CategorySubcategoryCarousel
-            key={`category-skeleton-${index}`}
+            key={`category-skeleton-${skip}-${index}`}
             title="Loading categories"
             subcategories={[]}
             isLoading

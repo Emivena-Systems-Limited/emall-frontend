@@ -76,13 +76,13 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((prev) => !prev)}
-          className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/15"
         >
-          <span className="flex size-8 items-center justify-center rounded-full bg-white text-auth-primary">
-            <UserRound className="size-4.5" />
+          <span className="flex size-7 items-center justify-center rounded-full bg-white text-auth-primary">
+            <UserRound className="size-4" />
           </span>
-          <span className="max-w-28 truncate">{displayName}</span>
-          <ChevronDown className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <span className="max-w-24 truncate">{displayName}</span>
+          <ChevronDown className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
 
         {open ? (
@@ -120,14 +120,14 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
 
   const linkClass = stacked
     ? 'block rounded-xl px-4 py-3 text-base font-medium text-white transition-colors hover:bg-white/10'
-    : 'text-sm font-medium text-white transition-opacity hover:opacity-85 lg:text-[0.9375rem]'
+    : 'text-sm font-medium text-white transition-opacity hover:opacity-85'
 
   const registerClass = stacked
     ? 'block rounded-full bg-white px-4 py-3 text-center text-base font-semibold text-auth-primary transition-colors hover:bg-white/90'
-    : 'rounded-full bg-white px-5 py-2 text-sm font-semibold text-auth-primary transition-colors hover:bg-white/90 lg:px-6 lg:py-2.5'
+    : 'rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-auth-primary transition-colors hover:bg-white/90'
 
   return (
-    <div className={stacked ? 'flex flex-col gap-2' : 'flex items-center gap-4 lg:gap-5'}>
+    <div className={stacked ? 'flex flex-col gap-2' : 'flex items-center gap-3'}>
       <Link to="/login" className={linkClass} onClick={onNavigate}>
         Sign In
       </Link>

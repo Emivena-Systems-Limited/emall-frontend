@@ -67,6 +67,9 @@ export const CATEGORY_IMAGES = {
   books: `https://images.pexels.com/photos/159711/books-bookstore-book-reading-159711.jpeg${W}`,
   pet: `https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg${W}`,
 
+  babyMaternity: `https://images.pexels.com/photos/3875085/pexels-photo-3875085.jpeg${W}`,
+  bagsLuggage: `https://images.pexels.com/photos/2905238/pexels-photo-2905238.jpeg${W}`,
+
   phoneCase: `https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg${W}`,
   charger: `https://images.unsplash.com/photo-1591290619762-d2d9879b5e7b?auto=format&fit=crop&w=900&q=80`,
   agriculture: `https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=900&q=80`,
@@ -98,6 +101,14 @@ export const SLUG_IMAGE_MAP = {
   'construction-and-tools': CATEGORY_IMAGES.tools,
   agriculture: CATEGORY_IMAGES.agriculture,
   construction: CATEGORY_IMAGES.construction,
+  'baby-and-maternity': CATEGORY_IMAGES.babyMaternity,
+  'baby-maternity': CATEGORY_IMAGES.babyMaternity,
+  baby: CATEGORY_IMAGES.babyMaternity,
+  maternity: CATEGORY_IMAGES.babyMaternity,
+  'bags-and-luggage': CATEGORY_IMAGES.bagsLuggage,
+  'bags-luggage': CATEGORY_IMAGES.bagsLuggage,
+  bags: CATEGORY_IMAGES.bagsLuggage,
+  luggage: CATEGORY_IMAGES.bagsLuggage,
 
   'featured-phones': CATEGORY_IMAGES.smartphone,
   tablets: CATEGORY_IMAGES.tablet,
@@ -189,6 +200,10 @@ export const PARENT_DEFAULT_IMAGES = {
   appliances: CATEGORY_IMAGES.appliance,
   'toys-games': CATEGORY_IMAGES.toys,
   'home-office': CATEGORY_IMAGES.office,
+  'baby-and-maternity': CATEGORY_IMAGES.babyMaternity,
+  'baby-maternity': CATEGORY_IMAGES.babyMaternity,
+  'bags-and-luggage': CATEGORY_IMAGES.bagsLuggage,
+  'bags-luggage': CATEGORY_IMAGES.bagsLuggage,
 }
 
 /**
@@ -214,11 +229,13 @@ export const CATEGORY_IMAGE_KEYWORD_RULES = [
   { pattern: /\b(refrigerator|washer|dryer|microwave|toaster|blender|appliance)\b/i, image: CATEGORY_IMAGES.appliance },
 
   { pattern: /\b(men'?s wear|menswear|men fashion|suit|blazer|shirt)\b/i, image: CATEGORY_IMAGES.mensFashion },
-  { pattern: /\b(women'?s wear|womenswear|dress|handbag|heels)\b/i, image: CATEGORY_IMAGES.womensFashion },
+  { pattern: /\b(women'?s wear|womenswear|dress|heels)\b/i, image: CATEGORY_IMAGES.womensFashion },
+  { pattern: /\b(baby|maternity|infant|newborn|nursery|stroller|diaper|feeding)\b/i, image: CATEGORY_IMAGES.babyMaternity },
+  { pattern: /\b(bags?|luggage|suitcase|backpack|travel bag|handbag|tote|carry.?on)\b/i, image: CATEGORY_IMAGES.bagsLuggage },
   { pattern: /\b(kid|children|baby wear|toddler)\b/i, image: CATEGORY_IMAGES.kidsFashion },
   { pattern: /\b(shoe|footwear|sneaker|boot|sandal|heel)\b/i, image: CATEGORY_IMAGES.footwear },
   { pattern: /\b(jewelry|necklace|ring|bracelet|earring)\b/i, image: CATEGORY_IMAGES.jewelry },
-  { pattern: /\b(accessor|belt|scarf|hat|sunglass|bag)\b/i, image: CATEGORY_IMAGES.accessories },
+  { pattern: /\b(accessor|belt|scarf|hat|sunglass)\b/i, image: CATEGORY_IMAGES.accessories },
   { pattern: /\b(fashion|apparel|clothing|cloth)\b/i, image: CATEGORY_IMAGES.fashion },
 
   { pattern: /\b(furniture|sofa|couch|table|chair|bed frame)\b/i, image: CATEGORY_IMAGES.furniture },

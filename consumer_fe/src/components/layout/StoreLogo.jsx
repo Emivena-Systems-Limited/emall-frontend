@@ -3,6 +3,10 @@ import { Link } from 'react-router'
 import { SITE_NAME } from '../../constants/siteNav'
 
 const sizeStyles = {
+  sm: {
+    icon: 'size-7 shrink-0 sm:size-8',
+    text: 'text-base font-semibold tracking-tight sm:text-[1.05rem]',
+  },
   md: {
     icon: 'size-9 shrink-0 sm:size-10',
     text: 'text-lg font-semibold tracking-tight sm:text-xl lg:text-[1.35rem]',
@@ -51,7 +55,7 @@ export default function StoreLogo({
         />
       </svg>
       {showText && (
-        <span className={`${styles.text} ${textClass}`}>
+        <span className={`${styles.text} ${textClass} leading-none`}>
           {SITE_NAME}
         </span>
       )}
