@@ -1,4 +1,4 @@
-import { enrichLandingProductForFilters } from './extractProductVariantFacets'
+import { enrichLandingProductForFilters, getMetadataValue, resolveProductDisplayPrices } from './extractProductVariantFacets'
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80'
@@ -86,40 +86,23 @@ function getVariantText(product) {
   return parts.join('  ') || firstValue(product.variant, category, store, 'E-Mall product')
 }
 
-function isUsablePrice(value) {
-  if (value === '' || value == null) return false
-  const num = Number(String(value).replace(/[^\d.-]/g, ''))
-  return Number.isFinite(num) && num > 0
-}
-
-function pickFirstUsablePrice(...candidates) {
-  for (const candidate of candidates) {
-    if (isUsablePrice(candidate)) return toNumber(candidate)
-  }
-  return null
-}
-
 function resolveProductCardPrices(product, variation) {
-  const listPrice = pickFirstUsablePrice(
-    product.regular_price,
-    variation?.regular_price,
-  )
-
-  const salePrice = pickFirstUsablePrice(
-    product.regular_discount_price,
-    product.discount_price,
-    variation?.regular_discount_price,
-    variation?.discount_price,
-  )
-
-  const price = salePrice ?? listPrice ?? 0
-  const compareAt = listPrice != null && salePrice != null && listPrice > salePrice ? listPrice : null
-
+  const { price, compareAt } = resolveProductDisplayPrices(product, variation)
   return { price, compareAt }
 }
 
-function getDiscountPercent(product, price, compareAt) {
-  const explicit = firstValue(product.discount_percent, product.discountPercentage, product.discount)
+function getDiscountPercent(product, variation, price, compareAt) {
+  const metadata = toArray(product.metadata)
+  const variationMetadata = toArray(variation?.metadata)
+  const explicit = firstValue(
+    product.discount_percent,
+    product.discountPercentage,
+    product.discount,
+    getMetadataValue(metadata, 'percent_off'),
+    getMetadataValue(metadata, 'discount_percent'),
+    getMetadataValue(variationMetadata, 'percent_off'),
+    getMetadataValue(variationMetadata, 'discount_percent'),
+  )
   if (explicit !== undefined) {
     const explicitDiscount = toNumber(explicit, null)
     return explicitDiscount > 0 ? explicitDiscount : null
@@ -140,7 +123,7 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
   const name = firstValue(product.name, product.product_name, product.title, variation?.name, 'Product')
   const slug = firstValue(product.slug, product.product_slug, slugify(`${name}-${id}`))
   const { price, compareAt } = resolveProductCardPrices(product, variation)
-  const discountPercent = getDiscountPercent(product, price, compareAt)
+  const discountPercent = getDiscountPercent(product, variation, price, compareAt)
   const categoryRecord = product.category && typeof product.category === 'object' ? product.category : null
   const subcategoryRecord =
     product.subcategory && typeof product.subcategory === 'object' ? product.subcategory : null

@@ -40,7 +40,53 @@ function getMetadataValue(metadata, key) {
   return item ? item.value ?? item.meta_value : undefined
 }
 
+function isUsableCatalogPrice(value) {
+  if (value === '' || value == null) return false
+  const num = Number(String(value).replace(/[^\d.-]/g, ''))
+  return Number.isFinite(num) && num > 0
+}
+
+function pickRootPrice(...candidates) {
+  for (const candidate of candidates) {
+    if (isUsableCatalogPrice(candidate)) return toNumber(candidate)
+  }
+  return null
+}
+
+/** Resolve list/sale prices from product fields with metadata fallback. */
+export function resolveProductDisplayPrices(product, variation = null) {
+  const metadata = toArray(product?.metadata)
+  const variationMetadata = toArray(variation?.metadata)
+
+  const listPrice = pickRootPrice(
+    product?.regular_price,
+    variation?.regular_price,
+    getMetadataValue(metadata, 'regular_price'),
+    getMetadataValue(variationMetadata, 'regular_price'),
+  )
+
+  const salePrice = pickRootPrice(
+    product?.regular_discount_price,
+    product?.discount_price,
+    product?.sale_price,
+    variation?.regular_discount_price,
+    variation?.discount_price,
+    variation?.sale_price,
+    getMetadataValue(metadata, 'sale_price'),
+    getMetadataValue(metadata, 'discount_price'),
+    getMetadataValue(variationMetadata, 'sale_price'),
+    getMetadataValue(variationMetadata, 'discount_price'),
+  )
+
+  const price = salePrice ?? listPrice ?? 0
+  const compareAt = listPrice != null && salePrice != null && listPrice > salePrice ? listPrice : null
+
+  return { price, compareAt, listPrice, salePrice }
+}
+
 export function extractSlimVariants(product) {
+  const fallbackPrices = resolveProductDisplayPrices(product)
+
   return toArray(product.variants || product.variations).map((variant) => {
     const attributes = variant.attributes && typeof variant.attributes === 'object'
       ? variant.attributes
@@ -59,16 +105,18 @@ export function extractSlimVariants(product) {
       attributes.Storage,
     )
 
+    const variationMetadata = toArray(variant.metadata)
+
     return {
       id: variant.id,
-      price: toNumber(
-        firstValue(
-          variant.regular_discount_price,
-          variant.discount_price,
-          variant.sale_price,
-          variant.price,
-        ),
-      ),
+      price: pickRootPrice(
+        variant.regular_discount_price,
+        variant.discount_price,
+        variant.sale_price,
+        variant.price,
+        getMetadataValue(variationMetadata, 'sale_price'),
+        getMetadataValue(variationMetadata, 'discount_price'),
+      ) ?? resolveProductDisplayPrices(product, variant).price ?? fallbackPrices.price,
       color: color ? String(color) : null,
       size: size ? String(size) : null,
       variantName: variant.variant_name ? String(variant.variant_name) : null,
@@ -104,26 +152,10 @@ export function extractVariantFacets(product) {
   )
 }
 
-function isUsableCatalogPrice(value) {
-  if (value === '' || value == null) return false
-  const num = Number(String(value).replace(/[^\d.-]/g, ''))
-  return Number.isFinite(num) && num > 0
-}
-
-function pickRootPrice(...candidates) {
-  for (const candidate of candidates) {
-    if (isUsableCatalogPrice(candidate)) return toNumber(candidate)
-  }
-  return null
-}
-
 export function extractProductPriceRange(product) {
   const variants = extractSlimVariants(product)
   const variantPrices = variants.map((variant) => variant.price).filter((price) => price > 0)
-
-  const salePrice = pickRootPrice(product.regular_discount_price, product.discount_price)
-  const listPrice = pickRootPrice(product.regular_price)
-  const basePrice = salePrice ?? listPrice ?? 0
+  const { price: basePrice } = resolveProductDisplayPrices(product)
 
   if (variantPrices.length) {
     return {

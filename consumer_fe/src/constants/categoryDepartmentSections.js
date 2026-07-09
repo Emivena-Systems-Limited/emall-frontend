@@ -162,6 +162,15 @@ export const HEALTH_FITNESS_DEPARTMENT_SECTION = {
   ],
 }
 
+export const CATEGORY_DEPARTMENT_STATIC_FALLBACKS = {
+  electronics: ELECTRONICS_DEPARTMENT_SECTION,
+  fashion: FASHION_DEPARTMENT_SECTION,
+  'home-kitchen': HOME_DEPARTMENT_SECTION,
+  'sports-outdoors': HEALTH_FITNESS_DEPARTMENT_SECTION,
+}
+
+export const CATEGORIES_PAGE_FEATURED_SLUGS = new Set(['electronics', 'fashion'])
+
 export const FASHION_PROMO_SECTION = {
   featured: {
     id: 'new-chic',

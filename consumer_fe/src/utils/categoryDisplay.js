@@ -2,6 +2,20 @@ import { topCategories } from '../constants/topCategories'
 import { categoryMenuItems } from '../constants/categoriesMenu'
 import { resolveParentCategoryImage, resolveSubcategoryImage } from './resolveCategoryImage'
 
+export function formatProductCount(count) {
+  if (!count || count <= 0) return null
+
+  if (count >= 1000) {
+    const thousands = count / 1000
+    const formatted = Number.isInteger(thousands)
+      ? String(thousands)
+      : thousands.toFixed(1).replace(/\.0$/, '')
+    return `${formatted}k`
+  }
+
+  return count.toLocaleString('en-US')
+}
+
 export function getCategoryImage(category, index = 0) {
   if (category?.image) return category.image
 

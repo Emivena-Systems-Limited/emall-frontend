@@ -5,6 +5,7 @@ import { getGuestCart } from '../services/cartService'
 import { persistor, store } from '../store/store'
 import { replaceItems, selectGuestCartId, setGuestCartId } from '../store/slices/cartSlice'
 import { extractCartItems, extractCartSummary } from '../utils/normalizeCart'
+import { normalizeCartSummary } from '../utils/checkoutTotals'
 import { isValidGuestCartId } from '../utils/guestCartId'
 
 /** Loads a guest cart from GET /api/cart/guest and syncs it into Redux. */
@@ -15,26 +16,22 @@ export async function syncGuestCart(dispatch) {
   }
 
   const payload = await getGuestCart(guestCartId)
-
-  // GET /api/cart/guest does not echo guest_cart_id — keep the persisted header value.
-  if (guestCartId) {
-    dispatch(setGuestCartId(guestCartId))
-  }
-
   const items = extractCartItems(payload)
-  if (items.length > 0) {
-    dispatch(replaceItems(items))
-  }
+  const summary = normalizeCartSummary(extractCartSummary(payload))
 
-  if (guestCartId) {
-    await persistor.persist()
-  }
+  dispatch(setGuestCartId(guestCartId))
+  dispatch(replaceItems(items))
+  await persistor.persist()
 
-  return { items, summary: extractCartSummary(payload) }
+  return { items, summary }
 }
 
 export function useGuestCart(options = {}) {
-  const { enabled = true } = options
+  const {
+    enabled = true,
+    refetchOnMount = false,
+    staleTime = Infinity,
+  } = options
   const dispatch = useDispatch()
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const guestCartId = useSelector(selectGuestCartId)
@@ -43,9 +40,9 @@ export function useGuestCart(options = {}) {
     queryKey: [...GUEST_CART_QUERY_KEY, guestCartId],
     queryFn: () => syncGuestCart(dispatch),
     enabled: enabled && !isAuthenticated && isValidGuestCartId(guestCartId),
-    staleTime: 30_000,
+    staleTime,
     retry: 1,
-    refetchOnMount: false,
+    refetchOnMount,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })

@@ -13,6 +13,24 @@ function toCount(value) {
 export function normalizeCartSummary(summary) {
   const source = summary?.summary ?? summary?.totals ?? summary?.cart_summary ?? summary ?? {}
 
+  // GET /cart/items summary: subtotal=list total, discount=payable total, total=savings.
+  const listSubtotal = toAmount(
+    source.items_total
+    ?? source.cart_subtotal
+    ?? source.sub_total
+    ?? source.subtotal,
+  )
+  const payableTotal = toAmount(
+    source.payable_subtotal
+    ?? source.payable_total
+    ?? source.discount,
+  )
+  const savingsTotal = toAmount(
+    source.total_savings
+    ?? source.savings
+    ?? source.total,
+  )
+
   return {
     itemCount: toCount(
       source.selected_items_count
@@ -22,48 +40,55 @@ export function normalizeCartSummary(summary) {
       ?? source.quantity
       ?? source.items,
     ),
-    subtotal: toAmount(
-      source.subtotal
-      ?? source.items_total
-      ?? source.cart_subtotal
-      ?? source.sub_total,
-    ),
-    tax: toAmount(source.tax ?? source.vat ?? source.total_tax) ?? 80,
-    deliveryFee: toAmount(
-      source.delivery_fee
-      ?? source.deliveryFee
-      ?? source.total_delivery_fee
-      ?? source.shipping_fee,
-    ) ?? 70,
-    freeDelivery: toAmount(
-      source.free_delivery
-      ?? source.freeDelivery
-      ?? source.delivery_discount
-      ?? source.shipping_discount,
-    ) ?? 70,
+    listSubtotal,
+    subtotal: payableTotal ?? listSubtotal,
+    savings: savingsTotal,
+    tax: 0,
+    deliveryFee: 0,
+    freeDelivery: 0,
     couponDiscount: toAmount(
       source.coupon_discount
-      ?? source.couponDiscount
-      ?? source.discount
-      ?? source.total_discount,
+      ?? source.couponDiscount,
     ) ?? 0,
-    total: toAmount(
-      source.total
-      ?? source.grand_total
-      ?? source.order_total
-      ?? source.cart_total,
-    ),
+    total: payableTotal ?? listSubtotal,
   }
 }
 
 export function normalizePreviewTotals(preview) {
   const source = preview?.summary ?? preview?.totals ?? preview?.order_total ?? preview ?? {}
   return {
-    tax: Number(source.tax ?? source.vat ?? 80),
-    deliveryFee: Number(source.delivery_fee ?? source.deliveryFee ?? source.total_delivery_fee ?? 70),
-    freeDelivery: Number(source.free_delivery ?? source.freeDelivery ?? 70),
+    tax: 0,
+    deliveryFee: 0,
+    freeDelivery: 0,
     couponDiscount: Number(source.coupon_discount ?? source.couponDiscount ?? source.discount ?? 0),
   }
+}
+
+export function computeCartOrderTotals(items = []) {
+  const selectedItems = items.filter((item) => item.selected !== false)
+
+  return selectedItems.reduce(
+    (totals, item) => {
+      const quantity = Math.max(1, Number(item.quantity) || 1)
+      const listUnitPrice = Number(item.compareAt ?? item.price ?? 0)
+      const hasSaleDiscount = item.compareAt != null && Number(item.compareAt) > Number(item.price)
+      const payableUnitPrice = hasSaleDiscount ? Number(item.price) : listUnitPrice
+      const listLineTotal = listUnitPrice * quantity
+      const payableLineTotal = item.displaySubtotal ?? payableUnitPrice * quantity
+
+      totals.itemCount += quantity
+      totals.listSubtotal += listLineTotal
+      totals.payableTotal += payableLineTotal
+      totals.discountTotal += Math.max(0, listLineTotal - payableLineTotal)
+      return totals
+    },
+    {
+      itemCount: 0,
+      listSubtotal: 0,
+      payableTotal: 0,
+      discountTotal: 0,
+    },
+  )
 }
 
 export function calculateOrderTotal(subtotal, totals = {}) {

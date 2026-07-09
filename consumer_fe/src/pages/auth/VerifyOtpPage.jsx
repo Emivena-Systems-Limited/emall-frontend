@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { AnimatePresence, motion } from 'framer-motion'
 import AuthLayout from '../../components/auth/AuthLayout'
 import OtpInput from '../../components/auth/OtpInput'
@@ -14,12 +14,15 @@ import {
 import { useAuthOtpFlow, useAuthOtpSession } from '../../hooks/useAuthOtpSession'
 import { AUTH_FLOW, OTP_LENGTH } from '../../constants/auth'
 import { setCredentials } from '../../store/slices/authSlice'
+import { clearGuestCartId, selectGuestCartId } from '../../store/slices/cartSlice'
 import { persistor } from '../../store/store'
 import { clearAuthOtpSession } from '../../utils/authOtpSession'
+import { isValidGuestCartId } from '../../utils/guestCartId'
 
 export default function VerifyOtpPage() {
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  const guestCartId = useSelector(selectGuestCartId)
   const session = useAuthOtpSession()
   const flow = useAuthOtpFlow(session)
 
@@ -44,19 +47,25 @@ export default function VerifyOtpPage() {
     setIsVerifying(true)
 
     try {
-      const data = await verifyOtpMutation.mutateAsync({ method, contact, otp, profile, flow })
+      const data = await verifyOtpMutation.mutateAsync({
+        method,
+        contact,
+        otp,
+        profile,
+        flow,
+        guestCartId: isValidGuestCartId(guestCartId) ? guestCartId : null,
+      })
       dispatch(setCredentials({
         user: data.user,
         accessToken: data.accessToken,
         applicationToken: data.applicationToken,
       }))
+      dispatch(clearGuestCartId())
       clearAuthOtpSession()
       notify.success(
         flow === AUTH_FLOW.REGISTER ? 'Account verified successfully' : 'Login successful',
       )
       await persistor.persist()
-      // The cart's guest→account merge (useCartAuthSync) kicks off the moment
-      // isAuthenticated flips true, so it's already in flight by the time we land here.
       navigate(redirectTo || '/', { replace: true })
     } catch (error) {
       setHasError(true)
@@ -67,11 +76,18 @@ export default function VerifyOtpPage() {
 
   const handleResend = async () => {
     try {
-      const otpResponse = await resendOtpMutation.mutateAsync({ method, contact })
+      const otpResponse = await resendOtpMutation.mutateAsync({
+        method,
+        contact,
+        flow,
+        profile,
+      })
       notify[otpResponse?.otpAlreadyPending ? 'info' : 'success'](
         otpResponse?.otpAlreadyPending
           ? 'A verification code is already active. Please use the code already sent.'
-          : 'Otp has been resent successfully',
+          : flow === AUTH_FLOW.REGISTER
+            ? 'A new verification code has been sent'
+            : 'Otp has been resent successfully',
       )
       setOtp('')
       setHasError(false)
@@ -141,7 +157,10 @@ export default function VerifyOtpPage() {
               </form>
 
               <div className="mt-4 max-[740px]:mt-3 sm:mt-5">
-                <ResendTimer onResend={handleResend} />
+                <ResendTimer
+                  onResend={handleResend}
+                  disabled={resendOtpMutation.isPending}
+                />
               </div>
             </motion.div>
           )}

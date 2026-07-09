@@ -19,6 +19,10 @@ import computing from '../assets/images/computing.png'
 import appliances from '../assets/images/appliances.png'
 import home_office from '../assets/images/home_office.png'
 import phones_accessories from '../assets/images/phones_accessories.png'
+
+// categories
+import electronicsImage from '../assets/images/categories/electronics.jpg'
+
 const brand = {
   favicon: '/favicon.svg',
   iconsSprite: '/icons.svg',
@@ -65,6 +69,10 @@ const common = {
   appstore,
 }
 
+const categories = {
+  electronicsImage,
+}
+
 export const Images = {
   brand,
   auth,
@@ -72,6 +80,8 @@ export const Images = {
   common,
   sample_hero_banners,
   top_categories,
+  categories,
 }
+
 
 export default Images

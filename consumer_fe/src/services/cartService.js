@@ -4,6 +4,13 @@ import { persistor, store } from '../store/store'
 import { selectGuestCartId, setGuestCartId } from '../store/slices/cartSlice'
 import { extractGuestCartId } from '../utils/normalizeCart'
 import { generateGuestCartId, isValidGuestCartId, requireGuestCartId, resolveGuestCartId } from '../utils/guestCartId'
+import { dedupeAsync } from '../utils/requestDedup'
+
+let authenticatedCartReady = false
+
+export function resetAuthenticatedCartSession() {
+  authenticatedCartReady = false
+}
 
 const guestCartRequestConfig = {
   skipAuthLogout: true,
@@ -104,12 +111,15 @@ export async function ensureGuestCartExists() {
 
 export async function getGuestCart(guestCartId) {
   // GET /api/cart/guest → { data: { items, summary } }. Requires Guest-Cart-Id header.
-  const { data } = await apiClient.get(CART_ENDPOINTS.GUEST_CART, {
-    ...guestCartRequestConfig,
-    ...guestCartHeaderConfig(guestCartId),
+  const id = requireGuestCartId(guestCartId ?? selectGuestCartId(store.getState()))
+  return dedupeAsync(`guest-cart:${id}`, async () => {
+    const { data } = await apiClient.get(CART_ENDPOINTS.GUEST_CART, {
+      ...guestCartRequestConfig,
+      ...guestCartHeaderConfig(id),
+    })
+    assertApiSuccess(data)
+    return unwrapApiPayload(data)
   })
-  assertApiSuccess(data)
-  return unwrapApiPayload(data)
 }
 
 export async function addGuestItemToCart(payload, guestCartId) {
@@ -135,6 +145,40 @@ export async function addGuestItemToCart(payload, guestCartId) {
   })
   assertApiSuccess(data)
   // Response includes cart_id (record id) — never persist that as guestCartId.
+  return unwrapApiPayload(data)
+}
+
+export async function updateGuestCartItem(itemId, payload, guestCartId) {
+  const lineItemId = String(itemId ?? '').trim()
+  if (!lineItemId) {
+    throw new Error('Guest cart item id is required to update quantity')
+  }
+
+  const { data } = await apiClient.put(
+    CART_ENDPOINTS.GUEST_ITEM(lineItemId),
+    {
+      quantity: Math.max(1, Number(payload?.quantity) || 1),
+    },
+    {
+      ...guestCartRequestConfig,
+      ...guestCartHeaderConfig(guestCartId),
+    },
+  )
+  assertApiSuccess(data)
+  return unwrapApiPayload(data)
+}
+
+export async function removeGuestCartItem(itemId, guestCartId) {
+  const lineItemId = String(itemId ?? '').trim()
+  if (!lineItemId) {
+    throw new Error('Guest cart item id is required to remove an item')
+  }
+
+  const { data } = await apiClient.delete(CART_ENDPOINTS.GUEST_REMOVE_ITEM(lineItemId), {
+    ...guestCartRequestConfig,
+    ...guestCartHeaderConfig(guestCartId),
+  })
+  assertApiSuccess(data)
   return unwrapApiPayload(data)
 }
 
@@ -174,19 +218,25 @@ export async function addGuestProductToCart(payload) {
  * Guest-Cart-Id + Application-Token (+ Authorization when available).
  */
 export async function syncGuestCartForAuthenticatedUser() {
-  const { data } = await apiClient.get(CART_ENDPOINTS.GUEST_CART, {
-    skipAuthLogout: true,
-    ...guestCartHeaderConfig(),
+  const guestCartId = selectGuestCartId(store.getState())
+  const id = requireGuestCartId(guestCartId)
+  return dedupeAsync(`guest-cart:${id}`, async () => {
+    const { data } = await apiClient.get(CART_ENDPOINTS.GUEST_CART, {
+      skipAuthLogout: true,
+      ...guestCartHeaderConfig(id),
+    })
+    assertApiSuccess(data)
+    return unwrapApiPayload(data)
   })
-  assertApiSuccess(data)
-  return unwrapApiPayload(data)
 }
 
 export async function getAuthenticatedCart() {
-  // GET /api/cart — returns the authenticated user's cart and line items.
-  const { data } = await apiClient.get(CART_ENDPOINTS.CART, { skipAuthLogout: true })
-  assertApiSuccess(data)
-  return unwrapApiPayload(data)
+  // GET /api/cart/items — returns the authenticated user's cart line items.
+  return dedupeAsync('authenticated-cart-items', async () => {
+    const { data } = await apiClient.get(CART_ENDPOINTS.ITEMS, { skipAuthLogout: true })
+    assertApiSuccess(data)
+    return unwrapApiPayload(data)
+  })
 }
 
 export async function getCartSummary() {
@@ -204,18 +254,31 @@ export async function getCartRecommendations() {
 }
 
 export async function createCart(payload = {}) {
-  // POST /api/cart — authenticated users; guests should use createGuestCart().
+  // Guests register via POST /api/cart; authenticated carts load via GET /api/cart/items.
   if (!store.getState().auth.isAuthenticated) {
     return createGuestCart()
   }
 
-  const { data } = await apiClient.post(CART_ENDPOINTS.CART, payload, { skipAuthLogout: true })
-  assertApiSuccess(data)
-  return unwrapApiPayload(data)
+  return getAuthenticatedCart()
+}
+
+/** Load authenticated cart items once per session (GET /api/cart/items only). */
+export async function ensureAuthenticatedCart(payload = {}) {
+  if (!store.getState().auth.isAuthenticated) {
+    return ensureGuestCartExists()
+  }
+
+  if (authenticatedCartReady) {
+    return null
+  }
+
+  const result = await getAuthenticatedCart()
+  authenticatedCartReady = true
+  return result
 }
 
 export async function addItemToCart(payload) {
-  // POST /api/cart/items — add a product (and optional variant) to the authenticated user's cart.
+  // POST /api/cart/add-item — add a product (and optional variant) to the authenticated user's cart.
   const body = {
     product_id: payload?.product_id ?? payload?.productId,
     quantity: Math.max(1, Number(payload?.quantity) || 1),
@@ -230,17 +293,41 @@ export async function addItemToCart(payload) {
     throw new Error('product_id is required to add an item to cart')
   }
 
-  const { data } = await apiClient.post(CART_ENDPOINTS.ITEMS, body, { skipAuthLogout: true })
+  const { data } = await apiClient.post(CART_ENDPOINTS.ADD_ITEM, body, { skipAuthLogout: true })
+  assertApiSuccess(data)
+  return unwrapApiPayload(data)
+}
+
+export async function updateCartItemQuantity(itemId, quantity) {
+  const lineItemId = String(itemId ?? '').trim()
+  if (!lineItemId) {
+    throw new Error('Cart item id is required to update quantity')
+  }
+
+  const { data } = await apiClient.put(
+    CART_ENDPOINTS.ITEM(lineItemId),
+    { quantity: Math.max(1, Number(quantity) || 1) },
+    { skipAuthLogout: true },
+  )
   assertApiSuccess(data)
   return unwrapApiPayload(data)
 }
 
 export async function updateCartItem(itemId, payload) {
+  if (payload?.quantity != null && Object.keys(payload).length === 1) {
+    return updateCartItemQuantity(itemId, payload.quantity)
+  }
+
+  const lineItemId = String(itemId ?? '').trim()
+  if (!lineItemId) {
+    throw new Error('Cart item id is required to update a cart item')
+  }
+
   const body = {
     ...payload,
     ...(payload?.quantity != null ? { quantity: Math.max(1, Number(payload.quantity) || 1) } : {}),
   }
-  const { data } = await apiClient.put(CART_ENDPOINTS.ITEM(itemId), body, {
+  const { data } = await apiClient.put(CART_ENDPOINTS.ITEM(lineItemId), body, {
     skipAuthLogout: true,
   })
   assertApiSuccess(data)
@@ -263,44 +350,15 @@ export async function updateCartItemSelection(itemId, isSelected) {
   return unwrapApiPayload(data)
 }
 
-export async function mergeCart(items = []) {
-  // POST /api/cart/merge — merges a guest's local cart lines into the newly
-  // authenticated user's cart, creating the cart first if one doesn't exist yet.
-  const { data } = await apiClient.post(
-    CART_ENDPOINTS.MERGE,
-    { items },
-    { skipAuthLogout: true },
-  )
-  assertApiSuccess(data)
-  return unwrapApiPayload(data)
-}
-
-/**
- * Merges guest cart items into the authenticated user's account cart.
- * Prefers the single-call `POST /cart/merge` endpoint; if the backend hasn't
- * shipped that route yet (404), falls back to the existing primitives so the
- * guest-to-account handoff still works: ensure a cart exists, replay each
- * guest line through POST /cart/items, then fetch the resulting cart.
- */
-export async function mergeGuestCartIntoAccount(items = []) {
-  try {
-    return await mergeCart(items)
-  } catch (error) {
-    if (error?.response?.status !== 404) throw error
-
-    await createCart().catch(() => {})
-    await Promise.allSettled(items.map((item) => addItemToCart(item)))
-    return getAuthenticatedCart()
-  }
-}
-
 export async function removeCartItem(itemId) {
   const lineItemId = String(itemId ?? '').trim()
   if (!lineItemId) {
     throw new Error('Cart item id is required to remove an item')
   }
 
-  const { data } = await apiClient.delete(CART_ENDPOINTS.ITEM(lineItemId), { skipAuthLogout: true })
+  const { data } = await apiClient.delete(CART_ENDPOINTS.REMOVE_ITEM(lineItemId), {
+    skipAuthLogout: true,
+  })
   assertApiSuccess(data)
   return unwrapApiPayload(data)
 }

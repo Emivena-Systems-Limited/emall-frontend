@@ -1,3 +1,11 @@
+import Images from '../utils/Images'
+
+export const CATEGORIES_PAGE_HEADER = {
+  title: 'Browse Categories',
+  description:
+    'Explore our vast collection of products curated across specialized departments designed for your lifestyle.',
+}
+
 export const FEATURED_CATEGORY_SPOTLIGHTS = [
   {
     id: 'electronics',
@@ -7,8 +15,7 @@ export const FEATURED_CATEGORY_SPOTLIGHTS = [
     badge: 'Featured Department',
     title: 'Next-Gen Electronics',
     subtitle: 'Upgrade your productivity with our latest arrivals.',
-    image:
-      'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=1400&q=80',
+    image:Images.categories.electronicsImage
   },
   {
     id: 'fashion',

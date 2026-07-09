@@ -1,22 +1,33 @@
+import { useEffect, useRef } from 'react'
 import { useSelector } from 'react-redux'
-import { useAuthenticatedCart } from './useAuthenticatedCart'
 import { useCartAuthSync } from './useCartAuthSync'
-import { useGuestCart } from './useGuestCart'
-import { selectCartSyncStatus } from '../store/slices/cartSlice'
+import { resetAuthenticatedCartSession } from '../services/cartService'
 
 /**
- * Mounted once at the app shell (SiteLayout) so it covers every page:
+ * Mounted once in App so cart hooks do not remount on every page navigation:
  * 1. useCartAuthSync — one-time guest→account handoff on login/signup.
- * 2. useGuestCart — restore guest cart from GET /api/cart/guest when a
- *    persisted guest_cart_id exists.
- * 3. useAuthenticatedCart — routine GET /cart refresh for logged-in users.
+ *
+ * Cart refresh runs on CartPage via useAuthenticatedCart / useGuestCart.
  */
 export function useCartBootstrap() {
-  useCartAuthSync()
-  const syncStatus = useSelector(selectCartSyncStatus)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
-  const cartSyncReady = syncStatus !== 'syncing'
+  const userId = useSelector((state) => state.auth.user?.id)
+  const trackedUserIdRef = useRef(null)
 
-  useGuestCart({ enabled: !isAuthenticated && cartSyncReady })
-  useAuthenticatedCart({ strategy: 'merge', enabled: isAuthenticated && cartSyncReady })
+  useEffect(() => {
+    if (!isAuthenticated) {
+      trackedUserIdRef.current = null
+      resetAuthenticatedCartSession()
+      return
+    }
+
+    if (!userId) return
+
+    if (trackedUserIdRef.current !== userId) {
+      trackedUserIdRef.current = userId
+      resetAuthenticatedCartSession()
+    }
+  }, [isAuthenticated, userId])
+
+  useCartAuthSync()
 }

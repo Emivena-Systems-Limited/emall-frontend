@@ -1,21 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useSelector } from 'react-redux'
-import { Heart, Loader2, Minus, Plus, ShoppingBag, ShoppingCart, Star, X } from 'lucide-react'
+import { Loader2, Minus, Plus, ShoppingBag, X } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
-import { cartRelatedProducts } from '../constants/cartProducts'
 import { formatCedi } from '../utils/formatCurrency'
-import { calculateOrderTotal, normalizeCartSummary } from '../utils/checkoutTotals'
-import { selectCartItems, selectSavedCartItems } from '../store/slices/cartSlice'
+import { calculateOrderTotal, computeCartOrderTotals } from '../utils/checkoutTotals'
+import { selectCartItems, selectSavedCartItems, selectCartSyncStatus, selectGuestCartId } from '../store/slices/cartSlice'
 import { useCartActions } from '../hooks/useCartActions'
-import { useCartPageQueries } from '../hooks/useCartPageQueries'
-import { extractCartRecommendations } from '../utils/normalizeCart'
-import { normalizeLandingProducts } from '../utils/normalizeLandingProducts'
+import { useAuthenticatedCart } from '../hooks/useAuthenticatedCart'
+import { useGuestCart } from '../hooks/useGuestCart'
+import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
-
-const STAR_FILL = '#F59E0B'
-const STAR_EMPTY_FILL = '#E2E8F0'
 
 const clampQuantity = (value) => Math.max(1, value)
 
@@ -61,15 +57,17 @@ function QuantityStepper({ value, onChange }) {
   )
 }
 
-function ItemActions({ saved = false, onDelete, onSave }) {
+function ItemActions({ saved = false, showSaveForLater = true, onDelete, onSave }) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.625rem] font-semibold">
       <button type="button" onClick={onDelete} className="underline hover:text-auth-primary">
         Delete
       </button>
-      <button type="button" onClick={onSave} className="underline hover:text-auth-primary">
-        {saved ? 'Add to cart' : 'Save For Later'}
-      </button>
+      {showSaveForLater && (
+        <button type="button" onClick={onSave} className="underline hover:text-auth-primary">
+          {saved ? 'Add to cart' : 'Save For Later'}
+        </button>
+      )}
       <button type="button" className="underline hover:text-auth-primary">
         Share
       </button>
@@ -85,6 +83,7 @@ function CartItemRow({
   onDelete,
   onSave,
   saved = false,
+  showSaveForLater = true,
   readOnlyQuantity = false,
 }) {
   const subtotal = item.displaySubtotal ?? item.price * item.quantity
@@ -120,11 +119,6 @@ function CartItemRow({
               {optionLabel}
             </p>
           )}
-          {item.sku && (
-            <p className="mt-1 truncate text-[0.5625rem] font-semibold uppercase tracking-wide text-slate-400">
-              SKU: {item.sku}
-            </p>
-          )}
           {item.freeDelivery && (
             <p className="mt-1 w-fit max-w-full rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-emerald-700">
               Free Delivery
@@ -135,7 +129,12 @@ function CartItemRow({
               Sold by <span className="font-semibold text-slate-700">{item.seller}</span>
             </p>
           )}
-          <ItemActions saved={saved} onDelete={onDelete} onSave={onSave} />
+          <ItemActions
+            saved={saved}
+            showSaveForLater={showSaveForLater}
+            onDelete={onDelete}
+            onSave={onSave}
+          />
         </div>
       </div>
 
@@ -178,6 +177,7 @@ function ItemTable({
   onDelete,
   onSave,
   saved = false,
+  showSaveForLater = true,
   readOnlyQuantity = false,
   clearLabel,
   onClear,
@@ -203,6 +203,7 @@ function ItemTable({
             key={item.id}
             item={item}
             saved={saved}
+            showSaveForLater={showSaveForLater}
             readOnlyQuantity={readOnlyQuantity}
             selected={selectedIds.has(item.id)}
             onSelect={(checked) => onSelect(item.id, checked)}
@@ -211,15 +212,18 @@ function ItemTable({
             onSave={() => onSave(item.id)}
           />
         ))}
-        <div className="flex justify-end px-4 py-5 lg:px-5">
-          <button
-            type="button"
-            onClick={onClear}
-            className="rounded-md border border-slate-400 px-4 py-2 text-xs font-semibold text-slate-600 hover:border-auth-primary hover:text-auth-primary"
-          >
-            {clearLabel}
-          </button>
-        </div>
+        {/* Clear cart button — hidden for now */}
+        {onClear && (
+          <div className="flex justify-end px-4 py-5 lg:px-5">
+            <button
+              type="button"
+              onClick={onClear}
+              className="rounded-md border border-slate-400 px-4 py-2 text-xs font-semibold text-slate-600 hover:border-auth-primary hover:text-auth-primary"
+            >
+              {clearLabel}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   )
@@ -227,7 +231,8 @@ function ItemTable({
 
 function CartSummary({
   itemCount,
-  subtotal,
+  listSubtotal,
+  discountTotal,
   totals,
   total,
   isLoadingTotals = false,
@@ -236,6 +241,8 @@ function CartSummary({
   onProceedCheckout,
 }) {
   const { tax, deliveryFee, freeDelivery } = totals
+  const netDelivery = Math.max(0, Number(deliveryFee) - Number(freeDelivery))
+  const isFreeDelivery = netDelivery === 0
 
   return (
     <aside className="rounded-xl bg-white p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start">
@@ -252,19 +259,25 @@ function CartSummary({
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-600">Subtotal</span>
-          <span className="font-bold text-slate-900">{formatCedi(subtotal)}</span>
+          <span className="font-bold text-slate-900">{formatCedi(listSubtotal)}</span>
         </div>
+        {discountTotal > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-slate-600">Discount</span>
+            <span className="font-bold text-emerald-700">-{formatCedi(discountTotal)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span className="text-slate-600">Tax</span>
           <span className="font-bold text-slate-900">{formatCedi(tax)}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Delivery Fee</span>
-          <span className="font-bold text-slate-900">{formatCedi(deliveryFee)}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-slate-600">Free Delivery</span>
-          <span className="font-bold text-slate-400 line-through">{formatCedi(freeDelivery)}</span>
+          <span className="text-slate-600">Delivery</span>
+          {isFreeDelivery ? (
+            <span className="font-bold text-emerald-700">Free</span>
+          ) : (
+            <span className="font-bold text-slate-900">{formatCedi(netDelivery)}</span>
+          )}
         </div>
         <div className="flex items-center justify-between border-t border-slate-300 pt-4 text-base">
           <span className="font-bold text-slate-900">Total</span>
@@ -308,95 +321,6 @@ function EmptyCartState() {
           className="mt-7 inline-flex min-h-12 items-center justify-center rounded-lg bg-auth-primary px-7 text-sm font-bold text-white shadow-sm transition-colors hover:bg-auth-primary-hover"
         >
           Start Shopping
-        </Link>
-      </div>
-    </section>
-  )
-}
-
-function RailProductCard({ product, onAddToCart }) {
-  const fullStars = Math.floor(product.rating ?? 0)
-
-  return (
-    <article className="min-w-0">
-      <Link to={product.href?.replace(/^\/products\//, '/') ?? '/cart'} className="group block">
-        <span className="relative block aspect-[1.18] overflow-hidden bg-slate-100">
-          <img
-            src={product.image}
-            alt={product.name}
-            className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-          {product.freeDelivery !== false && (
-            <span className="absolute left-2 top-2 rounded-sm bg-emerald-500 px-2 py-1 text-[0.5625rem] font-bold text-white">
-              Free Delivery
-            </span>
-          )}
-          <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full text-white">
-            <Heart className="size-5" strokeWidth={2.2} />
-          </span>
-        </span>
-        <span className="mt-2 block truncate text-xs font-bold text-slate-900">{product.name}</span>
-        <span className="mt-1 block text-sm font-extrabold text-slate-950">{formatCedi(product.price)}</span>
-      </Link>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        {product.reviewCount > 0 ? (
-          <div className="flex items-center gap-1">
-            {Array.from({ length: 5 }, (_, index) => (
-              <Star
-                key={index}
-                className="size-3"
-                fill={index < fullStars ? STAR_FILL : STAR_EMPTY_FILL}
-                strokeWidth={0}
-              />
-            ))}
-            <span className="text-[0.625rem] text-slate-500">({product.reviewCount})</span>
-          </div>
-        ) : (
-          <span className="text-[0.625rem] text-slate-400">No reviews</span>
-        )}
-        <button
-          type="button"
-          onClick={() => onAddToCart(product)}
-          aria-label={`Add ${product.name} to cart`}
-          className="flex h-7 w-10 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:border-auth-primary hover:bg-auth-primary hover:text-white"
-        >
-          <ShoppingCart className="size-4" strokeWidth={1.8} />
-        </button>
-      </div>
-    </article>
-  )
-}
-
-function ProductRail({ title, products, onAddToCart }) {
-  if (products.length === 0) return null
-
-  return (
-    <section
-      className="min-w-0 overflow-hidden rounded-xl bg-white px-3 py-4 sm:px-4"
-      aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}
-    >
-      <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-lg font-bold text-slate-900 sm:text-xl">
-        {title}
-      </h2>
-      <div className="mt-4 -mx-1 snap-x snap-mandatory overflow-x-auto px-1 pb-1 scrollbar-none [-ms-overflow-style:none] lg:overflow-visible lg:snap-none [&::-webkit-scrollbar]:hidden">
-        <div className="flex gap-3 lg:grid lg:grid-cols-5 lg:gap-4">
-          {products.slice(0, 5).map((product) => (
-            <div
-              key={`${title}-${product.id}`}
-              className="w-[calc(50%-0.375rem)] shrink-0 snap-start sm:w-[calc(33.333%-0.5rem)] md:w-[calc(25%-0.5625rem)] lg:w-auto lg:shrink"
-            >
-              <RailProductCard product={product} onAddToCart={onAddToCart} />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="mt-5 flex justify-center">
-        <Link
-          to="/products"
-          className="rounded-full border border-slate-500 px-6 py-2 text-xs font-bold text-slate-600 hover:border-auth-primary hover:text-auth-primary sm:px-8"
-        >
-          View More Products
         </Link>
       </div>
     </section>
@@ -507,12 +431,27 @@ export default function CartPage() {
   const items = useSelector(selectCartItems)
   const savedItems = useSelector(selectSavedCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const guestCartId = useSelector(selectGuestCartId)
+  const syncStatus = useSelector(selectCartSyncStatus)
+  const cartSyncReady = syncStatus !== 'syncing'
+
+  useAuthenticatedCart({
+    enabled: isAuthenticated && cartSyncReady,
+    strategy: 'replace',
+    refetchOnMount: 'always',
+    staleTime: 0,
+  })
+
+  useGuestCart({
+    enabled: !isAuthenticated && cartSyncReady && isValidGuestCartId(guestCartId),
+    refetchOnMount: 'always',
+    staleTime: 0,
+  })
+
   const {
-    addToCart,
     updateQuantity,
     deleteItem,
     selectItem,
-    clearAll,
     saveItem,
     restoreSavedItem,
     deleteSaved,
@@ -521,67 +460,23 @@ export default function CartPage() {
   const [savedSelectedIds, setSavedSelectedIds] = useState(() => new Set())
   const [deliveryOpen, setDeliveryOpen] = useState(false)
 
-  const { summaryQuery, recommendationsQuery } = useCartPageQueries()
-
   const selectedItems = useMemo(
     () => items.filter((item) => item.selected !== false),
     [items],
   )
 
-  const subtotal = useMemo(
-    () => selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [selectedItems],
+  const orderAmounts = useMemo(
+    () => computeCartOrderTotals(items),
+    [items],
   )
 
-  const selectedItemCount = useMemo(
-    () => selectedItems.reduce((sum, item) => sum + item.quantity, 0),
-    [selectedItems],
-  )
-
-  useEffect(() => {
-    if (summaryQuery.isError) {
-      notify.fromError(summaryQuery.error, 'Live cart summary is unavailable. Showing estimates.')
-    }
-  }, [summaryQuery.error, summaryQuery.isError])
-
-  const cartSummary = normalizeCartSummary(summaryQuery.data)
-  const displayItemCount = cartSummary.itemCount ?? selectedItemCount
-  const displaySubtotal = cartSummary.subtotal ?? subtotal
   const orderTotals = {
-    tax: cartSummary.tax,
-    deliveryFee: cartSummary.deliveryFee,
-    freeDelivery: cartSummary.freeDelivery,
-    couponDiscount: cartSummary.couponDiscount,
+    tax: 0,
+    deliveryFee: 0,
+    freeDelivery: 0,
+    couponDiscount: 0,
   }
-  const orderTotal = cartSummary.total ?? calculateOrderTotal(displaySubtotal, orderTotals)
-
-  const cartRecommendations = useMemo(
-    () => extractCartRecommendations(recommendationsQuery.data),
-    [recommendationsQuery.data],
-  )
-
-  const apiDealsProducts = useMemo(
-    () => normalizeLandingProducts(cartRecommendations.bestSellers, { prefix: 'cart-deal' }),
-    [cartRecommendations.bestSellers],
-  )
-  const apiRelatedProducts = useMemo(
-    () => normalizeLandingProducts(cartRecommendations.related, { prefix: 'cart-related' }),
-    [cartRecommendations.related],
-  )
-  const apiRecommendedProducts = useMemo(
-    () => normalizeLandingProducts(cartRecommendations.recommended, { prefix: 'cart-recommended' }),
-    [cartRecommendations.recommended],
-  )
-
-  const dealsProducts = apiDealsProducts.length > 0 ? apiDealsProducts : cartRelatedProducts
-  const relatedProducts = apiRelatedProducts.length > 0
-    ? apiRelatedProducts
-    : apiRecommendedProducts.length > 0
-      ? apiRecommendedProducts
-      : cartRelatedProducts.slice(1)
-  const amazingProducts = apiRecommendedProducts.length > 0
-    ? apiRecommendedProducts
-    : cartRelatedProducts.slice(2)
+  const orderTotal = calculateOrderTotal(orderAmounts.payableTotal, orderTotals)
 
   const handleProceedCheckout = () => {
     if (selectedItems.length === 0) {
@@ -605,22 +500,24 @@ export default function CartPage() {
                 title="Shopping Cart"
                 subtitle="View your shopping cart and proceed to checkout"
                 items={items}
+                showSaveForLater={isAuthenticated}
                 selectedIds={new Set(items.filter((item) => item.selected).map((item) => item.id))}
                 onSelect={selectItem}
                 onQuantityChange={updateQuantity}
                 onDelete={deleteItem}
                 onSave={saveItem}
-                clearLabel="Clear Cart"
-                onClear={clearAll}
+                // clearLabel="Clear Cart"
+                // onClear={clearAll}
               />
               </div>
 
               <CartSummary
-                itemCount={displayItemCount}
-                subtotal={displaySubtotal}
+                itemCount={orderAmounts.itemCount}
+                listSubtotal={orderAmounts.listSubtotal}
+                discountTotal={orderAmounts.discountTotal}
                 totals={orderTotals}
                 total={orderTotal}
-                isLoadingTotals={summaryQuery.isFetching && isAuthenticated}
+                isLoadingTotals={false}
                 hasSelectedItems={selectedItems.length > 0}
                 onOpenDelivery={() => setDeliveryOpen(true)}
                 onProceedCheckout={handleProceedCheckout}
@@ -628,7 +525,7 @@ export default function CartPage() {
             </div>
           )}
 
-          {savedItems.length > 0 && (
+          {isAuthenticated && savedItems.length > 0 && (
             <ItemTable
               title="Saved Items"
               subtitle="Items you saved for later. Move them back to your cart when you're ready to buy."
@@ -652,14 +549,11 @@ export default function CartPage() {
             />
           )}
 
-          <ProductRail title="Best Deals From Seller" products={dealsProducts} onAddToCart={addToCart} />
-          <ProductRail title="Products Related to this Item" products={relatedProducts} onAddToCart={addToCart} />
-          <ProductRail title="See Other Amazing Products" products={amazingProducts} onAddToCart={addToCart} />
         </Container>
       </main>
 
       <MobileCheckoutBar
-        itemCount={displayItemCount}
+        itemCount={orderAmounts.itemCount}
         total={orderTotal}
         hasSelectedItems={selectedItems.length > 0 && items.length > 0}
         onProceedCheckout={handleProceedCheckout}

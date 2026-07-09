@@ -1,4 +1,7 @@
 import apiClient from '../lib/apiClient'
+import { GUEST_CART_HEADER } from '../constants/cart'
+import { AUTH_FLOW } from '../constants/auth'
+import { isValidGuestCartId } from '../utils/guestCartId'
 
 export const AUTH_ENDPOINTS = {
   REGISTER: '/user/auth/register',
@@ -208,13 +211,41 @@ export async function requestOtp({ method, contact }) {
   }
 }
 
-export async function verifyOtp({ method, contact, otp, profile, flow }) {
+export async function verifyOtp({ method, contact, otp, profile, flow, guestCartId }) {
   const payload = buildVerifyOtpPayload({ method, contact, otp, profile, flow })
-  const { data } = await apiClient.post(AUTH_ENDPOINTS.VERIFY_OTP, payload)
+  const requestConfig = {}
+
+  if (isValidGuestCartId(guestCartId)) {
+    requestConfig.headers = {
+      [GUEST_CART_HEADER]: String(guestCartId).trim(),
+    }
+  }
+
+  const { data } = await apiClient.post(AUTH_ENDPOINTS.VERIFY_OTP, payload, requestConfig)
   return normalizeAuthResponse(data, profile)
 }
 
-export async function resendOtp({ method, contact }) {
+export async function resendOtp({ method, contact, flow, profile }) {
+  if (flow === AUTH_FLOW.REGISTER) {
+    if (!profile) {
+      throw new Error('Registration details are required to resend a verification code')
+    }
+
+    try {
+      return await registerUser(profile)
+    } catch (error) {
+      if (isActiveOtpError(error)) {
+        return {
+          in_error: false,
+          otpAlreadyPending: true,
+          message: 'A verification code is already active for this account.',
+        }
+      }
+
+      throw error
+    }
+  }
+
   return requestOtp({ method, contact })
 }
 

@@ -12,30 +12,125 @@ function toArray(value) {
   return []
 }
 
+function toNumber(value) {
+  if (value === undefined || value === null || value === '') return null
+  const amount = Number(value)
+  return Number.isFinite(amount) ? amount : null
+}
+
+function isCartItemRecord(value) {
+  return value != null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && (value.product_id != null || value.productId != null || value.id != null)
+}
+
+function isCartLinePayload(value) {
+  if (!isCartItemRecord(value)) return false
+  if (value?.summary != null) return false
+  if (Array.isArray(value?.items) || Array.isArray(value?.cart_items) || Array.isArray(value?.lines)) {
+    return false
+  }
+  return value.product_id != null || value.productId != null
+}
+
+/** API may return items as { "0": {...}, "1": {...} } instead of an array. */
+function cartItemsFromValue(value) {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== 'object') return []
+
+  const values = Object.values(value)
+  if (values.length > 0 && values.every(isCartItemRecord)) {
+    return values
+  }
+
+  return []
+}
+
+function resolveCartItemsList(value) {
+  const fromArray = toArray(value)
+  if (fromArray.length > 0) return fromArray
+  return cartItemsFromValue(value)
+}
+
+function resolveImageSource(images) {
+  if (typeof images === 'string' && images) return images
+  if (!Array.isArray(images) || images.length === 0) return null
+
+  const first = images[0]
+  if (typeof first === 'string') return first
+  return first?.url ?? first?.image_url ?? first?.image ?? null
+}
+
 function getImage(record) {
   const product = record.product ?? record.item ?? {}
-  const images = product.images ?? product.product_images ?? []
-  const image = Array.isArray(images) ? images[0] : images
+  const variant = record.variant ?? record.product_variant ?? product.variant ?? {}
 
-  if (typeof image === 'string') return image
+  const recordImage = resolveImageSource(
+    firstValue(record.images, record.variant_images, record.image, record.image_url),
+  )
+  if (recordImage) return recordImage
+
+  const variantImage = resolveImageSource(variant.images ?? variant.variant_images)
+  if (variantImage) return variantImage
+
+  const productImages = product.images ?? product.product_images ?? []
+  const productImage = resolveImageSource(productImages)
+  if (productImage) return productImage
+
   return firstValue(
-    record.image,
-    record.image_url,
     product.image,
     product.image_url,
     product.thumbnail,
-    image?.url,
-    image?.image_url,
-    image?.image,
   )
 }
 
+function resolveCartLinePricing(record, quantity) {
+  const unitPrice = toNumber(firstValue(record.unit_price, record.price))
+  const discountAmount = toNumber(record.discount_amount)
+  const qty = Math.max(1, Number(quantity) || 1)
+  const hasSaleDiscount = discountAmount != null && discountAmount > 0
+
+  // discount_amount is the per-unit sale price → line total = discount_amount × quantity
+  if (hasSaleDiscount) {
+    const displaySubtotal = discountAmount * qty
+    const compareAt = unitPrice != null && unitPrice > discountAmount
+      ? unitPrice
+      : toNumber(firstValue(record.compare_at, record.original_price))
+    const listLineTotal = unitPrice != null ? unitPrice * qty : null
+    const lineSavings = listLineTotal != null && listLineTotal > displaySubtotal
+      ? listLineTotal - displaySubtotal
+      : null
+
+    return {
+      price: discountAmount,
+      compareAt,
+      displaySubtotal,
+      lineSavings,
+    }
+  }
+
+  // No discount — line total = unit_price × quantity
+  const price = unitPrice ?? 0
+  const displaySubtotal = price * qty
+  const compareAt = toNumber(firstValue(record.compare_at, record.original_price))
+
+  return {
+    price,
+    compareAt,
+    displaySubtotal,
+    lineSavings: null,
+  }
+}
+
 export function normalizeCartItem(record) {
-  const product = record.product ?? record.item ?? record
+  const product = record.product ?? record.item ?? {}
   const variant = record.variant ?? record.product_variant ?? product.variant ?? {}
   const productId = firstValue(record.product_id, product.id, product.product_id)
   const variantId = firstValue(record.product_variant_id, record.variant_id, variant.id)
   const cartItemId = firstValue(record.id, record.cart_item_id, record.item_id)
+  const quantity = firstValue(record.quantity, record.qty, 1)
+  const pricing = resolveCartLinePricing(record, quantity)
 
   return buildCartItem({
     cartItemId,
@@ -44,15 +139,17 @@ export function normalizeCartItem(record) {
     syncable: Boolean(productId && cartItemId),
     variantId,
     sku: firstValue(record.sku, variant.sku, product.sku),
-    name: firstValue(product.name, product.product_name, product.title, record.name),
-    title: firstValue(product.title, product.name, record.name),
+    name: firstValue(record.product_name, product.name, product.product_name, product.title, record.name),
+    title: firstValue(record.product_name, product.title, product.name, record.name),
     variant: firstValue(record.variant_name, variant.variant_name, variant.name, record.color, product.color),
     storage: firstValue(record.storage, record.size, variant.size, variant.sku),
-    price: firstValue(record.price, record.unit_price, variant.discount_price, variant.price, product.price),
-    compareAt: firstValue(record.compare_at, record.original_price, variant.price, product.original_price),
-    quantity: firstValue(record.quantity, record.qty, 1),
+    price: pricing.price,
+    compareAt: pricing.compareAt ?? firstValue(variant.price, product.original_price),
+    displaySubtotal: pricing.displaySubtotal,
+    lineSavings: pricing.lineSavings,
+    quantity,
     image: getImage(record),
-    href: product.slug ? `/${product.slug}` : undefined,
+    href: product.slug ? `/${product.slug}` : (productId ? `/${productId}` : undefined),
     selected: record.is_selected ?? record.selected ?? true,
     seller: firstValue(product.store?.store_name, product.store?.name, product.vendor?.name, record.store_name),
   })
@@ -99,20 +196,50 @@ export function extractCartRecommendations(payload) {
   return { bestSellers, related, recommended }
 }
 
+/** GET /api/cart/items → { data: { items: [...], summary: {...} } } (fields may also be unwrapped). */
+export function resolveCartDataRoot(payload) {
+  if (!payload || typeof payload !== 'object') return null
+
+  const candidates = [
+    payload,
+    payload.data,
+    payload.cart,
+    payload.data?.cart,
+  ].filter((candidate) => candidate && typeof candidate === 'object')
+
+  for (const candidate of candidates) {
+    if (
+      Array.isArray(candidate.items)
+      || Array.isArray(candidate.cart_items)
+      || Array.isArray(candidate.lines)
+    ) {
+      return candidate
+    }
+  }
+
+  return payload.data ?? payload
+}
+
 export function extractCartItems(payload) {
   if (!payload) return []
 
-  const root = payload?.cart ?? payload?.data?.cart ?? payload?.data ?? payload
-  const list = toArray(root?.items ?? root?.cart_items ?? root?.lines)
+  const root = resolveCartDataRoot(payload)
+  const list = resolveCartItemsList(root?.items ?? root?.cart_items ?? root?.lines)
 
+  let items = []
   if (list.length > 0) {
-    return list.map(normalizeCartItem).filter(Boolean)
+    items = list.map(normalizeCartItem).filter(Boolean)
+  } else if (root?.summary == null && !isCartLinePayload(root)) {
+    items = resolveCartItemsList(root).map(normalizeCartItem).filter(Boolean)
   }
 
-  // GET /api/cart/guest returns { items: [], summary: {...} } — not a line list at root.
-  if (root?.summary != null) return []
-
-  return toArray(root).map(normalizeCartItem).filter(Boolean)
+  const seen = new Set()
+  return items.filter((item) => {
+    const dedupeKey = item.cartItemId ?? item.id ?? item.key
+    if (seen.has(dedupeKey)) return false
+    seen.add(dedupeKey)
+    return true
+  })
 }
 
 /** POST /api/cart → data.guest_cart_id. Never use cart_id or line-item id here. */
@@ -134,11 +261,11 @@ export function extractGuestCartId(payload) {
   ) ?? null
 }
 
-/** GET /api/cart/guest → data.summary with selected_items_count, subtotal, discount, total. */
+/** GET /api/cart/items → data.summary with selected_items_count, subtotal, discount, total. */
 export function extractCartSummary(payload) {
   if (!payload) return null
 
-  const root = payload?.cart ?? payload?.data?.cart ?? payload?.data ?? payload
+  const root = resolveCartDataRoot(payload)
   return root?.summary ?? payload?.summary ?? null
 }
 
@@ -182,6 +309,18 @@ export function parseAddToCartResponse(response) {
   return normalizeCartItem(record)
 }
 
+/** Apply a single line-item mutation response onto the matching Redux row. */
+export function applyCartLineMutationResponse(localItem, response) {
+  const apiItem = parseAddToCartResponse(response)
+  if (!apiItem?.productId) return localItem ?? null
+  return mergeGuestAddItemWithLocal(apiItem, localItem)
+}
+
+/** Apply a single line-item API response onto an existing cart row. */
+export function mergeCartItemUpdate(localItem, response) {
+  return applyCartLineMutationResponse(localItem, response)
+}
+
 /** Merge API line item with local product details the add-item response omits. */
 export function mergeGuestAddItemWithLocal(apiItem, localItem) {
   if (!apiItem?.productId) return localItem ?? null
@@ -189,6 +328,10 @@ export function mergeGuestAddItemWithLocal(apiItem, localItem) {
 
   const lineItemId = apiItem.cartItemId ?? apiItem.id
   const apiPrice = Number(apiItem.price)
+  const quantity = apiItem.quantity ?? localItem.quantity
+  const displaySubtotal = apiItem.displaySubtotal ?? (
+    Number.isFinite(apiPrice) && apiPrice > 0 ? apiPrice * quantity : localItem.displaySubtotal
+  )
 
   return {
     ...localItem,
@@ -197,13 +340,15 @@ export function mergeGuestAddItemWithLocal(apiItem, localItem) {
     id: lineItemId ?? localItem.id,
     name: localItem.name || apiItem.name,
     price: Number.isFinite(apiPrice) && apiPrice > 0 ? apiPrice : localItem.price,
-    compareAt: localItem.compareAt ?? apiItem.compareAt,
+    compareAt: apiItem.compareAt ?? localItem.compareAt,
     image: localItem.image || apiItem.image,
     href: localItem.href || apiItem.href,
     variant: localItem.variant || apiItem.variant,
     storage: localItem.storage || apiItem.storage,
     seller: localItem.seller || apiItem.seller,
-    quantity: apiItem.quantity ?? localItem.quantity,
+    quantity,
+    displaySubtotal,
+    lineSavings: apiItem.lineSavings ?? localItem.lineSavings,
     selected: apiItem.selected ?? localItem.selected ?? true,
     syncable: true,
   }
@@ -248,33 +393,6 @@ export function buildUpdateCartSelectionPayload(isSelected) {
   return {
     is_selected: Boolean(isSelected),
   }
-}
-
-/**
- * Reduces the local guest cart into the { product_id, product_variant_id, quantity }
- * shape expected by POST /cart/merge, deduping lines that share a product+variant.
- */
-export function buildMergeCartItems(items) {
-  const byKey = new Map()
-
-  ;(items ?? []).filter(canSyncCartItem).forEach((item) => {
-    const key = [item.productId, item.variantId].filter(Boolean).join(':')
-    const quantity = Math.max(1, Number(item.quantity) || 1)
-    const existing = byKey.get(key)
-
-    if (existing) {
-      existing.quantity += quantity
-      return
-    }
-
-    byKey.set(key, {
-      product_id: item.productId,
-      ...(item.variantId != null && item.variantId !== '' ? { product_variant_id: item.variantId } : {}),
-      quantity,
-    })
-  })
-
-  return Array.from(byKey.values())
 }
 
 export function resolveCartLineItemId(item) {

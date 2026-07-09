@@ -22,6 +22,7 @@ import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
+import { resolveProductDisplayPrices } from '../utils/extractProductVariantFacets'
 import { notify } from '../lib/notify'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
@@ -1232,6 +1233,7 @@ function normalizeApiProductDetails(apiProduct) {
   return {
     ...core,
     slug: apiProduct.slug,
+    metadata,
     title: core.name,
     storeName: apiProduct.vendor?.store_name
       || apiProduct.vendor?.business_name
@@ -1440,16 +1442,19 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
   const displayPriceInfo = useMemo(() => {
     if (activeVariant) {
-      const variantPrice = toNumber(activeVariant.price)
-      const variantDiscountPrice = toNumber(activeVariant.discount_price)
-      
-      const price = variantDiscountPrice > 0 ? variantDiscountPrice : variantPrice
-      const compareAt = variantDiscountPrice > 0 ? variantPrice : null
-      
-      const discountPercent = compareAt > price && price > 0
-        ? Math.round(((compareAt - price) / compareAt) * 100)
-        : null
-      
+      const { price, compareAt } = resolveProductDisplayPrices(product, activeVariant)
+      const metadata = toArray(product?.metadata)
+      const variationMetadata = toArray(activeVariant.metadata)
+      const explicitDiscount = getMetadataValue(metadata, 'percent_off')
+        ?? getMetadataValue(metadata, 'discount_percent')
+        ?? getMetadataValue(variationMetadata, 'percent_off')
+        ?? getMetadataValue(variationMetadata, 'discount_percent')
+      const discountPercent = explicitDiscount != null && toNumber(explicitDiscount) > 0
+        ? toNumber(explicitDiscount)
+        : compareAt != null && compareAt > price && price > 0
+          ? Math.round(((compareAt - price) / compareAt) * 100)
+          : null
+
       return { price, compareAt, discountPercent }
     }
     

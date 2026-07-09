@@ -179,6 +179,8 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
 
 function OrderTotal({ itemCount, subtotal, totals }) {
   const total = subtotal + totals.tax + totals.deliveryFee - totals.freeDelivery - totals.couponDiscount
+  const netDelivery = Math.max(0, Number(totals.deliveryFee) - Number(totals.freeDelivery))
+  const isFreeDelivery = netDelivery === 0
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
@@ -197,12 +199,10 @@ function OrderTotal({ itemCount, subtotal, totals }) {
           <dd className="font-semibold text-slate-950">{formatCheckoutAmount(totals.tax)}</dd>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Delivery Fee</dt>
-          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(totals.deliveryFee)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Free Delivery</dt>
-          <dd className="font-semibold text-slate-400 line-through">{formatCheckoutAmount(totals.freeDelivery)}</dd>
+          <dt className="text-slate-700">Delivery</dt>
+          <dd className={`font-semibold ${isFreeDelivery ? 'text-emerald-700' : 'text-slate-950'}`}>
+            {isFreeDelivery ? 'Free' : formatCheckoutAmount(netDelivery)}
+          </dd>
         </div>
         {totals.couponDiscount > 0 && (
           <div className="flex items-center justify-between gap-4 text-auth-primary">

@@ -13,6 +13,37 @@ const getVariantId = (product) =>
 const getCartKey = ({ productId, variantId, sku }) =>
   [productId, variantId, sku].filter(Boolean).join(':')
 
+function lineItemIdOf(item) {
+  if (item?.cartItemId != null && item.cartItemId !== '') return String(item.cartItemId)
+  const id = String(item?.id ?? '')
+  if (id && !id.includes(':')) return id
+  return null
+}
+
+function isStaleLocalLine(item) {
+  const id = String(item?.id ?? '')
+  const key = String(item?.key ?? '')
+  return Boolean(key) && (id === key || !item?.cartItemId)
+}
+
+function findCartItemIndex(items, item) {
+  const lineId = lineItemIdOf(item)
+
+  return items.findIndex((current) => {
+    const currentLineId = lineItemIdOf(current)
+    if (lineId && currentLineId && lineId === currentLineId) return true
+    if (item.key && current.key === item.key) return true
+    if (
+      item.productId
+      && current.productId === item.productId
+      && (current.variantId ?? null) === (item.variantId ?? null)
+    ) {
+      return true
+    }
+    return false
+  })
+}
+
 export function buildCartItem(product, options = {}) {
   const productId = options.productId ?? getProductId(product)
   const variantId = options.variantId ?? getVariantId(product)
@@ -20,6 +51,8 @@ export function buildCartItem(product, options = {}) {
   const quantity = Math.max(1, Number(options.quantity ?? product?.quantity ?? 1))
   const price = Number(options.price ?? product?.price ?? product?.discount_price ?? 0)
   const compareAt = options.compareAt ?? product?.compareAt ?? product?.original_price ?? null
+  const displaySubtotal = options.displaySubtotal ?? product?.displaySubtotal ?? null
+  const lineSavings = options.lineSavings ?? product?.lineSavings ?? null
   const key = getCartKey({ productId, variantId, sku }) || String(product?.id ?? Date.now())
 
   return {
@@ -34,6 +67,8 @@ export function buildCartItem(product, options = {}) {
     storage: options.storage ?? options.size ?? product?.storage ?? product?.size ?? sku ?? '',
     price,
     compareAt,
+    displaySubtotal: displaySubtotal == null ? null : Number(displaySubtotal),
+    lineSavings: lineSavings == null ? null : Number(lineSavings),
     quantity,
     image: options.image ?? product?.image ?? product?.gallery?.[0] ?? '',
     href: product?.href ?? (product?.slug ? `/${product.slug}` : '/cart'),
@@ -48,6 +83,17 @@ export function buildCartItem(product, options = {}) {
       product?.id,
     ),
   }
+}
+
+/** Normalize incoming cart lines for Redux storage without double-processing. */
+function coerceCartItemsList(items) {
+  if (!Array.isArray(items)) return []
+
+  return items.map((item) => (
+    item?.key && (item?.productId != null || item?.product_id != null)
+      ? item
+      : buildCartItem(item)
+  ))
 }
 
 /** Upserts incoming items into the existing list, keyed by cart key or line item id. */
@@ -102,18 +148,32 @@ const cartSlice = createSlice({
     },
     upsertItem(state, action) {
       const item = buildCartItem(action.payload.product ?? action.payload, action.payload.options)
-      const existing = state.items.find((current) => current.key === item.key || current.id === item.id)
-      if (existing) {
-        Object.assign(existing, item, {
-          quantity: item.quantity || existing.quantity,
-          selected: item.selected ?? existing.selected,
+      const existingIndex = findCartItemIndex(state.items, item)
+
+      if (existingIndex >= 0) {
+        Object.assign(state.items[existingIndex], item, {
+          quantity: item.quantity || state.items[existingIndex].quantity,
+          selected: item.selected ?? state.items[existingIndex].selected,
+        })
+
+        const productId = item.productId
+        const variantId = item.variantId ?? null
+        const keepLineId = lineItemIdOf(item)
+
+        state.items = state.items.filter((current, index) => {
+          if (index === existingIndex) return true
+          if (current.productId !== productId) return true
+          if ((current.variantId ?? null) !== variantId) return true
+          if (keepLineId && lineItemIdOf(current) === keepLineId) return false
+          return isStaleLocalLine(current)
         })
         return
       }
+
       state.items.push(item)
     },
     replaceItems(state, action) {
-      state.items = Array.isArray(action.payload) ? action.payload.map((item) => buildCartItem(item)) : []
+      state.items = coerceCartItemsList(action.payload)
     },
     mergeItems(state, action) {
       state.items = mergeItemsIntoList(state.items, action.payload)
@@ -121,7 +181,13 @@ const cartSlice = createSlice({
     setQuantity(state, action) {
       const { itemId, quantity } = action.payload
       const item = state.items.find((current) => current.id === itemId || current.key === itemId)
-      if (item) item.quantity = Math.max(1, Number(quantity))
+      if (!item) return
+
+      const nextQuantity = Math.max(1, Number(quantity))
+      item.quantity = nextQuantity
+      if (Number.isFinite(item.price)) {
+        item.displaySubtotal = item.price * nextQuantity
+      }
     },
     removeItem(state, action) {
       state.items = state.items.filter((item) => item.id !== action.payload && item.key !== action.payload)
@@ -171,7 +237,8 @@ const cartSlice = createSlice({
     },
     cartSyncSucceeded(state, action) {
       const { items, userId } = action.payload
-      state.items = mergeItemsIntoList(state.items, items)
+      // Server cart is the source of truth — do not merge with stale persisted lines.
+      state.items = coerceCartItemsList(items)
       state.guestCartId = null
       state.meta.syncStatus = 'synced'
       state.meta.syncedUserId = userId ?? null

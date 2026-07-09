@@ -21,16 +21,14 @@ import {
 import {
   addGuestProductToCart,
   addItemToCart,
-  createCart,
+  ensureAuthenticatedCart,
   removeCartItem,
-  updateCartItem,
+  removeGuestCartItem,
+  updateCartItemQuantity,
+  updateGuestCartItem,
   updateCartItemSelection,
 } from '../services/cartService'
 import { persistor, store } from '../store/store'
-import {
-  invalidateCartCompositionQueries,
-  invalidateCartTotalsQueries,
-} from '../utils/cartQueryInvalidation'
 import {
   buildAddToCartPayload,
   buildUpdateCartQuantityPayload,
@@ -38,15 +36,38 @@ import {
   extractCartItems,
   extractGuestCartId,
   mergeGuestAddItemWithLocal,
-  normalizeCartItem,
   parseAddToCartResponse,
   resolveCartLineItemId,
+  applyCartLineMutationResponse,
 } from '../utils/normalizeCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
+import { coalesceQuantitySync } from '../utils/cartQuantitySync'
 
 const logCartSyncError = (message, error, context) => {
   if (import.meta.env.DEV) {
     console.warn(message, context ?? error?.response?.data ?? error)
+  }
+}
+
+async function ensureAuthCartReady() {
+  if (!store.getState().auth.isAuthenticated) return
+  try {
+    await ensureAuthenticatedCart()
+  } catch (error) {
+    logCartSyncError('Backend cart ensure failed', error)
+  }
+}
+
+function findLocalCartItem(itemId) {
+  return store.getState().cart.items.find(
+    (current) => current.id === itemId || current.key === itemId,
+  )
+}
+
+function syncCartLineMutation(dispatch, itemId, response) {
+  const mergedItem = applyCartLineMutationResponse(findLocalCartItem(itemId), response)
+  if (mergedItem) {
+    dispatch(upsertItem(mergedItem))
   }
 }
 
@@ -115,57 +136,54 @@ export function useCartActions() {
         const response = await addGuestProductToCart(apiPayload)
         reconcileGuestCartResponse(dispatch, response, item)
         await persistor.persist()
-        invalidateCartCompositionQueries()
         notify.success(`${item.name} added to cart`)
         return item
       } catch (error) {
         logCartSyncError('Guest cart sync failed', error, error?.createCartResponse)
         notify.fromError(error, 'Could not add item to cart. Please try again.')
-        return item
+        return null
       }
     }
 
-    // Local-only guest items (mock ids) or authenticated optimistic add.
+    // Authenticated API path: wait for POST /cart/add-item before touching Redux.
+    if (isAuthenticated && apiPayload) {
+      if (import.meta.env.DEV) {
+        console.info('[cart] authenticated add flow — using POST /cart/add-item', {
+          productId: apiPayload.product_id,
+        })
+      }
+
+      try {
+        await ensureAuthCartReady()
+        const response = await addItemToCart(apiPayload)
+        const apiItem = parseAddToCartResponse(response)
+        if (!apiItem?.productId) {
+          throw new Error('Add to cart response missing product')
+        }
+
+        const mergedItem = mergeGuestAddItemWithLocal(apiItem, item)
+        dispatch(upsertItem(mergedItem))
+        notify.success(`${item.name} added to cart`)
+        return mergedItem
+      } catch (error) {
+        logCartSyncError('Authenticated cart add failed', error)
+        notify.fromError(error, 'Could not add item to cart. Please try again.')
+        return null
+      }
+    }
+
+    // Local-only items (mock ids) with no API sync.
     dispatch(addItem({ product, options }))
     notify.success(`${item.name} added to cart`)
 
-    if (!shouldSyncWithApi || !apiPayload) {
-      if (import.meta.env.DEV && !shouldSyncWithApi) {
-        console.warn('Cart API sync skipped — no backend product_id', {
-          productId: item.productId,
-          syncable: item.syncable,
-        })
-      }
-      return item
-    }
-
-    if (import.meta.env.DEV) {
-      console.info('[cart] authenticated add flow — using POST /cart/items', {
-        productId: apiPayload.product_id,
+    if (import.meta.env.DEV && !shouldSyncWithApi) {
+      console.warn('Cart API sync skipped — no backend product_id', {
+        productId: item.productId,
+        syncable: item.syncable,
       })
     }
 
-    try {
-      try {
-        await createCart()
-      } catch (error) {
-        logCartSyncError('Backend cart ensure failed before add', error)
-      }
-
-      const response = await addItemToCart(apiPayload)
-      const apiItem = parseAddToCartResponse(response)
-      if (apiItem?.productId) {
-        dispatch(upsertItem(apiItem))
-        invalidateCartCompositionQueries()
-        return apiItem
-      }
-
-      invalidateCartCompositionQueries()
-      return item
-    } catch (error) {
-      logCartSyncError('Cart sync failed after local add', error)
-      return item
-    }
+    return item
   }, [dispatch])
 
   const updateQuantity = useCallback(async (itemId, quantity) => {
@@ -174,15 +192,28 @@ export function useCartActions() {
     dispatch(setQuantity({ itemId, quantity: nextQuantity }))
     const item = items.find((current) => current.id === itemId || current.key === itemId)
     const lineItemId = resolveCartLineItemId(item)
-    if (!isAuthenticated || !lineItemId) return
+    if (!lineItemId) return
 
     try {
-      const response = await updateCartItem(lineItemId, buildUpdateCartQuantityPayload(nextQuantity))
-      const apiItem = normalizeCartItem(response?.item ?? response?.cart_item ?? response)
-      if (apiItem?.cartItemId || apiItem?.productId) {
-        dispatch(upsertItem(apiItem))
-      }
-      invalidateCartTotalsQueries()
+      const response = await coalesceQuantitySync(lineItemId, nextQuantity, async (quantity) => {
+        if (isAuthenticated) {
+          await ensureAuthCartReady()
+          return updateCartItemQuantity(lineItemId, quantity)
+        }
+
+        const guestCartId = store.getState().cart.guestCartId
+        if (!isValidGuestCartId(guestCartId)) return null
+
+        return updateGuestCartItem(
+          lineItemId,
+          buildUpdateCartQuantityPayload(quantity),
+          guestCartId,
+        )
+      })
+
+      if (!response) return
+
+      syncCartLineMutation(dispatch, itemId, response)
     } catch (error) {
       logCartSyncError('Cart quantity sync failed after local update', error)
     }
@@ -193,11 +224,19 @@ export function useCartActions() {
     const item = items.find((current) => current.id === itemId || current.key === itemId)
     const lineItemId = resolveCartLineItemId(item)
     dispatch(removeItem(itemId))
-    if (!isAuthenticated || !lineItemId) return
+    if (!lineItemId) return
 
     try {
-      await removeCartItem(lineItemId)
-      invalidateCartCompositionQueries()
+      if (isAuthenticated) {
+        await ensureAuthCartReady()
+        await removeCartItem(lineItemId)
+        return
+      }
+
+      const guestCartId = store.getState().cart.guestCartId
+      if (!isValidGuestCartId(guestCartId)) return
+
+      await removeGuestCartItem(lineItemId, guestCartId)
     } catch (error) {
       logCartSyncError('Cart delete sync failed after local remove', error)
     }
@@ -211,12 +250,9 @@ export function useCartActions() {
     if (!isAuthenticated || !lineItemId) return
 
     try {
+      await ensureAuthCartReady()
       const response = await updateCartItemSelection(lineItemId, selected)
-      const apiItem = normalizeCartItem(response?.item ?? response?.cart_item ?? response)
-      if (apiItem?.cartItemId || apiItem?.productId) {
-        dispatch(upsertItem(apiItem))
-      }
-      invalidateCartTotalsQueries()
+      syncCartLineMutation(dispatch, itemId, response)
     } catch (error) {
       logCartSyncError('Cart selection sync failed after local update', error)
     }
@@ -224,22 +260,33 @@ export function useCartActions() {
 
   const clearAll = useCallback(async () => {
     const isAuthenticated = store.getState().auth.isAuthenticated
+    const lineItemIds = items
+      .map((item) => resolveCartLineItemId(item))
+      .filter(Boolean)
+
     if (isAuthenticated) {
-      const lineItemIds = items
-        .map((item) => resolveCartLineItemId(item))
-        .filter(Boolean)
+      await ensureAuthCartReady()
       await Promise.allSettled(
         lineItemIds.map((lineItemId) => removeCartItem(lineItemId).catch((error) => {
           logCartSyncError('Cart clear sync failed for item', error)
         })),
       )
+    } else {
+      const guestCartId = store.getState().cart.guestCartId
+      if (isValidGuestCartId(guestCartId)) {
+        await Promise.allSettled(
+          lineItemIds.map((lineItemId) => removeGuestCartItem(lineItemId, guestCartId).catch((error) => {
+            logCartSyncError('Guest cart clear sync failed for item', error)
+          })),
+        )
+      }
     }
+
     dispatch(clearCart())
     if (!isAuthenticated) {
       dispatch(clearGuestCartId())
       await persistor.persist()
     }
-    if (isAuthenticated) invalidateCartCompositionQueries()
   }, [dispatch, items])
 
   const saveItem = useCallback((itemId) => {
@@ -261,7 +308,7 @@ export function useCartActions() {
   const ensureBackendCart = useCallback(async () => {
     if (!store.getState().auth.isAuthenticated) return null
     try {
-      return await createCart()
+      return await ensureAuthenticatedCart()
     } catch {
       return null
     }
