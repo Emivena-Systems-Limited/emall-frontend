@@ -1,6 +1,11 @@
 import { topCategories } from '../constants/topCategories'
 import { categoryMenuItems } from '../constants/categoriesMenu'
-import { resolveParentCategoryImage, resolveSubcategoryImage } from './resolveCategoryImage'
+import {
+  DEFAULT_TOP_CATEGORY_ICON,
+  getTopCategoryIcon,
+  isUsableCategoryThumbnail,
+} from './topCategoryIcons'
+import { resolveSubcategoryImage } from './resolveCategoryImage'
 
 export function formatProductCount(count) {
   if (!count || count <= 0) return null
@@ -16,17 +21,27 @@ export function formatProductCount(count) {
   return count.toLocaleString('en-US')
 }
 
+/**
+ * Resolve the circular thumbnail for homepage Top Categories.
+ * API thumbnails take precedence; otherwise use backgroundless category icons.
+ */
 export function getCategoryImage(category, index = 0) {
-  if (category?.image) return category.image
+  const apiThumbnail =
+    category?.image ?? category?.image_url ?? category?.icon ?? category?.thumbnail
+
+  if (isUsableCategoryThumbnail(apiThumbnail)) {
+    return apiThumbnail.trim()
+  }
+
+  const topIcon = getTopCategoryIcon(category?.slug)
+  if (topIcon) return topIcon
 
   const localMatch = topCategories.find(
     (item) => item.href === `/categories/${category.slug}`,
   )
   if (localMatch?.image) return localMatch.image
 
-  return resolveParentCategoryImage(category)
-    ?? topCategories[index % topCategories.length]?.image
-    ?? null
+  return topCategories[index % topCategories.length]?.image ?? DEFAULT_TOP_CATEGORY_ICON
 }
 
 export function mapApiCategory(category, index) {

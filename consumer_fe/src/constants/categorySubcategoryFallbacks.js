@@ -10,6 +10,10 @@ const PARENT_SLUG_ALIASES = {
   'construction-and-tools-equipment': 'construction-tools',
   'computer-laptop': 'computing',
   computers: 'computing',
+  'baby-and-maternity': 'baby-and-maternity',
+  baby_maternity: 'baby-and-maternity',
+  'bags-and-luggage': 'bags-and-luggage',
+  bags_luggage: 'bags-and-luggage',
 }
 
 export const PARENT_SUBCATEGORY_FALLBACKS = {
@@ -77,6 +81,20 @@ export const PARENT_SUBCATEGORY_FALLBACKS = {
     { slug: 'safety', name: 'Industrial Safety' },
     { slug: 'material-handling', name: 'Material Handling' },
     { slug: 'generators', name: 'Generators' },
+  ],
+  'baby-and-maternity': [
+    { slug: 'baby-clothing', name: 'Baby Clothing' },
+    { slug: 'feeding', name: 'Feeding & Nursing' },
+    { slug: 'diapering', name: 'Diapering' },
+    { slug: 'strollers', name: 'Strollers & Gear' },
+    { slug: 'maternity-wear', name: 'Maternity Wear' },
+  ],
+  'bags-and-luggage': [
+    { slug: 'handbags', name: 'Handbags' },
+    { slug: 'backpacks', name: 'Backpacks' },
+    { slug: 'travel-luggage', name: 'Travel Luggage' },
+    { slug: 'laptop-bags', name: 'Laptop Bags' },
+    { slug: 'wallets', name: 'Wallets & Purses' },
   ],
 }
 

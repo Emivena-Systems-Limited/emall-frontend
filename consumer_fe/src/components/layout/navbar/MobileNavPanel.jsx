@@ -120,7 +120,7 @@ export default function MobileNavPanel({ open, onClose, onOpenCategories, cartCo
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.28, ease: panelEase }}
-            className="absolute inset-x-0 top-full z-50 flex max-h-[calc(100dvh-11rem)] flex-col overflow-hidden border-t border-white/15 bg-linear-to-b from-[#b83225] to-auth-primary shadow-[0_24px_48px_-12px_rgba(0,0,0,0.35)] sm:max-h-[calc(100dvh-12rem)] lg:hidden"
+            className="absolute inset-x-0 top-full z-50 flex max-h-[calc(100dvh-9rem)] flex-col overflow-hidden border-t border-white/15 bg-linear-to-b from-[#b83225] to-auth-primary shadow-[0_24px_48px_-12px_rgba(0,0,0,0.35)] lg:hidden"
           >
             <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
               <div>

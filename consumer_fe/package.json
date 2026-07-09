@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate:category-assets": "node scripts/download-category-photos.mjs"
   },
   "dependencies": {
     "@fontsource/instrument-sans": "^5.2.8",

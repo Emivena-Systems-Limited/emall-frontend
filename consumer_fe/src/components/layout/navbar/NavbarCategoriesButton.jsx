@@ -10,10 +10,10 @@ export default function NavbarCategoriesButton({
   onToggle,
   panelId = 'categories-mega-menu',
 }) {
-  const sharedClass = `inline-flex items-center justify-center gap-2 rounded-full bg-white font-semibold text-auth-primary transition-colors hover:bg-white/90 ${
+  const sharedClass = `inline-flex items-center justify-center gap-1.5 rounded-full bg-white font-semibold text-auth-primary transition-colors hover:bg-white/90 ${
     fullWidth
-      ? 'w-full px-4 py-3 text-base'
-      : 'shrink-0 min-w-[10.75rem] px-6 py-2.5 text-sm lg:min-w-[11.75rem] lg:px-7 lg:py-3 lg:text-[0.9375rem] xl:min-w-[12.5rem] xl:px-8'
+      ? 'w-full px-3.5 py-2 text-sm'
+      : 'shrink-0 min-w-[9.5rem] px-4 py-2 text-sm xl:min-w-[10.5rem]'
   } ${className}`
 
   if (mode === 'dropdown') {
@@ -25,10 +25,10 @@ export default function NavbarCategoriesButton({
         onClick={onToggle}
         className={`${sharedClass} ${isOpen ? 'ring-2 ring-white/40 ring-offset-2 ring-offset-auth-primary' : ''}`}
       >
-        <List className="size-4 lg:size-4.5" strokeWidth={2.25} />
+        <List className="size-3.5" strokeWidth={2.25} />
         Categories
         <ChevronDown
-          className={`size-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`size-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
           strokeWidth={2.25}
         />
       </button>
@@ -37,7 +37,7 @@ export default function NavbarCategoriesButton({
 
   return (
     <Link to="/categories" onClick={onNavigate} className={sharedClass}>
-      <List className="size-4 lg:size-4.5" strokeWidth={2.25} />
+      <List className="size-3.5" strokeWidth={2.25} />
       Categories
     </Link>
   )

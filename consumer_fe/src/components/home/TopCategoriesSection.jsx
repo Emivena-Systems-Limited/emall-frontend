@@ -16,7 +16,7 @@ export default function TopCategoriesSection() {
 
   const categories = useMemo(() => {
     if (!apiCategories.length) return topCategories
-    return apiCategories.map(mapApiCategory)
+    return apiCategories.map((category, index) => mapApiCategory(category, index))
   }, [apiCategories])
 
   return (

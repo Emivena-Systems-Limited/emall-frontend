@@ -20,24 +20,26 @@ import appliances from '../assets/images/appliances.png'
 import home_office from '../assets/images/home_office.png'
 import phones_accessories from '../assets/images/phones_accessories.png'
 
-// categories
+// Category spotlight banners
 import electronicsImage from '../assets/images/categories/electronics.jpg'
+import phones_and_accessoriesImage from '../assets/images/categories/phones_and_accesories.png'
+import home_and_kitchenImage from '../assets/images/categories/home_and_kitchen.png'
+
+import {
+  CATEGORY_BANNER_ASSETS,
+  categoryCatalogBySlug,
+  categoryCatalogSlugs,
+  getLocalCategoryImage,
+} from './categoryLocalAssets'
 
 const brand = {
   favicon: '/favicon.svg',
   iconsSprite: '/icons.svg',
-  // logo,
 }
 
-const auth = {
-  // loginIllustration,
-  // registerIllustration,
-}
+const auth = {}
 
-const shop = {
-  // emptyCart,
-  // emptyWishlist,
-}
+const shop = {}
 
 const sample_hero_banners = {
   hero_banner_one: heroBannerOne,
@@ -69,8 +71,19 @@ const common = {
   appstore,
 }
 
+/** Spotlight banners used on Categories page header */
 const categories = {
   electronicsImage,
+  phones_and_accessoriesImage,
+  home_and_kitchenImage,
+}
+
+/** Full category catalog — real JPG photos keyed by API slug */
+const catalog = {
+  banners: CATEGORY_BANNER_ASSETS,
+  bySlug: categoryCatalogBySlug,
+  slugs: categoryCatalogSlugs,
+  get: getLocalCategoryImage,
 }
 
 export const Images = {
@@ -81,7 +94,7 @@ export const Images = {
   sample_hero_banners,
   top_categories,
   categories,
+  catalog,
 }
-
 
 export default Images

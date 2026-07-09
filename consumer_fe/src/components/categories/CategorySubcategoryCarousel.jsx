@@ -19,7 +19,21 @@ function NavButton({ direction, disabled, onClick, label }) {
   )
 }
 
-function SubcategoryCarouselSkeleton() {
+function SubcategoryCarouselSkeleton({ fluid = false }) {
+  if (fluid) {
+    return (
+      <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index}>
+            <div className="aspect-[4/3] animate-pulse rounded-2xl bg-slate-100" />
+            <div className="mt-3.5 h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+            <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="flex gap-4 sm:gap-5">
       {Array.from({ length: 4 }, (_, index) => (
@@ -33,11 +47,21 @@ function SubcategoryCarouselSkeleton() {
   )
 }
 
+const FULL_WIDTH_GRID_COLUMNS = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-2 lg:grid-cols-3',
+  4: 'grid-cols-2 lg:grid-cols-4',
+}
+
 export default function CategorySubcategoryCarousel({ title, subcategories = [], isLoading = false }) {
   const trackRef = useRef(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const headingId = `${title.toLowerCase().replace(/\s+/g, '-')}-subcategories-heading`
+  const itemCount = subcategories.length
+  const useFullWidthGrid = !isLoading && itemCount > 0 && itemCount <= 4
+  const gridClass = FULL_WIDTH_GRID_COLUMNS[itemCount] ?? FULL_WIDTH_GRID_COLUMNS[4]
 
   const syncScrollState = useCallback(() => {
     const el = trackRef.current
@@ -48,6 +72,12 @@ export default function CategorySubcategoryCarousel({ title, subcategories = [],
   }, [])
 
   useEffect(() => {
+    if (useFullWidthGrid) {
+      setCanScrollLeft(false)
+      setCanScrollRight(false)
+      return undefined
+    }
+
     const el = trackRef.current
     if (!el) return undefined
 
@@ -61,7 +91,7 @@ export default function CategorySubcategoryCarousel({ title, subcategories = [],
       el.removeEventListener('scroll', syncScrollState)
       ro.disconnect()
     }
-  }, [subcategories, isLoading, syncScrollState])
+  }, [subcategories, isLoading, syncScrollState, useFullWidthGrid])
 
   const scroll = useCallback((dir) => {
     const el = trackRef.current
@@ -86,7 +116,7 @@ export default function CategorySubcategoryCarousel({ title, subcategories = [],
     }
   }
 
-  const showControls = !isLoading && subcategories.length > 0 && (canScrollLeft || canScrollRight)
+  const showControls = !useFullWidthGrid && !isLoading && subcategories.length > 0 && (canScrollLeft || canScrollRight)
 
   return (
     <section aria-labelledby={headingId} className="bg-white pb-8 sm:pb-10 lg:pb-12">
@@ -121,36 +151,50 @@ export default function CategorySubcategoryCarousel({ title, subcategories = [],
 
         <div className="relative mt-5 min-w-0 sm:mt-6">
           {isLoading ? (
-            <SubcategoryCarouselSkeleton />
+            <SubcategoryCarouselSkeleton fluid={useFullWidthGrid} />
           ) : subcategories.length ? (
-            <div
-              ref={trackRef}
-              tabIndex={0}
-              role="list"
-              aria-labelledby={headingId}
-              onKeyDown={handleKeyDown}
-              className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 outline-none scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/30 focus-visible:ring-offset-2 sm:gap-5 [&::-webkit-scrollbar]:hidden"
-            >
-              {subcategories.map((subcategory) => (
-                <div
-                  key={subcategory.id}
-                  role="listitem"
-                  data-subcategory-item
-                  className="snap-start"
-                >
-                  <SubcategoryCarouselCard subcategory={subcategory} />
-                </div>
-              ))}
-            </div>
+            useFullWidthGrid ? (
+              <div
+                role="list"
+                aria-labelledby={headingId}
+                className={`grid gap-4 sm:gap-5 ${gridClass}`}
+              >
+                {subcategories.map((subcategory) => (
+                  <div key={subcategory.id} role="listitem">
+                    <SubcategoryCarouselCard subcategory={subcategory} fluid />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                ref={trackRef}
+                tabIndex={0}
+                role="list"
+                aria-labelledby={headingId}
+                onKeyDown={handleKeyDown}
+                className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 outline-none scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/30 focus-visible:ring-offset-2 sm:gap-5 [&::-webkit-scrollbar]:hidden"
+              >
+                {subcategories.map((subcategory) => (
+                  <div
+                    key={subcategory.id}
+                    role="listitem"
+                    data-subcategory-item
+                    className="snap-start"
+                  >
+                    <SubcategoryCarouselCard subcategory={subcategory} />
+                  </div>
+                ))}
+              </div>
+            )
           ) : null}
 
-          {canScrollLeft ? (
+          {!useFullWidthGrid && canScrollLeft ? (
             <div
               aria-hidden
               className="pointer-events-none absolute inset-y-0 left-0 z-1 w-8 bg-linear-to-r from-white via-white/90 to-transparent sm:w-10"
             />
           ) : null}
-          {canScrollRight ? (
+          {!useFullWidthGrid && canScrollRight ? (
             <div
               aria-hidden
               className="pointer-events-none absolute inset-y-0 right-0 z-1 w-8 bg-linear-to-l from-white via-white/90 to-transparent sm:w-10"

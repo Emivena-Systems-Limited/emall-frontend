@@ -15,18 +15,18 @@ export default function NavbarSearch({ className = '', compact = false }) {
           aria-label="Search products"
           className={`w-full rounded-full border-0 bg-white text-slate-900 outline-none placeholder:text-slate-400 ${
             compact
-              ? 'py-2.5 pr-12 pl-4 text-sm'
-              : 'py-3 pr-14 pl-5 text-sm sm:text-base'
+              ? 'py-2 pr-10 pl-3.5 text-sm'
+              : 'py-2 pr-11 pl-4 text-sm'
           }`}
         />
         <button
           type="submit"
           aria-label="Submit search"
           className={`absolute right-1 flex items-center justify-center rounded-full bg-auth-primary text-white transition-colors hover:bg-auth-primary-hover ${
-            compact ? 'size-8' : 'size-9 sm:size-10'
+            compact ? 'size-7' : 'size-8'
           }`}
         >
-          <Search className={compact ? 'size-4' : 'size-4 sm:size-4.5'} strokeWidth={2.25} />
+          <Search className="size-3.5" strokeWidth={2.25} />
         </button>
       </div>
     </form>
