@@ -218,6 +218,7 @@ export const progressLog = [
       'Cart Proceed to checkout now navigates to /checkout',
       'Updated checkout UI to match the new two-column layout with delivery form, payment details, order summary, delivery date, promo code, and checkout actions',
       'Restored the shared app navbar/footer on checkout, added guest/login checkout choice from cart, wired GET /checkout/preview and GET /checkout, and limited the visible order-summary list to four items before scrolling',
+      'Wired completed checkout/address endpoints: GET /checkout/preview, POST /checkout, GET/POST/PUT /user/addresses; authenticated browser testing showed backend route/cart issues still need backend fixes',
     ],
   },
   {
