@@ -57,10 +57,15 @@ export function normalizeCartSummary(summary) {
 export function normalizePreviewTotals(preview) {
   const source = preview?.summary ?? preview?.totals ?? preview?.order_total ?? preview ?? {}
   return {
+    itemCount: toCount(source.items_count ?? source.item_count ?? source.selected_items_count),
+    subtotal: toAmount(source.subtotal ?? source.sub_total),
+    discount: toAmount(source.discount ?? source.discount_amount) ?? 0,
+    total: toAmount(source.total ?? source.grand_total),
+    currency: source.currency ?? 'GHS',
     tax: 0,
     deliveryFee: 0,
     freeDelivery: 0,
-    couponDiscount: Number(source.coupon_discount ?? source.couponDiscount ?? source.discount ?? 0),
+    couponDiscount: toAmount(source.coupon_discount ?? source.couponDiscount) ?? 0,
   }
 }
 

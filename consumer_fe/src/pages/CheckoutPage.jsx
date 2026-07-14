@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
-import { useQuery } from '@tanstack/react-query'
-import { CreditCard, Minus, Plus, Trash2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CreditCard, MapPin, Minus, Plus, Trash2 } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import { notify } from '../lib/notify'
@@ -10,7 +10,6 @@ import { getCheckoutPreview, placeCheckoutOrder } from '../services/checkoutServ
 import {
   createUserAddress,
   getUserAddresses,
-  updateUserAddress,
 } from '../services/addressService'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
@@ -33,10 +32,18 @@ const initialAddress = {
   phone: '',
 }
 
-function getAddressList(response) {
-  if (Array.isArray(response)) return response
-  if (Array.isArray(response?.addresses)) return response.addresses
-  if (Array.isArray(response?.data)) return response.data
+function getAddressList(response, type = 'shipping') {
+  const candidates = [response, response?.data, response?.result, response?.payload]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate
+    if (Array.isArray(candidate?.[type])) return candidate[type]
+    if (Array.isArray(candidate?.addresses)) return candidate.addresses
+    if (Array.isArray(candidate?.data)) return candidate.data
+    if (Array.isArray(candidate?.data?.[type])) return candidate.data[type]
+    if (Array.isArray(candidate?.data?.addresses)) return candidate.data.addresses
+  }
+
   return []
 }
 
@@ -52,12 +59,12 @@ function normalizeAddress(address) {
     lastName: address.last_name ?? address.lastName ?? lastNameParts.join(' '),
     region: address.region ?? '',
     town: address.city ?? address.town ?? address.city_or_town ?? '',
-    address: address.address ?? address.street_address ?? '',
+    address: address.address_line_1 ?? address.address ?? address.street_address ?? '',
     phone: address.phone ?? address.phone_number ?? '',
   }
 }
 
-function buildAddressPayload(address) {
+function buildCheckoutAddress(address) {
   const firstName = String(address.firstName ?? '').trim()
   const lastName = String(address.lastName ?? '').trim()
   const name = [firstName, lastName].filter(Boolean).join(' ')
@@ -71,12 +78,56 @@ function buildAddressPayload(address) {
   }
 }
 
-function buildCheckoutPayload(address) {
-  const checkoutAddress = buildAddressPayload(address)
+function buildBillingPrefill(user, shippingAddress) {
+  const savedShipping = normalizeAddress(shippingAddress)
 
   return {
-    shipping_address: checkoutAddress,
-    billing_address: checkoutAddress,
+    id: null,
+    firstName: user?.first_name ?? user?.firstName ?? savedShipping.firstName,
+    lastName: user?.last_name ?? user?.lastName ?? savedShipping.lastName,
+    region: user?.region ?? savedShipping.region,
+    town: user?.city_or_town ?? user?.city ?? user?.town ?? savedShipping.town,
+    address: user?.address_line_1 ?? user?.address ?? user?.street_address ?? savedShipping.address,
+    phone: user?.phone_number ?? user?.phone ?? savedShipping.phone,
+  }
+}
+
+function buildSavedAddressPayload(address, type = 'shipping') {
+  return {
+    type,
+    first_name: String(address.firstName ?? '').trim(),
+    last_name: String(address.lastName ?? '').trim(),
+    phone_number: String(address.phone ?? '').trim(),
+    region: String(address.region ?? '').trim(),
+    city_or_town: String(address.town ?? '').trim(),
+    address_line_1: String(address.address ?? '').trim(),
+    country: 'Ghana',
+  }
+}
+
+function getAddressKey(address) {
+  const normalized = normalizeAddress(address)
+  if (normalized.id) return `id:${normalized.id}`
+
+  return [normalized.address, normalized.phone, normalized.town]
+    .map((value) => String(value).trim().toLowerCase())
+    .join('|')
+}
+
+function buildCheckoutPayload(shippingAddress, billingAddress) {
+  if (shippingAddress.id && billingAddress.id) {
+    return {
+      shipping_address_id: shippingAddress.id,
+      billing_address_id: billingAddress.id,
+    }
+  }
+
+  const checkoutShippingAddress = buildCheckoutAddress(shippingAddress)
+  const checkoutBillingAddress = buildCheckoutAddress(billingAddress)
+
+  return {
+    shipping_address: checkoutShippingAddress,
+    billing_address: checkoutBillingAddress,
   }
 }
 
@@ -108,22 +159,171 @@ function CheckoutIntro() {
   )
 }
 
-function DeliveryInformation({ address, onAddressChange }) {
+function DeliveryInformation({
+  address,
+  savedAddresses,
+  isAddingAddress,
+  isSavingAddress,
+  canSaveAddress,
+  onAddressChange,
+  onSelectAddress,
+  onAddAddress,
+  onSaveAddress,
+}) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Information</h2>
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-5">
-        <Field label="First name" name="firstName" value={address.firstName} onChange={onAddressChange} />
-        <Field label="First name" name="lastName" value={address.lastName} onChange={onAddressChange} />
-        <Field label="Region" name="region" value={address.region} onChange={onAddressChange} />
-        <Field label="Town" name="town" value={address.town} onChange={onAddressChange} />
-        <Field label="Address" name="address" value={address.address} onChange={onAddressChange} />
-        <Field label="Phone Number" name="phone" value={address.phone} onChange={onAddressChange} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Information</h2>
+        {savedAddresses.length > 0 && !isAddingAddress && (
+          <button
+            type="button"
+            onClick={onAddAddress}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-auth-primary"
+          >
+            <Plus className="size-4" />
+            Add another address
+          </button>
+        )}
       </div>
-      <label className="mt-5 flex items-center gap-3 text-sm text-slate-800">
-        <input type="checkbox" defaultChecked className="size-4 rounded border-slate-400 accent-auth-primary" />
-        Save this information for next time
-      </label>
+
+      {savedAddresses.length > 0 && !isAddingAddress && (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {savedAddresses.map((savedAddress, index) => {
+            const normalized = normalizeAddress(savedAddress)
+            const selected = normalized.id
+              ? normalized.id === address.id
+              : normalized.address === address.address && normalized.phone === address.phone
+
+            return (
+              <button
+                type="button"
+                key={normalized.id ?? `${normalized.address}-${index}`}
+                onClick={() => onSelectAddress(savedAddress)}
+                className={`flex min-h-28 gap-3 rounded-lg border p-4 text-left transition-colors ${
+                  selected
+                    ? 'border-auth-primary bg-red-50/40 ring-1 ring-auth-primary'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <MapPin className={`mt-0.5 size-5 shrink-0 ${selected ? 'text-auth-primary' : 'text-slate-500'}`} />
+                <span className="min-w-0">
+                  <span className="block font-semibold text-slate-950">
+                    {[normalized.firstName, normalized.lastName].filter(Boolean).join(' ')}
+                  </span>
+                  <span className="mt-1 block text-sm leading-5 text-slate-600">
+                    {[normalized.address, normalized.town, normalized.region].filter(Boolean).join(', ')}
+                  </span>
+                  <span className="mt-1 block text-sm text-slate-600">{normalized.phone}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {(savedAddresses.length === 0 || isAddingAddress) && (
+        <>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-5">
+            <Field label="First name" name="firstName" value={address.firstName} onChange={onAddressChange} />
+            <Field label="Last name" name="lastName" value={address.lastName} onChange={onAddressChange} />
+            <Field label="Region" name="region" value={address.region} onChange={onAddressChange} />
+            <Field label="Town" name="town" value={address.town} onChange={onAddressChange} />
+            <Field label="Address" name="address" value={address.address} onChange={onAddressChange} />
+            <Field label="Phone Number" name="phone" value={address.phone} onChange={onAddressChange} />
+          </div>
+          {canSaveAddress && (
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              {savedAddresses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onSelectAddress(savedAddresses[0])}
+                  className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onSaveAddress}
+                disabled={isSavingAddress}
+                className="rounded-lg bg-auth-primary px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingAddress ? 'Saving...' : 'Save address'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+function BillingInformation({
+  address,
+  draftAddress,
+  savedAddresses,
+  isAddingAddress,
+  isSavingAddress,
+  onAddressChange,
+  onSelectAddress,
+  onAddAddress,
+  onCancel,
+  onSaveAddress,
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Billing Information</h2>
+        {!isAddingAddress && (
+          <button type="button" onClick={onAddAddress} className="inline-flex items-center gap-2 text-sm font-semibold text-auth-primary">
+            <Plus className="size-4" />
+            {savedAddresses.length > 0 ? 'Add another billing address' : 'Add billing address'}
+          </button>
+        )}
+      </div>
+
+      {savedAddresses.length === 0 && !isAddingAddress && (
+        <p className="mt-3 text-sm text-amber-800">Add a billing address before placing the order.</p>
+      )}
+
+      {savedAddresses.length > 0 && !isAddingAddress && (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {savedAddresses.map((savedAddress, index) => {
+            const normalized = normalizeAddress(savedAddress)
+            const selected = normalized.id === address.id
+
+            return (
+              <button type="button" key={normalized.id ?? `${normalized.address}-${index}`} onClick={() => onSelectAddress(savedAddress)} className={`flex min-h-28 gap-3 rounded-lg border p-4 text-left transition-colors ${selected ? 'border-auth-primary bg-red-50/40 ring-1 ring-auth-primary' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <MapPin className={`mt-0.5 size-5 shrink-0 ${selected ? 'text-auth-primary' : 'text-slate-500'}`} />
+                <span className="min-w-0">
+                  <span className="block font-semibold text-slate-950">{[normalized.firstName, normalized.lastName].filter(Boolean).join(' ')}</span>
+                  <span className="mt-1 block text-sm leading-5 text-slate-600">{[normalized.address, normalized.town, normalized.region].filter(Boolean).join(', ')}</span>
+                  <span className="mt-1 block text-sm text-slate-600">{normalized.phone}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {isAddingAddress && (
+        <>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-5">
+            <Field label="First name" name="firstName" value={draftAddress.firstName} onChange={onAddressChange} />
+            <Field label="Last name" name="lastName" value={draftAddress.lastName} onChange={onAddressChange} />
+            <Field label="Region" name="region" value={draftAddress.region} onChange={onAddressChange} />
+            <Field label="Town" name="town" value={draftAddress.town} onChange={onAddressChange} />
+            <Field label="Address" name="address" value={draftAddress.address} onChange={onAddressChange} />
+            <Field label="Phone Number" name="phone" value={draftAddress.phone} onChange={onAddressChange} />
+          </div>
+          <div className="mt-5 flex flex-wrap justify-end gap-3">
+            <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700">Cancel</button>
+            <button type="button" onClick={onSaveAddress} disabled={isSavingAddress} className="rounded-lg bg-auth-primary px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
+              {isSavingAddress ? 'Saving...' : 'Save billing address'}
+            </button>
+          </div>
+        </>
+      )}
     </section>
   )
 }
@@ -231,7 +431,10 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
 }
 
 function OrderTotal({ itemCount, subtotal, totals }) {
-  const total = subtotal + totals.tax + totals.deliveryFee - totals.freeDelivery - totals.couponDiscount
+  const calculatedTotal = subtotal + totals.tax + totals.deliveryFee - totals.freeDelivery - totals.couponDiscount
+  const total = totals.total == null
+    ? calculatedTotal
+    : Math.max(0, Number(totals.total) - Number(totals.couponDiscount))
   const netDelivery = Math.max(0, Number(totals.deliveryFee) - Number(totals.freeDelivery))
   const isFreeDelivery = netDelivery === 0
 
@@ -247,6 +450,12 @@ function OrderTotal({ itemCount, subtotal, totals }) {
           <dt className="text-slate-700">Subtotal</dt>
           <dd className="font-semibold text-slate-950">{formatCheckoutAmount(subtotal)}</dd>
         </div>
+        {totals.discount > 0 && (
+          <div className="flex items-center justify-between gap-4 text-auth-primary">
+            <dt>Discount</dt>
+            <dd className="font-semibold">-{formatCheckoutAmount(totals.discount)}</dd>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-4">
           <dt className="text-slate-700">Tax</dt>
           <dd className="font-semibold text-slate-950">{formatCheckoutAmount(totals.tax)}</dd>
@@ -312,9 +521,17 @@ function PromoCode({ coupon, onCouponChange, onApplyCoupon, couponMessage }) {
 }
 
 export default function CheckoutPage() {
+  const queryClient = useQueryClient()
   const items = useSelector(selectCartItems)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const authenticatedUser = useSelector((state) => state.auth.user)
   const { updateQuantity, deleteItem } = useCartActions()
   const [address, setAddress] = useState(initialAddress)
+  const [billingAddressId, setBillingAddressId] = useState(null)
+  const [billingAddressDraft, setBillingAddressDraft] = useState(initialAddress)
+  const [isAddingBillingAddress, setIsAddingBillingAddress] = useState(false)
+  const [sessionAddresses, setSessionAddresses] = useState([])
+  const [isAddingAddress, setIsAddingAddress] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState('card')
   const [coupon, setCoupon] = useState('')
   const [couponDiscount, setCouponDiscount] = useState(0)
@@ -325,6 +542,7 @@ export default function CheckoutPage() {
   const previewQuery = useQuery({
     queryKey: ['checkout-preview'],
     queryFn: getCheckoutPreview,
+    enabled: isAuthenticated,
     staleTime: 60_000,
     retry: 1,
   })
@@ -332,8 +550,61 @@ export default function CheckoutPage() {
   const addressesQuery = useQuery({
     queryKey: ['user-addresses'],
     queryFn: getUserAddresses,
+    enabled: isAuthenticated,
     staleTime: 60_000,
     retry: 1,
+  })
+  const fetchedAddresses = useMemo(() => getAddressList(addressesQuery.data, 'shipping'), [addressesQuery.data])
+  const billingAddresses = useMemo(() => getAddressList(addressesQuery.data, 'billing'), [addressesQuery.data])
+  const savedAddresses = useMemo(() => {
+    const uniqueAddresses = new Map()
+
+    for (const savedAddress of [...fetchedAddresses, ...sessionAddresses]) {
+      const key = getAddressKey(savedAddress)
+      if (key && key !== '||') uniqueAddresses.set(key, savedAddress)
+    }
+
+    return [...uniqueAddresses.values()]
+  }, [fetchedAddresses, sessionAddresses])
+
+  const createAddressMutation = useMutation({
+    mutationFn: createUserAddress,
+    onSuccess: async (response, submittedAddress) => {
+      const createdAddress = response?.address
+        ?? response?.data?.address
+        ?? response?.data
+        ?? submittedAddress
+      const normalized = normalizeAddress(createdAddress)
+      const savedAddress = normalized.address ? createdAddress : submittedAddress
+
+      setSessionAddresses((current) => {
+        const savedKey = getAddressKey(savedAddress)
+        return [...current.filter((item) => getAddressKey(item) !== savedKey), savedAddress]
+      })
+      setAddress(normalizeAddress(savedAddress))
+      setIsAddingAddress(false)
+      await queryClient.invalidateQueries({ queryKey: ['user-addresses'] })
+      notify.success('Delivery address saved')
+    },
+    onError: (error) => notify.fromError(error, 'Unable to save delivery address'),
+  })
+
+  const createBillingAddressMutation = useMutation({
+    mutationFn: createUserAddress,
+    onSuccess: async (response, submittedAddress) => {
+      const createdAddress = response?.address
+        ?? response?.data?.address
+        ?? response?.data
+        ?? submittedAddress
+      const normalized = normalizeAddress(createdAddress)
+
+      if (normalized.id) setBillingAddressId(normalized.id)
+      setBillingAddressDraft(initialAddress)
+      setIsAddingBillingAddress(false)
+      await queryClient.invalidateQueries({ queryKey: ['user-addresses'] })
+      notify.success('Billing address saved')
+    },
+    onError: (error) => notify.fromError(error, 'Unable to save billing address'),
   })
 
   useEffect(() => {
@@ -348,26 +619,87 @@ export default function CheckoutPage() {
     }
   }, [addressesQuery.error, addressesQuery.isError])
 
-  useEffect(() => {
-    const [firstAddress] = getAddressList(addressesQuery.data)
-    if (!firstAddress || address.id || address.address) return
-
-    setAddress(normalizeAddress(firstAddress))
-  }, [address.address, address.id, addressesQuery.data])
+  const defaultAddress = savedAddresses.find((item) => item?.is_default === true || item?.isDefault === true)
+  const preferredSavedAddress = defaultAddress ?? savedAddresses[0]
+  const matchingSavedAddress = savedAddresses.find((item) => getAddressKey(item) === getAddressKey(address))
+  const activeAddress = isAddingAddress
+    ? address
+    : normalizeAddress(matchingSavedAddress ?? (address.address ? address : preferredSavedAddress))
+  const preferredBillingAddress = billingAddresses.find(
+    (item) => item?.is_default === true || item?.isDefault === true,
+  ) ?? billingAddresses[0]
+  const activeBillingAddress = normalizeAddress(
+    billingAddresses.find((item) => normalizeAddress(item).id === billingAddressId)
+      ?? preferredBillingAddress,
+  )
 
   const previewTotals = normalizePreviewTotals(previewQuery.data)
   const totals = {
     ...previewTotals,
     couponDiscount,
   }
+  const orderItemCount = previewTotals.itemCount ?? items.length
+  const orderSubtotal = previewTotals.subtotal ?? subtotal
 
-  const hasAddress = [address.firstName, address.lastName, address.town, address.address, address.phone]
+  const hasAddress = [
+    activeAddress.firstName,
+    activeAddress.lastName,
+    activeAddress.region,
+    activeAddress.town,
+    activeAddress.address,
+    activeAddress.phone,
+  ]
     .every((value) => String(value).trim())
-  const canPlaceOrder = items.length > 0 && selectedPayment && hasAddress
+  const hasCheckoutAddress = !isAuthenticated || Boolean(activeAddress.id && activeBillingAddress.id)
+  const canPlaceOrder = items.length > 0 && selectedPayment && hasAddress && hasCheckoutAddress
 
   const handleAddressChange = (event) => {
     const { name, value } = event.target
     setAddress((current) => ({ ...current, [name]: value }))
+  }
+
+  const handleSelectAddress = (selectedAddress) => {
+    setAddress(normalizeAddress(selectedAddress))
+    setIsAddingAddress(false)
+  }
+
+  const handleAddAddress = () => {
+    setAddress(initialAddress)
+    setIsAddingAddress(true)
+  }
+
+  const handleSaveAddress = () => {
+    if (!isAuthenticated) return
+
+    if (!hasAddress) {
+      notify.error('Complete all required delivery address fields')
+      return
+    }
+
+    createAddressMutation.mutate(buildSavedAddressPayload(address))
+  }
+
+  const handleBillingAddressChange = (event) => {
+    const { name, value } = event.target
+    setBillingAddressDraft((current) => ({ ...current, [name]: value }))
+  }
+
+  const handleSaveBillingAddress = () => {
+    const isComplete = [
+      billingAddressDraft.firstName,
+      billingAddressDraft.lastName,
+      billingAddressDraft.region,
+      billingAddressDraft.town,
+      billingAddressDraft.address,
+      billingAddressDraft.phone,
+    ].every((value) => String(value).trim())
+
+    if (!isComplete) {
+      notify.error('Complete all required billing address fields')
+      return
+    }
+
+    createBillingAddressMutation.mutate(buildSavedAddressPayload(billingAddressDraft, 'billing'))
   }
 
   const handleApplyCoupon = () => {
@@ -391,16 +723,7 @@ export default function CheckoutPage() {
     if (!canPlaceOrder) return
 
     try {
-      const addressPayload = buildAddressPayload(address)
-      if (address.id) {
-        await updateUserAddress(address.id, addressPayload)
-      } else {
-        const createdAddress = await createUserAddress(addressPayload)
-        const normalizedAddress = normalizeAddress(createdAddress?.address ?? createdAddress)
-        if (normalizedAddress.id) setAddress(normalizedAddress)
-      }
-
-      await placeCheckoutOrder(buildCheckoutPayload(address))
+      await placeCheckoutOrder(buildCheckoutPayload(activeAddress, activeBillingAddress))
       notify.success('Order placed successfully')
     } catch (error) {
       notify.fromError(error, 'Unable to place order')
@@ -423,12 +746,48 @@ export default function CheckoutPage() {
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
               <div className="space-y-6">
                 <CheckoutIntro />
-                <DeliveryInformation address={address} onAddressChange={handleAddressChange} />
+                <DeliveryInformation
+                  address={activeAddress}
+                  savedAddresses={savedAddresses}
+                  isAddingAddress={isAddingAddress}
+                  isSavingAddress={createAddressMutation.isPending}
+                  canSaveAddress={isAuthenticated}
+                  onAddressChange={handleAddressChange}
+                  onSelectAddress={handleSelectAddress}
+                  onAddAddress={handleAddAddress}
+                  onSaveAddress={handleSaveAddress}
+                />
+                {isAuthenticated && (
+                  <BillingInformation
+                    address={activeBillingAddress}
+                    draftAddress={billingAddressDraft}
+                    savedAddresses={billingAddresses}
+                    isAddingAddress={isAddingBillingAddress}
+                    isSavingAddress={createBillingAddressMutation.isPending}
+                    onAddressChange={handleBillingAddressChange}
+                    onSelectAddress={(selectedAddress) => {
+                      setBillingAddressId(normalizeAddress(selectedAddress).id)
+                    }}
+                    onAddAddress={() => {
+                      setBillingAddressDraft(
+                        billingAddresses.length === 0
+                          ? buildBillingPrefill(authenticatedUser, activeAddress)
+                          : initialAddress,
+                      )
+                      setIsAddingBillingAddress(true)
+                    }}
+                    onCancel={() => {
+                      setBillingAddressDraft(initialAddress)
+                      setIsAddingBillingAddress(false)
+                    }}
+                    onSaveAddress={handleSaveBillingAddress}
+                  />
+                )}
                 <PaymentDetails selectedPayment={selectedPayment} onSelectPayment={setSelectedPayment} />
               </div>
               <aside className="space-y-5">
                 <OrderSummary items={items} onQuantityChange={updateQuantity} onDelete={deleteItem} />
-                <OrderTotal itemCount={items.length} subtotal={subtotal} totals={totals} />
+                <OrderTotal itemCount={orderItemCount} subtotal={orderSubtotal} totals={totals} />
                 <DeliveryDate />
                 <PromoCode
                   coupon={coupon}

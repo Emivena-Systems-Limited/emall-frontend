@@ -1,8 +1,8 @@
 import apiClient from '../lib/apiClient'
 
 export const ADDRESS_ENDPOINTS = {
-  ADDRESSES: '/user/addresses',
-  ADDRESS: (addressId) => `/user/addresses/${addressId}`,
+  GET_ADDRESSES: '/user/get-addresses',
+  CREATE_ADDRESS: '/user/create-address',
 }
 
 function assertApiSuccess(data) {
@@ -14,7 +14,7 @@ function assertApiSuccess(data) {
 }
 
 export async function getUserAddresses() {
-  const { data } = await apiClient.get(ADDRESS_ENDPOINTS.ADDRESSES, {
+  const { data } = await apiClient.get(ADDRESS_ENDPOINTS.GET_ADDRESSES, {
     skipAuthLogout: true,
   })
   assertApiSuccess(data)
@@ -22,15 +22,7 @@ export async function getUserAddresses() {
 }
 
 export async function createUserAddress(payload) {
-  const { data } = await apiClient.post(ADDRESS_ENDPOINTS.ADDRESSES, payload, {
-    skipAuthLogout: true,
-  })
-  assertApiSuccess(data)
-  return data?.data ?? data ?? {}
-}
-
-export async function updateUserAddress(addressId, payload) {
-  const { data } = await apiClient.put(ADDRESS_ENDPOINTS.ADDRESS(addressId), payload, {
+  const { data } = await apiClient.post(ADDRESS_ENDPOINTS.CREATE_ADDRESS, payload, {
     skipAuthLogout: true,
   })
   assertApiSuccess(data)
