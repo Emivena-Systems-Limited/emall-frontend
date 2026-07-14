@@ -1,5 +1,5 @@
-import { ShoppingCart } from 'lucide-react'
 import { Link } from 'react-router'
+import { ShoppingCart } from 'lucide-react'
 
 export default function NavbarCartButton({ count = 0, className = '' }) {
   return (

@@ -119,7 +119,7 @@ export default function SearchableSelect({
               disabled={disabled}
               placeholder={customInputPlaceholder}
               onChange={(event) => onCustomChange?.(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent px-3 py-3 text-base text-slate-900 outline-none placeholder:text-slate-400 sm:px-4 sm:py-3.5 sm:text-sm"
+              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 sm:px-3 sm:py-2.5 min-[1800px]:px-5 min-[1800px]:py-4 min-[1800px]:text-base"
             />
             <button
               type="button"
@@ -141,7 +141,7 @@ export default function SearchableSelect({
               aria-expanded={open}
               aria-controls={listboxId}
               onClick={toggleOpen}
-              className={`flex w-full items-center justify-between px-3 py-3 text-left text-base outline-none sm:px-4 sm:py-3.5 sm:text-sm ${controlClassName} ${
+              className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm outline-none sm:px-3 sm:py-2.5 min-[1800px]:px-5 min-[1800px]:py-4 min-[1800px]:text-base ${controlClassName} ${
                 !selectedOption ? 'text-slate-400' : 'text-slate-900'
               } ${disabled ? 'cursor-not-allowed' : ''}`}
             >
@@ -163,7 +163,7 @@ export default function SearchableSelect({
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder={placeholder}
-                      className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                      className="w-full bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
                       aria-label={`Search ${label}`}
                     />
                   </div>
@@ -176,7 +176,7 @@ export default function SearchableSelect({
                   className="max-h-52 overflow-y-auto py-1"
                 >
                   {filteredOptions.length === 0 && !allowOther ? (
-                    <li className="px-4 py-3 text-sm text-slate-400">No matches found</li>
+                    <li className="px-4 py-3 text-base text-slate-400">No matches found</li>
                   ) : (
                     <>
                       {filteredOptions.map((option) => {
@@ -187,7 +187,7 @@ export default function SearchableSelect({
                             <button
                               type="button"
                               onClick={() => handleSelect(option.value)}
-                              className={`flex w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-slate-50 ${
+                              className={`flex w-full px-4 py-2.5 text-left text-base transition-colors hover:bg-slate-50 ${
                                 isSelected
                                   ? 'bg-red-50 font-medium text-auth-primary'
                                   : 'text-slate-800'
@@ -200,7 +200,7 @@ export default function SearchableSelect({
                       })}
 
                       {filteredOptions.length === 0 && (
-                        <li className="px-4 py-2 text-xs text-slate-400">No matches found</li>
+                        <li className="px-4 py-2 text-sm text-slate-400">No matches found</li>
                       )}
 
                       {allowOther && (
@@ -212,7 +212,7 @@ export default function SearchableSelect({
                           <button
                             type="button"
                             onClick={() => handleSelect(otherValue)}
-                            className="flex w-full px-4 py-2.5 text-left text-sm text-slate-800 transition-colors hover:bg-slate-50"
+                            className="flex w-full px-4 py-2.5 text-left text-base text-slate-800 transition-colors hover:bg-slate-50"
                           >
                             {otherLabel}
                           </button>

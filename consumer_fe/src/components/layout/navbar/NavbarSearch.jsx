@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react'
 
-export default function NavbarSearch({ className = '', compact = false }) {
+export default function NavbarSearch({ className = '', compact = false, onFocus }) {
   return (
     <form
       role="search"
@@ -13,6 +13,7 @@ export default function NavbarSearch({ className = '', compact = false }) {
           name="q"
           placeholder="Search"
           aria-label="Search products"
+          onFocus={onFocus}
           className={`w-full rounded-full border-0 bg-white text-slate-900 outline-none placeholder:text-slate-400 ${
             compact
               ? 'py-2 pr-10 pl-3.5 text-sm'

@@ -11,7 +11,7 @@
     "generate:category-assets": "node scripts/download-category-photos.mjs"
   },
   "dependencies": {
-    "@fontsource/instrument-sans": "^5.2.8",
+    "@fontsource/inter": "^5.2.8",
     "@reduxjs/toolkit": "^2.12.0",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-query": "^5.101.0",

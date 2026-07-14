@@ -34,7 +34,7 @@ export default function RecommendedSection({ products = [] }) {
             </h2>
             <Link
               to="/products/recommended"
-              className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
+              className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-base"
             >
               View All
             </Link>
@@ -46,7 +46,7 @@ export default function RecommendedSection({ products = [] }) {
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: '-60px' }}
-            className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+            className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1800px]:grid-cols-7 min-[2200px]:grid-cols-8"
           >
             {products.map((product) => (
               <motion.div key={product.id} variants={itemVariants}>

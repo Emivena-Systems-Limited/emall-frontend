@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { ArrowRight, CheckCircle2, Mail, ShieldCheck } from 'lucide-react'
+import { OTP_EXPIRY_MINUTES } from '../../constants/auth'
 
 export default function SignupSuccessState({ email }) {
   return (
@@ -28,7 +29,7 @@ export default function SignupSuccessState({ email }) {
             <p className="text-sm font-semibold text-slate-900">What happens next?</p>
             <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600">
               <li>Open the verification email we sent you.</li>
-              <li>Enter the 6-digit code on the next screen.</li>
+              <li>Enter the 6-digit code on the next screen within {OTP_EXPIRY_MINUTES} minutes.</li>
               <li>After email verification, our team will review and activate your account.</li>
             </ul>
           </div>

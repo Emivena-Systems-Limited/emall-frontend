@@ -756,12 +756,12 @@ function DescriptionBlock({ details, description, gallery, descriptiveImages = [
         <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
           <h3 className="font-bold text-slate-950">Product Images</h3>
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {descriptiveImages.map((image, index) => (
+            {descriptiveImages.slice(0, 4).map((image, index) => (
               <img
                 key={`${image}-descriptive-${index}`}
                 src={image}
-                alt=""
-                className="aspect-square w-full bg-slate-100 object-contain"
+                alt={`Product detail ${index + 1}`}
+                className="block h-auto w-full max-w-full rounded-sm bg-slate-100"
               />
             ))}
           </div>
@@ -771,13 +771,13 @@ function DescriptionBlock({ details, description, gallery, descriptiveImages = [
       {showGalleryFallback && (
         <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
           <h3 className="font-bold text-slate-950">Product Images</h3>
-          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-            {gallery.slice(1, 7).map((image, index) => (
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {gallery.slice(1, 5).map((image, index) => (
               <img
                 key={`${image}-description-${index}`}
                 src={image}
-                alt=""
-                className="aspect-square w-full bg-slate-100 object-cover"
+                alt={`Product image ${index + 1}`}
+                className="block h-auto w-full max-w-full rounded-sm bg-slate-100"
               />
             ))}
           </div>

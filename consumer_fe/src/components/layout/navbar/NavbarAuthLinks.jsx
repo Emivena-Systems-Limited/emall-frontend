@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useDispatch, useSelector } from 'react-redux'
-import { ChevronDown, LogOut, Package, UserRound } from 'lucide-react'
+import { ChevronDown, Loader2, LogOut, Package, UserRound } from 'lucide-react'
 import notify from '../../../lib/notify'
 import { useLogoutMutation } from '../../../hooks/useAuthMutations'
 import { logout } from '../../../store/slices/authSlice'
@@ -20,6 +20,8 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
     user?.firstName ??
     user?.name ??
     'My Account'
+
+  const isLoggingOut = logoutMutation.isPending
 
   const handleLogout = async () => {
     try {
@@ -60,11 +62,16 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
           <button
             type="button"
             onClick={handleLogout}
-            disabled={logoutMutation.isPending}
-            className="flex items-center gap-3 rounded-xl px-4 py-3 text-left text-base font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-70"
+            disabled={isLoggingOut}
+            aria-busy={isLoggingOut}
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-left text-base font-medium text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-80"
           >
-            <LogOut className="size-5" />
-            Logout
+            {isLoggingOut ? (
+              <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+            ) : (
+              <LogOut className="size-5" />
+            )}
+            {isLoggingOut ? 'Logging out…' : 'Logout'}
           </button>
         </div>
       )
@@ -75,14 +82,15 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
         <button
           type="button"
           aria-expanded={open}
+          disabled={isLoggingOut}
           onClick={() => setOpen((prev) => !prev)}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/15"
+          className="inline-flex min-w-44 items-center justify-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-80"
         >
-          <span className="flex size-7 items-center justify-center rounded-full bg-white text-auth-primary">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white text-auth-primary">
             <UserRound className="size-4" />
           </span>
-          <span className="max-w-24 truncate">{displayName}</span>
-          <ChevronDown className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <span className="min-w-0 flex-1 truncate text-left">{displayName}</span>
+          <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
 
         {open ? (
@@ -106,11 +114,16 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
             <button
               type="button"
               onClick={handleLogout}
-              disabled={logoutMutation.isPending}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-70"
+              disabled={isLoggingOut}
+              aria-busy={isLoggingOut}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-80"
             >
-              <LogOut className="size-4" />
-              Logout
+              {isLoggingOut ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <LogOut className="size-4" />
+              )}
+              {isLoggingOut ? 'Logging out…' : 'Logout'}
             </button>
           </div>
         ) : null}
@@ -120,11 +133,11 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
 
   const linkClass = stacked
     ? 'block rounded-xl px-4 py-3 text-base font-medium text-white transition-colors hover:bg-white/10'
-    : 'text-sm font-medium text-white transition-opacity hover:opacity-85'
+    : 'px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-85'
 
   const registerClass = stacked
     ? 'block rounded-full bg-white px-4 py-3 text-center text-base font-semibold text-auth-primary transition-colors hover:bg-white/90'
-    : 'rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-auth-primary transition-colors hover:bg-white/90'
+    : 'min-w-[7.5rem] rounded-full bg-white px-5 py-2 text-center text-sm font-semibold text-auth-primary transition-colors hover:bg-white/90'
 
   return (
     <div className={stacked ? 'flex flex-col gap-2' : 'flex items-center gap-3'}>

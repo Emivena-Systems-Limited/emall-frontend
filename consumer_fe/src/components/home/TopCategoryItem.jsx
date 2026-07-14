@@ -5,9 +5,9 @@ export default function TopCategoryItem({ category }) {
   return (
     <Link
       to={category.href}
-      className="group flex w-23 shrink-0 flex-col items-center gap-2.5 sm:w-26"
+      className="group flex w-full min-w-0 flex-col items-center gap-2"
     >
-      <span className="relative block size-19 shrink-0 overflow-hidden rounded-full bg-slate-100 shadow-[0_4px_14px_-2px_rgba(15,23,42,0.12)] ring-1 ring-slate-100 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105 sm:size-22 lg:size-23">
+      <span className="relative block aspect-square w-full max-w-24 overflow-hidden rounded-full bg-slate-100 shadow-[0_4px_14px_-2px_rgba(15,23,42,0.12)] ring-1 ring-slate-100 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105">
         {category.image ? (
           <img
             src={category.image}
@@ -21,7 +21,7 @@ export default function TopCategoryItem({ category }) {
           </span>
         )}
       </span>
-      <span className="max-w-23 text-center text-[0.6875rem] leading-snug font-medium text-slate-700 sm:max-w-26 sm:text-xs lg:max-w-22">
+      <span className="max-w-full px-0.5 text-center text-[0.6875rem] leading-snug font-medium text-slate-700 sm:text-xs">
         {category.label}
       </span>
     </Link>

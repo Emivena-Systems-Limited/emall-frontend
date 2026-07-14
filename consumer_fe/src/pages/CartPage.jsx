@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useSelector } from 'react-redux'
 import { Loader2, Minus, Plus, ShoppingBag, X } from 'lucide-react'
@@ -14,6 +14,38 @@ import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
 
 const clampQuantity = (value) => Math.max(1, value)
+
+function resolveProductHref(item) {
+  return item.href?.replace(/^\/products\//, '/') ?? '/'
+}
+
+async function shareCartItem(item) {
+  const productPath = resolveProductHref(item)
+  const url = new URL(productPath, window.location.origin).href
+  const shareData = {
+    title: item.name,
+    text: `Check out ${item.name} on EZ-Stores!`,
+    url,
+  }
+
+  try {
+    if (navigator.share && navigator.canShare?.(shareData)) {
+      await navigator.share(shareData)
+    } else {
+      await navigator.clipboard.writeText(url)
+      notify.success('Product link copied to clipboard!')
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      try {
+        await navigator.clipboard.writeText(url)
+        notify.success('Product link copied to clipboard!')
+      } catch {
+        notify.error('Could not copy link to clipboard')
+      }
+    }
+  }
+}
 
 function formatCartItemOptions(item) {
   const variant = String(item.variant ?? '').trim()
@@ -57,7 +89,7 @@ function QuantityStepper({ value, onChange }) {
   )
 }
 
-function ItemActions({ saved = false, showSaveForLater = true, onDelete, onSave }) {
+function ItemActions({ saved = false, showSaveForLater = true, onDelete, onSave, onShare }) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.625rem] font-semibold">
       <button type="button" onClick={onDelete} className="underline hover:text-auth-primary">
@@ -68,7 +100,7 @@ function ItemActions({ saved = false, showSaveForLater = true, onDelete, onSave 
           {saved ? 'Add to cart' : 'Save For Later'}
         </button>
       )}
-      <button type="button" className="underline hover:text-auth-primary">
+      <button type="button" onClick={onShare} className="underline hover:text-auth-primary">
         Share
       </button>
     </div>
@@ -88,7 +120,7 @@ function CartItemRow({
 }) {
   const subtotal = item.displaySubtotal ?? item.price * item.quantity
   const optionLabel = formatCartItemOptions(item)
-  const productHref = item.href?.replace(/^\/products\//, '/') ?? '/'
+  const productHref = resolveProductHref(item)
 
   return (
     <article className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-4 last:border-b-0 sm:px-4 lg:grid lg:grid-cols-[minmax(0,1fr)_120px_140px_110px] lg:items-center lg:gap-4 lg:px-5 lg:py-5">
@@ -134,6 +166,7 @@ function CartItemRow({
             showSaveForLater={showSaveForLater}
             onDelete={onDelete}
             onSave={onSave}
+            onShare={() => shareCartItem(item)}
           />
         </div>
       </div>
@@ -435,6 +468,10 @@ export default function CartPage() {
   const syncStatus = useSelector(selectCartSyncStatus)
   const cartSyncReady = syncStatus !== 'syncing'
 
+  useEffect(()=>{
+    window.scrollTo(0,0)
+  },[])
+  
   useAuthenticatedCart({
     enabled: isAuthenticated && cartSyncReady,
     strategy: 'replace',

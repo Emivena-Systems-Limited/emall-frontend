@@ -2,6 +2,8 @@ const AUTH_LOGOUT_SKIP_PATHS = [
   '/api/vendor/auth/login',
   '/api/vendor/auth/register',
   '/api/vendor/auth/verify_otp',
+  '/api/vendor/auth/send/reset-password/otp',
+  '/api/vendor/auth/reset-password',
   '/api/notification/re-send/otp',
   '/api/vendor/auth/logout',
 ]

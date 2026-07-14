@@ -36,7 +36,7 @@ function CarouselTrack({ products }) {
     const el = trackRef.current
     if (!el) return
     const cardWidth = el.querySelector('li')?.offsetWidth ?? 200
-    const gap = 12
+    const gap = Number.parseFloat(getComputedStyle(el).gap) || 12
     el.scrollBy({ left: dir * (cardWidth + gap) * 2, behavior: 'smooth' })
   }, [])
 
@@ -44,13 +44,13 @@ function CarouselTrack({ products }) {
     <div className="relative">
       <ul
         ref={trackRef}
-        className="flex gap-3 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] scrollbar-none sm:gap-4 [&::-webkit-scrollbar]:hidden"
+        className="flex gap-2 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] scrollbar-none sm:gap-2.5 lg:gap-3 [&::-webkit-scrollbar]:hidden"
         style={{ scrollSnapType: 'x mandatory' }}
       >
         {products.map((product) => (
           <li
             key={product.id}
-            className="w-42 shrink-0 sm:w-52 lg:w-56 xl:w-60"
+            className="w-52 shrink-0 sm:w-56 lg:w-60 xl:w-64"
             style={{ scrollSnapAlign: 'start' }}
           >
             <ProductCard product={product} />
@@ -118,7 +118,7 @@ export default function BestSellersSection({ categories = [] }) {
                 </h2>
                 <Link
                   to={category.viewAllHref ?? category.href}
-                  className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-[0.9375rem]"
+                  className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-base"
                 >
                   View All
                 </Link>

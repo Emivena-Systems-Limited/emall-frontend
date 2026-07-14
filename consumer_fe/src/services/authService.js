@@ -1,14 +1,17 @@
 import apiClient from '../lib/apiClient'
 import { GUEST_CART_HEADER } from '../constants/cart'
-import { AUTH_FLOW } from '../constants/auth'
+import { AUTH_FLOW, AUTH_VERIFICATION_TYPE } from '../constants/auth'
 import { isValidGuestCartId } from '../utils/guestCartId'
 
 export const AUTH_ENDPOINTS = {
   REGISTER: '/user/auth/register',
   LOGIN: '/user/auth/login',
   VERIFY_OTP: '/user/auth/verify_otp',
+  RESEND_OTP: '/notification/re-send/otp',
   LOGOUT: '/user/auth/logout',
 }
+
+export const AUTH_GUARD = 'user'
 
 const TOKEN_FIELDS = new Set([
   'token',
@@ -146,6 +149,33 @@ function normalizeAuthResponse(response, fallbackProfile) {
 
 const stripPhonePlus = (phoneNumber) => String(phoneNumber ?? '').replace(/^\+/, '')
 
+const isTransientNetworkError = (error) => {
+  if (error?.response) return false
+
+  const code = String(error?.code ?? '')
+  const message = String(error?.message ?? '')
+
+  return (
+    code === 'ERR_NETWORK' ||
+    code === 'ECONNABORTED' ||
+    code === 'ETIMEDOUT' ||
+    /network error|timeout|failed to fetch/i.test(message)
+  )
+}
+
+async function withNetworkRetry(requestFn, { retries = 1, delayMs = 450 } = {}) {
+  try {
+    return await requestFn()
+  } catch (error) {
+    if (retries > 0 && isTransientNetworkError(error)) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      return withNetworkRetry(requestFn, { retries: retries - 1, delayMs })
+    }
+
+    throw error
+  }
+}
+
 const getErrorMessage = (error) => {
   const responseData = error?.response?.data
   return [
@@ -180,23 +210,33 @@ const buildRegisterPayload = (profile) => ({
   city_or_town: profile.city,
 })
 
+function resolveAuthVerificationType(flow) {
+  return flow === AUTH_FLOW.REGISTER
+    ? AUTH_VERIFICATION_TYPE.REGISTRATION
+    : AUTH_VERIFICATION_TYPE.LOGIN
+}
+
 const buildVerifyOtpPayload = ({ method, contact, otp, profile, flow }) => ({
   ...buildContactPayload({
     method: profile?.email ? 'email' : method,
     contact: profile?.email ?? contact,
   }),
   otp_token: Number(otp),
-  type: flow === 'register' ? 'registration' : 'login',
+  type: resolveAuthVerificationType(flow),
 })
 
 export async function registerUser(payload) {
-  const { data } = await apiClient.post(AUTH_ENDPOINTS.REGISTER, buildRegisterPayload(payload))
+  const { data } = await withNetworkRetry(() =>
+    apiClient.post(AUTH_ENDPOINTS.REGISTER, buildRegisterPayload(payload)),
+  )
   return assertApiSuccess(data)
 }
 
 export async function requestOtp({ method, contact }) {
   try {
-    const { data } = await apiClient.post(AUTH_ENDPOINTS.LOGIN, buildContactPayload({ method, contact }))
+    const { data } = await withNetworkRetry(() =>
+      apiClient.post(AUTH_ENDPOINTS.LOGIN, buildContactPayload({ method, contact })),
+    )
     return assertApiSuccess(data)
   } catch (error) {
     if (isActiveOtpError(error)) {
@@ -225,28 +265,33 @@ export async function verifyOtp({ method, contact, otp, profile, flow, guestCart
   return normalizeAuthResponse(data, profile)
 }
 
-export async function resendOtp({ method, contact, flow, profile }) {
-  if (flow === AUTH_FLOW.REGISTER) {
-    if (!profile) {
-      throw new Error('Registration details are required to resend a verification code')
-    }
+export async function resendOtp({ method, contact, profile }) {
+  const email = String(profile?.email ?? (method === 'email' ? contact : '')).trim()
 
-    try {
-      return await registerUser(profile)
-    } catch (error) {
-      if (isActiveOtpError(error)) {
-        return {
-          in_error: false,
-          otpAlreadyPending: true,
-          message: 'A verification code is already active for this account.',
-        }
-      }
-
-      throw error
-    }
+  if (!email) {
+    return requestOtp({ method, contact })
   }
 
-  return requestOtp({ method, contact })
+  try {
+    const { data } = await withNetworkRetry(() =>
+      apiClient.post(AUTH_ENDPOINTS.RESEND_OTP, {
+        email,
+        guard: AUTH_GUARD,
+        type: AUTH_VERIFICATION_TYPE.RESEND,
+      }),
+    )
+    return assertApiSuccess(data)
+  } catch (error) {
+    if (isActiveOtpError(error)) {
+      return {
+        in_error: false,
+        otpAlreadyPending: true,
+        message: 'A verification code is already active for this account.',
+      }
+    }
+
+    throw error
+  }
 }
 
 export async function logoutUser(payload = {}) {

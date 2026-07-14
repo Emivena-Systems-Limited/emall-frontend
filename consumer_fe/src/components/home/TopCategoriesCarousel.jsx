@@ -75,7 +75,7 @@ export default function TopCategoriesCarousel({ categories }) {
   const showViewAll = categories.length > 0
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+    <div className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
       <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6 sm:gap-4">
         <h2
           id="top-categories-heading"
@@ -88,7 +88,7 @@ export default function TopCategoriesCarousel({ categories }) {
           {showViewAll && (
             <Link
               to="/categories"
-              className="text-sm font-semibold text-auth-primary underline-offset-2 transition-colors hover:text-auth-primary-hover hover:underline sm:text-[0.9375rem]"
+              className="text-sm font-semibold text-auth-primary underline-offset-2 transition-colors hover:text-auth-primary-hover hover:underline sm:text-base"
             >
               View All
             </Link>
@@ -121,14 +121,14 @@ export default function TopCategoriesCarousel({ categories }) {
           role="list"
           aria-labelledby="top-categories-heading"
           onKeyDown={handleKeyDown}
-          className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 outline-none scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/30 focus-visible:ring-offset-2 sm:gap-4 [&::-webkit-scrollbar]:hidden"
+          className="flex w-full snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 outline-none scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/30 focus-visible:ring-offset-2 sm:gap-2.5 lg:gap-3 [&::-webkit-scrollbar]:hidden"
         >
           {categories.map((category) => (
             <div
               key={category.id}
               role="listitem"
               data-category-item
-              className="snap-start"
+              className="min-w-[5.25rem] flex-1 snap-start"
             >
               <TopCategoryItem category={category} />
             </div>

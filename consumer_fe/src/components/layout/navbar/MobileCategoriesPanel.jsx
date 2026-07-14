@@ -162,28 +162,17 @@ function MobileCategoriesPanelContent({ onClose }) {
   }
 
   return (
-    <>
-      <motion.button
-        type="button"
-        aria-label="Close categories"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-x-0 bottom-0 top-[7.25rem] z-55 bg-slate-950/40 lg:hidden"
-        onClick={onClose}
-      />
-
       <motion.div
         id="mobile-categories-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Browse categories"
+        data-categories-panel
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ duration: 0.34, ease: panelEase }}
-        className="fixed inset-x-0 bottom-0 top-[7.25rem] z-70 flex flex-col overflow-hidden rounded-t-2xl bg-slate-50 shadow-[0_-20px_60px_-10px_rgba(15,23,42,0.35)] lg:hidden"
+        exit={{ y: '100%', transition: { duration: 0.16, ease: panelEase } }}
+        transition={{ duration: 0.22, ease: panelEase }}
+        className="fixed inset-x-0 bottom-0 z-70 flex max-h-[min(68dvh,32rem)] flex-col overflow-hidden rounded-t-2xl bg-slate-50 shadow-[0_-20px_60px_-10px_rgba(15,23,42,0.35)] lg:hidden"
       >
         <div className="flex shrink-0 flex-col items-center border-b border-slate-200/80 bg-white px-4 pb-3 pt-3">
           <span className="mb-3 h-1 w-10 rounded-full bg-slate-200" aria-hidden="true" />
@@ -332,7 +321,6 @@ function MobileCategoriesPanelContent({ onClose }) {
           )}
         </div>
       </motion.div>
-    </>
   )
 }
 
@@ -347,8 +335,17 @@ export default function MobileCategoriesPanel({ open, onClose }) {
   }, [open])
 
   return (
-    <AnimatePresence>
-      {open && <MobileCategoriesPanelContent onClose={onClose} />}
-    </AnimatePresence>
+    <>
+      {open && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-x-0 bottom-0 top-[7.25rem] z-55 bg-slate-950/40 lg:hidden"
+        />
+      )}
+
+      <AnimatePresence>
+        {open && <MobileCategoriesPanelContent onClose={onClose} />}
+      </AnimatePresence>
+    </>
   )
 }

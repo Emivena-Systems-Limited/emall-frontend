@@ -1,7 +1,8 @@
-import { Link, useNavigate } from 'react-router'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { useDispatch } from 'react-redux'
 import { Formik, Form } from 'formik'
-import { ArrowRight, Loader2, Lock, Mail } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Loader2, Lock, Mail } from 'lucide-react'
 import AuthLayout from '../../components/auth/AuthLayout'
 import FormInput from '../../components/auth/FormInput'
 import PasswordInput from '../../components/auth/PasswordInput'
@@ -14,8 +15,19 @@ const initialValues = { email: '', password: '' }
 
 export default function Login() {
   const navigate  = useNavigate()
+  const location  = useLocation()
   const dispatch  = useDispatch()
   const loginMutation = useLoginVendorMutation()
+  const [showPasswordResetSuccess, setShowPasswordResetSuccess] = useState(
+    () => location.state?.passwordReset === true,
+  )
+
+  useEffect(() => {
+    if (!location.state?.passwordReset) return
+
+    setShowPasswordResetSuccess(true)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
@@ -53,6 +65,21 @@ export default function Login() {
       title="Welcome back"
       subtitle="Sign in to manage your store, track orders, and grow your sales."
     >
+      {showPasswordResetSuccess ? (
+        <div
+          className="page-enter mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-900"
+          role="status"
+        >
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" strokeWidth={2} />
+          <div>
+            <p className="font-semibold">Password updated successfully</p>
+            <p className="mt-0.5 leading-relaxed text-emerald-800/90">
+              Sign in with your new password to continue to your vendor dashboard.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <Formik
         initialValues={initialValues}
         validationSchema={vendorLoginSchema}
@@ -88,6 +115,15 @@ export default function Login() {
               error={touched.password && errors.password}
               disabled={isSubmitting}
             />
+
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-sm font-semibold text-brand underline-offset-2 transition-colors hover:text-brand-hover hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             <button
               type="submit"

@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import {
@@ -17,6 +17,7 @@ import {
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import ProductImageGallery from '../components/product/ProductImageGallery'
+import ImageLightbox, { clampZoom, ZOOM_STEP } from '../components/shared/ImageLightbox'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
@@ -25,6 +26,7 @@ import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLand
 import { resolveProductDisplayPrices } from '../utils/extractProductVariantFacets'
 import { notify } from '../lib/notify'
 import { useCartActions } from '../hooks/useCartActions'
+import { useOptionalMiniCart } from '../context/MiniCartContext'
 import { selectCartItems } from '../store/slices/cartSlice'
 import {
   formatProductCondition,
@@ -340,9 +342,9 @@ function ProductInfoPanel({
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [trustInfoOpen, setTrustInfoOpen] = useState(null)
   const trustInfoRef = useRef(null)
-  const navigate = useNavigate()
   const cartItems = useSelector(selectCartItems)
   const { addToCart } = useCartActions()
+  const miniCart = useOptionalMiniCart()
   const outOfStock = !product.inStock
   const colorValueSet = new Set((product.colors ?? []).map((value) => String(value).toLowerCase()))
   const compatibleModelValues = product.compatibleModels ?? []
@@ -407,7 +409,7 @@ function ProductInfoPanel({
 
   const handleAddToCart = async () => {
     if (isInCart) {
-      navigate('/cart')
+      miniCart?.openMiniCart()
       return
     }
 
@@ -415,7 +417,7 @@ function ProductInfoPanel({
 
     setIsAddingToCart(true)
     try {
-      await addToCart(
+      const item = await addToCart(
         {
           ...product,
           productId: product.backendId ?? product.id,
@@ -434,6 +436,10 @@ function ProductInfoPanel({
           image: activeImage || product.gallery?.[0] || product.image,
         },
       )
+
+      if (item) {
+        miniCart?.openMiniCart()
+      }
     } finally {
       setIsAddingToCart(false)
     }
@@ -896,6 +902,12 @@ function HorizontalProductRail({ title, products, visibleCount: maxVisible = 5 }
   )
 }
 
+function isDescriptiveImageRecord(image) {
+  if (!image || typeof image !== 'object') return false
+  const type = String(image.image_type ?? image.type ?? '').trim().toLowerCase()
+  return type === 'descriptive' || image.is_descriptive === true || image.is_descriptive === 1
+}
+
 function mapDescriptiveImageUrls(descriptiveImages) {
   if (!Array.isArray(descriptiveImages)) return []
 
@@ -907,6 +919,20 @@ function mapDescriptiveImageUrls(descriptiveImages) {
     .filter(Boolean)
 }
 
+function collectDescriptiveImageUrls(apiProduct) {
+  const urls = new Set(mapDescriptiveImageUrls(apiProduct?.descriptive_images))
+
+  if (Array.isArray(apiProduct?.images)) {
+    apiProduct.images.forEach((image) => {
+      if (!isDescriptiveImageRecord(image)) return
+      const url = String(image?.image_url ?? image?.url ?? image?.preview ?? '').trim()
+      if (url) urls.add(url)
+    })
+  }
+
+  return [...urls]
+}
+
 const DESCRIPTIVE_GRID_SIZE = 4
 
 function buildDescriptiveGridImages(product) {
@@ -915,7 +941,6 @@ function buildDescriptiveGridImages(product) {
   const used = new Set(descriptive)
   const fillerPool = gallery.filter((url) => !used.has(url))
 
-  // Stable variety: shuffle fillers by product slug so fills don't always pick the same order.
   const seed = String(product.slug ?? product.id ?? '')
   const shuffledFillers = [...fillerPool].sort((a, b) => {
     const score = (value) => {
@@ -950,33 +975,119 @@ function DescriptiveImagePlaceholder() {
 }
 
 function DescriptiveImagesGrid({ product }) {
-  const images = buildDescriptiveGridImages(product)
+  const gridImages = buildDescriptiveGridImages(product)
   const hasDescriptive = (product.descriptiveImages ?? []).length > 0
+  const viewableImages = useMemo(
+    () => [...new Set(buildDescriptiveGridImages(product).filter(Boolean))],
+    [product],
+  )
+
+  const [lightboxIndex, setLightboxIndex] = useState(null)
+  const [zoom, setZoom] = useState(1)
+
+  const closeLightbox = useCallback(() => {
+    setLightboxIndex(null)
+    setZoom(1)
+  }, [])
+
+  const goPrev = useCallback(() => {
+    if (viewableImages.length <= 1) return
+    setZoom(1)
+    setLightboxIndex((index) => (
+      index === null ? null : (index - 1 + viewableImages.length) % viewableImages.length
+    ))
+  }, [viewableImages.length])
+
+  const goNext = useCallback(() => {
+    if (viewableImages.length <= 1) return
+    setZoom(1)
+    setLightboxIndex((index) => (
+      index === null ? null : (index + 1) % viewableImages.length
+    ))
+  }, [viewableImages.length])
+
+  const openLightbox = (src) => {
+    const index = viewableImages.indexOf(src)
+    if (index < 0) return
+    setZoom(1)
+    setLightboxIndex(index)
+  }
+
+  useEffect(() => {
+    if (lightboxIndex === null) return undefined
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') closeLightbox()
+      if (event.key === 'ArrowLeft') goPrev()
+      if (event.key === 'ArrowRight') goNext()
+      if (event.key === '+' || event.key === '=') setZoom((value) => clampZoom(value + ZOOM_STEP))
+      if (event.key === '-') setZoom((value) => clampZoom(value - ZOOM_STEP))
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [lightboxIndex, closeLightbox, goPrev, goNext])
+
+  const lightboxImage = lightboxIndex === null ? null : viewableImages[lightboxIndex]
 
   return (
-    <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
-      <h3 className="font-bold text-slate-950">Product Images</h3>
-      <div className="grid w-full grid-cols-2 gap-2 sm:gap-3">
-        {images.map((src, index) => (
-          <div
-            key={index}
-            className="flex aspect-square items-center justify-center overflow-hidden rounded-sm bg-slate-100 p-2.5 sm:p-3"
-          >
-            {src
+    <>
+      <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
+        <h3 className="font-bold text-slate-950">Product Images</h3>
+        <div className="grid w-full grid-cols-2 gap-2 sm:gap-3">
+          {gridImages.map((src, index) => (
+            src
               ? (
-                <img
-                  src={src}
-                  alt={hasDescriptive ? `Product detail ${index + 1}` : `Product image ${index + 1}`}
-                  className="max-h-full max-w-full object-contain"
-                  loading="lazy"
-                />
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => openLightbox(src)}
+                  aria-label={
+                    hasDescriptive
+                      ? `View product detail ${index + 1} full size`
+                      : `View product image ${index + 1} full size`
+                  }
+                  className="group cursor-zoom-in overflow-hidden rounded-sm bg-slate-100 text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40"
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    className="block h-auto w-full max-w-full transition-transform duration-200 group-hover:scale-[1.01]"
+                    loading="lazy"
+                  />
+                </button>
               )
-              : <DescriptiveImagePlaceholder />
-            }
-          </div>
-        ))}
+              : (
+                <div
+                  key={index}
+                  className="flex aspect-[970/600] w-full items-center justify-center rounded-sm bg-slate-100"
+                >
+                  <DescriptiveImagePlaceholder />
+                </div>
+              )
+          ))}
+        </div>
       </div>
-    </div>
+
+      {lightboxImage && (
+        <ImageLightbox
+          image={lightboxImage}
+          title={product.title ?? product.name ?? 'Product'}
+          zoom={zoom}
+          onZoomChange={setZoom}
+          onClose={closeLightbox}
+          onPrev={goPrev}
+          onNext={goNext}
+          hasMultiple={viewableImages.length > 1}
+        />
+      )}
+    </>
   )
 }
 
@@ -1264,7 +1375,7 @@ function normalizeApiProductDetails(apiProduct) {
       'Item Weight': formatItemWeight(metadata),
       ...customKeyDetails,
     },
-    descriptiveImages: mapDescriptiveImageUrls(apiProduct.descriptive_images),
+    descriptiveImages: collectDescriptiveImageUrls(apiProduct),
     descriptionHtml,
     description,
     details: {

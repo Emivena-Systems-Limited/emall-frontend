@@ -24,6 +24,7 @@ import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import ProductStepper from '../../components/products/ProductStepper'
 import ProductRichTextEditor from '../../components/products/ProductRichTextEditor'
 import ProductImageUploader from '../../components/products/ProductImageUploader'
+import DescriptiveImageUploader from '../../components/products/DescriptiveImageUploader'
 import ProductKeyDetailsInput from '../../components/products/ProductKeyDetailsInput'
 import ProductMainImageUpload from '../../components/products/ProductMainImageUpload'
 import VariantImageUpload from '../../components/products/VariantImageUpload'
@@ -41,9 +42,9 @@ import {
   ProductSelect,
 } from '../../components/products/ProductFormControls'
 import {
-  MAX_DESCRIPTIVE_IMAGE_COUNT,
-  MAX_DESCRIPTIVE_IMAGE_FILE_BYTES,
-  MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES,
+  DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL,
+  FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+  PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
   PRODUCT_CONDITION_OPTIONS,
 } from '../../constants/products'
 import {
@@ -76,7 +77,10 @@ import { getProductConditionLabel } from '../../utils/productMetadata'
 import {
   validateProductImageLimits,
   validateDescriptiveImageLimits,
+  validateDescriptiveImageDimensions,
+  validateFeaturedImageDimensions,
   validateGalleryImagesRequired,
+  validatePrimaryImageDimensions,
 } from '../../utils/productImageUtils'
 
 const productListingSteps = [
@@ -483,7 +487,7 @@ export function ImagesStep({
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Main photo</p>
           <h3 className="mt-1 text-sm font-bold text-slate-900">Primary product image</h3>
           <p className="mt-1 text-xs text-slate-500">
-            This is the hero image customers see first in search results and on your product page.
+            This is the hero image customers see first in search results and category cards. Use a square photo near {PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL}.
           </p>
         </div>
         <ProductMainImageUpload
@@ -499,7 +503,7 @@ export function ImagesStep({
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Gallery</p>
           <h3 className="mt-1 text-sm font-bold text-slate-900">Additional product images</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Required. Add at least one extra photo — different angles, packaging, or close-ups. Up to 5 images total and 5MB combined across all photos (including the main photo).
+            Required. Add at least one extra photo for the product page gallery — different angles, packaging, or close-ups. Use wide landscape photos near {FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL}. Up to 5 images total and 5MB combined across all photos (including the main photo).
           </p>
         </div>
         <ProductImageUploader
@@ -514,20 +518,11 @@ export function ImagesStep({
         <OptionalSectionHeader
           eyebrow="Descriptive photos"
           title="Detail images"
-          description={`Lifestyle or detail shots — packaging, labels, or close-ups. Up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} images, 1MB each, 4MB combined.`}
+          description={`Optional lifestyle or detail shots shown in a 2×2 grid on your product page. Upload wide images near ${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} for the best fit.`}
         />
-        <ProductImageUploader
+        <DescriptiveImageUploader
           images={descriptiveImages}
           onChange={onDescriptiveImagesChange}
-          standalone
-          maxCount={MAX_DESCRIPTIVE_IMAGE_COUNT}
-          maxBytes={MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES}
-          maxFileBytes={MAX_DESCRIPTIVE_IMAGE_FILE_BYTES}
-          dataField="descriptive_product_images"
-          emptyTitle="Drag & drop or click to upload descriptive photos"
-          emptyHint={`JPG or PNG · Up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} images · 1MB each · 4MB total`}
-          zoneHint="Click or drop to add more descriptive photos"
-          reorderHint=" · Drag descriptive photos to reorder"
           error={descriptiveImagesError}
         />
       </OptionalSection>
@@ -1628,11 +1623,38 @@ export function ProductListingForm({
         return false
       }
 
+      const primaryDimensions = await validatePrimaryImageDimensions(mainImage)
+      if (!primaryDimensions.valid) {
+        setMainImageError(primaryDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ main_product_image: primaryDimensions.message })
+        })
+        return false
+      }
+
+      const featuredDimensions = await validateFeaturedImageDimensions(subImages)
+      if (!featuredDimensions.valid) {
+        setGalleryImagesError(featuredDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ sub_product_images: featuredDimensions.message })
+        })
+        return false
+      }
+
       const descriptiveLimits = validateDescriptiveImageLimits(descriptiveImages)
       if (!descriptiveLimits.valid) {
         setDescriptiveImagesError(descriptiveLimits.message)
         requestAnimationFrame(() => {
           scrollToFirstError({ descriptive_product_images: descriptiveLimits.message })
+        })
+        return false
+      }
+
+      const descriptiveDimensions = await validateDescriptiveImageDimensions(descriptiveImages)
+      if (!descriptiveDimensions.valid) {
+        setDescriptiveImagesError(descriptiveDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ descriptive_product_images: descriptiveDimensions.message })
         })
         return false
       }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import AuthLayout from '../../components/auth/AuthLayout'
+import AuthHomeLink from '../../components/auth/AuthHomeLink'
 import AuthTabs from '../../components/auth/AuthTabs'
 import EmailInput from '../../components/auth/EmailInput'
 import FormField from '../../components/auth/FormField'
@@ -38,7 +39,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const redirectTo = location.state?.from
-  const [activeTab, setActiveTab] = useState('phone')
+  const [activeTab, setActiveTab] = useState('email')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [phoneError, setPhoneError] = useState('')
@@ -49,13 +50,28 @@ export default function LoginPage() {
   const handlePhoneChange = (value) => {
     const local = normalizeGhanaPhone(value)
     setPhone(formatGhanaPhoneDisplay(local))
-    if (phoneError) setPhoneError('')
+    if (phoneError) {
+      const result = validateGhanaPhone(formatGhanaPhoneDisplay(local))
+      setPhoneError(result.valid || !local ? '' : result.message)
+    }
   }
 
   const handlePhoneBlur = () => {
     if (!phone.trim()) return
     const result = validateGhanaPhone(phone)
     setPhoneError(result.valid ? '' : result.message)
+  }
+
+  const handleEmailChange = (value) => {
+    setEmail(value)
+    if (emailError || value.includes('@') || /\s/.test(value)) {
+      if (!value.trim()) {
+        setEmailError('')
+        return
+      }
+      const result = validateEmail(value)
+      setEmailError(result.valid ? '' : result.message)
+    }
   }
 
   const handleEmailBlur = () => {
@@ -136,30 +152,35 @@ export default function LoginPage() {
   return (
     <AuthLayout>
       <motion.div {...formHeaderMotion} className="text-center">
-        <p className="text-xs text-auth-muted sm:text-sm">Welcome back,</p>
-        <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+        <p className="auth-subheading font-medium tracking-wide text-auth-muted">
+          Welcome back
+        </p>
+        <h1 className="auth-heading mt-1.5 font-bold tracking-tight text-slate-900">
           Login to your account
         </h1>
+        <p className="auth-body mx-auto mt-1.5 max-w-sm leading-relaxed text-slate-500">
+          Sign in with your phone number or email to continue shopping.
+        </p>
       </motion.div>
 
       <motion.div
         variants={formStaggerContainer}
         initial="hidden"
         animate="visible"
-        className="mt-4 sm:mt-6"
+        className="mt-4 sm:mt-5"
       >
-          <FormField name="tabs">
-            <AuthTabs
-              activeTab={activeTab}
-              onChange={(tab) => {
-                setActiveTab(tab)
-                setPhoneError('')
-                setEmailError('')
-              }}
-            />
-          </FormField>
+        <FormField name="tabs">
+          <AuthTabs
+            activeTab={activeTab}
+            onChange={(tab) => {
+              setActiveTab(tab)
+              setPhoneError('')
+              setEmailError('')
+            }}
+          />
+        </FormField>
 
-          <form onSubmit={handleSubmit} className="space-y-4 max-[740px]:space-y-3.5 sm:space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
           <AnimatePresence mode="wait">
             {activeTab === 'phone' ? (
               <motion.div
@@ -192,10 +213,7 @@ export default function LoginPage() {
                 <FormField name="email">
                   <EmailInput
                     value={email}
-                    onChange={(value) => {
-                      setEmail(value)
-                      if (emailError) setEmailError('')
-                    }}
+                    onChange={handleEmailChange}
                     onBlur={handleEmailBlur}
                     error={emailError}
                     disabled={isSubmitting}
@@ -210,22 +228,27 @@ export default function LoginPage() {
               type="submit"
               disabled={isSubmitting}
               whileTap={{ scale: 0.985 }}
-              className="mt-4 w-full rounded-xl bg-auth-primary py-3.5 text-base font-semibold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
+              className="mt-2 w-full rounded-xl bg-auth-primary py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3 min-[1800px]:py-4 min-[1800px]:text-base"
             >
               {isSubmitting ? 'Sending code…' : 'Login'}
             </motion.button>
           </motion.div>
         </form>
 
-          <motion.p
-            variants={formActionsMotion}
-            className="mt-4 text-center text-sm text-auth-muted max-[740px]:mt-3 sm:mt-5"
+        <motion.p
+          variants={formActionsMotion}
+          className="auth-body mt-4 text-center text-auth-muted sm:mt-5"
+        >
+          Don&apos;t have an account?{' '}
+          <Link
+            to="/register"
+            className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
           >
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="font-medium text-auth-accent underline-offset-2 hover:underline">
-              Register
-            </Link>
-          </motion.p>
+            Register
+          </Link>
+        </motion.p>
+
+        <AuthHomeLink />
       </motion.div>
     </AuthLayout>
   )

@@ -13,7 +13,7 @@ export default function NavbarCategoriesButton({
   const sharedClass = `inline-flex items-center justify-center gap-1.5 rounded-full bg-white font-semibold text-auth-primary transition-colors hover:bg-white/90 ${
     fullWidth
       ? 'w-full px-3.5 py-2 text-sm'
-      : 'shrink-0 min-w-[9.5rem] px-4 py-2 text-sm xl:min-w-[10.5rem]'
+      : 'shrink-0 min-w-[11rem] px-5 py-2 text-sm xl:min-w-[12rem]'
   } ${className}`
 
   if (mode === 'dropdown') {
@@ -22,6 +22,7 @@ export default function NavbarCategoriesButton({
         type="button"
         aria-expanded={isOpen}
         aria-controls={panelId}
+        data-categories-toggle
         onClick={onToggle}
         className={`${sharedClass} ${isOpen ? 'ring-2 ring-white/40 ring-offset-2 ring-offset-auth-primary' : ''}`}
       >

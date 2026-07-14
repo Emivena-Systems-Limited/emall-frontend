@@ -7,7 +7,7 @@ import {
   ShoppingCart,
   X,
 } from 'lucide-react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import Container from '../Container'
 import NavbarAuthLinks from './NavbarAuthLinks'
 import { footerColumns } from '../../../constants/siteNav'
@@ -75,6 +75,8 @@ function MobileQuickLink({ to, label, onClick }) {
 }
 
 export default function MobileNavPanel({ open, onClose, onOpenCategories, cartCount = 0 }) {
+  const navigate = useNavigate()
+
   useEffect(() => {
     if (!open) return undefined
 
@@ -94,6 +96,11 @@ export default function MobileNavPanel({ open, onClose, onOpenCategories, cartCo
   const openCategories = () => {
     onClose()
     onOpenCategories?.()
+  }
+
+  const openCart = () => {
+    onClose()
+    navigate('/cart')
   }
 
   return (
@@ -151,11 +158,11 @@ export default function MobileNavPanel({ open, onClose, onOpenCategories, cartCo
                     />
 
                     <MobileNavRow
-                      to="/cart"
+                      asButton
                       icon={ShoppingCart}
                       label="Shopping Cart"
                       endLabel={cartCount > 99 ? '99+' : String(cartCount)}
-                      onClick={onClose}
+                      onClick={openCart}
                     />
                   </MobileNavSection>
 

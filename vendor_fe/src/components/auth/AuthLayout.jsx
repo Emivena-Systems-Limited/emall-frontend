@@ -10,11 +10,11 @@ export default function AuthLayout({
 }) {
   const formWidthClass = wideForm ? 'max-w-5xl' : 'max-w-xl'
   const mainClass = compactLayout
-    ? 'relative flex flex-1 items-start justify-center px-4 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-4 lg:px-8'
-    : 'relative flex flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8'
+    ? 'relative flex flex-1 items-start justify-center px-4 pb-8 pt-1 sm:px-6 sm:pb-10 sm:pt-2 lg:px-8'
+    : 'relative flex flex-1 items-start justify-center px-4 pb-10 pt-3 sm:px-6 sm:pb-12 sm:pt-4 lg:px-8 lg:pt-6'
   const headerClass = compactLayout
-    ? 'relative shrink-0 px-4 py-4 sm:px-6 lg:px-8'
-    : 'relative shrink-0 px-4 py-5 sm:px-6 lg:px-8'
+    ? 'relative shrink-0 px-4 py-3 sm:px-6 lg:px-8'
+    : 'relative shrink-0 px-4 py-4 sm:px-6 lg:px-8'
 
   return (
     <div className="relative flex min-h-screen flex-col bg-slate-50">

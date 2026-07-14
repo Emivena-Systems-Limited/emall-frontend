@@ -1,16 +1,27 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Trash2, Upload } from 'lucide-react'
 import FieldError from '../auth/FieldError'
 import notify from '../../lib/notify'
 import {
+  PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+} from '../../constants/products'
+import {
+  ProductImageDimensionBadge,
+  ProductImageDimensionGuidance,
+} from './ProductImageDimensionHints'
+import {
+  evaluatePrimaryImageDimensions,
   formatImageStorageSize,
+  getPrimaryDimensionGuidance,
   getProductImageLimitsSummary,
   pickProductImageFiles,
+  readImageFileDimensions,
+  readImageUrlDimensions,
   replaceProductImageWithFile,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
-const IMAGE_HINT = 'JPG or PNG · Up to 5 images total · 5MB combined'
+const IMAGE_HINT = `JPG or PNG · Square near ${PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} · Up to 5 images total · 5MB combined`
 
 export default function ProductMainImageUpload({
   image,
@@ -21,8 +32,50 @@ export default function ProductMainImageUpload({
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const limits = getProductImageLimitsSummary(image, subImages)
+  const guidance = getPrimaryDimensionGuidance()
 
-  const applyFile = (file) => {
+  useEffect(() => {
+    if (!image || (image.width && image.height) || image.dimensionsChecked) return undefined
+
+    let cancelled = false
+
+    const hydrateDimensions = async () => {
+      try {
+        let dimensions
+        if (image.file) {
+          dimensions = await readImageFileDimensions(image.file)
+        } else {
+          const preview = String(image.preview ?? '').trim()
+          if (!preview) return
+          dimensions = await readImageUrlDimensions(preview)
+        }
+
+        if (cancelled) return
+
+        onChange({
+          ...image,
+          ...dimensions,
+          dimensionsChecked: true,
+        })
+      } catch {
+        if (cancelled) return
+        onChange({
+          ...image,
+          width: null,
+          height: null,
+          dimensionsChecked: true,
+        })
+      }
+    }
+
+    hydrateDimensions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [image, onChange])
+
+  const applyFile = async (file) => {
     const { accepted, notices } = pickProductImageFiles({
       mainImage: image,
       subImages,
@@ -34,7 +87,19 @@ export default function ProductMainImageUpload({
 
     if (accepted.length === 0) return
 
-    onChange(replaceProductImageWithFile(image, accepted[0]))
+    try {
+      const { width, height } = await readImageFileDimensions(accepted[0])
+      const result = evaluatePrimaryImageDimensions(width, height)
+
+      if (!result.valid) {
+        notify.error(result.message)
+        return
+      }
+
+      onChange(replaceProductImageWithFile(image, accepted[0], { width, height }))
+    } catch {
+      notify.error('Could not read the selected image. Try a different JPG or PNG file.')
+    }
   }
 
   const processFiles = (fileList) => {
@@ -55,13 +120,34 @@ export default function ProductMainImageUpload({
 
   return (
     <div data-field="main_product_image" className="space-y-3">
+      <ProductImageDimensionGuidance
+        title="Recommended size for product cards"
+        description={
+          <>
+            This photo appears in search results and category grids inside a square frame (like on the storefront product card).
+            Upload a square image close to{' '}
+            <span className="font-semibold text-slate-800">{PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL}</span>
+            {' '}so it fills the card without large empty bands.
+          </>
+        }
+        guidance={guidance}
+        footer="Exact pixels are not required — close is fine. Avoid wide landscape or tall portrait photos for this slot."
+      />
+
       {image ? (
         <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-          <img
-            src={image.preview}
-            alt="Main product"
-            className="mx-auto max-h-72 w-full object-contain p-4"
-          />
+          <div className="relative mx-auto aspect-square max-h-80 w-full max-w-sm bg-white">
+            <img
+              src={image.preview}
+              alt="Main product"
+              className="size-full object-contain p-4"
+            />
+            <ProductImageDimensionBadge
+              width={image.width}
+              height={image.height}
+              evaluateFn={evaluatePrimaryImageDimensions}
+            />
+          </div>
           <div className="absolute left-3 top-3">
             <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-white shadow">
               Main photo

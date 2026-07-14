@@ -33,6 +33,16 @@ const getErrorMessage = (error, fallback = 'Something went wrong') => {
 
   if (responseData?.message) return cleanMessage(responseData.message)
   if (nestedData?.message) return cleanMessage(nestedData.message)
+
+  if (
+    !status &&
+    (/network error|failed to fetch/i.test(error?.message ?? '') ||
+      error?.code === 'ERR_NETWORK' ||
+      error?.code === 'ECONNABORTED')
+  ) {
+    return 'Connection issue. Please try again.'
+  }
+
   if (error?.message) return cleanMessage(error.message)
   return fallback
 }

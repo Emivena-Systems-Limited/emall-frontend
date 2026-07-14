@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { useParams } from 'react-router'
+import { useEffect, useMemo } from 'react'
+import { Navigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
@@ -9,16 +9,17 @@ import CategoryBreadcrumb from '../components/category/CategoryBreadcrumb'
 import CategoryFilterSidebar from '../components/category/CategoryFilterSidebar'
 import CategoryProductsEmptyState from '../components/category/CategoryProductsEmptyState'
 import { getParentCategories } from '../services/categoryService'
-import { findCategoryBySlug } from '../utils/normalizeCategories'
-
-function formatSlugFallback(slug = '') {
-  const parts = slug.split('-')
-  const label = parts.length > 1 ? parts.slice(1).join(' ') : parts.join(' ')
-  return label ? label.charAt(0).toUpperCase() + label.slice(1) : ''
-}
+import {
+  findCategoryBySlug,
+  formatCategorySlugLabel,
+} from '../utils/normalizeCategories'
 
 export default function CategoryPage() {
   const { slug, subSlug } = useParams()
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [slug, subSlug])
 
   const { data: parentCategories = [], isLoading } = useQuery({
     queryKey: ['parent-categories'],
@@ -37,15 +38,36 @@ export default function CategoryPage() {
     [parentCategories, subSlug],
   )
 
-  const categoryLabel = currentCategory?.name ?? formatSlugFallback(slug)
-  const subcategoryLabel = subSlug ? currentSubcategory?.name ?? formatSlugFallback(subSlug) : null
+  const canonicalSlug = currentCategory?.slug ?? slug
+  const canonicalSubSlug = currentSubcategory?.slug ?? subSlug
+  const shouldRedirect = !isLoading && currentCategory && (
+    slug !== canonicalSlug
+    || (subSlug && currentSubcategory && subSlug !== canonicalSubSlug)
+  )
+
+  if (shouldRedirect) {
+    const redirectPath = canonicalSubSlug
+      ? `/categories/${canonicalSlug}/${canonicalSubSlug}`
+      : `/categories/${canonicalSlug}`
+
+    return <Navigate to={redirectPath} replace />
+  }
+
+  const categoryLabel = currentCategory?.name ?? formatCategorySlugLabel(slug)
+  const subcategoryLabel = subSlug ? currentSubcategory?.name ?? formatCategorySlugLabel(subSlug) : null
   const subcategories = currentCategory?.children?.filter((child) => child.isActive) ?? []
 
   return (
     <SiteLayout>
       <div className="bg-white pt-4 sm:pt-5 lg:pt-6">
         <Container>
-          <CategoryHeroBanner />
+          <CategoryHeroBanner
+            category={currentCategory}
+            subcategory={currentSubcategory}
+            subcategories={subcategories}
+            categoryLabel={categoryLabel}
+            isLoading={isLoading}
+          />
         </Container>
       </div>
 
@@ -60,7 +82,7 @@ export default function CategoryPage() {
           <div className="mb-4 sm:mb-5">
             <CategoryBreadcrumb
               categoryLabel={categoryLabel}
-              categoryHref={`/categories/${slug}`}
+              categoryHref={`/categories/${canonicalSlug}`}
               subcategoryLabel={subcategoryLabel}
             />
           </div>
@@ -69,8 +91,8 @@ export default function CategoryPage() {
             <CategoryFilterSidebar
               parentCategories={parentCategories}
               subcategories={subcategories}
-              currentSlug={slug}
-              currentSubSlug={subSlug}
+              currentSlug={canonicalSlug}
+              currentSubSlug={canonicalSubSlug}
               isLoading={isLoading}
             />
 

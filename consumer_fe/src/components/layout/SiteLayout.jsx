@@ -8,7 +8,7 @@ export default function SiteLayout({ children, cartCount }) {
   const resolvedCartCount = cartCount ?? globalCartCount
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-slate-900">
+    <div className="flex min-h-screen flex-col bg-white font-sans text-slate-900">
       <Navbar cartCount={resolvedCartCount} />
       <main className="flex-1">{children}</main>
       <Footer />

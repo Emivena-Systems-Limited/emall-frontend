@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 import AuthLayout from '../../components/auth/AuthLayout'
+import AuthHomeLink from '../../components/auth/AuthHomeLink'
 import FormField from '../../components/auth/FormField'
 import {
   formActionsMotion,
@@ -44,6 +45,7 @@ import {
   normalizeGhanaPhone,
   validateEmail,
   validateGhanaPhone,
+  validatePersonName,
 } from '../../utils/validateGhanaPhone'
 import { scrollToFirstError } from '../../utils/scrollToFirstError'
 
@@ -115,6 +117,37 @@ export default function RegisterPage() {
     disabled: option.value === '',
   }))
 
+  const setFieldError = (field, message) => {
+    setErrors((prev) => {
+      if ((prev[field] || '') === (message || '')) return prev
+      return { ...prev, [field]: message || '' }
+    })
+  }
+
+  const validateNameField = (field, value, { fieldLabel, requireValue = false } = {}) => {
+    const trimmed = String(value ?? '').trim()
+    if (!trimmed && !requireValue) {
+      setFieldError(field, '')
+      return { valid: true, name: '' }
+    }
+
+    const result = validatePersonName(value, { fieldLabel })
+    setFieldError(field, result.valid ? '' : result.message)
+    return result
+  }
+
+  const validateEmailField = (value, { requireValue = false } = {}) => {
+    const trimmed = String(value ?? '').trim()
+    if (!trimmed && !requireValue) {
+      setFieldError('email', '')
+      return { valid: true, email: '' }
+    }
+
+    const result = validateEmail(value)
+    setFieldError('email', result.valid ? '' : result.message)
+    return result
+  }
+
   const updateField = (field, value) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value }
@@ -146,16 +179,37 @@ export default function RegisterPage() {
       return next
     })
 
+    if (field === 'firstName') {
+      validateNameField('firstName', value, { fieldLabel: 'First name' })
+      return
+    }
+
+    if (field === 'lastName') {
+      validateNameField('lastName', value, { fieldLabel: 'Last name' })
+      return
+    }
+
+    if (field === 'email') {
+      if (errors.email || value.includes('@') || /\s/.test(value)) {
+        validateEmailField(value)
+      }
+      return
+    }
+
     if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: '' }))
+      setFieldError(field, '')
     }
   }
 
   const buildFormErrors = () => {
     const nextErrors = {}
 
-    if (!form.firstName.trim()) nextErrors.firstName = 'First name is required'
-    if (!form.lastName.trim()) nextErrors.lastName = 'Last name is required'
+    const firstNameResult = validatePersonName(form.firstName, { fieldLabel: 'First name' })
+    if (!firstNameResult.valid) nextErrors.firstName = firstNameResult.message
+
+    const lastNameResult = validatePersonName(form.lastName, { fieldLabel: 'Last name' })
+    if (!lastNameResult.valid) nextErrors.lastName = lastNameResult.message
+
     if (!form.gender) nextErrors.gender = 'Please select your gender'
 
     const emailResult = validateEmail(form.email)
@@ -245,19 +299,24 @@ export default function RegisterPage() {
   return (
     <AuthLayout wide>
       <motion.div {...formHeaderMotion} className="text-center">
-          <p className="text-xs text-auth-muted sm:text-sm">Lets Get You Started</p>
-          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-            Register your account
-          </h1>
-        </motion.div>
+        <p className="auth-subheading font-medium tracking-wide text-auth-muted">
+          Let&apos;s get you started
+        </p>
+        <h1 className="auth-heading mt-1.5 font-bold tracking-tight text-slate-900">
+          Register your account
+        </h1>
+        <p className="auth-body mx-auto mt-1.5 max-w-md leading-relaxed text-slate-500">
+          Create your EZ-Stores account to shop, track orders, and checkout faster.
+        </p>
+      </motion.div>
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4 sm:mt-6">
-          <motion.div
-            variants={formStaggerContainer}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-          >
+      <form onSubmit={handleSubmit} className="mt-4 space-y-4 sm:mt-5">
+        <motion.div
+          variants={formStaggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4"
+        >
             <FormField name="firstName">
               <TextInput
                 id="firstName"
@@ -265,6 +324,12 @@ export default function RegisterPage() {
                 icon={User}
                 value={form.firstName}
                 onChange={(value) => updateField('firstName', value)}
+                onBlur={() =>
+                  validateNameField('firstName', form.firstName, {
+                    fieldLabel: 'First name',
+                    requireValue: Boolean(form.firstName.trim()),
+                  })
+                }
                 error={errors.firstName}
                 disabled={isSubmitting}
                 autoComplete="given-name"
@@ -277,6 +342,12 @@ export default function RegisterPage() {
                 icon={UserRound}
                 value={form.lastName}
                 onChange={(value) => updateField('lastName', value)}
+                onBlur={() =>
+                  validateNameField('lastName', form.lastName, {
+                    fieldLabel: 'Last name',
+                    requireValue: Boolean(form.lastName.trim()),
+                  })
+                }
                 error={errors.lastName}
                 disabled={isSubmitting}
                 autoComplete="family-name"
@@ -289,7 +360,7 @@ export default function RegisterPage() {
                 onBlur={() => {
                   if (!form.phone.trim()) return
                   const result = validateGhanaPhone(form.phone)
-                  setErrors((prev) => ({ ...prev, phone: result.valid ? '' : result.message }))
+                  setFieldError('phone', result.valid ? '' : result.message)
                 }}
                 error={errors.phone}
                 disabled={isSubmitting}
@@ -303,6 +374,11 @@ export default function RegisterPage() {
                 type="email"
                 value={form.email}
                 onChange={(value) => updateField('email', value)}
+                onBlur={() =>
+                  validateEmailField(form.email, {
+                    requireValue: Boolean(form.email.trim()),
+                  })
+                }
                 error={errors.email}
                 disabled={isSubmitting}
                 autoComplete="email"
@@ -390,7 +466,7 @@ export default function RegisterPage() {
               type="submit"
               disabled={isSubmitting}
               whileTap={{ scale: 0.985 }}
-              className="mt-4 w-full rounded-xl bg-auth-primary py-3.5 text-base font-semibold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
+              className="mt-4 w-full rounded-xl bg-auth-primary py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3 min-[1800px]:py-4 min-[1800px]:text-base"
             >
               {isSubmitting ? 'Creating account…' : 'Continue'}
             </motion.button>
@@ -399,13 +475,18 @@ export default function RegisterPage() {
 
         <motion.p
           {...formHeaderMotion}
-          className="mt-4 text-center text-sm text-auth-muted sm:mt-5"
+          className="auth-body mt-4 text-center text-auth-muted sm:mt-5"
         >
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-auth-accent underline-offset-2 hover:underline">
+          <Link
+            to="/login"
+            className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
+          >
             Login
           </Link>
-      </motion.p>
+        </motion.p>
+
+        <AuthHomeLink />
     </AuthLayout>
   )
 }

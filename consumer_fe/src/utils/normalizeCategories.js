@@ -11,6 +11,42 @@ function unwrapApiEnvelope(body) {
   return body
 }
 
+export const CATEGORY_SLUG_ALIASES = {
+  'phones-and-accessories': 'mobile-phones-accessories',
+  phones_and_accessories: 'mobile-phones-accessories',
+  'phones-accessories': 'mobile-phones-accessories',
+  'mobile-phones': 'mobile-phones-accessories',
+  smartphones: 'mobile-phones-accessories',
+  'phones-and-tablets': 'phones-tablets',
+  'phone-tablets': 'phones-tablets',
+  'phone-tablet': 'phones-tablets',
+  'home-and-kitchen': 'home-kitchen',
+  home_and_kitchen: 'home-kitchen',
+  home_kitchen: 'home-kitchen',
+  'construction-and-tools': 'construction-tools',
+  'construction-and-tools-equipment': 'construction-tools',
+  'computer-laptop': 'computing',
+  computers: 'computing',
+  'baby-and-maternity': 'baby-and-maternity',
+  baby_maternity: 'baby-and-maternity',
+  'bags-and-luggage': 'bags-and-luggage',
+  bags_luggage: 'bags-and-luggage',
+}
+
+export function normalizeCategorySlug(slug = '') {
+  const normalized = String(slug).toLowerCase().trim().replace(/_/g, '-')
+  return CATEGORY_SLUG_ALIASES[normalized] ?? normalized
+}
+
+function slugsMatch(categorySlug, searchSlug) {
+  return normalizeCategorySlug(categorySlug) === normalizeCategorySlug(searchSlug)
+}
+
+export function formatCategorySlugLabel(slug = '') {
+  const label = normalizeCategorySlug(slug).replace(/-/g, ' ')
+  return label ? label.replace(/\b\w/g, (char) => char.toUpperCase()) : ''
+}
+
 export function normalizeCategoryRecord(record) {
   if (!record || typeof record !== 'object') return null
 
@@ -41,7 +77,7 @@ export function findCategoryBySlug(categories, slug) {
   if (!slug) return null
 
   for (const category of categories) {
-    if (category.slug === slug) return category
+    if (slugsMatch(category.slug, slug)) return category
 
     const nestedMatch = findCategoryBySlug(category.children ?? [], slug)
     if (nestedMatch) return nestedMatch

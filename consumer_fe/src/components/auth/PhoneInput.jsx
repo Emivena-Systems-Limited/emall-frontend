@@ -32,9 +32,9 @@ export default function PhoneInput({
             : 'border-slate-200 focus-within:border-auth-primary focus-within:ring-2 focus-within:ring-red-100'
         } ${disabled ? 'opacity-60' : ''}`}
       >
-        <div className="flex items-center gap-1.5 border-r border-slate-200 bg-slate-50 px-2.5 py-3 sm:gap-2 sm:px-3 sm:py-3.5">
+        <div className="flex items-center gap-1.5 border-r border-slate-200 bg-slate-50 px-2.5 py-2 sm:gap-2 sm:px-3 sm:py-2.5 min-[1800px]:px-4 min-[1800px]:py-4">
           <GhanaFlag />
-          <span className="text-xs font-medium text-slate-700 sm:text-sm">+233</span>
+          <span className="auth-body font-medium text-slate-700">+233</span>
         </div>
         <input
           id="phone"
@@ -46,7 +46,7 @@ export default function PhoneInput({
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
           onBlur={onBlur}
-          className="min-w-0 flex-1 bg-white px-2.5 py-3 text-base text-slate-900 outline-none placeholder:text-slate-400 sm:px-3 sm:py-3.5 sm:text-sm"
+          className="min-w-0 flex-1 bg-white px-2.5 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 sm:px-3 sm:py-2.5 min-[1800px]:px-4 min-[1800px]:py-4 min-[1800px]:text-base"
         />
       </div>
       {error && <FieldError message={error} />}
