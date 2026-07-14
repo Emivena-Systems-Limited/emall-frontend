@@ -107,9 +107,15 @@ function buildSavedAddressPayload(address, type = 'shipping') {
 
 function getAddressKey(address) {
   const normalized = normalizeAddress(address)
-  if (normalized.id) return `id:${normalized.id}`
 
-  return [normalized.address, normalized.phone, normalized.town]
+  return [
+    normalized.firstName,
+    normalized.lastName,
+    normalized.address,
+    normalized.phone,
+    normalized.town,
+    normalized.region,
+  ]
     .map((value) => String(value).trim().toLowerCase())
     .join('|')
 }
@@ -561,7 +567,13 @@ export default function CheckoutPage() {
 
     for (const savedAddress of [...fetchedAddresses, ...sessionAddresses]) {
       const key = getAddressKey(savedAddress)
-      if (key && key !== '||') uniqueAddresses.set(key, savedAddress)
+      const existingAddress = uniqueAddresses.get(key)
+      const existingHasId = Boolean(normalizeAddress(existingAddress).id)
+      const incomingHasId = Boolean(normalizeAddress(savedAddress).id)
+
+      if (key.replaceAll('|', '') && (!existingAddress || incomingHasId || !existingHasId)) {
+        uniqueAddresses.set(key, savedAddress)
+      }
     }
 
     return [...uniqueAddresses.values()]

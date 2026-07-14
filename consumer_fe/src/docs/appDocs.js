@@ -224,6 +224,7 @@ export const progressLog = [
       'Updated checkout for the July 2026 backend contract: GET /checkout/preview reads data.items and data.summary totals, while POST /checkout sends shipping_address_id from the selected shipping address and billing_address_id from a separately selected billing address returned by GET /user/get-addresses.',
       'Billing addresses can now be created from checkout through POST /user/create-address with type billing, then selected independently from the saved billing list.',
       'When no billing address exists, opening the billing form prefills available registered-user details and falls back to the selected shipping address for profile fields that registration does not provide.',
+      'Saved delivery addresses are reconciled by normalized address contents after creation, preventing the optimistic form result and refreshed backend record from appearing as duplicates.',
       'Live POST /checkout testing confirms the new address-ID fields pass validation, but the backend currently returns HTTP 500 because CheckoutController.php line 39 still reads the removed shipping_address array key.',
     ],
   },
