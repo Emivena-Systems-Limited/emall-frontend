@@ -130,6 +130,17 @@ export const vendorLoginSchema = Yup.object({
   password: Yup.string().required('Password is required'),
 })
 
+export const vendorForgotPasswordEmailSchema = Yup.object({
+  email: Yup.string().trim().email('Enter a valid email address').required('Email is required'),
+})
+
+export const vendorResetPasswordSchema = Yup.object({
+  password: passwordSchema,
+  password_confirmation: Yup.string()
+    .oneOf([Yup.ref('password')], 'Passwords must match')
+    .required('Please confirm your password'),
+})
+
 const nullableNumber = Yup.number()
   .nullable()
   .transform((value, originalValue) => {

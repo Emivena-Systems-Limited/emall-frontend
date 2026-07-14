@@ -48,7 +48,14 @@ import {
 import { useProduct, productQueryKeys } from '../../hooks/useProducts'
 import { mapProductRecordToFormState } from '../../utils/mapProductToFormValues'
 import { productInfoSchema, singleVariantSchema } from '../../utils/validationSchemas'
-import { validateProductImageLimits, validateDescriptiveImageLimits, validateGalleryImagesRequired } from '../../utils/productImageUtils'
+import {
+  validateProductImageLimits,
+  validateDescriptiveImageLimits,
+  validateDescriptiveImageDimensions,
+  validateFeaturedImageDimensions,
+  validateGalleryImagesRequired,
+  validatePrimaryImageDimensions,
+} from '../../utils/productImageUtils'
 import {
   buildProductInfoPayload,
   formatProductPayloadSample,
@@ -304,11 +311,38 @@ function ProductInfoEditForm({
         return false
       }
 
+      const primaryDimensions = await validatePrimaryImageDimensions(mainImage)
+      if (!primaryDimensions.valid) {
+        setMainImageError(primaryDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ main_product_image: primaryDimensions.message })
+        })
+        return false
+      }
+
+      const featuredDimensions = await validateFeaturedImageDimensions(subImages)
+      if (!featuredDimensions.valid) {
+        setGalleryImagesError(featuredDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ sub_product_images: featuredDimensions.message })
+        })
+        return false
+      }
+
       const descriptiveLimits = validateDescriptiveImageLimits(descriptiveImages)
       if (!descriptiveLimits.valid) {
         setDescriptiveImagesError(descriptiveLimits.message)
         requestAnimationFrame(() => {
           scrollToFirstError({ descriptive_product_images: descriptiveLimits.message })
+        })
+        return false
+      }
+
+      const descriptiveDimensions = await validateDescriptiveImageDimensions(descriptiveImages)
+      if (!descriptiveDimensions.valid) {
+        setDescriptiveImagesError(descriptiveDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ descriptive_product_images: descriptiveDimensions.message })
         })
         return false
       }
@@ -392,6 +426,28 @@ function ProductInfoEditForm({
       return
     }
 
+    const primaryDimensions = await validatePrimaryImageDimensions(mainImage)
+    if (!primaryDimensions.valid) {
+      setMainImageError(primaryDimensions.message)
+      navigateToStep(1)
+      requestAnimationFrame(() => {
+        scrollToFirstError({ main_product_image: primaryDimensions.message })
+      })
+      notify.error(primaryDimensions.message)
+      return
+    }
+
+    const featuredDimensions = await validateFeaturedImageDimensions(subImages)
+    if (!featuredDimensions.valid) {
+      setGalleryImagesError(featuredDimensions.message)
+      navigateToStep(1)
+      requestAnimationFrame(() => {
+        scrollToFirstError({ sub_product_images: featuredDimensions.message })
+      })
+      notify.error(featuredDimensions.message)
+      return
+    }
+
     const descriptiveLimits = validateDescriptiveImageLimits(descriptiveImages)
     if (!descriptiveLimits.valid) {
       setDescriptiveImagesError(descriptiveLimits.message)
@@ -400,6 +456,17 @@ function ProductInfoEditForm({
         scrollToFirstError({ descriptive_product_images: descriptiveLimits.message })
       })
       notify.error(descriptiveLimits.message)
+      return
+    }
+
+    const descriptiveDimensions = await validateDescriptiveImageDimensions(descriptiveImages)
+    if (!descriptiveDimensions.valid) {
+      setDescriptiveImagesError(descriptiveDimensions.message)
+      navigateToStep(1)
+      requestAnimationFrame(() => {
+        scrollToFirstError({ descriptive_product_images: descriptiveDimensions.message })
+      })
+      notify.error(descriptiveDimensions.message)
       return
     }
 

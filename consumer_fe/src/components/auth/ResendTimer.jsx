@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { OTP_RESEND_SECONDS } from '../../constants/auth'
+import {
+  getAuthOtpResendSecondsLeft,
+  markAuthOtpResendCooldown,
+} from '../../utils/authOtpSession'
 
 function formatTimer(seconds) {
   return `${seconds}s`
@@ -47,14 +51,14 @@ function ResendLoadingIndicator() {
 }
 
 export default function ResendTimer({ onResend, disabled = false }) {
-  const [secondsLeft, setSecondsLeft] = useState(OTP_RESEND_SECONDS)
+  const [secondsLeft, setSecondsLeft] = useState(() => getAuthOtpResendSecondsLeft(OTP_RESEND_SECONDS))
   const [isResending, setIsResending] = useState(false)
 
   useEffect(() => {
     if (secondsLeft <= 0) return undefined
 
     const timer = setInterval(() => {
-      setSecondsLeft((prev) => Math.max(prev - 1, 0))
+      setSecondsLeft(getAuthOtpResendSecondsLeft(OTP_RESEND_SECONDS))
     }, 1000)
 
     return () => clearInterval(timer)
@@ -66,6 +70,7 @@ export default function ResendTimer({ onResend, disabled = false }) {
     setIsResending(true)
     try {
       await onResend()
+      markAuthOtpResendCooldown(OTP_RESEND_SECONDS)
       setSecondsLeft(OTP_RESEND_SECONDS)
     } finally {
       setIsResending(false)

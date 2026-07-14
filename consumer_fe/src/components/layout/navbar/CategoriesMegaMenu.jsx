@@ -226,38 +226,37 @@ export default function CategoriesMegaMenu({ open, onClose }) {
   }
 
   return (
-    <AnimatePresence>
+    <>
       {open && (
-        <>
-          <motion.button
-            type="button"
-            aria-label="Close categories menu"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 hidden bg-slate-900/20 backdrop-blur-[1px] lg:block"
-            onClick={onClose}
-          />
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-40 hidden bg-slate-900/20 backdrop-blur-[1px] lg:block"
+        />
+      )}
 
+      <AnimatePresence>
+        {open && (
           <motion.div
             id="categories-mega-menu"
             role="dialog"
             aria-modal="true"
             aria-label="Browse categories"
-            initial={{ opacity: 0, y: -12 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.28, ease: panelEase }}
-            className="absolute inset-x-0 top-full z-50 hidden lg:block"
+            exit={{ opacity: 0, y: -6, transition: { duration: 0.12, ease: panelEase } }}
+            transition={{ duration: 0.18, ease: panelEase }}
+            className="pointer-events-none absolute inset-x-0 top-full z-50 hidden lg:block"
           >
-            <Container className="py-0">
-              <div className="overflow-hidden rounded-b-2xl border border-slate-100 border-t-0 bg-white shadow-[0_28px_60px_-20px_rgba(15,23,42,0.22)]">
+            <Container className="pointer-events-none py-0">
+              <div
+                data-categories-panel
+                className="pointer-events-auto overflow-hidden rounded-b-2xl border border-slate-100 border-t-0 bg-white shadow-[0_28px_60px_-20px_rgba(15,23,42,0.22)]"
+              >
                 {isLoading ? (
                   <div className="px-6 py-8 text-sm text-slate-500">Loading categories...</div>
                 ) : (
-                  <div className="grid grid-cols-[10.5rem_minmax(0,1fr)] xl:grid-cols-[11rem_minmax(0,1fr)]">
-                    <nav aria-label="Product categories" className="border-r border-slate-100 py-3 pr-1">
+                  <div className="grid grid-cols-[minmax(14rem,max-content)_minmax(0,1fr)]">
+                    <nav aria-label="Product categories" className="shrink-0 border-r border-slate-100 py-3 pr-1">
                       <ul className="space-y-0.5">
                         {menuItems.map((category) => {
                           const isActive = category.id === activeCategoryId
@@ -269,13 +268,13 @@ export default function CategoriesMegaMenu({ open, onClose }) {
                                 onClick={onClose}
                                 onMouseEnter={() => handleCategoryEnter(category)}
                                 onFocus={() => handleCategoryEnter(category)}
-                                className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                                className={`group flex items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors ${
                                   isActive
                                     ? 'bg-slate-100 font-medium text-slate-900'
                                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                 }`}
                               >
-                                <span className="min-w-0 truncate">{category.label}</span>
+                                <span>{category.label}</span>
                                 {isActive && (
                                   <ChevronRight
                                     className="size-4 shrink-0 text-slate-400"
@@ -307,8 +306,8 @@ export default function CategoriesMegaMenu({ open, onClose }) {
               </div>
             </Container>
           </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

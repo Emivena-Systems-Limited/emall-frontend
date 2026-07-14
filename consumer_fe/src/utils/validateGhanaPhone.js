@@ -64,6 +64,37 @@ export function validateGhanaPhone(value) {
   }
 }
 
+const NAME_PATTERN = /^[\p{L}]+(?:[ '\-][\p{L}]+)*$/u
+
+export function validatePersonName(value, { fieldLabel = 'Name' } = {}) {
+  const name = String(value ?? '').trim().replace(/\s+/g, ' ')
+
+  if (!name) {
+    return { valid: false, message: `${fieldLabel} is required` }
+  }
+
+  if (/\d/.test(name)) {
+    return { valid: false, message: `${fieldLabel} cannot contain numbers` }
+  }
+
+  if (/[^ \p{L}'\-]/u.test(name)) {
+    return {
+      valid: false,
+      message: `${fieldLabel} can only contain letters, spaces, hyphens, and apostrophes`,
+    }
+  }
+
+  if (name.length < 2) {
+    return { valid: false, message: `${fieldLabel} must be at least 2 characters` }
+  }
+
+  if (!NAME_PATTERN.test(name)) {
+    return { valid: false, message: `Enter a valid ${fieldLabel.toLowerCase()}` }
+  }
+
+  return { valid: true, name }
+}
+
 export function validateEmail(value) {
   const email = value.trim()
 
@@ -71,10 +102,31 @@ export function validateEmail(value) {
     return { valid: false, message: 'Email address is required' }
   }
 
+  if (/\s/.test(email)) {
+    return { valid: false, message: 'Email address cannot contain spaces' }
+  }
+
+  if (!email.includes('@')) {
+    return { valid: false, message: 'Email address must include @' }
+  }
+
+  const [localPart, domainPart, ...rest] = email.split('@')
+  if (rest.length > 0 || !localPart || !domainPart) {
+    return { valid: false, message: 'Enter a valid email address' }
+  }
+
+  if (/^\d+$/.test(localPart)) {
+    return { valid: false, message: 'Email address cannot start with only numbers' }
+  }
+
+  if (!domainPart.includes('.')) {
+    return { valid: false, message: 'Enter a complete email address (e.g. name@example.com)' }
+  }
+
   const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i
   if (!pattern.test(email)) {
     return { valid: false, message: 'Enter a valid email address' }
   }
 
-  return { valid: true, email }
+  return { valid: true, email: email.toLowerCase() }
 }

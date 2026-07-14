@@ -21,7 +21,7 @@ export default function SelectInput({
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          className={`w-full appearance-none rounded-xl border bg-white px-3 py-3 text-base text-slate-900 outline-none transition-colors sm:px-4 sm:py-3.5 sm:text-sm ${
+          className={`w-full appearance-none rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors sm:px-3 sm:py-2.5 min-[1800px]:px-5 min-[1800px]:py-4 min-[1800px]:text-base ${
             !value ? 'text-slate-400' : ''
           } ${
             error

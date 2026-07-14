@@ -2,13 +2,13 @@ import { motion } from 'framer-motion'
 import { Mail, Phone } from 'lucide-react'
 
 const tabs = [
-  { id: 'phone', label: 'Phone Number', shortLabel: 'Phone', icon: Phone },
   { id: 'email', label: 'Email', shortLabel: 'Email', icon: Mail },
+  { id: 'phone', label: 'Phone Number', shortLabel: 'Phone', icon: Phone },
 ]
 
 export default function AuthTabs({ activeTab, onChange }) {
   return (
-    <div className="mb-5 max-[740px]:mb-4 sm:mb-6">
+    <div className="mb-4 sm:mb-5">
       <div className="relative rounded-xl bg-slate-100/90 p-1 ring-1 ring-slate-200/70 sm:rounded-2xl sm:p-1.5">
         <div className="relative grid grid-cols-2 gap-1">
           {tabs.map((tab) => {
@@ -20,7 +20,7 @@ export default function AuthTabs({ activeTab, onChange }) {
                 key={tab.id}
                 type="button"
                 onClick={() => onChange(tab.id)}
-                className={`relative z-10 flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-xs font-semibold transition-colors duration-200 sm:min-h-12 sm:gap-2 sm:rounded-xl sm:px-3 sm:py-3 sm:text-sm ${
+                className={`relative z-10 flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors duration-200 sm:min-h-11 sm:gap-2 sm:rounded-xl sm:px-3 sm:py-2.5 sm:text-sm min-[1800px]:min-h-12 min-[1800px]:text-base ${
                   isActive ? 'text-auth-primary' : 'text-auth-muted hover:text-slate-700'
                 }`}
               >

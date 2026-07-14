@@ -1,14 +1,26 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GripVertical, ImagePlus, Trash2, Upload } from 'lucide-react'
 import FieldError from '../auth/FieldError'
 import notify from '../../lib/notify'
 import {
+  FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+} from '../../constants/products'
+import {
+  ProductImageDimensionBadge,
+  ProductImageDimensionGuidance,
+  ProductImageDimensionLegend,
+} from './ProductImageDimensionHints'
+import {
   createProductImageFromFile,
+  evaluateFeaturedImageDimensions,
   formatImageStorageSize,
+  getFeaturedDimensionGuidance,
   getProductImageLimitsSummary,
   getStandaloneImageLimitsSummary,
   pickProductImageFiles,
   pickStandaloneImageFiles,
+  readImageFileDimensions,
+  readImageUrlDimensions,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
@@ -29,6 +41,8 @@ export default function ProductImageUploader({
   zoneHint,
   reorderHint = ' · Drag gallery photos to reorder',
   limitMessage,
+  thumbnailClassName = 'aspect-[1.45] w-40 min-h-0 shrink-0 sm:w-48',
+  validateDimensions = true,
 }) {
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -42,8 +56,64 @@ export default function ProductImageUploader({
     ?? (standalone
       ? `You can upload at most ${limits.maxCount} image${limits.maxCount === 1 ? '' : 's'}.`
       : `You can upload at most ${limits.maxCount} images (including the main photo).`)
+  const guidance = getFeaturedDimensionGuidance()
+  const resolvedEmptyHint = validateDimensions
+    ? `JPG or PNG · Near ${FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL} · Up to 5 images total · 5MB combined`
+    : emptyHint
 
-  const processFiles = (fileList) => {
+  useEffect(() => {
+    if (!validateDimensions) return undefined
+
+    let cancelled = false
+
+    const hydrateDimensions = async () => {
+      const needsDimensions = images.filter(
+        (image) => (!image.width || !image.height) && !image.dimensionsChecked,
+      )
+      if (needsDimensions.length === 0) return
+
+      const updates = await Promise.all(
+        needsDimensions.map(async (image) => {
+          try {
+            if (image.file) {
+              const dimensions = await readImageFileDimensions(image.file)
+              return { id: image.id, ...dimensions, dimensionsChecked: true }
+            }
+
+            const preview = String(image.preview ?? '').trim()
+            if (preview) {
+              const dimensions = await readImageUrlDimensions(preview)
+              return { id: image.id, ...dimensions, dimensionsChecked: true }
+            }
+          } catch {
+            return { id: image.id, width: null, height: null, dimensionsChecked: true }
+          }
+
+          return { id: image.id, width: null, height: null, dimensionsChecked: true }
+        }),
+      )
+
+      if (cancelled) return
+
+      const dimensionMap = new Map(updates.map((entry) => [entry.id, entry]))
+
+      onChange(
+        images.map((image) => {
+          const next = dimensionMap.get(image.id)
+          if (!next) return image
+          return { ...image, ...next }
+        }),
+      )
+    }
+
+    hydrateDimensions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [images, onChange, validateDimensions])
+
+  const processFiles = async (fileList) => {
     const files = Array.from(fileList)
     const { accepted, notices } = standalone
       ? pickStandaloneImageFiles({
@@ -64,7 +134,31 @@ export default function ProductImageUploader({
 
     if (accepted.length === 0) return
 
-    onChange([...images, ...accepted.map(createProductImageFromFile)])
+    const nextImages = [...images]
+
+    for (const file of accepted) {
+      try {
+        if (validateDimensions) {
+          const { width, height } = await readImageFileDimensions(file)
+          const result = evaluateFeaturedImageDimensions(width, height)
+
+          if (!result.valid) {
+            notify.error(result.message)
+            continue
+          }
+
+          nextImages.push(createProductImageFromFile(file, { width, height }))
+        } else {
+          nextImages.push(createProductImageFromFile(file))
+        }
+      } catch {
+        notify.error('Could not read one of the selected images. Try a different JPG or PNG file.')
+      }
+    }
+
+    if (nextImages.length > images.length) {
+      onChange(nextImages)
+    }
   }
 
   const removeImage = (id) => {
@@ -101,6 +195,22 @@ export default function ProductImageUploader({
 
   return (
     <div data-field={dataField} className="space-y-4">
+      {validateDimensions && (
+        <ProductImageDimensionGuidance
+          title="Recommended size for the product page gallery"
+          description={
+            <>
+              These photos appear in the large hero gallery on your product page (wide on desktop, square on mobile).
+              Upload wide landscape images close to{' '}
+              <span className="font-semibold text-slate-800">{FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL}</span>
+              {' '}so they fill the viewer without awkward empty space.
+            </>
+          }
+          guidance={guidance}
+          footer="Exact pixels are not required — close is fine. Square or portrait photos leave bands in the desktop hero gallery."
+        />
+      )}
+
       <div
         role="button"
         tabIndex={atImageLimit ? -1 : 0}
@@ -152,7 +262,7 @@ export default function ProductImageUploader({
         {images.length === 0 ? (
           <div className="text-center">
             <p className="text-sm font-semibold text-slate-800">{emptyTitle}</p>
-            <p className="mt-1 text-xs text-slate-500">{emptyHint}</p>
+            <p className="mt-1 text-xs text-slate-500">{resolvedEmptyHint}</p>
           </div>
         ) : (
           <p className="text-xs font-semibold text-slate-500">
@@ -173,7 +283,7 @@ export default function ProductImageUploader({
               onDragOver={(event) => { event.preventDefault(); setOverIndex(index) }}
               onDrop={(event) => handleItemDrop(event, index)}
               onDragEnd={() => { setDraggingIndex(null); setOverIndex(null) }}
-              className={`group relative size-24 shrink-0 overflow-hidden rounded-lg sm:size-28 ${
+              className={`group relative overflow-hidden rounded-lg bg-slate-100 ${thumbnailClassName} ${
                 draggingIndex === index
                   ? 'cursor-grabbing opacity-40 ring-2 ring-slate-300'
                   : overIndex === index && draggingIndex !== index
@@ -185,8 +295,15 @@ export default function ProductImageUploader({
                 src={img.preview}
                 alt={`Gallery image ${index + 1}`}
                 draggable={false}
-                className="pointer-events-none size-full object-cover select-none"
+                className="pointer-events-none size-full object-contain object-center select-none"
               />
+              {validateDimensions && (
+                <ProductImageDimensionBadge
+                  width={img.width}
+                  height={img.height}
+                  evaluateFn={evaluateFeaturedImageDimensions}
+                />
+              )}
               <div className="absolute inset-0 flex cursor-grab items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing">
                 <button
                   type="button"
@@ -206,6 +323,8 @@ export default function ProductImageUploader({
           ))}
         </div>
       )}
+
+      {validateDimensions && images.length > 0 && <ProductImageDimensionLegend />}
 
       {error && <FieldError message={error} />}
       {!error && (

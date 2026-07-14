@@ -20,6 +20,7 @@ import Notifications from '../pages/notifications/Notifications'
 import Login from '../pages/auth_pages/Login'
 import Signup from '../pages/auth_pages/Signup'
 import VerifyAccount from '../pages/auth_pages/VerifyAccount'
+import ForgotPassword from '../pages/auth_pages/ForgotPassword'
 import GuestOnlyRoute from './GuestOnlyRoute'
 import ProtectedRoute from './ProtectedRoute'
 
@@ -31,6 +32,7 @@ export default function AppRoutes() {
       <Route element={<GuestOnlyRoute />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/verify-account" element={<VerifyAccount />} />
       </Route>

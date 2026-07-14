@@ -9,8 +9,8 @@ export const CATEGORIES_PAGE_HEADER = {
 export const FEATURED_CATEGORY_SPOTLIGHTS = [
   {
     id: 'phones_and_accessories',
-    slug: 'phones_and_accessories',
-    href: '/categories/phones_and_accessories',
+    slug: 'mobile-phones-accessories',
+    href: '/categories/mobile-phones-accessories',
     featured: true,
     badge: 'New Arrivals',
     title: 'Phones and Accessories',
@@ -19,8 +19,8 @@ export const FEATURED_CATEGORY_SPOTLIGHTS = [
   },
   {
     id: 'home_and_kitchen',
-    slug: 'home_and_kitchen',
-    href: '/categories/home_and_kitchen',
+    slug: 'home-kitchen',
+    href: '/categories/home-kitchen',
     featured: false,
     title: 'Home and Kitchen',
     subtitle: "Explore our latest home and kitchen products.",

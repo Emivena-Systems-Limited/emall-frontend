@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { ArrowRight, Loader2, MailCheck, ShieldCheck } from 'lucide-react'
 import AuthLayout from '../../components/auth/AuthLayout'
 import OtpInput from '../../components/auth/OtpInput'
+import OtpExpiryNotice from '../../components/auth/OtpExpiryNotice'
 import ResendTimer from '../../components/auth/ResendTimer'
 import notify from '../../lib/notify'
 import { OTP_LENGTH } from '../../constants/auth'
@@ -67,7 +68,7 @@ export default function VerifyAccount() {
   return (
     <AuthLayout
       title="Verify your account"
-      subtitle="We sent a 6-digit code to your email. Enter it below to verify your email address."
+      subtitle="We sent a 6-digit code to your email. Enter it below to verify your email address. The code expires in 5 minutes."
     >
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -89,6 +90,8 @@ export default function VerifyAccount() {
             error={hasError}
             disabled={verifyMutation.isPending}
           />
+
+          <OtpExpiryNotice className="mt-4" />
 
           <div className="mt-6">
             <ResendTimer

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Menu, X } from 'lucide-react'
 import Container from '../Container'
 import StoreLogo from '../StoreLogo'
@@ -32,6 +32,28 @@ export default function Navbar({ cartCount = 0 }) {
     setCategoriesOpen(true)
   }
 
+  useEffect(() => {
+    if (!categoriesOpen) return undefined
+
+    const handlePointerDown = (event) => {
+      if (event.target.closest('[data-categories-toggle]')) return
+      if (event.target.closest('[data-categories-panel]')) return
+      closeCategories()
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true)
+  }, [categoriesOpen])
+
+  useEffect(() => {
+    if (!categoriesOpen) return undefined
+
+    const handleScroll = () => closeCategories()
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [categoriesOpen])
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-auth-primary text-white shadow-sm shadow-black/5">
       <div className="relative z-60 bg-auth-primary">
@@ -57,7 +79,7 @@ export default function Navbar({ cartCount = 0 }) {
 
           {/* Mobile + tablet search + categories row */}
           <div className="flex flex-col gap-2 pb-2 lg:hidden">
-            <NavbarSearch compact />
+            <NavbarSearch compact onFocus={categoriesOpen ? closeCategories : undefined} />
             <NavbarCategoriesButton
               mode="dropdown"
               fullWidth
@@ -77,8 +99,8 @@ export default function Navbar({ cartCount = 0 }) {
               onToggle={toggleCategories}
             />
 
-            <div className="mx-1 min-w-[16rem] flex-1 max-w-md xl:max-w-lg">
-              <NavbarSearch />
+            <div className="min-w-0 flex-1">
+              <NavbarSearch onFocus={categoriesOpen ? closeCategories : undefined} />
             </div>
 
             <div className="ml-auto flex items-center gap-3 xl:gap-4">

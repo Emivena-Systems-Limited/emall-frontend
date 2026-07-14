@@ -1,25 +1,47 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import HeroBannerCard from './HeroBannerCard'
 
 const ease = [0.16, 1, 0.3, 1]
 const AUTOPLAY_MS = 5000
+const MIN_SLIDE_WIDTH = 280
+const MAX_SLIDES_PER_VIEW = 4
 
-function useSlidesPerView() {
+function useSlidesPerView(containerRef) {
   const [slidesPerView, setSlidesPerView] = useState(1)
 
   useEffect(() => {
     const update = () => {
-      if (window.matchMedia('(min-width: 1024px)').matches) setSlidesPerView(4)
-      else if (window.matchMedia('(min-width: 640px)').matches) setSlidesPerView(2)
-      else setSlidesPerView(1)
+      const width = containerRef.current?.clientWidth ?? window.innerWidth
+
+      if (width < 640) {
+        setSlidesPerView(1)
+        return
+      }
+
+      if (width < 1024) {
+        setSlidesPerView(2)
+        return
+      }
+
+      const gap = 12
+      const fitCount = Math.floor((width + gap) / (MIN_SLIDE_WIDTH + gap))
+      setSlidesPerView(Math.max(2, Math.min(MAX_SLIDES_PER_VIEW, fitCount)))
     }
 
     update()
     window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
-  }, [])
+
+    const container = containerRef.current
+    const resizeObserver = container ? new ResizeObserver(update) : null
+    if (container) resizeObserver.observe(container)
+
+    return () => {
+      window.removeEventListener('resize', update)
+      resizeObserver?.disconnect()
+    }
+  }, [containerRef])
 
   return slidesPerView
 }
@@ -47,7 +69,8 @@ function buildPages(banners, slidesPerView) {
 }
 
 export default function HeroBannerCarousel({ banners }) {
-  const slidesPerView = useSlidesPerView()
+  const containerRef = useRef(null)
+  const slidesPerView = useSlidesPerView(containerRef)
   const pages = useMemo(() => buildPages(banners, slidesPerView), [banners, slidesPerView])
   const pageCount = pages.length
 
@@ -82,6 +105,7 @@ export default function HeroBannerCarousel({ banners }) {
 
   return (
     <div
+      ref={containerRef}
       className="relative"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -97,7 +121,7 @@ export default function HeroBannerCarousel({ banners }) {
           {pages.map((page, pageIndex) => (
             <div
               key={`page-${pageIndex}`}
-              className="flex w-full shrink-0 gap-2.5 sm:gap-3"
+              className="flex w-full shrink-0 gap-2 sm:gap-2.5 lg:gap-3"
             >
               {page.map((banner, index) => (
                 <div key={`${banner.id}-${pageIndex}-${index}`} className="min-w-0 flex-1">

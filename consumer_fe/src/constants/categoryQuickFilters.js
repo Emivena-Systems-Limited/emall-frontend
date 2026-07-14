@@ -5,7 +5,7 @@ export const CATEGORY_QUICK_FILTERS = [
   { id: 'recommended', label: 'Recommended for you' },
   { id: 'bestsellers', label: 'Bestsellers' },
   { id: 'clearance', label: 'Clearance' },
-  { id: 'under-1000', label: 'Under GH₵1000' },
+  { id: 'under-100', label: 'Under 100GH₵' },
   { id: 'under-50', label: 'Under GH₵50' },
   { id: 'yard-sales', label: 'Yard Sales' },
 ]

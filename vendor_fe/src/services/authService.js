@@ -1,5 +1,9 @@
 import apiClient from '../lib/apiClient'
-import { AUTH_VERIFICATION_TYPE, VENDOR_AUTH_ENDPOINTS } from '../constants/auth'
+import {
+  AUTH_GUARD,
+  AUTH_VERIFICATION_TYPE,
+  VENDOR_AUTH_ENDPOINTS,
+} from '../constants/auth'
 import { isVendorVerified } from '../utils/vendorAuth'
 import { buildVendorRegistrationPayload } from '../utils/buildVendorRegistrationPayload'
 import { buildFieldErrors, normalizeErrorsList, unwrapApiEnvelope } from '../utils/parseApiError'
@@ -151,9 +155,35 @@ export async function verifyVendorOtp({ email, otp_token }) {
 export async function resendVendorOtp({ email }) {
   const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.RESEND_OTP, {
     email,
+    guard: AUTH_GUARD.VENDOR,
     type: AUTH_VERIFICATION_TYPE.REGISTRATION,
   })
   return assertApiSuccess(data)
+}
+
+export async function requestPasswordResetOtp({ email }) {
+  const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.SEND_RESET_PASSWORD_OTP, { email })
+  return assertApiSuccess(data)
+}
+
+export async function resetPasswordWithOtp({
+  email,
+  otp,
+  password,
+  password_confirmation,
+}) {
+  const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.RESET_PASSWORD, {
+    email,
+    otp: Number(otp),
+    password,
+    password_confirmation,
+    type: AUTH_VERIFICATION_TYPE.RESET_PASSWORD,
+  })
+  return assertApiSuccess(data)
+}
+
+export async function resendPasswordResetOtp({ email }) {
+  return requestPasswordResetOtp({ email })
 }
 
 export async function logoutVendor() {

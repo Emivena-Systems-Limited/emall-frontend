@@ -1,7 +1,25 @@
 import {
+  DESCRIPTIVE_IMAGE_ASPECT_TOLERANCE,
+  DESCRIPTIVE_IMAGE_HEIGHT,
+  DESCRIPTIVE_IMAGE_MAX_SCALE,
+  DESCRIPTIVE_IMAGE_MIN_SCALE,
+  DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL,
+  DESCRIPTIVE_IMAGE_WIDTH,
+  FEATURED_PRODUCT_IMAGE_ASPECT_TOLERANCE,
+  FEATURED_PRODUCT_IMAGE_HEIGHT,
+  FEATURED_PRODUCT_IMAGE_MAX_SCALE,
+  FEATURED_PRODUCT_IMAGE_MIN_SCALE,
+  FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+  FEATURED_PRODUCT_IMAGE_WIDTH,
   MAX_DESCRIPTIVE_IMAGE_COUNT,
   MAX_DESCRIPTIVE_IMAGE_FILE_BYTES,
   MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES,
+  PRIMARY_PRODUCT_IMAGE_ASPECT_TOLERANCE,
+  PRIMARY_PRODUCT_IMAGE_HEIGHT,
+  PRIMARY_PRODUCT_IMAGE_MAX_SCALE,
+  PRIMARY_PRODUCT_IMAGE_MIN_SCALE,
+  PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+  PRIMARY_PRODUCT_IMAGE_WIDTH,
 } from '../constants/products'
 
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -347,13 +365,15 @@ export function isGalleryProductImage(image) {
   return image.is_primary === false || image.is_primary === '0' || image.is_primary === 0
 }
 
-export function createProductImageFromFile(file) {
+export function createProductImageFromFile(file, meta = {}) {
   return {
     id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     file,
     preview: URL.createObjectURL(file),
     isRemote: false,
     remoteId: null,
+    width: meta.width ?? null,
+    height: meta.height ?? null,
   }
 }
 
@@ -408,9 +428,9 @@ export function hasUsableProductImages(images = [], fallbackImageUrl = null) {
   return Array.isArray(images) && images.some(isUsableProductImage)
 }
 
-export function replaceProductImageWithFile(previousImage, file) {
+export function replaceProductImageWithFile(previousImage, file, meta = {}) {
   if (previousImage) revokeProductImagePreview(previousImage)
-  return createProductImageFromFile(file)
+  return createProductImageFromFile(file, meta)
 }
 
 export function revokeProductImagePreview(image) {
@@ -442,4 +462,255 @@ export function pickDescriptiveImageFiles({ images = [], files = [] }) {
     files,
     ...getDescriptiveImageLimitOptions(),
   })
+}
+
+export function getDescriptiveDimensionGuidance() {
+  return buildImageDimensionGuidance({
+    targetWidth: DESCRIPTIVE_IMAGE_WIDTH,
+    targetHeight: DESCRIPTIVE_IMAGE_HEIGHT,
+    minScale: DESCRIPTIVE_IMAGE_MIN_SCALE,
+    maxScale: DESCRIPTIVE_IMAGE_MAX_SCALE,
+  })
+}
+
+function buildImageDimensionGuidance({
+  targetWidth,
+  targetHeight,
+  minScale,
+  maxScale,
+}) {
+  return {
+    targetWidth,
+    targetHeight,
+    label: `${targetWidth} × ${targetHeight} px`,
+    minWidth: Math.round(targetWidth * minScale),
+    maxWidth: Math.round(targetWidth * maxScale),
+    minHeight: Math.round(targetHeight * minScale),
+    maxHeight: Math.round(targetHeight * maxScale),
+    aspectRatioLabel: `${targetWidth}:${targetHeight}`,
+  }
+}
+
+export function getPrimaryDimensionGuidance() {
+  return buildImageDimensionGuidance({
+    targetWidth: PRIMARY_PRODUCT_IMAGE_WIDTH,
+    targetHeight: PRIMARY_PRODUCT_IMAGE_HEIGHT,
+    minScale: PRIMARY_PRODUCT_IMAGE_MIN_SCALE,
+    maxScale: PRIMARY_PRODUCT_IMAGE_MAX_SCALE,
+  })
+}
+
+export function getFeaturedDimensionGuidance() {
+  return buildImageDimensionGuidance({
+    targetWidth: FEATURED_PRODUCT_IMAGE_WIDTH,
+    targetHeight: FEATURED_PRODUCT_IMAGE_HEIGHT,
+    minScale: FEATURED_PRODUCT_IMAGE_MIN_SCALE,
+    maxScale: FEATURED_PRODUCT_IMAGE_MAX_SCALE,
+  })
+}
+
+function evaluateProductImageDimensions(width, height, {
+  guidance,
+  aspectTolerance,
+  invalidMessage,
+}) {
+  if (!width || !height) {
+    return {
+      status: 'unknown',
+      valid: false,
+      width,
+      height,
+      dimensionLabel: null,
+      message: 'Could not read image dimensions. Try re-uploading the file.',
+    }
+  }
+
+  const targetRatio = guidance.targetWidth / guidance.targetHeight
+  const ratio = width / height
+  const ratioDiff = Math.abs(ratio - targetRatio) / targetRatio
+
+  const widthInRange = width >= guidance.minWidth && width <= guidance.maxWidth
+  const heightInRange = height >= guidance.minHeight && height <= guidance.maxHeight
+  const aspectOk = ratioDiff <= aspectTolerance
+  const dimensionLabel = `${width} × ${height} px`
+
+  if (widthInRange && heightInRange && aspectOk) {
+    const widthDelta = Math.abs(width - guidance.targetWidth) / guidance.targetWidth
+    const heightDelta = Math.abs(height - guidance.targetHeight) / guidance.targetHeight
+    const isIdeal = widthDelta <= 0.08 && heightDelta <= 0.08
+
+    return {
+      status: isIdeal ? 'ideal' : 'acceptable',
+      valid: true,
+      width,
+      height,
+      dimensionLabel,
+    }
+  }
+
+  return {
+    status: 'invalid',
+    valid: false,
+    width,
+    height,
+    dimensionLabel,
+    message: invalidMessage(dimensionLabel, guidance),
+  }
+}
+
+export function evaluatePrimaryImageDimensions(width, height) {
+  const guidance = getPrimaryDimensionGuidance()
+
+  return evaluateProductImageDimensions(width, height, {
+    guidance,
+    aspectTolerance: PRIMARY_PRODUCT_IMAGE_ASPECT_TOLERANCE,
+    invalidMessage: (dimensionLabel) => (
+      `This image is ${dimensionLabel}. Use a square photo close to ${PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} (roughly ${guidance.minWidth}–${guidance.maxWidth} px). Wide landscape or tall portrait images leave empty space in search and category cards.`
+    ),
+  })
+}
+
+export function evaluateFeaturedImageDimensions(width, height) {
+  const guidance = getFeaturedDimensionGuidance()
+
+  return evaluateProductImageDimensions(width, height, {
+    guidance,
+    aspectTolerance: FEATURED_PRODUCT_IMAGE_ASPECT_TOLERANCE,
+    invalidMessage: (dimensionLabel) => (
+      `This image is ${dimensionLabel}. Use a wide landscape photo close to ${FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL} (roughly ${guidance.minWidth}–${guidance.maxWidth} px wide). Square or portrait photos will not fill the product page hero gallery well.`
+    ),
+  })
+}
+
+export function evaluateDescriptiveImageDimensions(width, height) {
+  const guidance = getDescriptiveDimensionGuidance()
+
+  return evaluateProductImageDimensions(width, height, {
+    guidance,
+    aspectTolerance: DESCRIPTIVE_IMAGE_ASPECT_TOLERANCE,
+    invalidMessage: (dimensionLabel) => (
+      `This image is ${dimensionLabel}. Use a wide landscape photo close to ${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} (roughly ${guidance.minWidth}–${guidance.maxWidth} px wide). Square or tall images will not fit the product page grid well.`
+    ),
+  })
+}
+
+export async function validatePrimaryImageDimensions(image) {
+  if (!image) return { valid: true }
+
+  const dimensions = await resolveProductImageDimensions(image)
+  const result = evaluatePrimaryImageDimensions(dimensions.width, dimensions.height)
+
+  if (!result.valid) {
+    return {
+      valid: false,
+      message: result.message ?? 'Primary image dimensions are not suitable for product cards.',
+    }
+  }
+
+  return { valid: true }
+}
+
+export async function validateFeaturedImageDimensions(images = []) {
+  const normalized = (Array.isArray(images) ? images : []).filter(Boolean)
+  if (normalized.length === 0) return { valid: true }
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const dimensions = await resolveProductImageDimensions(normalized[index])
+    const result = evaluateFeaturedImageDimensions(dimensions.width, dimensions.height)
+
+    if (!result.valid) {
+      return {
+        valid: false,
+        index,
+        message: `${result.message} (Gallery image ${index + 1})`,
+      }
+    }
+  }
+
+  return { valid: true }
+}
+
+export function readImageFileDimensions(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('Missing image file'))
+      return
+    }
+
+    const url = URL.createObjectURL(file)
+    const image = new Image()
+
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve({ width: image.naturalWidth, height: image.naturalHeight })
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Could not read image dimensions'))
+    }
+
+    image.src = url
+  })
+}
+
+export function readImageUrlDimensions(url) {
+  return new Promise((resolve, reject) => {
+    if (!url) {
+      reject(new Error('Missing image URL'))
+      return
+    }
+
+    const image = new Image()
+
+    image.onload = () => {
+      resolve({ width: image.naturalWidth, height: image.naturalHeight })
+    }
+
+    image.onerror = () => {
+      reject(new Error('Could not read image dimensions'))
+    }
+
+    image.src = url
+  })
+}
+
+export async function resolveProductImageDimensions(image) {
+  if (!image) return { width: null, height: null }
+
+  if (image.width && image.height) {
+    return { width: image.width, height: image.height }
+  }
+
+  if (image.file) {
+    const dimensions = await readImageFileDimensions(image.file)
+    return dimensions
+  }
+
+  const preview = String(image.preview ?? '').trim()
+  if (preview) {
+    return readImageUrlDimensions(preview)
+  }
+
+  return { width: null, height: null }
+}
+
+export async function validateDescriptiveImageDimensions(images = []) {
+  const normalized = (Array.isArray(images) ? images : []).filter(Boolean)
+  if (normalized.length === 0) return { valid: true }
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const dimensions = await resolveProductImageDimensions(normalized[index])
+    const result = evaluateDescriptiveImageDimensions(dimensions.width, dimensions.height)
+
+    if (!result.valid) {
+      return {
+        valid: false,
+        index,
+        message: `${result.message} (Image ${index + 1})`,
+      }
+    }
+  }
+
+  return { valid: true }
 }

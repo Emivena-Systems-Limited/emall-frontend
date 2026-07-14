@@ -20,8 +20,8 @@ export default function TopCategoriesSection() {
   }, [apiCategories])
 
   return (
-    <section aria-labelledby="top-categories-heading" className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
-      <Container>
+    <section aria-labelledby="top-categories-heading" className="w-full bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
+      <Container className="w-full">
         <TopCategoriesCarousel categories={categories} />
       </Container>
     </section>

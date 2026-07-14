@@ -5,6 +5,7 @@ import { isValidGuestCartId } from '../utils/guestCartId'
 import {
   runSessionLogoutOnce,
   shouldForceLogoutOn401,
+  shouldSkipAuthLogout,
 } from './sessionAuth'
 
 const apiClient = axios.create({
@@ -40,7 +41,9 @@ apiClient.interceptors.request.use((config) => {
   }
 
   const shouldAttachGuestCartHeader =
-    !config.skipGuestCartHeader && isValidGuestCartId(guestCartId)
+    !config.skipGuestCartHeader &&
+    !shouldSkipAuthLogout(config) &&
+    isValidGuestCartId(guestCartId)
 
   if (shouldAttachGuestCartHeader) {
     config.headers['Guest-Cart-Id'] = String(guestCartId).trim()

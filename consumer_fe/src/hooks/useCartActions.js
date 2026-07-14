@@ -103,7 +103,8 @@ export function useCartActions() {
   const items = useSelector(selectCartItems)
 
   const addToCart = useCallback(async (product, options = {}) => {
-    const item = buildCartItem(product, options)
+    const { silentSuccess = false, ...cartOptions } = options
+    const item = buildCartItem(product, cartOptions)
     const isAuthenticated = store.getState().auth.isAuthenticated
     const shouldSyncWithApi = canSyncToApi(item)
 
@@ -136,7 +137,9 @@ export function useCartActions() {
         const response = await addGuestProductToCart(apiPayload)
         reconcileGuestCartResponse(dispatch, response, item)
         await persistor.persist()
-        notify.success(`${item.name} added to cart`)
+        if (!silentSuccess) {
+          notify.success(`${item.name} added to cart`)
+        }
         return item
       } catch (error) {
         logCartSyncError('Guest cart sync failed', error, error?.createCartResponse)
@@ -163,7 +166,9 @@ export function useCartActions() {
 
         const mergedItem = mergeGuestAddItemWithLocal(apiItem, item)
         dispatch(upsertItem(mergedItem))
-        notify.success(`${item.name} added to cart`)
+        if (!silentSuccess) {
+          notify.success(`${item.name} added to cart`)
+        }
         return mergedItem
       } catch (error) {
         logCartSyncError('Authenticated cart add failed', error)
@@ -173,8 +178,10 @@ export function useCartActions() {
     }
 
     // Local-only items (mock ids) with no API sync.
-    dispatch(addItem({ product, options }))
-    notify.success(`${item.name} added to cart`)
+    dispatch(addItem({ product, options: cartOptions }))
+    if (!silentSuccess) {
+      notify.success(`${item.name} added to cart`)
+    }
 
     if (import.meta.env.DEV && !shouldSyncWithApi) {
       console.warn('Cart API sync skipped — no backend product_id', {

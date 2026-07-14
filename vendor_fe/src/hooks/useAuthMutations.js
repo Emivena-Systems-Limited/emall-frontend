@@ -4,7 +4,10 @@ import {
   loginVendor,
   logoutVendor,
   registerVendor,
+  requestPasswordResetOtp,
+  resendPasswordResetOtp,
   resendVendorOtp,
+  resetPasswordWithOtp,
   verifyVendorOtp,
 } from '../services/authService'
 import { logout } from '../store/slices/authSlice'
@@ -44,6 +47,30 @@ export function useResendVendorOtpMutation() {
     mutationKey: ['vendor-auth', 'resend-otp'],
     mutationFn: resendVendorOtp,
     onError: (error) => notify.fromError(error, 'Could not resend verification code'),
+  })
+}
+
+export function useRequestPasswordResetOtpMutation() {
+  return useMutation({
+    mutationKey: ['vendor-auth', 'forgot-password-request'],
+    mutationFn: requestPasswordResetOtp,
+    onError: (error) => notify.fromError(error, 'Could not send reset code'),
+  })
+}
+
+export function useResetPasswordWithOtpMutation() {
+  return useMutation({
+    mutationKey: ['vendor-auth', 'reset-password'],
+    mutationFn: resetPasswordWithOtp,
+    onError: (error) => notify.fromError(error, 'Could not reset password. Check your code and try again.'),
+  })
+}
+
+export function useResendPasswordResetOtpMutation() {
+  return useMutation({
+    mutationKey: ['vendor-auth', 'resend-password-reset-otp'],
+    mutationFn: resendPasswordResetOtp,
+    onError: (error) => notify.fromError(error, 'Could not resend reset code'),
   })
 }
 

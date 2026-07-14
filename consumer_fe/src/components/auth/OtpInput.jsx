@@ -1,8 +1,14 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { OTP_LENGTH } from '../../constants/auth'
 
-export default function OtpInput({ value, onChange, error = false, disabled = false }) {
+export default function OtpInput({
+  value,
+  onChange,
+  error = false,
+  disabled = false,
+  autoFocus = false,
+}) {
   const inputsRef = useRef([])
 
   const digits = Array.from({ length: OTP_LENGTH }, (_, index) => value[index] ?? '')
@@ -10,6 +16,16 @@ export default function OtpInput({ value, onChange, error = false, disabled = fa
   const focusInput = (index) => {
     inputsRef.current[index]?.focus()
   }
+
+  useEffect(() => {
+    if (!autoFocus || disabled) return
+
+    const timer = window.setTimeout(() => {
+      inputsRef.current[0]?.focus()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [autoFocus, disabled])
 
   const updateDigit = (index, digit) => {
     const sanitized = digit.replace(/\D/g, '').slice(-1)
@@ -37,7 +53,7 @@ export default function OtpInput({ value, onChange, error = false, disabled = fa
 
   return (
     <div>
-      <div className="flex justify-center gap-2 sm:gap-3 md:gap-4 lg:gap-5">
+      <div className="flex justify-center gap-1.5 sm:gap-2 min-[1536px]:gap-2.5 min-[1800px]:gap-3">
         {digits.map((digit, index) => (
           <motion.input
             key={index}
@@ -59,7 +75,7 @@ export default function OtpInput({ value, onChange, error = false, disabled = fa
               borderColor: error ? '#f87171' : digit ? '#c73b2d' : '#e2e8f0',
             }}
             transition={{ duration: 0.2 }}
-            className={`size-11 rounded-lg border-2 bg-white text-center text-lg font-semibold text-slate-900 outline-none sm:size-14 sm:rounded-xl sm:text-xl md:size-18 md:text-2xl lg:size-20 lg:rounded-2xl lg:text-3xl xl:size-24 xl:text-4xl ${
+            className={`size-10 rounded-lg border-2 bg-white text-center text-base font-semibold text-slate-900 outline-none sm:size-11 sm:rounded-xl sm:text-lg min-[1536px]:size-12 min-[1536px]:text-xl min-[1800px]:size-14 min-[1800px]:text-xl min-[2100px]:size-16 min-[2100px]:text-2xl min-[2560px]:size-20 min-[2560px]:text-3xl ${
               error ? 'border-red-400' : 'border-slate-200 focus:border-auth-primary'
             } ${disabled ? 'opacity-60' : ''}`}
           />

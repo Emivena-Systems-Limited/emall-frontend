@@ -1,5 +1,6 @@
 export const OTP_LENGTH = 6
 export const OTP_RESEND_SECONDS = 30
+export const OTP_EXPIRY_MINUTES = 5
 export const AUTH_METHODS = {
   PHONE: 'phone',
   EMAIL: 'email',
@@ -8,4 +9,10 @@ export const AUTH_METHODS = {
 export const AUTH_FLOW = {
   LOGIN: 'login',
   REGISTER: 'register',
+}
+
+export const AUTH_VERIFICATION_TYPE = {
+  REGISTRATION: 'registration',
+  LOGIN: 'login',
+  RESEND: 'resend',
 }

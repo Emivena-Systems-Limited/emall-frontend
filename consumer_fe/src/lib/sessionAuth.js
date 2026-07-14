@@ -3,6 +3,7 @@ const PUBLIC_AUTH_SKIP_PATHS = [
   '/user/auth/register',
   '/user/auth/verify_otp',
   '/user/auth/logout',
+  '/notification/re-send/otp',
 ]
 
 let authRehydrated = false
