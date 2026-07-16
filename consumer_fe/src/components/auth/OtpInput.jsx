@@ -72,11 +72,11 @@ export default function OtpInput({
             onFocus={(event) => event.target.select()}
             animate={{
               scale: digit ? 1.02 : 1,
-              borderColor: error ? '#f87171' : digit ? '#c73b2d' : '#e2e8f0',
+              borderColor: error ? '#f87171' : digit ? '#c73b2d' : '#94a3b8',
             }}
             transition={{ duration: 0.2 }}
-            className={`size-10 rounded-lg border-2 bg-white text-center text-base font-semibold text-slate-900 outline-none sm:size-11 sm:rounded-xl sm:text-lg min-[1536px]:size-12 min-[1536px]:text-xl min-[1800px]:size-14 min-[1800px]:text-xl min-[2100px]:size-16 min-[2100px]:text-2xl min-[2560px]:size-20 min-[2560px]:text-3xl ${
-              error ? 'border-red-400' : 'border-slate-200 focus:border-auth-primary'
+            className={`size-10 rounded-lg border-2 bg-white text-center text-base font-semibold text-slate-900 shadow-sm outline-none sm:size-11 sm:rounded-xl sm:text-lg min-[1536px]:size-12 min-[1536px]:text-xl min-[1800px]:size-14 min-[1800px]:text-xl min-[2100px]:size-16 min-[2100px]:text-2xl min-[2560px]:size-20 min-[2560px]:text-3xl ${
+              error ? 'border-red-400' : 'border-slate-400 focus:border-auth-primary focus:ring-2 focus:ring-auth-primary/15'
             } ${disabled ? 'opacity-60' : ''}`}
           />
         ))}

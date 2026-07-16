@@ -12,6 +12,7 @@ import {
 import { Link } from 'react-router'
 import { useNavbarCategoryMenu } from '../../../hooks/useNavbarCategoryMenu'
 import { formatCedi } from '../../../utils/formatCurrency'
+import { buildPromotionsHref } from '../../../utils/listingFilterParams'
 
 const panelEase = [0.16, 1, 0.3, 1]
 
@@ -86,7 +87,30 @@ function FeaturedCarousel({ products, onNavigate }) {
   )
 }
 
-function MobilePromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
+function MobileCategoryMenuQuickLinks({ onNavigate }) {
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-2.5">
+      <Link
+        to="/categories"
+        onClick={onNavigate}
+        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-colors hover:border-slate-300"
+      >
+        All Categories
+        <ChevronRight className="size-3.5 text-auth-primary/70" />
+      </Link>
+      <Link
+        to="/promotions"
+        onClick={onNavigate}
+        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#E8D48A] bg-[#FFF9E6] px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-colors hover:border-[#D4BC5C]"
+      >
+        All Promotions
+        <ChevronRight className="size-3.5 text-auth-primary/70" />
+      </Link>
+    </div>
+  )
+}
+
+function MobilePromoEmptyState({ categoryLabel, promotionsHref, onNavigate }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-dashed border-[#E8D48A] bg-[#FFF9E6]">
       <div className="flex flex-col items-center px-4 py-8 text-center">
@@ -98,11 +122,11 @@ function MobilePromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
           Special offers for {categoryLabel ?? 'this category'} are coming soon.
         </p>
         <Link
-          to={categoryHref}
+          to={promotionsHref}
           onClick={onNavigate}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-3 text-xs font-bold tracking-[0.08em] text-white"
         >
-          Browse category
+          Browse Promotions
           <ArrowRight className="size-3.5" strokeWidth={2.5} />
         </Link>
       </div>
@@ -224,6 +248,9 @@ function MobileCategoriesPanelContent({ onClose }) {
                 transition={{ duration: 0.24, ease: panelEase }}
                 className="grid grid-cols-2 gap-2.5 sm:grid-cols-3"
               >
+                <div className="col-span-2 sm:col-span-3">
+                  <MobileCategoryMenuQuickLinks onNavigate={onClose} />
+                </div>
                 {menuItems.map((category) => (
                   <CategoryGridCard key={category.id} category={category} onSelect={openCategory} />
                 ))}
@@ -309,8 +336,8 @@ function MobileCategoriesPanelContent({ onClose }) {
                     <MobilePromoCard promo={activeCategory.promo} onNavigate={onClose} />
                   ) : (
                     <MobilePromoEmptyState
-                      categoryHref={activeCategory.href}
                       categoryLabel={activeCategory.label}
+                      promotionsHref={buildPromotionsHref(activeCategory.id, activeSubcategoryId)}
                       onNavigate={onClose}
                     />
                   )}

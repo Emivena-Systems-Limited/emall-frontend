@@ -12,6 +12,8 @@ import { useAuthenticatedCart } from '../hooks/useAuthenticatedCart'
 import { useGuestCart } from '../hooks/useGuestCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
+import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
+import CartRecommendationSection from '../components/cart/CartRecommendationSection'
 
 const clampQuantity = (value) => Math.max(1, value)
 
@@ -524,28 +526,57 @@ export default function CartPage() {
     navigate('/checkout')
   }
 
+  const savedItemsSection = isAuthenticated && savedItems.length > 0 ? (
+    <ItemTable
+      title="Saved items"
+      subtitle="View your shopping cart online and checkout"
+      items={savedItems}
+      selectedIds={savedSelectedIds}
+      onSelect={(itemId, checked) => {
+        setSavedSelectedIds((current) => {
+          const next = new Set(current)
+          if (checked) next.add(itemId)
+          else next.delete(itemId)
+          return next
+        })
+      }}
+      onQuantityChange={() => {}}
+      onDelete={deleteSaved}
+      onSave={restoreSavedItem}
+      saved
+      readOnlyQuantity
+      clearLabel="Clear Saved Items"
+      onClear={clearSaved}
+    />
+  ) : (
+    <CartSavedItemsEmptyState />
+  )
+
   return (
     <SiteLayout>
-      <main className={`overflow-x-hidden bg-[#f2f2f2] py-4 sm:py-8 ${items.length > 0 ? 'pb-24 lg:pb-8' : ''}`}>
+      <main className={`bg-[#f2f2f2] py-4 sm:py-8 ${items.length > 0 ? 'pb-24 lg:pb-8' : ''}`}>
         <Container className="min-w-0 space-y-6 sm:space-y-8">
           {items.length === 0 ? (
-            <EmptyCartState />
+            <div className="min-w-0 space-y-6 sm:space-y-8">
+              <EmptyCartState />
+              {savedItemsSection}
+            </div>
           ) : (
-            <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8">
-              <div className="min-w-0">
-              <ItemTable
-                title="Shopping Cart"
-                subtitle="View your shopping cart and proceed to checkout"
-                items={items}
-                showSaveForLater={isAuthenticated}
-                selectedIds={new Set(items.filter((item) => item.selected).map((item) => item.id))}
-                onSelect={selectItem}
-                onQuantityChange={updateQuantity}
-                onDelete={deleteItem}
-                onSave={saveItem}
-                // clearLabel="Clear Cart"
-                // onClear={clearAll}
-              />
+            /* Sticky scope: Order Total sticks only while cart + saved items are in view */
+            <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8">
+              <div className="min-w-0 space-y-6 sm:space-y-8">
+                <ItemTable
+                  title="Shopping Cart"
+                  subtitle="View your shopping cart and proceed to checkout"
+                  items={items}
+                  showSaveForLater={isAuthenticated}
+                  selectedIds={new Set(items.filter((item) => item.selected).map((item) => item.id))}
+                  onSelect={selectItem}
+                  onQuantityChange={updateQuantity}
+                  onDelete={deleteItem}
+                  onSave={saveItem}
+                />
+                {savedItemsSection}
               </div>
 
               <CartSummary
@@ -562,30 +593,26 @@ export default function CartPage() {
             </div>
           )}
 
-          {isAuthenticated && savedItems.length > 0 && (
-            <ItemTable
-              title="Saved Items"
-              subtitle="Items you saved for later. Move them back to your cart when you're ready to buy."
-              items={savedItems}
-              selectedIds={savedSelectedIds}
-              onSelect={(itemId, checked) => {
-                setSavedSelectedIds((current) => {
-                  const next = new Set(current)
-                  if (checked) next.add(itemId)
-                  else next.delete(itemId)
-                  return next
-                })
-              }}
-              onQuantityChange={() => {}}
-              onDelete={deleteSaved}
-              onSave={restoreSavedItem}
-              saved
-              readOnlyQuantity
-              clearLabel="Clear Saved Items"
-              onClear={clearSaved}
+          <div className="min-w-0 space-y-6 sm:space-y-8">
+            <CartRecommendationSection
+              title="Best Deals From Seller"
+              description="Top offers from sellers in your cart will show up here soon."
+              ctaHref="/promotions"
+              ctaLabel="View Promotions"
             />
-          )}
 
+            <CartRecommendationSection
+              title="Products Related to this item"
+              description="Related picks based on your cart will appear here once product data is ready."
+            />
+
+            <CartRecommendationSection
+              title="See Other Amazing Products"
+              description="More products to explore will land here. Browse the store while we prepare them."
+              ctaHref="/categories"
+              ctaLabel="Browse Categories"
+            />
+          </div>
         </Container>
       </main>
 
