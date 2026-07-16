@@ -12,6 +12,7 @@ import {
   Lock,
   MapPin,
   Minus,
+  Pencil,
   Phone,
   Plus,
   Trash2,
@@ -26,7 +27,9 @@ import { notify } from '../lib/notify'
 import { getCheckoutPreview, placeCheckoutOrder } from '../services/checkoutService'
 import {
   createUserAddress,
+  deleteUserAddress,
   getUserAddresses,
+  updateUserAddress,
 } from '../services/addressService'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
@@ -310,6 +313,10 @@ function buildSavedAddressPayload(address, type = 'shipping') {
   }
 }
 
+function buildUpdatedAddressPayload(address, type = 'shipping') {
+  return buildSavedAddressPayload(address, type)
+}
+
 function getAddressKey(address) {
   const normalized = normalizeAddress(address)
 
@@ -407,23 +414,25 @@ function formatAddressCardLocation(address) {
   ].filter(Boolean).join(', ')
 }
 
-function SavedAddressCard({ savedAddress, selected, onSelect }) {
+function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, isDeleting }) {
   const normalized = normalizeAddress(savedAddress)
   const fullName = [normalized.firstName, normalized.lastName].filter(Boolean).join(' ')
   const location = formatAddressCardLocation(normalized)
   const isDefault = savedAddress?.is_default === true || savedAddress?.isDefault === true
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={`group relative w-full overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200 sm:p-5 ${
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        disabled={isDeleting}
+        className={`group relative w-full overflow-hidden rounded-2xl border p-4 pb-16 text-left transition-all duration-200 disabled:cursor-wait disabled:opacity-70 sm:p-5 sm:pb-16 ${
         selected
           ? 'border-auth-primary bg-linear-to-br from-red-50/80 via-white to-white shadow-md shadow-auth-primary/10 ring-2 ring-auth-primary/25'
           : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
       }`}
-    >
+      >
       <div
         className={`pointer-events-none absolute -right-8 -top-8 size-24 rounded-full blur-2xl transition-opacity ${
           selected ? 'bg-auth-primary/15 opacity-100' : 'bg-slate-200/40 opacity-0 group-hover:opacity-60'
@@ -442,9 +451,9 @@ function SavedAddressCard({ savedAddress, selected, onSelect }) {
           <MapPin className="size-5" strokeWidth={1.9} aria-hidden />
         </span>
 
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className="min-w-0 flex-1 space-y-3 overflow-hidden">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold tracking-tight text-slate-950">{fullName || 'Saved address'}</span>
+            <span className="min-w-0 break-words font-semibold tracking-tight text-slate-950">{fullName || 'Saved address'}</span>
             {isDefault ? (
               <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
                 Default
@@ -458,7 +467,7 @@ function SavedAddressCard({ savedAddress, selected, onSelect }) {
           </div>
 
           {normalized.address ? (
-            <p className="text-sm leading-relaxed text-slate-600">{normalized.address}</p>
+            <p className="break-words text-sm leading-relaxed text-slate-600">{normalized.address}</p>
           ) : null}
 
           {(location || normalized.phone) ? (
@@ -491,7 +500,30 @@ function SavedAddressCard({ savedAddress, selected, onSelect }) {
           <Check className="size-3.5" strokeWidth={3} />
         </span>
       </div>
-    </button>
+      </button>
+      <div className="absolute bottom-3 right-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-2 sm:bottom-4 sm:right-4">
+        <button
+          type="button"
+          onClick={onEdit}
+          disabled={isDeleting}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-auth-primary/40 hover:text-auth-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/30 disabled:opacity-50"
+          aria-label={`Edit ${fullName || 'saved address'}`}
+        >
+          <Pencil className="size-3.5" aria-hidden />
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-wait disabled:opacity-60"
+          aria-label={`Delete ${fullName || 'saved address'}`}
+        >
+          {isDeleting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
+          {isDeleting ? 'Deleting…' : 'Delete'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -653,6 +685,7 @@ function DeliveryInformation({
   errors = {},
   savedAddresses,
   isAddingAddress,
+  isEditingAddress,
   isSavingAddress,
   canSaveAddress,
   onAddressChange,
@@ -661,6 +694,9 @@ function DeliveryInformation({
   onTownChange,
   onTownCustomChange,
   onSelectAddress,
+  onEditAddress,
+  onDeleteAddress,
+  deletingAddressId,
   onAddAddress,
   onSaveAddress,
 }) {
@@ -707,6 +743,9 @@ function DeliveryInformation({
                 savedAddress={savedAddress}
                 selected={selected}
                 onSelect={() => onSelectAddress(savedAddress)}
+                onEdit={() => onEditAddress(savedAddress)}
+                onDelete={() => onDeleteAddress(savedAddress)}
+                isDeleting={deletingAddressId === normalized.id}
               />
             )
           })}
@@ -822,7 +861,7 @@ function DeliveryInformation({
                     Saving…
                   </>
                 ) : (
-                  'Save address'
+                  isEditingAddress ? 'Save changes' : 'Save address'
                 )}
               </button>
             </div>
@@ -839,6 +878,7 @@ function BillingInformation({
   errors = {},
   savedAddresses,
   isAddingAddress,
+  isEditingAddress,
   isSavingAddress,
   onAddressChange,
   onAddressBlur,
@@ -846,6 +886,9 @@ function BillingInformation({
   onTownChange,
   onTownCustomChange,
   onSelectAddress,
+  onEditAddress,
+  onDeleteAddress,
+  deletingAddressId,
   onAddAddress,
   onCancel,
   onSaveAddress,
@@ -891,6 +934,9 @@ function BillingInformation({
                 savedAddress={savedAddress}
                 selected={selected}
                 onSelect={() => onSelectAddress(savedAddress)}
+                onEdit={() => onEditAddress(savedAddress)}
+                onDelete={() => onDeleteAddress(savedAddress)}
+                isDeleting={deletingAddressId === normalized.id}
               />
             )
           })}
@@ -950,7 +996,7 @@ function BillingInformation({
                   Saving…
                 </>
               ) : (
-                'Save billing address'
+                isEditingAddress ? 'Save changes' : 'Save billing address'
               )}
             </button>
           </div>
@@ -1253,8 +1299,11 @@ export default function CheckoutPage() {
   const [billingAddressDraft, setBillingAddressDraft] = useState(initialAddress)
   const [billingAddressErrors, setBillingAddressErrors] = useState({})
   const [isAddingBillingAddress, setIsAddingBillingAddress] = useState(false)
+  const [editingBillingAddressId, setEditingBillingAddressId] = useState(null)
   const [sessionAddresses, setSessionAddresses] = useState([])
   const [isAddingAddress, setIsAddingAddress] = useState(false)
+  const [editingAddressId, setEditingAddressId] = useState(null)
+  const [deletingAddressId, setDeletingAddressId] = useState(null)
   const [selectedPayment, setSelectedPayment] = useState('mtn')
   const [cardDetails, setCardDetails] = useState(initialCardDetails)
   const [cardErrors, setCardErrors] = useState({})
@@ -1336,6 +1385,61 @@ export default function CheckoutPage() {
       notify.success('Billing address saved')
     },
     onError: (error) => notify.fromError(error, 'Unable to save billing address'),
+  })
+
+  const updateAddressMutation = useMutation({
+    mutationFn: updateUserAddress,
+    onSuccess: async (_response, { addressId, payload }) => {
+      setAddress(normalizeAddress({ ...payload, id: addressId }))
+      setEditingAddressId(null)
+      setIsAddingAddress(false)
+      await queryClient.invalidateQueries({ queryKey: ['user-addresses'] })
+      notify.success('Delivery address updated')
+    },
+    onError: (error) => notify.fromError(error, 'Unable to update delivery address'),
+  })
+
+  const updateBillingAddressMutation = useMutation({
+    mutationFn: updateUserAddress,
+    onSuccess: async (_response, { addressId }) => {
+      setBillingAddressId(addressId)
+      setBillingAddressDraft(initialAddress)
+      setEditingBillingAddressId(null)
+      setIsAddingBillingAddress(false)
+      await queryClient.invalidateQueries({ queryKey: ['user-addresses'] })
+      notify.success('Billing address updated')
+    },
+    onError: (error) => notify.fromError(error, 'Unable to update billing address'),
+  })
+
+  const deleteAddressMutation = useMutation({
+    mutationFn: ({ addressId }) => deleteUserAddress(addressId),
+    onMutate: ({ addressId }) => setDeletingAddressId(addressId),
+    onSuccess: async (_response, { addressId, type }) => {
+      setSessionAddresses((current) => current.filter(
+        (item) => normalizeAddress(item).id !== addressId,
+      ))
+
+      if (type === 'billing') {
+        if (billingAddressId === addressId) setBillingAddressId(null)
+        if (editingBillingAddressId === addressId) {
+          setEditingBillingAddressId(null)
+          setBillingAddressDraft(initialAddress)
+          setIsAddingBillingAddress(false)
+        }
+      } else {
+        if (address.id === addressId) setAddress(initialAddress)
+        if (editingAddressId === addressId) {
+          setEditingAddressId(null)
+          setIsAddingAddress(false)
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['user-addresses'] })
+      notify.success(`${type === 'billing' ? 'Billing' : 'Delivery'} address deleted`)
+    },
+    onError: (error) => notify.fromError(error, 'Unable to delete address'),
+    onSettled: () => setDeletingAddressId(null),
   })
 
   useEffect(() => {
@@ -1486,12 +1590,42 @@ export default function CheckoutPage() {
     setAddress(normalizeAddress(selectedAddress))
     setAddressErrors({})
     setIsAddingAddress(false)
+    setEditingAddressId(null)
   }
 
   const handleAddAddress = () => {
     setAddress(buildDeliveryPrefill(authenticatedUser))
     setAddressErrors({})
     setIsAddingAddress(true)
+    setEditingAddressId(null)
+  }
+
+  const handleEditAddress = (selectedAddress) => {
+    const normalized = normalizeAddress(selectedAddress)
+    if (!normalized.id) {
+      notify.error('This address cannot be edited until it has been saved')
+      return
+    }
+    setAddress(normalized)
+    setAddressErrors({})
+    setEditingAddressId(normalized.id)
+    setIsAddingAddress(true)
+  }
+
+  const handleDeleteAddress = (selectedAddress, type = 'shipping') => {
+    const normalized = normalizeAddress(selectedAddress)
+    if (!normalized.id) {
+      notify.error('This address cannot be deleted until it has been saved')
+      return
+    }
+
+    const fullName = [normalized.firstName, normalized.lastName].filter(Boolean).join(' ')
+    const confirmed = window.confirm(
+      `Delete ${fullName ? `${fullName}'s ` : 'this '}${type === 'billing' ? 'billing' : 'delivery'} address? This action cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    deleteAddressMutation.mutate({ addressId: normalized.id, type })
   }
 
   const handleSaveAddress = () => {
@@ -1502,6 +1636,14 @@ export default function CheckoutPage() {
 
     if (Object.keys(errors).length > 0) {
       notify.error('Please fix the highlighted delivery address fields')
+      return
+    }
+
+    if (editingAddressId) {
+      updateAddressMutation.mutate({
+        addressId: editingAddressId,
+        payload: buildUpdatedAddressPayload(address),
+      })
       return
     }
 
@@ -1569,6 +1711,14 @@ export default function CheckoutPage() {
 
     if (Object.keys(errors).length > 0) {
       notify.error('Please fix the highlighted billing address fields')
+      return
+    }
+
+    if (editingBillingAddressId) {
+      updateBillingAddressMutation.mutate({
+        addressId: editingBillingAddressId,
+        payload: buildUpdatedAddressPayload(billingAddressDraft, 'billing'),
+      })
       return
     }
 
@@ -1673,7 +1823,8 @@ export default function CheckoutPage() {
                   errors={addressErrors}
                   savedAddresses={savedAddresses}
                   isAddingAddress={isAddingAddress}
-                  isSavingAddress={createAddressMutation.isPending}
+                  isEditingAddress={Boolean(editingAddressId)}
+                  isSavingAddress={createAddressMutation.isPending || updateAddressMutation.isPending}
                   canSaveAddress={isAuthenticated}
                   onAddressChange={handleAddressChange}
                   onAddressBlur={handleAddressBlur}
@@ -1681,6 +1832,9 @@ export default function CheckoutPage() {
                   onTownChange={handleTownChange}
                   onTownCustomChange={handleTownCustomChange}
                   onSelectAddress={handleSelectAddress}
+                  onEditAddress={handleEditAddress}
+                  onDeleteAddress={(selectedAddress) => handleDeleteAddress(selectedAddress, 'shipping')}
+                  deletingAddressId={deletingAddressId}
                   onAddAddress={handleAddAddress}
                   onSaveAddress={handleSaveAddress}
                 />
@@ -1691,7 +1845,8 @@ export default function CheckoutPage() {
                     errors={billingAddressErrors}
                     savedAddresses={billingAddresses}
                     isAddingAddress={isAddingBillingAddress}
-                    isSavingAddress={createBillingAddressMutation.isPending}
+                    isEditingAddress={Boolean(editingBillingAddressId)}
+                    isSavingAddress={createBillingAddressMutation.isPending || updateBillingAddressMutation.isPending}
                     onAddressChange={handleBillingAddressChange}
                     onAddressBlur={handleBillingAddressBlur}
                     onRegionChange={handleBillingRegionChange}
@@ -1700,7 +1855,21 @@ export default function CheckoutPage() {
                     onSelectAddress={(selectedAddress) => {
                       setBillingAddressId(normalizeAddress(selectedAddress).id)
                       setBillingAddressErrors({})
+                      setEditingBillingAddressId(null)
                     }}
+                    onEditAddress={(selectedAddress) => {
+                      const normalized = normalizeAddress(selectedAddress)
+                      if (!normalized.id) {
+                        notify.error('This address cannot be edited until it has been saved')
+                        return
+                      }
+                      setBillingAddressDraft(normalized)
+                      setBillingAddressErrors({})
+                      setEditingBillingAddressId(normalized.id)
+                      setIsAddingBillingAddress(true)
+                    }}
+                    onDeleteAddress={(selectedAddress) => handleDeleteAddress(selectedAddress, 'billing')}
+                    deletingAddressId={deletingAddressId}
                     onAddAddress={() => {
                       setBillingAddressDraft(
                         billingAddresses.length === 0
@@ -1708,11 +1877,13 @@ export default function CheckoutPage() {
                           : buildDeliveryPrefill(authenticatedUser),
                       )
                       setBillingAddressErrors({})
+                      setEditingBillingAddressId(null)
                       setIsAddingBillingAddress(true)
                     }}
                     onCancel={() => {
                       setBillingAddressDraft(initialAddress)
                       setBillingAddressErrors({})
+                      setEditingBillingAddressId(null)
                       setIsAddingBillingAddress(false)
                     }}
                     onSaveAddress={handleSaveBillingAddress}
