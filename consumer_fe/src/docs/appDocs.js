@@ -6,8 +6,8 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-06-29',
-  currentPhase: 'Instant storefront rendering',
+  lastUpdated: '2026-07-16',
+  currentPhase: 'Customer account dashboard',
   summary:
     'Public home landing at / uses Laravel landing-page data where available. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout, and product cards open a responsive product details page.',
 }
@@ -21,6 +21,16 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-07-16',
+    title: 'Modern customer account dashboard',
+    items: [
+      'Redesigned the protected My Account page with responsive icon navigation and active, hover, selected, and logout states',
+      'Added a branded profile summary, editable photo preview, customer details, join date, account statistics, verification badges, and live default shipping address',
+      'Added navigation destinations for orders, wishlist, coupons, reviews, returns, followed stores, addresses, payments, settings, notifications, and support',
+      'Connected GET/PUT /user/profile plus avatar upload/delete and guarded profile deletion using the authenticated profile API contracts',
+    ],
+  },
   {
     date: '2026-06-29',
     title: 'Product details PDF layout alignment',
@@ -418,7 +428,7 @@ export const routes = [
     name: 'My Account',
     status: 'done',
     file: 'src/pages/AccountPage.jsx',
-    notes: 'Protected account dashboard for authenticated users',
+    notes: 'Responsive protected dashboard with profile summary, statistics, account information, default address, and full account navigation',
   },
   {
     path: '/cart',
