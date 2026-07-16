@@ -93,18 +93,16 @@ function MobileCategoryMenuQuickLinks({ onNavigate }) {
       <Link
         to="/categories"
         onClick={onNavigate}
-        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-colors hover:border-slate-300"
+        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-all duration-200 hover:scale-[1.03] hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
       >
         All Categories
-        <ChevronRight className="size-3.5 text-auth-primary/70" />
       </Link>
       <Link
         to="/promotions"
         onClick={onNavigate}
-        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#E8D48A] bg-[#FFF9E6] px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-colors hover:border-[#D4BC5C]"
+        className="inline-flex items-center justify-center rounded-xl border border-[#E8D48A] bg-[#FFF9E6] px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-all duration-200 hover:scale-[1.03] hover:border-[#D4BC5C] hover:shadow-md active:scale-[0.98]"
       >
         All Promotions
-        <ChevronRight className="size-3.5 text-auth-primary/70" />
       </Link>
     </div>
   )

@@ -77,9 +77,6 @@ export default function VerifyOtpPage() {
       }))
       dispatch(clearGuestCartId())
       clearAuthOtpSession()
-      notify.success(
-        flow === AUTH_FLOW.REGISTER ? 'Account verified successfully' : 'Login successful',
-      )
       await persistor.persist()
       navigate(redirectTo || '/', { replace: true })
     } catch (error) {
