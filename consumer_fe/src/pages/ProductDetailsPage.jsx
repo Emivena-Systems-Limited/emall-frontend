@@ -424,6 +424,7 @@ function ProductInfoPanel({
           product_id: product.backendId ?? product.id,
         },
         {
+          silentSuccess: true,
           productId: product.backendId ?? product.id,
           syncable: Boolean(product.backendId ?? product.id),
           quantity,

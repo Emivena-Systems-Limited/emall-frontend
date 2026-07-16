@@ -93,18 +93,16 @@ function MobileCategoryMenuQuickLinks({ onNavigate }) {
       <Link
         to="/categories"
         onClick={onNavigate}
-        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-colors hover:border-slate-300"
+        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-all duration-200 hover:scale-[1.03] hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
       >
         All Categories
-        <ChevronRight className="size-3.5 text-auth-primary/70" />
       </Link>
       <Link
         to="/promotions"
         onClick={onNavigate}
-        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#E8D48A] bg-[#FFF9E6] px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-colors hover:border-[#D4BC5C]"
+        className="inline-flex items-center justify-center rounded-xl border border-[#E8D48A] bg-[#FFF9E6] px-3 py-3 text-sm font-semibold text-auth-primary shadow-sm transition-all duration-200 hover:scale-[1.03] hover:border-[#D4BC5C] hover:shadow-md active:scale-[0.98]"
       >
         All Promotions
-        <ChevronRight className="size-3.5 text-auth-primary/70" />
       </Link>
     </div>
   )
@@ -196,7 +194,7 @@ function MobileCategoriesPanelContent({ onClose }) {
         animate={{ y: 0 }}
         exit={{ y: '100%', transition: { duration: 0.16, ease: panelEase } }}
         transition={{ duration: 0.22, ease: panelEase }}
-        className="fixed inset-x-0 bottom-0 z-70 flex max-h-[min(68dvh,32rem)] flex-col overflow-hidden rounded-t-2xl bg-slate-50 shadow-[0_-20px_60px_-10px_rgba(15,23,42,0.35)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-[120] flex max-h-[min(68dvh,32rem)] flex-col overflow-hidden rounded-t-2xl bg-slate-50 shadow-[0_-20px_60px_-10px_rgba(15,23,42,0.35)] lg:hidden"
       >
         <div className="flex shrink-0 flex-col items-center border-b border-slate-200/80 bg-white px-4 pb-3 pt-3">
           <span className="mb-3 h-1 w-10 rounded-full bg-slate-200" aria-hidden="true" />
@@ -366,7 +364,7 @@ export default function MobileCategoriesPanel({ open, onClose }) {
       {open && (
         <div
           aria-hidden="true"
-          className="fixed inset-x-0 bottom-0 top-[7.25rem] z-55 bg-slate-950/40 lg:hidden"
+          className="fixed inset-x-0 bottom-0 top-[9.5rem] z-[90] bg-slate-950/40 lg:hidden"
         />
       )}
 

@@ -106,18 +106,16 @@ function CategoryMenuQuickLinks({ onNavigate }) {
       <Link
         to="/categories"
         onClick={onNavigate}
-        className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-colors hover:bg-slate-50 hover:text-auth-primary-hover"
+        className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-all duration-200 hover:scale-[1.02] hover:bg-slate-50 hover:text-auth-primary-hover active:scale-[0.98]"
       >
         All Categories
-        <ChevronRight className="size-4 text-auth-primary/70" strokeWidth={2.25} />
       </Link>
       <Link
         to="/promotions"
         onClick={onNavigate}
-        className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-colors hover:bg-slate-50 hover:text-auth-primary-hover"
+        className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-all duration-200 hover:scale-[1.02] hover:bg-slate-50 hover:text-auth-primary-hover active:scale-[0.98]"
       >
         All Promotions
-        <ChevronRight className="size-4 text-auth-primary/70" strokeWidth={2.25} />
       </Link>
     </div>
   )
@@ -270,7 +268,7 @@ export default function CategoriesMegaMenu({ open, onClose }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6, transition: { duration: 0.12, ease: panelEase } }}
             transition={{ duration: 0.18, ease: panelEase }}
-            className="pointer-events-none absolute inset-x-0 top-full z-50 hidden lg:block"
+            className="pointer-events-none absolute inset-x-0 top-full z-[120] hidden lg:block"
           >
             <Container className="pointer-events-none py-0">
               <div
