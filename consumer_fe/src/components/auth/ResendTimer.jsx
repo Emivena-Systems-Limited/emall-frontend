@@ -7,7 +7,9 @@ import {
 } from '../../utils/authOtpSession'
 
 function formatTimer(seconds) {
-  return `${seconds}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${String(secs).padStart(2, '0')}`
 }
 
 const dotVariants = {
@@ -94,7 +96,9 @@ export default function ResendTimer({ onResend, disabled = false }) {
             transition={{ duration: 0.2 }}
           >
             Request new code in{' '}
-            <span className="font-medium text-auth-primary">{formatTimer(secondsLeft)}</span>
+            <span className="tabular-nums font-medium text-auth-primary">
+              {formatTimer(secondsLeft)}
+            </span>
           </motion.span>
         ) : (
           <motion.button

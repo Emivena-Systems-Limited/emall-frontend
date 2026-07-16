@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate, useParams, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { SlidersHorizontal } from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
-import CategoryHeroBanner from '../components/category/CategoryHeroBanner'
+import PromotionsHeroBanner from '../components/promotions/PromotionsHeroBanner'
 import CategoryQuickFilterTabs from '../components/category/CategoryQuickFilterTabs'
-import CategoryBreadcrumb from '../components/category/CategoryBreadcrumb'
+import PromotionsBreadcrumb from '../components/promotions/PromotionsBreadcrumb'
 import CategoryFilterSidebar from '../components/category/CategoryFilterSidebar'
 import CategoryFilterDrawer from '../components/category/CategoryFilterDrawer'
-import CategoryProductsEmptyState from '../components/category/CategoryProductsEmptyState'
+import PromotionsProductsEmptyState from '../components/promotions/PromotionsProductsEmptyState'
 import { getParentCategories } from '../services/categoryService'
 import {
   findCategoryBySlug,
@@ -22,14 +22,13 @@ import {
   getSelectedFilterValues,
 } from '../utils/listingFilterParams'
 
-export default function CategoryPage() {
-  const { slug, subSlug } = useParams()
+export default function PromotionsPage() {
   const [searchParams] = useSearchParams()
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
 
   useEffect(() => {
     window.scrollTo(0, 0)
-  }, [slug, subSlug])
+  }, [])
 
   const { data: parentCategories = [], isLoading } = useQuery({
     queryKey: ['parent-categories'],
@@ -38,69 +37,52 @@ export default function CategoryPage() {
     retry: 1,
   })
 
-  const currentCategory = useMemo(
-    () => findCategoryBySlug(parentCategories, slug),
-    [parentCategories, slug],
+  const hasCategoryParams = searchParams.getAll(FILTER_CATEGORY_PARAM).length > 0
+  const allCategoriesActive = !hasCategoryParams
+
+  const selectedCategorySlugs = useMemo(
+    () => (
+      allCategoriesActive
+        ? []
+        : getSelectedFilterValues(searchParams, FILTER_CATEGORY_PARAM)
+    ),
+    [allCategoriesActive, searchParams],
   )
 
-  const currentSubcategory = useMemo(
-    () => (subSlug ? findCategoryBySlug(parentCategories, subSlug) : null),
-    [parentCategories, subSlug],
-  )
-
-  const canonicalSlug = currentCategory?.slug ?? slug
-  const canonicalSubSlug = currentSubcategory?.slug ?? subSlug
-  const shouldRedirect = !isLoading && currentCategory && (
-    slug !== canonicalSlug
-    || (subSlug && currentSubcategory && subSlug !== canonicalSubSlug)
-  )
-
-  if (shouldRedirect) {
-    const redirectPath = canonicalSubSlug
-      ? `/categories/${canonicalSlug}/${canonicalSubSlug}`
-      : `/categories/${canonicalSlug}`
-
-    return <Navigate to={redirectPath} replace />
-  }
-
-  const categoryLabel = currentCategory?.name ?? formatCategorySlugLabel(slug)
-  const subcategoryLabel = subSlug ? currentSubcategory?.name ?? formatCategorySlugLabel(subSlug) : null
-  const pageSubcategories = currentCategory?.children?.filter((child) => child.isActive) ?? []
-
-  const selectedCategorySlugs = getSelectedFilterValues(
-    searchParams,
-    FILTER_CATEGORY_PARAM,
-    canonicalSlug ? [canonicalSlug] : [],
-  )
-  const selectedSubcategorySlugs = getSelectedFilterValues(
-    searchParams,
-    FILTER_SUBCATEGORY_PARAM,
-    canonicalSubSlug ? [canonicalSubSlug] : [],
+  const selectedSubcategorySlugs = useMemo(
+    () => getSelectedFilterValues(searchParams, FILTER_SUBCATEGORY_PARAM),
+    [searchParams],
   )
 
   const selectedCategoryLabels = selectedCategorySlugs.map(
-    (itemSlug) => findCategoryBySlug(parentCategories, itemSlug)?.name ?? formatCategorySlugLabel(itemSlug),
+    (slug) => findCategoryBySlug(parentCategories, slug)?.name ?? formatCategorySlugLabel(slug),
   )
   const selectedSubcategoryLabels = selectedSubcategorySlugs.map(
-    (itemSlug) => findCategoryBySlug(parentCategories, itemSlug)?.name ?? formatCategorySlugLabel(itemSlug),
+    (slug) => findCategoryBySlug(parentCategories, slug)?.name ?? formatCategorySlugLabel(slug),
   )
+
+  const categoryLabel = allCategoriesActive
+    ? null
+    : formatMultiFilterLabel(selectedCategoryLabels, null)
+
+  const subcategoryLabel = selectedSubcategoryLabels.length
+    ? formatMultiFilterLabel(selectedSubcategoryLabels, null)
+    : null
 
   const emptyStateLabel = formatMultiFilterLabel(
     selectedSubcategoryLabels.length ? selectedSubcategoryLabels : selectedCategoryLabels,
-    subcategoryLabel ?? categoryLabel,
+    'all categories',
   )
+
+  const categoryHref = selectedCategorySlugs.length === 1
+    ? `/promotions?category=${selectedCategorySlugs[0]}`
+    : '/promotions'
 
   return (
     <SiteLayout>
       <div className="bg-white pt-4 sm:pt-5 lg:pt-6">
         <Container>
-          <CategoryHeroBanner
-            category={currentCategory}
-            subcategory={currentSubcategory}
-            subcategories={pageSubcategories}
-            categoryLabel={categoryLabel}
-            isLoading={isLoading}
-          />
+          <PromotionsHeroBanner isLoading={isLoading} />
         </Container>
       </div>
 
@@ -113,9 +95,9 @@ export default function CategoryPage() {
       <section className="bg-slate-50 py-4 sm:py-5 lg:py-6">
         <Container>
           <div className="mb-4 flex items-center justify-between gap-3 sm:mb-5">
-            <CategoryBreadcrumb
+            <PromotionsBreadcrumb
               categoryLabel={categoryLabel}
-              categoryHref={`/categories/${canonicalSlug}`}
+              categoryHref={categoryHref}
               subcategoryLabel={subcategoryLabel}
             />
 
@@ -132,13 +114,12 @@ export default function CategoryPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6 xl:gap-8">
             <CategoryFilterSidebar
               parentCategories={parentCategories}
-              defaultCategorySlug={canonicalSlug}
-              defaultSubcategorySlug={canonicalSubSlug}
               isLoading={isLoading}
+              variant="promotions"
             />
 
             <div className="flex min-w-0 flex-1 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60 sm:p-4">
-              <CategoryProductsEmptyState categoryLabel={emptyStateLabel} />
+              <PromotionsProductsEmptyState categoryLabel={emptyStateLabel} />
             </div>
           </div>
         </Container>
@@ -148,9 +129,8 @@ export default function CategoryPage() {
         isOpen={isFilterDrawerOpen}
         onClose={() => setIsFilterDrawerOpen(false)}
         parentCategories={parentCategories}
-        defaultCategorySlug={canonicalSlug}
-        defaultSubcategorySlug={canonicalSubSlug}
         isLoading={isLoading}
+        variant="promotions"
       />
     </SiteLayout>
   )

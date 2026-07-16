@@ -86,7 +86,7 @@ function FeaturedCarousel({ products, onNavigate }) {
   )
 }
 
-function MobilePromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
+function MobilePromoEmptyState({ categoryLabel, onNavigate }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-dashed border-[#E8D48A] bg-[#FFF9E6]">
       <div className="flex flex-col items-center px-4 py-8 text-center">
@@ -98,11 +98,11 @@ function MobilePromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
           Special offers for {categoryLabel ?? 'this category'} are coming soon.
         </p>
         <Link
-          to={categoryHref}
+          to="/promotions"
           onClick={onNavigate}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-3 text-xs font-bold tracking-[0.08em] text-white"
         >
-          Browse category
+          Browse Promotions
           <ArrowRight className="size-3.5" strokeWidth={2.5} />
         </Link>
       </div>
@@ -309,7 +309,6 @@ function MobileCategoriesPanelContent({ onClose }) {
                     <MobilePromoCard promo={activeCategory.promo} onNavigate={onClose} />
                   ) : (
                     <MobilePromoEmptyState
-                      categoryHref={activeCategory.href}
                       categoryLabel={activeCategory.label}
                       onNavigate={onClose}
                     />

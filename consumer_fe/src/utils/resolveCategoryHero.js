@@ -1,8 +1,6 @@
-import heroPrimaryFallback from '../assets/images/categories/hero/category-hero-primary.png'
-import heroAccentFallback from '../assets/images/categories/hero/category-hero-accent.png'
-import { CATEGORY_BANNER_ASSETS } from './categoryLocalAssets'
+import heroLifestyle from '../assets/images/hero-banners/category-lifestyle.png'
+import heroProduct from '../assets/images/hero-banners/category-product.png'
 import { normalizeCategorySlug } from './normalizeCategories'
-import { resolveParentCategoryImage, resolveSubcategoryImage } from './resolveCategoryImage'
 
 const HERO_TAGLINES = {
   'mobile-phones-accessories': 'Feel Connected,\nFeel the Beat',
@@ -24,43 +22,23 @@ const HERO_TAGLINES = {
 }
 
 const HERO_BACKGROUNDS = {
-  'mobile-phones-accessories': 'bg-[#fdf2f0]',
-  'home-kitchen': 'bg-[#f3faf6]',
-  'beauty-health': 'bg-[#fdf2f8]',
-  'sports-outdoors': 'bg-[#f0f7ff]',
-  fashion: 'bg-[#faf5ff]',
-  computing: 'bg-[#f4f7fc]',
-  default: 'bg-[#fdf2f0]',
-}
-
-function pickProductImage(lifestyleImage, subcategory, parentSlug, subcategories) {
-  const candidates = [
-    subcategory,
-    ...subcategories.filter((item) => item.slug !== subcategory?.slug),
-  ].filter(Boolean)
-
-  for (const item of candidates) {
-    const image = resolveSubcategoryImage(item, parentSlug)
-    if (image && image !== lifestyleImage) return image
-  }
-
-  return heroAccentFallback
+  'mobile-phones-accessories': 'bg-[#F8D5D0]',
+  'home-kitchen': 'bg-[#D8EEDF]',
+  'beauty-health': 'bg-[#F5D5E3]',
+  'sports-outdoors': 'bg-[#D4E6FA]',
+  fashion: 'bg-[#E8DDF5]',
+  computing: 'bg-[#DDE5F0]',
+  default: 'bg-[#F8D5D0]',
 }
 
 export function resolveCategoryHeroContent({
   category,
   subcategory,
-  subcategories = [],
   categoryLabel = 'This category',
 }) {
   const slug = category?.slug ?? ''
   const canonicalSlug = normalizeCategorySlug(slug)
   const displayLabel = subcategory?.name ?? category?.name ?? categoryLabel
-  const bannerAsset = CATEGORY_BANNER_ASSETS[`${canonicalSlug}-banner`]
-  const lifestyleImage = bannerAsset
-    ?? resolveParentCategoryImage(category ?? { slug, name: displayLabel })
-    ?? heroPrimaryFallback
-  const productImage = pickProductImage(lifestyleImage, subcategory, slug, subcategories)
 
   const ctaHref = subcategory?.slug
     ? `/categories/${slug}/${subcategory.slug}`
@@ -75,8 +53,8 @@ export function resolveCategoryHeroContent({
     title: rawTitle,
     ctaLabel: 'Explore Collection',
     ctaHref,
-    lifestyleImage,
-    productImage: productImage || heroAccentFallback,
+    lifestyleImage: heroLifestyle,
+    productImage: heroProduct,
     backgroundClass: HERO_BACKGROUNDS[canonicalSlug] ?? HERO_BACKGROUNDS.default,
   }
 }

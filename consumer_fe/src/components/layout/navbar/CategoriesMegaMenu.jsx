@@ -99,7 +99,7 @@ function PromoBanner({ promo, onNavigate }) {
   )
 }
 
-function PromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
+function PromoEmptyState({ categoryLabel, onNavigate }) {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-dashed border-[#E8D48A] bg-[#FFF9E6]">
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
@@ -111,11 +111,11 @@ function PromoEmptyState({ categoryHref, categoryLabel, onNavigate }) {
           Special offers and deals for {categoryLabel ?? 'this category'} are coming soon.
         </p>
         <Link
-          to={categoryHref}
+          to="/promotions"
           onClick={onNavigate}
           className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-2.5 text-xs font-bold tracking-[0.08em] text-white transition-colors hover:bg-auth-primary-hover"
         >
-          Browse category
+          Browse Promotions
           <ArrowRight className="size-3.5" strokeWidth={2.5} />
         </Link>
       </div>
@@ -183,7 +183,6 @@ function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChan
           <PromoBanner promo={category.promo} onNavigate={onNavigate} />
         ) : (
           <PromoEmptyState
-            categoryHref={category.href}
             categoryLabel={category.label}
             onNavigate={onNavigate}
           />

@@ -25,6 +25,12 @@ import electronicsImage from '../assets/images/categories/electronics.jpg'
 import phones_and_accessoriesImage from '../assets/images/categories/phones_and_accesories.png'
 import home_and_kitchenImage from '../assets/images/categories/home_and_kitchen.png'
 
+
+// Telco Networks
+import mtn_momo from "../assets/images/networks/mtn_mobile_money.png";
+import telecel_cash from "../assets/images/networks/telecel_cash.png";
+import at_cash from "../assets/images/networks/at_cash.png";
+
 import {
   CATEGORY_BANNER_ASSETS,
   categoryCatalogBySlug,
@@ -86,6 +92,12 @@ const catalog = {
   get: getLocalCategoryImage,
 }
 
+const networks = {
+  mtn_momo,
+  telecel_cash,
+  at_cash,
+}
+
 export const Images = {
   brand,
   auth,
@@ -95,6 +107,7 @@ export const Images = {
   top_categories,
   categories,
   catalog,
+  networks,
 }
 
 export default Images
