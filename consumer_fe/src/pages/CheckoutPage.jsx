@@ -4,10 +4,12 @@ import { useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Building2,
+  Calendar,
   Check,
   CreditCard,
   Home,
   Loader2,
+  Lock,
   MapPin,
   Minus,
   Phone,
@@ -62,6 +64,111 @@ const initialAddress = {
   townCustom: '',
   address: '',
   phone: '',
+}
+
+const initialCardDetails = {
+  cardName: '',
+  cardNumber: '',
+  expiry: '',
+  cvv: '',
+}
+
+function formatCardNumber(value) {
+  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 16)
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim()
+}
+
+function formatCardExpiry(value) {
+  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`
+}
+
+function validateCardName(value) {
+  return validatePersonName(value, { fieldLabel: 'Name on card' })
+}
+
+function validateCardNumber(value) {
+  const digits = String(value ?? '').replace(/\s/g, '')
+
+  if (!digits) {
+    return { valid: false, message: 'Card number is required' }
+  }
+
+  if (!/^\d{13,19}$/.test(digits)) {
+    return { valid: false, message: 'Enter a valid card number' }
+  }
+
+  return { valid: true, value: digits }
+}
+
+function validateCardExpiry(value) {
+  const match = String(value ?? '').trim().match(/^(\d{2})\/(\d{2})$/)
+
+  if (!match) {
+    return { valid: false, message: 'Use MM/YY format' }
+  }
+
+  const month = Number(match[1])
+  const year = Number(`20${match[2]}`)
+
+  if (month < 1 || month > 12) {
+    return { valid: false, message: 'Enter a valid expiry month' }
+  }
+
+  const expiryEnd = new Date(year, month, 0, 23, 59, 59, 999)
+  if (expiryEnd < new Date()) {
+    return { valid: false, message: 'Card has expired' }
+  }
+
+  return { valid: true }
+}
+
+function validateCardCvv(value) {
+  const digits = String(value ?? '').replace(/\D/g, '')
+
+  if (!digits) {
+    return { valid: false, message: 'CVV is required' }
+  }
+
+  if (!/^\d{3,4}$/.test(digits)) {
+    return { valid: false, message: 'Enter a valid CVV' }
+  }
+
+  return { valid: true, value: digits }
+}
+
+function validateCardFields(card) {
+  const errors = {}
+
+  const cardName = validateCardName(card.cardName)
+  if (!cardName.valid) errors.cardName = cardName.message
+
+  const cardNumber = validateCardNumber(card.cardNumber)
+  if (!cardNumber.valid) errors.cardNumber = cardNumber.message
+
+  const expiry = validateCardExpiry(card.expiry)
+  if (!expiry.valid) errors.expiry = expiry.message
+
+  const cvv = validateCardCvv(card.cvv)
+  if (!cvv.valid) errors.cvv = cvv.message
+
+  return errors
+}
+
+function validateCardField(name, value) {
+  switch (name) {
+    case 'cardName':
+      return validateCardName(value)
+    case 'cardNumber':
+      return validateCardNumber(value)
+    case 'expiry':
+      return validateCardExpiry(value)
+    case 'cvv':
+      return validateCardCvv(value)
+    default:
+      return { valid: true }
+  }
 }
 
 function getAddressList(response, type = 'shipping') {
@@ -884,7 +991,16 @@ function PaymentBadge({ type, image, label }) {
   return null
 }
 
-function PaymentDetails({ selectedPayment, onSelectPayment }) {
+function PaymentDetails({
+  selectedPayment,
+  onSelectPayment,
+  cardDetails,
+  cardErrors = {},
+  onCardChange,
+  onCardBlur,
+}) {
+  const isCard = selectedPayment === 'card'
+
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Payment Details</h2>
@@ -908,18 +1024,78 @@ function PaymentDetails({ selectedPayment, onSelectPayment }) {
         })}
       </div>
 
-      {/* Card details hidden until card payments are supported
-      {selectedPayment === 'card' && (
-        <div className="mt-5 grid gap-4">
-          <Field label="Name on Card" name="cardName" value="" onChange={() => {}} placeholder="Yaw Ofosu" />
-          <Field label="Card Number" name="cardNumber" value="" onChange={() => {}} placeholder="1234458768549839" />
-          <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
-            <Field label="Expiry Date" name="expiry" value="" onChange={() => {}} placeholder="MM/YY" />
-            <Field label="CV" name="cv" value="" onChange={() => {}} placeholder="123" />
+      {isCard && (
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-linear-to-br from-slate-50 via-white to-red-50/40">
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-white/90 px-4 py-3.5 sm:px-5">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-auth-primary/10 text-auth-primary">
+              <Lock className="size-4.5" strokeWidth={2} aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">Card details</p>
+              <p className="text-xs text-slate-500">Your payment information is encrypted and secure</p>
+            </div>
+            <div className="ml-auto hidden items-center gap-1.5 sm:flex">
+              <img src={Images.common.visa} alt="Visa" className="h-5 w-auto object-contain" />
+              <img src={Images.common.mastercard} alt="Mastercard" className="h-5 w-auto object-contain" />
+            </div>
+          </div>
+
+          <div className="grid gap-4 p-4 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-5 sm:p-5">
+            <Field
+              label="Name on card"
+              name="cardName"
+              icon={User}
+              required
+              value={cardDetails.cardName}
+              onChange={onCardChange}
+              onBlur={onCardBlur}
+              error={cardErrors.cardName}
+              placeholder="e.g. Ama Mensah"
+              autoComplete="cc-name"
+            />
+            <Field
+              label="Card number"
+              name="cardNumber"
+              icon={CreditCard}
+              required
+              value={cardDetails.cardNumber}
+              onChange={onCardChange}
+              onBlur={onCardBlur}
+              error={cardErrors.cardNumber}
+              placeholder="1234 5678 9012 3456"
+              inputMode="numeric"
+              autoComplete="cc-number"
+            />
+            <Field
+              label="Expiry date"
+              name="expiry"
+              icon={Calendar}
+              required
+              value={cardDetails.expiry}
+              onChange={onCardChange}
+              onBlur={onCardBlur}
+              error={cardErrors.expiry}
+              placeholder="MM/YY"
+              inputMode="numeric"
+              autoComplete="cc-exp"
+            />
+            <Field
+              label="CVV"
+              name="cvv"
+              icon={Lock}
+              required
+              type="password"
+              value={cardDetails.cvv}
+              onChange={onCardChange}
+              onBlur={onCardBlur}
+              error={cardErrors.cvv}
+              placeholder="123"
+              inputMode="numeric"
+              autoComplete="cc-csc"
+            />
           </div>
         </div>
       )}
-      */}
     </section>
   )
 }
@@ -1080,6 +1256,8 @@ export default function CheckoutPage() {
   const [sessionAddresses, setSessionAddresses] = useState([])
   const [isAddingAddress, setIsAddingAddress] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState('mtn')
+  const [cardDetails, setCardDetails] = useState(initialCardDetails)
+  const [cardErrors, setCardErrors] = useState({})
   const [coupon, setCoupon] = useState('')
   const [couponDiscount, setCouponDiscount] = useState(0)
   const [couponMessage, setCouponMessage] = useState('')
@@ -1228,7 +1406,11 @@ export default function CheckoutPage() {
   ]
     .every((value) => String(value ?? '').trim())
   const hasCheckoutAddress = !isAuthenticated || Boolean(activeAddress.id && activeBillingAddress.id)
-  const canPlaceOrder = items.length > 0 && selectedPayment && hasAddress && hasCheckoutAddress
+  const isCardPaymentValid = useMemo(() => {
+    if (selectedPayment !== 'card') return true
+    return Object.keys(validateCardFields(cardDetails)).length === 0
+  }, [selectedPayment, cardDetails])
+  const canPlaceOrder = items.length > 0 && selectedPayment && hasAddress && hasCheckoutAddress && isCardPaymentValid
 
   const handleAddressChange = (event) => {
     const { name, value } = event.target
@@ -1393,6 +1575,45 @@ export default function CheckoutPage() {
     createBillingAddressMutation.mutate(buildSavedAddressPayload(billingAddressDraft, 'billing'))
   }
 
+  const handleCardChange = (event) => {
+    const { name, value } = event.target
+    let nextValue = value
+
+    if (name === 'cardNumber') nextValue = formatCardNumber(value)
+    if (name === 'expiry') nextValue = formatCardExpiry(value)
+    if (name === 'cvv') nextValue = String(value ?? '').replace(/\D/g, '').slice(0, 4)
+
+    setCardDetails((current) => ({ ...current, [name]: nextValue }))
+
+    if (cardErrors[name]) {
+      setCardErrors((current) => {
+        const next = { ...current }
+        delete next[name]
+        return next
+      })
+    }
+  }
+
+  const handleCardBlur = (event) => {
+    const { name, value } = event.target
+    const result = validateCardField(name, value)
+
+    setCardErrors((current) => {
+      if (result.valid) {
+        if (!current[name]) return current
+        const next = { ...current }
+        delete next[name]
+        return next
+      }
+      return { ...current, [name]: result.message }
+    })
+  }
+
+  const handleSelectPayment = (paymentId) => {
+    setSelectedPayment(paymentId)
+    if (paymentId !== 'card') setCardErrors({})
+  }
+
   const handleApplyCoupon = () => {
     if (!coupon.trim()) {
       setCouponDiscount(0)
@@ -1411,6 +1632,16 @@ export default function CheckoutPage() {
   }
 
   const handlePlaceOrder = async () => {
+    if (selectedPayment === 'card') {
+      const errors = validateCardFields(cardDetails)
+      setCardErrors(errors)
+
+      if (Object.keys(errors).length > 0) {
+        notify.error('Please fix the highlighted card details')
+        return
+      }
+    }
+
     if (!canPlaceOrder) return
 
     try {
@@ -1487,7 +1718,14 @@ export default function CheckoutPage() {
                     onSaveAddress={handleSaveBillingAddress}
                   />
                 )}
-                <PaymentDetails selectedPayment={selectedPayment} onSelectPayment={setSelectedPayment} />
+                <PaymentDetails
+                  selectedPayment={selectedPayment}
+                  onSelectPayment={handleSelectPayment}
+                  cardDetails={cardDetails}
+                  cardErrors={cardErrors}
+                  onCardChange={handleCardChange}
+                  onCardBlur={handleCardBlur}
+                />
               </div>
               <aside className="space-y-5">
                 <OrderSummary items={items} onQuantityChange={updateQuantity} onDelete={deleteItem} />

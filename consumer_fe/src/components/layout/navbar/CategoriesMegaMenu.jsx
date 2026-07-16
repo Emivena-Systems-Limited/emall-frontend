@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import Container from '../Container'
 import { useNavbarCategoryMenu } from '../../../hooks/useNavbarCategoryMenu'
 import { formatCedi } from '../../../utils/formatCurrency'
+import { buildPromotionsHref } from '../../../utils/listingFilterParams'
 
 const panelEase = [0.16, 1, 0.3, 1]
 
@@ -99,7 +100,30 @@ function PromoBanner({ promo, onNavigate }) {
   )
 }
 
-function PromoEmptyState({ categoryLabel, onNavigate }) {
+function CategoryMenuQuickLinks({ onNavigate }) {
+  return (
+    <div className="space-y-1 border-t border-slate-100 p-3">
+      <Link
+        to="/categories"
+        onClick={onNavigate}
+        className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-colors hover:bg-slate-50 hover:text-auth-primary-hover"
+      >
+        All Categories
+        <ChevronRight className="size-4 text-auth-primary/70" strokeWidth={2.25} />
+      </Link>
+      <Link
+        to="/promotions"
+        onClick={onNavigate}
+        className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-colors hover:bg-slate-50 hover:text-auth-primary-hover"
+      >
+        All Promotions
+        <ChevronRight className="size-4 text-auth-primary/70" strokeWidth={2.25} />
+      </Link>
+    </div>
+  )
+}
+
+function PromoEmptyState({ categoryLabel, promotionsHref, onNavigate }) {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-dashed border-[#E8D48A] bg-[#FFF9E6]">
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
@@ -111,7 +135,7 @@ function PromoEmptyState({ categoryLabel, onNavigate }) {
           Special offers and deals for {categoryLabel ?? 'this category'} are coming soon.
         </p>
         <Link
-          to="/promotions"
+          to={promotionsHref}
           onClick={onNavigate}
           className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-2.5 text-xs font-bold tracking-[0.08em] text-white transition-colors hover:bg-auth-primary-hover"
         >
@@ -127,6 +151,7 @@ function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChan
   const featured = category.featured ?? []
   const hasFeatured = featured.length > 0
   const hasPromo = Boolean(category.promo)
+  const promotionsHref = buildPromotionsHref(category.id, activeSubcategoryId)
 
   return (
     <motion.div
@@ -184,6 +209,7 @@ function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChan
         ) : (
           <PromoEmptyState
             categoryLabel={category.label}
+            promotionsHref={promotionsHref}
             onNavigate={onNavigate}
           />
         )}
@@ -285,6 +311,7 @@ export default function CategoriesMegaMenu({ open, onClose }) {
                           )
                         })}
                       </ul>
+                      <CategoryMenuQuickLinks onNavigate={onClose} />
                     </nav>
 
                     <div className="min-w-0 overflow-hidden">

@@ -59,3 +59,16 @@ export function formatMultiFilterLabel(labels, fallback = 'your selection') {
   if (unique.length === 2) return `${unique[0]} & ${unique[1]}`
   return `${unique[0]} +${unique.length - 1} more`
 }
+
+export function buildPromotionsHref(categorySlug, subcategoryId) {
+  if (!categorySlug) return '/promotions'
+
+  const params = new URLSearchParams()
+  params.append(FILTER_CATEGORY_PARAM, categorySlug)
+
+  if (subcategoryId && subcategoryId !== 'all') {
+    params.append(FILTER_SUBCATEGORY_PARAM, subcategoryId)
+  }
+
+  return `/promotions?${params.toString()}`
+}
