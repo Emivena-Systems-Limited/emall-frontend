@@ -11,7 +11,7 @@ function resolveFilterId(value) {
   return DEFAULT_FILTER_ID
 }
 
-function ScrollArrow({ direction, disabled, onClick, label }) {
+function ScrollArrow({ direction, disabled, onClick, label, className = '' }) {
   const Icon = direction === 'left' ? ChevronLeft : ChevronRight
 
   return (
@@ -20,7 +20,7 @@ function ScrollArrow({ direction, disabled, onClick, label }) {
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-8 shrink-0 items-center justify-center rounded-full border border-black bg-white text-slate-900 transition-colors hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-white sm:size-9"
+      className={`flex size-8 shrink-0 items-center justify-center rounded-full border border-black bg-white text-slate-900 transition-colors hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-white sm:size-9 ${className}`}
     >
       <Icon
         className={`size-4 cursor-pointer ${disabled ? 'opacity-35' : ''}`}
@@ -89,7 +89,7 @@ export default function CategoryQuickFilterTabs() {
   }
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex w-full items-center gap-2 sm:gap-3">
       <ScrollArrow
         direction="left"
         disabled={!canScrollLeft}
@@ -101,10 +101,11 @@ export default function CategoryQuickFilterTabs() {
         ref={trackRef}
         role="tablist"
         aria-label="Quick filters"
-        className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-0.5 scrollbar-none [-ms-overflow-style:none] sm:gap-2.5 [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-0.5 scrollbar-none [-ms-overflow-style:none] sm:gap-2.5 lg:w-full lg:gap-3 [&::-webkit-scrollbar]:hidden"
       >
         {CATEGORY_QUICK_FILTERS.map((filter) => {
           const isActive = filter.id === activeId
+          const isWideTab = filter.id === 'recommended'
 
           return (
             <button
@@ -116,7 +117,9 @@ export default function CategoryQuickFilterTabs() {
               role="tab"
               aria-selected={isActive}
               onClick={() => handleSelect(filter.id)}
-              className={`shrink-0 cursor-pointer whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium transition-all duration-200 ease-out sm:px-4 sm:py-2.5 ${
+              className={`shrink-0 cursor-pointer whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium transition-all duration-200 ease-out sm:px-4 sm:py-2.5 lg:min-w-0 lg:shrink lg:px-3 lg:py-2.5 lg:text-sm ${
+                isWideTab ? 'lg:flex-[1.75] lg:min-w-[11.5rem]' : 'lg:flex-1'
+              } ${
                 isActive
                   ? 'border-auth-primary bg-auth-primary text-white shadow-sm hover:border-auth-primary-hover hover:bg-auth-primary-hover hover:shadow-md'
                   : 'border-black bg-white text-slate-900 hover:bg-slate-50 hover:shadow-sm active:scale-[0.98]'

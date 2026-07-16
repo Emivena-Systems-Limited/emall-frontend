@@ -7,5 +7,4 @@ export const CATEGORY_QUICK_FILTERS = [
   { id: 'clearance', label: 'Clearance' },
   { id: 'under-100', label: 'Under 100GH₵' },
   { id: 'under-50', label: 'Under GH₵50' },
-  { id: 'yard-sales', label: 'Yard Sales' },
 ]
