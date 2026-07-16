@@ -41,22 +41,19 @@ export default function Navbar({ cartCount = 0 }) {
       closeCategories()
     }
 
-    document.addEventListener('pointerdown', handlePointerDown, true)
-    return () => document.removeEventListener('pointerdown', handlePointerDown, true)
-  }, [categoriesOpen])
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDown, true)
+    }, 0)
 
-  useEffect(() => {
-    if (!categoriesOpen) return undefined
-
-    const handleScroll = () => closeCategories()
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+    }
   }, [categoriesOpen])
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-auth-primary text-white shadow-sm shadow-black/5">
-      <div className="relative z-60 bg-auth-primary">
+    <header className="sticky top-0 z-[100] border-b border-white/10 bg-auth-primary text-white shadow-sm shadow-black/5">
+      <div className="relative z-[110] bg-auth-primary">
         <Container>
           {/* Mobile + tablet top row */}
           <div className="flex items-center gap-2.5 py-2 lg:hidden">

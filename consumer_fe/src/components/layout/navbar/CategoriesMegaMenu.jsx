@@ -270,7 +270,7 @@ export default function CategoriesMegaMenu({ open, onClose }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6, transition: { duration: 0.12, ease: panelEase } }}
             transition={{ duration: 0.18, ease: panelEase }}
-            className="pointer-events-none absolute inset-x-0 top-full z-50 hidden lg:block"
+            className="pointer-events-none absolute inset-x-0 top-full z-[120] hidden lg:block"
           >
             <Container className="pointer-events-none py-0">
               <div
