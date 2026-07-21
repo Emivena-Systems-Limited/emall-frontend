@@ -7,6 +7,8 @@ import {
   ChevronRight,
   Clock3,
   Download,
+  Grid2X2,
+  List,
   MoreVertical,
   Package,
   Search,
@@ -48,6 +50,16 @@ function ProductStack({ images, remaining = 0 }) {
   )
 }
 
+function OrderActions({ order, onOpen }) {
+  const canTrack = order.status === 'Processing' || order.status === 'Out for Delivery'
+  return (
+    <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+      {canTrack ? <button type="button" onClick={() => onOpen(order.id)} className="flex-1 rounded-full bg-slate-500 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-600 sm:flex-none">Track order</button> : null}
+      <button type="button" onClick={() => onOpen(order.id)} className={`flex-1 rounded-full px-5 py-2.5 text-xs font-bold transition sm:flex-none ${order.status === 'Cancelled' ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-auth-primary text-white hover:bg-auth-primary-hover'}`}>{order.status === 'Cancelled' ? 'View Info' : 'View Details'}</button>
+    </div>
+  )
+}
+
 function OrderCard({ order, onOpen }) {
   return (
     <article className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-auth-primary/25 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)] sm:p-6">
@@ -61,7 +73,20 @@ function OrderCard({ order, onOpen }) {
       </div>
       <div className="mt-5 flex flex-col items-start gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-[0.68rem] font-medium text-slate-500">{order.items} {order.items === 1 ? 'Item' : 'Items'} • Total Amount</p><p className="mt-1 text-xl font-bold tracking-tight text-slate-950">{currency.format(order.amount)}</p></div>
-        <button type="button" onClick={() => onOpen(order.id)} className={`w-full rounded-full px-5 py-2.5 text-xs font-bold transition sm:w-auto ${order.status === 'Cancelled' ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-auth-primary text-white hover:bg-auth-primary-hover'}`}>{order.status === 'Cancelled' ? 'View Info' : 'View Details'}</button>
+        <OrderActions order={order} onOpen={onOpen} />
+      </div>
+    </article>
+  )
+}
+
+function OrderListRow({ order, onOpen }) {
+  return (
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.04)] transition hover:border-auth-primary/25 hover:shadow-[0_14px_35px_rgba(15,23,42,0.07)] sm:p-6">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(13rem,1.15fr)_minmax(12rem,1fr)_minmax(8rem,0.55fr)_auto] lg:items-center">
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold text-slate-950">Order #{order.id}</h3><span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${statusStyles[order.status]}`}>{order.status}</span></div><p className="mt-1.5 text-xs text-slate-500">{order.date}</p></div>
+        <div className="flex min-w-0 items-center gap-3"><ProductStack images={order.images} remaining={Math.max(0, order.items - order.images.length)} /><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{order.title}</p><p className="mt-1 truncate text-xs text-slate-500">{order.delivery}</p></div></div>
+        <div><p className="text-[0.68rem] font-medium text-slate-500">{order.items} {order.items === 1 ? 'Item' : 'Items'} • Total Amount</p><p className="mt-1 text-xl font-bold tracking-tight text-slate-950">{currency.format(order.amount)}</p></div>
+        <OrderActions order={order} onOpen={onOpen} />
       </div>
     </article>
   )
@@ -71,6 +96,7 @@ function OrdersList() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('All Orders')
   const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState('cards')
   const visibleOrders = useMemo(() => orders.filter((order) => {
     const matchesStatus = filter === 'All Orders' || order.status === filter
     const needle = search.trim().toLowerCase()
@@ -85,9 +111,9 @@ function OrdersList() {
       </div>
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-2 overflow-x-auto pb-1">{['All Orders', 'Processing', 'Delivered', 'Cancelled'].map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition ${filter === item ? 'bg-auth-primary text-white' : 'bg-white text-slate-600 hover:bg-red-50 hover:text-auth-primary'}`}>{item}</button>)}</div>
-        <select className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none focus:border-auth-primary"><option>Sort: All</option><option>Newest first</option><option>Highest amount</option></select>
+        <div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 text-xs font-bold text-slate-600"><span>Sort by:</span><select className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none focus:border-auth-primary"><option>All</option><option>Newest first</option><option>Highest amount</option></select></label><div className="inline-flex rounded-xl border border-slate-200 bg-white p-1" aria-label="Order view"><button type="button" onClick={() => setViewMode('cards')} aria-pressed={viewMode === 'cards'} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${viewMode === 'cards' ? 'bg-red-50 text-auth-primary' : 'text-slate-500 hover:bg-slate-50'}`}><Grid2X2 className="size-4" />Cards</button><button type="button" onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${viewMode === 'list' ? 'bg-red-50 text-auth-primary' : 'text-slate-500 hover:bg-slate-50'}`}><List className="size-4" />List</button></div></div>
       </div>
-      {visibleOrders.length ? <div className="mt-5 grid gap-4 xl:grid-cols-2">{visibleOrders.map((order) => <OrderCard key={order.id} order={order} onOpen={(id) => navigate(`/account/orders/${id}`)} />)}</div> : <div className="mt-5 flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><Package className="size-10 text-slate-300" /><h3 className="mt-4 font-bold text-slate-900">No matching orders</h3><p className="mt-1 text-sm text-slate-500">Try another status or search term.</p></div>}
+      {visibleOrders.length ? <div className={`mt-5 grid gap-4 ${viewMode === 'cards' ? 'xl:grid-cols-2' : 'grid-cols-1'}`}>{visibleOrders.map((order) => viewMode === 'cards' ? <OrderCard key={order.id} order={order} onOpen={(id) => navigate(`/account/orders/${id}`)} /> : <OrderListRow key={order.id} order={order} onOpen={(id) => navigate(`/account/orders/${id}`)} />)}</div> : <div className="mt-5 flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><Package className="size-10 text-slate-300" /><h3 className="mt-4 font-bold text-slate-900">No matching orders</h3><p className="mt-1 text-sm text-slate-500">Try another status or search term.</p></div>}
       <div className="mt-7 flex items-center justify-center gap-2"><button className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400"><ChevronLeft className="size-4" /></button><button className="size-9 rounded-lg bg-auth-primary text-sm font-bold text-white">1</button><button className="size-9 rounded-lg text-sm font-semibold text-slate-600 hover:bg-white">2</button><button className="size-9 rounded-lg text-sm font-semibold text-slate-600 hover:bg-white">3</button><span className="px-1 text-slate-400">…</span><button className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600"><ChevronRight className="size-4" /></button></div>
     </section>
   )
