@@ -3,7 +3,9 @@ import { ImagePlus, Trash2, Upload } from 'lucide-react'
 import FieldError from '../auth/FieldError'
 import notify from '../../lib/notify'
 import {
+  PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL,
   PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+  PRODUCT_IMAGE_MIN_SHORT_EDGE_PX,
 } from '../../constants/products'
 import {
   ProductImageDimensionBadge,
@@ -12,7 +14,7 @@ import {
 import {
   evaluatePrimaryImageDimensions,
   formatImageStorageSize,
-  getPrimaryDimensionGuidance,
+  getPrimaryAcceptedDimensionGuidance,
   getProductImageLimitsSummary,
   pickProductImageFiles,
   readImageFileDimensions,
@@ -21,7 +23,7 @@ import {
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
-const IMAGE_HINT = `JPG or PNG · Square near ${PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} · Up to 5 images total · 5MB combined`
+const IMAGE_HINT = `JPG or PNG · Square near ${PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} or landscape near ${PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL} · Up to 5 images total · 5MB combined`
 
 export default function ProductMainImageUpload({
   image,
@@ -32,7 +34,7 @@ export default function ProductMainImageUpload({
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const limits = getProductImageLimitsSummary(image, subImages)
-  const guidance = getPrimaryDimensionGuidance()
+  const guidance = getPrimaryAcceptedDimensionGuidance()
 
   useEffect(() => {
     if (!image || (image.width && image.height) || image.dimensionsChecked) return undefined
@@ -124,14 +126,16 @@ export default function ProductMainImageUpload({
         title="Recommended size for product cards"
         description={
           <>
-            This photo appears in search results and category grids inside a square frame (like on the storefront product card).
-            Upload a square image close to{' '}
+            This photo appears in search results and category grids inside a square frame.
+            Upload a square image near{' '}
             <span className="font-semibold text-slate-800">{PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL}</span>
-            {' '}so it fills the card without large empty bands.
+            {' '}or a wide landscape near{' '}
+            <span className="font-semibold text-slate-800">{PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL}</span>
+            {' '}— both render well on the storefront.
           </>
         }
         guidance={guidance}
-        footer="Exact pixels are not required — close is fine. Avoid wide landscape or tall portrait photos for this slot."
+        footer={`Exact pixels are not required. Any photo at least ${PRODUCT_IMAGE_MIN_SHORT_EDGE_PX}px on the shortest side is accepted.`}
       />
 
       {image ? (

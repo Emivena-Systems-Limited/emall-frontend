@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Star,
   Tag,
+  User,
   UserCog,
   Users,
 } from 'lucide-react'
@@ -32,7 +33,7 @@ export const NAV_SECTIONS = [
     label: 'Main',
     items: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/orders', icon: ShoppingCart, label: 'Orders', badgeKey: 'orders' },
+      { to: '/orders', icon: ShoppingCart, label: 'Orders' },
       { to: '/products', icon: Package, label: 'Products' },
       { to: '/customers', icon: Users, label: 'Customers' },
       { to: '/promotions', icon: Tag, label: 'Promotions' },
@@ -42,14 +43,15 @@ export const NAV_SECTIONS = [
     label: 'Insights',
     items: [
       { to: '/analytics', icon: BarChart3, label: 'Analytics & Reports' },
-      { to: '/finance', icon: CircleDollarSign, label: 'Finance', badgeKey: 'finance' },
-      { to: '/reviews', icon: Star, label: 'Reviews & Ratings', badgeKey: 'reviews' },
-      { to: '/messages', icon: MessageSquare, label: 'Messages', badgeKey: 'messages' },
+      { to: '/finance', icon: CircleDollarSign, label: 'Finance' },
+      { to: '/reviews', icon: Star, label: 'Reviews & Ratings' },
+      { to: '/messages', icon: MessageSquare, label: 'Messages' },
     ],
   },
   {
     label: 'Config',
     items: [
+      { to: '/profile', icon: User, label: 'Profile' },
       { to: '/settings', icon: Settings, label: 'Store Settings' },
       { to: '/users', icon: UserCog, label: 'Users & Permissions' },
       { to: '/help', icon: HelpCircle, label: 'Help & Support' },

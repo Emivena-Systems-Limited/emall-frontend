@@ -15,11 +15,14 @@ export default function VariantImageUpload({
   hint = 'Required · JPG or PNG · Max 5MB · First image is primary',
   error,
   compact = false,
+  maxImages = Infinity,
+  thumbnailSizeClass = 'size-16 sm:size-18',
 }) {
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [draggingIndex, setDraggingIndex] = useState(null)
   const [overIndex, setOverIndex] = useState(null)
+  const remainingSlots = Math.max(0, maxImages - images.length)
 
   const processFiles = async (fileList) => {
     const files = Array.from(fileList).filter(isValidProductImageFile)
@@ -28,7 +31,13 @@ export default function VariantImageUpload({
       return
     }
 
-    onChange([...images, ...files.map(createProductImageFromFile)])
+    const accepted = files.slice(0, remainingSlots)
+    if (accepted.length < files.length) {
+      notify.error(`You can add up to ${maxImages} photos for this value.`)
+    }
+    if (accepted.length === 0) return
+
+    onChange([...images, ...accepted.map(createProductImageFromFile)])
   }
 
   const removeImage = (id) => {
@@ -73,43 +82,45 @@ export default function VariantImageUpload({
       {labelBlock}
       {error && <FieldError message={error} />}
 
-      <div
-        role="button"
-        tabIndex={0}
-        onDragOver={(event) => { event.preventDefault(); setIsDragOver(true) }}
-        onDragLeave={() => setIsDragOver(false)}
-        onDrop={handleZoneDrop}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-all ${
-          isDragOver
-            ? 'border-brand bg-brand-light/30 px-4 py-4'
-            : images.length === 0
-              ? 'border-slate-200 bg-slate-50/50 px-4 py-5 hover:border-brand/40 hover:bg-brand-light/10'
-              : 'border-slate-200 bg-slate-50/40 px-4 py-3 hover:border-slate-300'
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/jpeg,image/png"
-          multiple
-          onChange={(event) => { processFiles(event.target.files); event.target.value = '' }}
-          className="sr-only"
-        />
-        <span className={`flex size-9 items-center justify-center rounded-lg ring-1 ${
-          isDragOver ? 'bg-brand text-white ring-brand/30' : 'bg-white text-slate-400 ring-slate-200'
-        }`}>
-          {images.length === 0
-            ? <ImagePlus className="size-4" strokeWidth={1.75} />
-            : <Upload className="size-4" strokeWidth={1.75} />}
-        </span>
-        <span className="text-center text-xs font-semibold text-slate-600">
-          {images.length === 0
-            ? 'Click or drop variant photos'
-            : 'Add more variant photos'}
-        </span>
-      </div>
+      {remainingSlots > 0 && (
+        <div
+          role="button"
+          tabIndex={0}
+          onDragOver={(event) => { event.preventDefault(); setIsDragOver(true) }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleZoneDrop}
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-all ${
+            isDragOver
+              ? 'border-brand bg-brand-light/30 px-4 py-4'
+              : images.length === 0
+                ? 'border-slate-200 bg-slate-50/50 px-4 py-5 hover:border-brand/40 hover:bg-brand-light/10'
+                : 'border-slate-200 bg-slate-50/40 px-4 py-3 hover:border-slate-300'
+          }`}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            multiple
+            onChange={(event) => { processFiles(event.target.files); event.target.value = '' }}
+            className="sr-only"
+          />
+          <span className={`flex size-9 items-center justify-center rounded-lg ring-1 ${
+            isDragOver ? 'bg-brand text-white ring-brand/30' : 'bg-white text-slate-400 ring-slate-200'
+          }`}>
+            {images.length === 0
+              ? <ImagePlus className="size-4" strokeWidth={1.75} />
+              : <Upload className="size-4" strokeWidth={1.75} />}
+          </span>
+          <span className="text-center text-xs font-semibold text-slate-600">
+            {images.length === 0
+              ? 'Click or drop variant photos'
+              : `Add more photos · ${remainingSlots} slot${remainingSlots === 1 ? '' : 's'} left`}
+          </span>
+        </div>
+      )}
 
       {images.length > 0 && (
         <>
@@ -122,7 +133,7 @@ export default function VariantImageUpload({
                 onDragOver={(event) => { event.preventDefault(); setOverIndex(index) }}
                 onDrop={(event) => handleItemDrop(event, index)}
                 onDragEnd={() => { setDraggingIndex(null); setOverIndex(null) }}
-                className={`group relative size-16 shrink-0 overflow-hidden rounded-lg sm:size-18 ${
+                className={`group relative ${thumbnailSizeClass} shrink-0 overflow-hidden rounded-lg ${
                   draggingIndex === index
                     ? 'cursor-grabbing opacity-40 ring-2 ring-slate-300'
                     : overIndex === index && draggingIndex !== index
@@ -160,7 +171,9 @@ export default function VariantImageUpload({
             ))}
           </div>
           <p className="mt-2 text-[11px] text-slate-400">
-            {images.length} photo{images.length === 1 ? '' : 's'} · Drag to reorder · First is primary
+            {images.length} photo{images.length === 1 ? '' : 's'}
+            {Number.isFinite(maxImages) && maxImages > 1 ? ` of ${maxImages}` : ''}
+            {images.length > 1 ? ' · Drag to reorder · First is primary' : ''}
           </p>
         </>
       )}

@@ -234,6 +234,9 @@ function withVariantStockCapValidation(schema) {
   )
 }
 
+// Keep in sync with VARIANT_DESCRIPTION_MAX_LENGTH in components/variants/variantConstants.js
+const VARIANT_DESCRIPTION_MAX_LENGTH = 300
+
 const productVariationValueSchema = Yup.object({
   id: Yup.string(),
   value: Yup.string().trim().required('Value is required'),
@@ -281,6 +284,21 @@ const productVariationValueSchema = Yup.object({
     .min(1, 'Threshold must be at least 1')
     .test('variant-threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
+  barcode_type: Yup.string().oneOf(['UPC', 'EAN', 'ISBN', 'GTIN']).nullable(),
+  weight: nullableNumber.min(0, 'Cannot be negative'),
+  length: nullableNumber.min(0, 'Cannot be negative'),
+  width: nullableNumber.min(0, 'Cannot be negative'),
+  height: nullableNumber.min(0, 'Cannot be negative'),
+  description: Yup.string()
+    .trim()
+    .max(VARIANT_DESCRIPTION_MAX_LENGTH, `Description cannot exceed ${VARIANT_DESCRIPTION_MAX_LENGTH} characters`)
+    .nullable(),
+  has_compatible_models: Yup.boolean().default(false),
+  compatible_models: Yup.array().of(Yup.string().trim()).default([]).when('has_compatible_models', {
+    is: true,
+    then: (schema) => schema.min(1, 'Add at least one compatible model, or turn this off'),
+    otherwise: (schema) => schema,
+  }),
   images: Yup.array()
     .of(
       Yup.object({
@@ -421,6 +439,21 @@ export const singleVariantSchema = Yup.object({
     .min(1, 'Must be at least 1')
     .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
+  barcode_type: Yup.string().oneOf(['UPC', 'EAN', 'ISBN', 'GTIN']).nullable(),
+  weight: nullableNumber.min(0, 'Cannot be negative'),
+  length: nullableNumber.min(0, 'Cannot be negative'),
+  width: nullableNumber.min(0, 'Cannot be negative'),
+  height: nullableNumber.min(0, 'Cannot be negative'),
+  description: Yup.string()
+    .trim()
+    .max(VARIANT_DESCRIPTION_MAX_LENGTH, `Description cannot exceed ${VARIANT_DESCRIPTION_MAX_LENGTH} characters`)
+    .nullable(),
+  has_compatible_models: Yup.boolean().default(false),
+  compatible_models: Yup.array().of(Yup.string().trim()).default([]).when('has_compatible_models', {
+    is: true,
+    then: (schema) => schema.min(1, 'Add at least one compatible model, or turn this off'),
+    otherwise: (schema) => schema,
+  }),
   images: Yup.array()
     .default([])
     .test(

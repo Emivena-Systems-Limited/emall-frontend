@@ -74,6 +74,7 @@ export function paginatePromotions(promotions, { page = 1, pageSize = 10 } = {})
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 export function getActiveSummaryFilter(summaryFilter, statusFilter) {
   if (
     [

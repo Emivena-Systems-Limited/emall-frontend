@@ -1,0 +1,66 @@
+export const MOCK_SUPPORT_TICKETS = []
+
+export const DEV_SUPPORT_TICKETS = [
+  {
+    id: 'ticket-001',
+    subject: 'Payout delayed for last week',
+    category: 'payments',
+    status: 'in_progress',
+    priority: 'high',
+    createdAt: '2026-07-18T10:00:00Z',
+    updatedAt: '2026-07-19T14:30:00Z',
+    lastReplyBy: 'platform',
+    preview: 'Our finance team is reviewing your payout. Expected resolution within 2 business days.',
+    messages: [
+      { id: 'tm-1', sender: 'vendor', text: 'My payout for week of July 7 was expected on July 15 but hasn\'t arrived.', sentAt: '2026-07-18T10:00:00Z' },
+      { id: 'tm-2', sender: 'platform', text: 'Thank you for reaching out. Our finance team is reviewing your payout. Expected resolution within 2 business days.', sentAt: '2026-07-19T14:30:00Z' },
+    ],
+  },
+  {
+    id: 'ticket-002',
+    subject: 'Unable to upload product images',
+    category: 'technical',
+    status: 'awaiting_reply',
+    priority: 'normal',
+    createdAt: '2026-07-17T09:15:00Z',
+    updatedAt: '2026-07-17T11:00:00Z',
+    lastReplyBy: 'platform',
+    preview: 'Could you confirm the file format and size of the images you\'re trying to upload?',
+    messages: [
+      { id: 'tm-3', sender: 'vendor', text: 'When I try to upload JPG images over 2MB, the upload fails silently.', sentAt: '2026-07-17T09:15:00Z' },
+      { id: 'tm-4', sender: 'platform', text: 'Could you confirm the file format and size of the images you\'re trying to upload? Our limit is 5MB per image.', sentAt: '2026-07-17T11:00:00Z' },
+    ],
+  },
+  {
+    id: 'ticket-003',
+    subject: 'Request to update business registration',
+    category: 'account',
+    status: 'resolved',
+    priority: 'low',
+    createdAt: '2026-07-10T08:00:00Z',
+    updatedAt: '2026-07-12T16:00:00Z',
+    lastReplyBy: 'platform',
+    preview: 'Your business registration documents have been updated successfully.',
+    messages: [
+      { id: 'tm-5', sender: 'vendor', text: 'We\'ve updated our business registration. Please update our vendor profile.', sentAt: '2026-07-10T08:00:00Z' },
+      { id: 'tm-6', sender: 'platform', text: 'Please upload the new registration certificate via the secure link we sent to your email.', sentAt: '2026-07-10T10:00:00Z' },
+      { id: 'tm-7', sender: 'vendor', text: 'Uploaded. Thank you.', sentAt: '2026-07-11T09:00:00Z' },
+      { id: 'tm-8', sender: 'platform', text: 'Your business registration documents have been updated successfully.', sentAt: '2026-07-12T16:00:00Z' },
+    ],
+  },
+  {
+    id: 'ticket-004',
+    subject: 'Commission rate clarification',
+    category: 'payments',
+    status: 'closed',
+    priority: 'normal',
+    createdAt: '2026-06-28T14:00:00Z',
+    updatedAt: '2026-07-01T09:00:00Z',
+    lastReplyBy: 'platform',
+    preview: 'Your commission rate is 8% on electronics and 12% on furniture categories.',
+    messages: [
+      { id: 'tm-9', sender: 'vendor', text: 'Can you clarify the commission rate applied to my sales?', sentAt: '2026-06-28T14:00:00Z' },
+      { id: 'tm-10', sender: 'platform', text: 'Your commission rate is 8% on electronics and 12% on furniture categories.', sentAt: '2026-07-01T09:00:00Z' },
+    ],
+  },
+]

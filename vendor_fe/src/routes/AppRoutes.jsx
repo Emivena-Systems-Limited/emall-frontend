@@ -17,6 +17,14 @@ import EditPromotion from '../pages/promotions/EditPromotion'
 import ViewPromotion from '../pages/promotions/ViewPromotion'
 import Inventory from '../pages/inventory/Inventory'
 import Notifications from '../pages/notifications/Notifications'
+import Finance from '../pages/finance/Finance'
+import Reviews from '../pages/reviews/Reviews'
+import Messages from '../pages/messages/Messages'
+import Profile from '../pages/profile/Profile'
+import StoreSettings from '../pages/settings/StoreSettings'
+import UsersPermissions from '../pages/users/UsersPermissions'
+import HelpSupport from '../pages/help/HelpSupport'
+import Analytics from '../pages/analytics/Analytics'
 import Login from '../pages/auth_pages/Login'
 import Signup from '../pages/auth_pages/Signup'
 import VerifyAccount from '../pages/auth_pages/VerifyAccount'
@@ -32,10 +40,11 @@ export default function AppRoutes() {
       <Route element={<GuestOnlyRoute />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/verify-account" element={<VerifyAccount />} />
       </Route>
+
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       <Route path="/dashboard" element={protectedPage(<Dashboard />)} />
       <Route path="/products" element={protectedPage(<Products />)} />
@@ -53,6 +62,14 @@ export default function AppRoutes() {
       <Route path="/promotions/:promotionId" element={protectedPage(<ViewPromotion />)} />
       <Route path="/inventory" element={protectedPage(<Inventory />)} />
       <Route path="/notifications" element={protectedPage(<Notifications />)} />
+      <Route path="/finance" element={protectedPage(<Finance />)} />
+      <Route path="/analytics" element={protectedPage(<Analytics />)} />
+      <Route path="/reviews" element={protectedPage(<Reviews />)} />
+      <Route path="/messages" element={protectedPage(<Messages />)} />
+      <Route path="/profile" element={protectedPage(<Profile />)} />
+      <Route path="/settings" element={protectedPage(<StoreSettings />)} />
+      <Route path="/users" element={protectedPage(<UsersPermissions />)} />
+      <Route path="/help" element={protectedPage(<HelpSupport />)} />
       <Route path="/dev-guide" element={<DeveloperGuide />} />
     </Routes>
   )

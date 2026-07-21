@@ -1,4 +1,5 @@
 import { MOCK_VENDOR_ORDERS } from './ordersData'
+import { aggregatePurchasedItems } from '../utils/customerUtils'
 
 function slugifyEmail(email) {
   return email.split('@')[0].replace(/[^a-z0-9]+/gi, '-').toLowerCase()
@@ -16,6 +17,17 @@ function buildCustomersFromOrders(orders) {
       orderDate: order.orderDate,
       productsPurchased,
       orderStatus: order.orderStatus,
+      orderTotal: order.totalAmount,
+      items: order.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.sku,
+        image: item.image,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+      })),
     }
 
     if (!map.has(key)) {
@@ -53,12 +65,16 @@ function buildCustomersFromOrders(orders) {
     customer.region = order.delivery.region
   }
 
-  return Array.from(map.values()).map((customer) => ({
-    ...customer,
-    orderHistory: customer.orderHistory.sort(
+  return Array.from(map.values()).map((customer) => {
+    const orderHistory = customer.orderHistory.sort(
       (a, b) => new Date(b.orderDate) - new Date(a.orderDate),
-    ),
-  }))
+    )
+    return {
+      ...customer,
+      orderHistory,
+      purchasedItems: aggregatePurchasedItems(orderHistory),
+    }
+  })
 }
 
 const REVIEW_SEEDS = {

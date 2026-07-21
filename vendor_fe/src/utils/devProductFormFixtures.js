@@ -22,7 +22,7 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
     low_stock_threshold: '10',
     barcode: '1234567890123',
   },
-  3: {
+  4: {
     shipping_weight: '0.2',
     shipping_length: '10',
     shipping_width: '8',
@@ -33,7 +33,7 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
 export const DEV_PRODUCT_FILLABLE_STEPS = [
   { index: 0, label: 'Product info' },
   { index: 2, label: 'Pricing' },
-  { index: 3, label: 'Shipping' },
+  { index: 4, label: 'Shipping' },
 ]
 
 export function getDevProductMergedFixtures() {

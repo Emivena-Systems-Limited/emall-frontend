@@ -15,7 +15,7 @@ import { formatBadgeCount, getNavBadgeCount } from '../../constants/sidebarNav'
 import NavbarDateRangeFilter from './NavbarDateRangeFilter'
 
 function getVendorDisplayName(user) {
-  return user?.business_name ?? user?.store_name ?? 'Vendor'
+  return user?.admin_full_name?.trim() || user?.business_name || user?.store_name || 'Vendor'
 }
 
 function getVendorRole(user) {
@@ -108,7 +108,7 @@ function UserMenu({ user, logoutMutation }) {
           </div>
           <div className="p-1">
             {[
-              { icon: User, label: 'Profile', to: '/settings' },
+              { icon: User, label: 'Profile', to: '/profile' },
               { icon: Settings, label: 'Store settings', to: '/settings' },
             ].map(({ icon: Icon, label, to }) => (
               <button
