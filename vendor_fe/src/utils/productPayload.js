@@ -11,7 +11,7 @@ import {
   optionalVariantFieldForPayload,
   optionalVariantNumberForPayload,
 } from '../components/variants/variantFormUtils'
-import { normalizeKeyDetailsForPayload } from './productMetadata'
+import { normalizeKeyDetailsForPayload, normalizeKeyDetailsForJsonPayload } from './productMetadata'
 import {
   hasUsableProductImages,
   isKeptRemoteProductImage,
@@ -86,6 +86,18 @@ function toNumberOrNull(val) {
 function toMoneyOrNull(val) {
   const num = toNumberOrNull(val)
   return num == null ? null : roundMoney(num)
+}
+
+function resolvePayloadId(value) {
+  if (value == null || value === '') return null
+
+  if (typeof value === 'object') {
+    const id = value.id ?? value.brand_id ?? null
+    if (id == null || id === '') return null
+    return String(id).trim()
+  }
+
+  return String(value).trim()
 }
 
 function resolveProductPricingValues(values = {}) {
@@ -988,9 +1000,9 @@ export function buildProductCreateJsonPayload(
     name: values.name.trim(),
     sku: values.sku.trim(),
     description: values.description.trim(),
-    category_id: values.category_id,
-    subcategory_id: values.subcategory_id,
-    brand_id: values.brand_id,
+    category_id: resolvePayloadId(values.category_id),
+    subcategory_id: resolvePayloadId(values.subcategory_id),
+    brand_id: resolvePayloadId(values.brand_id),
     condition: values.condition,
     fulfillment_channel: values.fulfillment_channel || DEFAULT_PRODUCT_FULFILLMENT_CHANNEL,
     is_active: values.status === 'active' ? true : Boolean(values.is_active),
@@ -1005,7 +1017,7 @@ export function buildProductCreateJsonPayload(
     low_stock_threshold: toNumberOrNull(values.low_stock_threshold),
     barcode: values.barcode?.trim() || null,
     tags: values.tags ?? [],
-    key_details: normalizeKeyDetailsForPayload(values.key_details),
+    key_details: normalizeKeyDetailsForJsonPayload(values.key_details),
     metadata,
     shipping: {
       weight: toMoneyOrNull(values.shipping_weight),

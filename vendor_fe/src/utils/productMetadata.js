@@ -47,6 +47,13 @@ export function normalizeKeyDetailsForPayload(keyDetails = []) {
     }))
 }
 
+/** JSON product create expects key_details.* as strings, not { property, value } objects. */
+export function normalizeKeyDetailsForJsonPayload(keyDetails = []) {
+  return normalizeKeyDetailsForPayload(keyDetails).map(({ property, value }) => (
+    JSON.stringify({ property, value })
+  ))
+}
+
 export function getMetadataValue(metadata, key) {
   if (!Array.isArray(metadata)) return undefined
   const item = metadata.find((m) => m && (m.key === key || m.meta_key === key))

@@ -88,7 +88,8 @@ export function findBrandBySlug(brands, slug) {
 
 export function findBrandById(brands, id) {
   if (!id) return null
-  return brands.find((brand) => brand.id === id) ?? null
+  const normalizedId = String(id)
+  return brands.find((brand) => String(brand.id) === normalizedId) ?? null
 }
 
 export function getBrandDisplayLabel(brandId, brands) {
