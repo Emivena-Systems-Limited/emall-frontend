@@ -18,8 +18,13 @@ import {
   PRIMARY_PRODUCT_IMAGE_HEIGHT,
   PRIMARY_PRODUCT_IMAGE_MAX_SCALE,
   PRIMARY_PRODUCT_IMAGE_MIN_SCALE,
+  PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL,
   PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
   PRIMARY_PRODUCT_IMAGE_WIDTH,
+  PRODUCT_IMAGE_MAX_ASPECT_RATIO,
+  PRODUCT_IMAGE_MAX_LONG_EDGE_PX,
+  PRODUCT_IMAGE_MIN_ASPECT_RATIO,
+  PRODUCT_IMAGE_MIN_SHORT_EDGE_PX,
 } from '../constants/products'
 
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -366,12 +371,21 @@ export function isGalleryProductImage(image) {
 }
 
 export function createProductImageFromFile(file, meta = {}) {
+  const id = meta.id ?? `img-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
   return {
-    id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id,
+    content_id: meta.content_id ?? id,
     file,
     preview: URL.createObjectURL(file),
     isRemote: false,
     remoteId: null,
+    upload_id: null,
+    image_url: null,
+    s3Path: null,
+    storagePath: null,
+    uploadStatus: 'idle',
+    uploadError: null,
     width: meta.width ?? null,
     height: meta.height ?? null,
   }
@@ -402,13 +416,19 @@ export function resolveRemoteProductImageId(image) {
 
 export function createProductImageFromRemote(image) {
   const remoteId = resolveRemoteProductImageId(image)
+  const id = remoteId ?? `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
   return {
-    id: remoteId ?? `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id,
+    content_id: image.content_id ?? id,
     file: null,
     preview: image.image_url ?? image.url ?? image.preview ?? image.image_path ?? '',
     remoteId,
     isRemote: true,
+    s3Path: image.s3Path ?? image.storagePath ?? image.image_path ?? null,
+    storagePath: image.storagePath ?? image.s3Path ?? image.image_path ?? null,
+    uploadStatus: 'uploaded',
+    uploadError: null,
   }
 }
 
@@ -500,6 +520,21 @@ export function getPrimaryDimensionGuidance() {
   })
 }
 
+/** Combined square + landscape acceptance ranges shown in the main-photo upload UI. */
+export function getPrimaryAcceptedDimensionGuidance() {
+  const square = getPrimaryDimensionGuidance()
+  const landscape = getFeaturedDimensionGuidance()
+
+  return {
+    ...square,
+    label: `${square.label} (square) or ${PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL} (landscape)`,
+    minWidth: Math.min(square.minWidth, landscape.minWidth),
+    maxWidth: Math.max(square.maxWidth, landscape.maxWidth),
+    minHeight: Math.min(square.minHeight, landscape.minHeight),
+    maxHeight: Math.max(square.maxHeight, landscape.maxHeight),
+  }
+}
+
 export function getFeaturedDimensionGuidance() {
   return buildImageDimensionGuidance({
     targetWidth: FEATURED_PRODUCT_IMAGE_WIDTH,
@@ -528,13 +563,15 @@ function evaluateProductImageDimensions(width, height, {
   const targetRatio = guidance.targetWidth / guidance.targetHeight
   const ratio = width / height
   const ratioDiff = Math.abs(ratio - targetRatio) / targetRatio
-
-  const widthInRange = width >= guidance.minWidth && width <= guidance.maxWidth
-  const heightInRange = height >= guidance.minHeight && height <= guidance.maxHeight
+  const shortEdge = Math.min(width, height)
+  const longEdge = Math.max(width, height)
+  const minShort = Math.min(guidance.minWidth, guidance.minHeight)
+  const maxLong = Math.max(guidance.maxWidth, guidance.maxHeight)
+  const sizeOk = shortEdge >= minShort && longEdge <= maxLong
   const aspectOk = ratioDiff <= aspectTolerance
   const dimensionLabel = `${width} × ${height} px`
 
-  if (widthInRange && heightInRange && aspectOk) {
+  if (sizeOk && aspectOk) {
     const widthDelta = Math.abs(width - guidance.targetWidth) / guidance.targetWidth
     const heightDelta = Math.abs(height - guidance.targetHeight) / guidance.targetHeight
     const isIdeal = widthDelta <= 0.08 && heightDelta <= 0.08
@@ -558,40 +595,143 @@ function evaluateProductImageDimensions(width, height, {
   }
 }
 
-export function evaluatePrimaryImageDimensions(width, height) {
-  const guidance = getPrimaryDimensionGuidance()
+/** Last-resort check: any reasonably sized product photo, regardless of target profile. */
+function evaluateLenientProductImageDimensions(width, height) {
+  if (!width || !height) {
+    return {
+      status: 'unknown',
+      valid: false,
+      width,
+      height,
+      dimensionLabel: null,
+      message: 'Could not read image dimensions. Try re-uploading the file.',
+    }
+  }
 
-  return evaluateProductImageDimensions(width, height, {
-    guidance,
-    aspectTolerance: PRIMARY_PRODUCT_IMAGE_ASPECT_TOLERANCE,
-    invalidMessage: (dimensionLabel) => (
-      `This image is ${dimensionLabel}. Use a square photo close to ${PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} (roughly ${guidance.minWidth}–${guidance.maxWidth} px). Wide landscape or tall portrait images leave empty space in search and category cards.`
+  const shortEdge = Math.min(width, height)
+  const longEdge = Math.max(width, height)
+  const ratio = width / height
+  const dimensionLabel = `${width} × ${height} px`
+
+  if (
+    shortEdge >= PRODUCT_IMAGE_MIN_SHORT_EDGE_PX
+    && longEdge <= PRODUCT_IMAGE_MAX_LONG_EDGE_PX
+    && ratio >= PRODUCT_IMAGE_MIN_ASPECT_RATIO
+    && ratio <= PRODUCT_IMAGE_MAX_ASPECT_RATIO
+  ) {
+    return {
+      status: 'acceptable',
+      valid: true,
+      width,
+      height,
+      dimensionLabel,
+    }
+  }
+
+  return {
+    status: 'invalid',
+    valid: false,
+    width,
+    height,
+    dimensionLabel,
+    message: (
+      `This image is ${dimensionLabel}. Use at least ${PRODUCT_IMAGE_MIN_SHORT_EDGE_PX}px on the `
+      + 'shortest side. Very wide panoramas or tall strips are not supported.'
     ),
+  }
+}
+
+export function evaluatePrimaryImageDimensions(width, height) {
+  const squareGuidance = getPrimaryDimensionGuidance()
+  const landscapeGuidance = getFeaturedDimensionGuidance()
+
+  const squareResult = evaluateProductImageDimensions(width, height, {
+    guidance: squareGuidance,
+    aspectTolerance: PRIMARY_PRODUCT_IMAGE_ASPECT_TOLERANCE,
+    invalidMessage: () => '',
   })
+
+  if (squareResult.valid) return squareResult
+
+  const landscapeResult = evaluateProductImageDimensions(width, height, {
+    guidance: landscapeGuidance,
+    aspectTolerance: FEATURED_PRODUCT_IMAGE_ASPECT_TOLERANCE,
+    invalidMessage: () => '',
+  })
+
+  if (landscapeResult.valid) return landscapeResult
+
+  const lenientResult = evaluateLenientProductImageDimensions(width, height)
+  if (lenientResult.valid) return lenientResult
+
+  const dimensionLabel = `${width} × ${height} px`
+
+  return {
+    status: 'invalid',
+    valid: false,
+    width,
+    height,
+    dimensionLabel,
+    message: lenientResult.message ?? (
+      `This image is ${dimensionLabel}. Use a square photo near ${PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL}, `
+      + `or a wide landscape near ${FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL}. `
+      + `Sizes like ${PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL} are fine.`
+    ),
+  }
 }
 
 export function evaluateFeaturedImageDimensions(width, height) {
   const guidance = getFeaturedDimensionGuidance()
 
-  return evaluateProductImageDimensions(width, height, {
+  const profileResult = evaluateProductImageDimensions(width, height, {
     guidance,
     aspectTolerance: FEATURED_PRODUCT_IMAGE_ASPECT_TOLERANCE,
-    invalidMessage: (dimensionLabel) => (
-      `This image is ${dimensionLabel}. Use a wide landscape photo close to ${FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL} (roughly ${guidance.minWidth}–${guidance.maxWidth} px wide). Square or portrait photos will not fill the product page hero gallery well.`
-    ),
+    invalidMessage: () => '',
   })
+
+  if (profileResult.valid) return profileResult
+
+  const lenientResult = evaluateLenientProductImageDimensions(width, height)
+  if (lenientResult.valid) return lenientResult
+
+  return {
+    status: 'invalid',
+    valid: false,
+    width,
+    height,
+    dimensionLabel: `${width} × ${height} px`,
+    message: lenientResult.message ?? (
+      `This image is ${width} × ${height} px. Use a wide landscape photo near `
+      + `${FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL} when possible.`
+    ),
+  }
 }
 
 export function evaluateDescriptiveImageDimensions(width, height) {
   const guidance = getDescriptiveDimensionGuidance()
 
-  return evaluateProductImageDimensions(width, height, {
+  const profileResult = evaluateProductImageDimensions(width, height, {
     guidance,
     aspectTolerance: DESCRIPTIVE_IMAGE_ASPECT_TOLERANCE,
-    invalidMessage: (dimensionLabel) => (
-      `This image is ${dimensionLabel}. Use a wide landscape photo close to ${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} (roughly ${guidance.minWidth}–${guidance.maxWidth} px wide). Square or tall images will not fit the product page grid well.`
-    ),
+    invalidMessage: () => '',
   })
+
+  if (profileResult.valid) return profileResult
+
+  const lenientResult = evaluateLenientProductImageDimensions(width, height)
+  if (lenientResult.valid) return lenientResult
+
+  return {
+    status: 'invalid',
+    valid: false,
+    width,
+    height,
+    dimensionLabel: `${width} × ${height} px`,
+    message: lenientResult.message ?? (
+      `This image is ${width} × ${height} px. Use a wide landscape photo near `
+      + `${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} when possible.`
+    ),
+  }
 }
 
 export async function validatePrimaryImageDimensions(image) {

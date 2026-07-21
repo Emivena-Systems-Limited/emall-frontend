@@ -43,7 +43,7 @@ const QUICK_ACTIONS = [
     to: '/settings',
     icon: Settings,
     label: 'Store settings',
-    description: 'Update profile, payouts, and preferences',
+    description: 'Storefront, shipping, policies & notifications',
     accent: '#64748b',
   },
 ]

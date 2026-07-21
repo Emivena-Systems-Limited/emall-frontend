@@ -69,8 +69,8 @@ export async function getAllProducts() {
 
 export const getVendorProducts = getAllProducts
 
-export async function createProduct(formData) {
-  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.CREATE, formData)
+export async function createProduct(body) {
+  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.CREATE, body)
   assertApiSuccess(data)
 
   const record = extractProductRecord(data)

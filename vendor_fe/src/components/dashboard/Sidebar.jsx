@@ -8,37 +8,10 @@ import {
   X,
 } from 'lucide-react'
 import { useLogoutVendorMutation } from '../../hooks/useAuthMutations'
-import { NAV_SECTIONS, getNavBadgeCount, formatBadgeCount } from '../../constants/sidebarNav'
+import { NAV_SECTIONS } from '../../constants/sidebarNav'
 import VendorStoreCard from './VendorStoreCard'
 
-function NotificationBadge({ count, collapsed, label }) {
-  const text = formatBadgeCount(count)
-  if (!text) return null
-
-  if (collapsed) {
-    return (
-      <span
-        aria-label={`${label}: ${text} notifications`}
-        className="absolute -right-1 -top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[#1a1a2e]"
-      >
-        {text}
-      </span>
-    )
-  }
-
-  return (
-    <span
-      aria-label={`${text} notifications`}
-      className="ml-auto shrink-0 rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold tabular-nums text-white"
-    >
-      {text}
-    </span>
-  )
-}
-
 function NavItem({ item, collapsed }) {
-  const badgeCount = getNavBadgeCount(item.badgeKey)
-
   return (
     <NavLink
       to={item.to}
@@ -58,29 +31,16 @@ function NavItem({ item, collapsed }) {
           {isActive && (
             <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-white" />
           )}
-          <span className="relative shrink-0">
-            <item.icon
-              className="size-[18px]"
-              strokeWidth={isActive ? 2 : 1.75}
-            />
-            {collapsed && (
-              <NotificationBadge count={badgeCount} collapsed label={item.label} />
-            )}
-          </span>
+          <item.icon
+            className="size-[18px] shrink-0"
+            strokeWidth={isActive ? 2 : 1.75}
+          />
           {!collapsed && (
-            <>
-              <span className="min-w-0 truncate">{item.label}</span>
-              <NotificationBadge count={badgeCount} collapsed={false} label={item.label} />
-            </>
+            <span className="min-w-0 truncate">{item.label}</span>
           )}
           {collapsed && (
             <span className="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
               {item.label}
-              {badgeCount > 0 && (
-                <span className="ml-2 rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold">
-                  {formatBadgeCount(badgeCount)}
-                </span>
-              )}
             </span>
           )}
         </>

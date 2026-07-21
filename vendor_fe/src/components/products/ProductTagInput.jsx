@@ -35,10 +35,7 @@ export default function ProductTagInput({
   }
 
   return (
-    <div
-      data-field="tags"
-      className={optional ? 'rounded-xl border border-dashed border-slate-200 bg-slate-50/30 p-3' : undefined}
-    >
+    <div data-field="tags">
       {label && (
         <label className="mb-1.5 block">
           <span className="flex flex-wrap items-center gap-2">
@@ -79,7 +76,7 @@ export default function ProductTagInput({
             onKeyDown={handleKeyDown}
             onBlur={() => { if (input.trim()) addTag(input) }}
             placeholder={tags.length === 0 ? 'Type and press Enter or comma…' : ''}
-            className="min-w-[120px] flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            className="min-w-30 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
           />
         )}
       </div>

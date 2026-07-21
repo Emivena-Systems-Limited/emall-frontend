@@ -453,7 +453,7 @@ function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, 
 
         <div className="min-w-0 flex-1 space-y-3 overflow-hidden">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 break-words font-semibold tracking-tight text-slate-950">{fullName || 'Saved address'}</span>
+            <span className="min-w-0 wrap-break-word font-semibold tracking-tight text-slate-950">{fullName || 'Saved address'}</span>
             {isDefault ? (
               <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
                 Default
@@ -467,7 +467,7 @@ function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, 
           </div>
 
           {normalized.address ? (
-            <p className="break-words text-sm leading-relaxed text-slate-600">{normalized.address}</p>
+            <p className="wrap-break-word text-sm leading-relaxed text-slate-600">{normalized.address}</p>
           ) : null}
 
           {(location || normalized.phone) ? (

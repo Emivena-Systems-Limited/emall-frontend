@@ -57,7 +57,7 @@ export function useCreateProductMutation() {
 
   return useMutation({
     mutationKey: ['products', 'create'],
-    mutationFn: ({ formData }) => createProduct(formData),
+    mutationFn: ({ formData, payload }) => createProduct(payload ?? formData),
     onSuccess: (record, variables) => {
       const catalogProduct = toCatalogProduct(record, variables?.context)
       if (!catalogProduct) return
@@ -136,6 +136,14 @@ export function useUpdateProductVariantsMutation() {
             reserved_quantity: variantValue.reserved_quantity,
             low_stock_threshold: variantValue.low_stock_threshold,
             barcode: variantValue.barcode,
+            barcode_type: variantValue.barcode_type,
+            weight: variantValue.weight,
+            length: variantValue.length,
+            width: variantValue.width,
+            height: variantValue.height,
+            description: variantValue.description,
+            has_compatible_models: variantValue.has_compatible_models,
+            compatible_models: variantValue.compatible_models,
             images: variantValue.images ?? [],
           },
           variantValue.id,
