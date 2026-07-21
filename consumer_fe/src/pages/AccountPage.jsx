@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bell,
+  Building2,
   Camera,
   ChevronRight,
   CircleHelp,
@@ -12,6 +13,7 @@ import {
   Gift,
   Heart,
   House,
+  Landmark,
   Loader2,
   LogOut,
   MapPin,
@@ -28,6 +30,10 @@ import {
 } from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
+import AccountAddressesPanel from '../components/account/AccountAddressesPanel'
+import AccountOrdersPanel from '../components/account/AccountOrdersPanel'
+import AccountWishlistPanel from '../components/account/AccountWishlistPanel'
+import SearchableSelect from '../components/auth/SearchableSelect'
 import { getUserAddresses } from '../services/addressService'
 import {
   deleteUserAvatar,
@@ -41,6 +47,18 @@ import { logout, updateUser } from '../store/slices/authSlice'
 import { persistor } from '../store/store'
 import { clearAuthOtpSession } from '../utils/authOtpSession'
 import { notify } from '../lib/notify'
+import { resolveBackendMediaUrl } from '../utils/resolveBackendMediaUrl'
+import {
+  GHANA_LOCATIONS,
+  LOCATION_OTHER_VALUE,
+  getCityLabel,
+  getCityOptionsByRegion,
+  getDistrictsByRegion,
+  getDistrictsByRegionAndCity,
+  resolveCitySelection,
+} from '../constants/ghanaLocations'
+
+const profileRegionOptions = GHANA_LOCATIONS.map((region) => ({ value: region.id, label: region.name }))
 
 const navigationItems = [
   { label: 'Profile Overview', icon: House, href: '/account' },
@@ -78,7 +96,7 @@ function getProfile(user) {
     email: firstValue(user?.email, 'Not provided'),
     phone: firstValue(user?.phone_number, user?.phone, 'Not provided'),
     joined: firstValue(user?.date_joined, user?.joined_at, user?.created_at),
-    photo: firstValue(user?.profile_photo_url, user?.profile_picture, user?.avatar),
+    photo: resolveBackendMediaUrl(firstValue(user?.profile_photo_url, user?.profile_picture, user?.avatar)),
   }
 }
 
@@ -145,8 +163,9 @@ function ProfileSummary({ profile, isUploading, onEdit, onUpload, onDeleteAvatar
       <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
           <div className="relative">
-            <div className="flex size-24 items-center justify-center overflow-hidden rounded-2xl border-4 border-white/25 bg-white/15 text-2xl font-bold shadow-lg sm:size-28">
-              {profile.photo ? <img src={profile.photo} alt={profile.fullName} className="size-full object-cover" /> : initials}
+            <div className="relative flex size-24 items-center justify-center overflow-hidden rounded-2xl border-4 border-white/25 bg-white/15 text-2xl font-bold shadow-lg sm:size-28">
+              <span aria-hidden>{initials}</span>
+              {profile.photo ? <img src={profile.photo} alt={profile.fullName} onError={(event) => { event.currentTarget.style.display = 'none' }} className="absolute inset-0 size-full object-cover" /> : null}
             </div>
             <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Upload profile picture" className="absolute -bottom-2 -right-2 flex size-9 items-center justify-center rounded-full border-2 border-white bg-white text-auth-primary shadow-md transition-transform hover:scale-105">
               <Camera className="size-4" />
@@ -223,20 +242,75 @@ function AccountInformation({ profile, user, onDeleteProfile }) {
   )
 }
 
+function resolveProfileRegion(value) {
+  const raw = String(value ?? '').trim()
+  return GHANA_LOCATIONS.find((region) => region.id === raw || region.name.toLowerCase() === raw.toLowerCase())?.id ?? ''
+}
+
+function resolveProfileCity(regionId, value) {
+  const raw = String(value ?? '').trim()
+  const match = getCityOptionsByRegion(regionId).find((option) => option.value === raw || option.label.toLowerCase() === raw.toLowerCase())
+  return match ? { city: match.value, cityCustom: '' } : { city: raw ? LOCATION_OTHER_VALUE : '', cityCustom: raw }
+}
+
+function resolveProfileDistrict(regionId, value) {
+  const raw = String(value ?? '').trim()
+  const match = getDistrictsByRegion(regionId).find((district) => district.id === raw || district.name.toLowerCase() === raw.toLowerCase())
+  return match ? { district: match.id, districtCustom: '' } : { district: raw ? LOCATION_OTHER_VALUE : '', districtCustom: raw }
+}
+
 function EditProfileModal({ initialProfile, isSaving, onClose, onSave }) {
+  const initialRegion = resolveProfileRegion(initialProfile?.region)
+  const initialCity = resolveProfileCity(initialRegion, firstValue(initialProfile?.city_or_town, initialProfile?.city, initialProfile?.town))
+  const initialDistrict = resolveProfileDistrict(initialRegion, initialProfile?.district)
   const [form, setForm] = useState(() => ({
     first_name: firstValue(initialProfile?.first_name, initialProfile?.firstName),
     last_name: firstValue(initialProfile?.last_name, initialProfile?.lastName),
     email: firstValue(initialProfile?.email),
     phone_number: firstValue(initialProfile?.phone_number, initialProfile?.phone),
-    region: firstValue(initialProfile?.region),
-    district: firstValue(initialProfile?.district),
-    city_or_town: firstValue(initialProfile?.city_or_town, initialProfile?.city, initialProfile?.town),
+    region: initialRegion,
+    city: initialCity.city,
+    cityCustom: initialCity.cityCustom,
+    district: initialDistrict.district,
+    districtCustom: initialDistrict.districtCustom,
   }))
+
+  const cityOptions = useMemo(() => getCityOptionsByRegion(form.region), [form.region])
+  const districts = useMemo(() => {
+    if (!form.region) return []
+    return form.city === LOCATION_OTHER_VALUE
+      ? getDistrictsByRegion(form.region)
+      : getDistrictsByRegionAndCity(form.region, form.city)
+  }, [form.region, form.city])
+  const districtOptions = districts.map((district) => ({ value: district.id, label: district.name }))
+
+  const updateLocation = (field, value) => {
+    setForm((current) => {
+      const next = { ...current, [field]: value }
+      if (field === 'region') return { ...next, city: '', cityCustom: '', district: '', districtCustom: '' }
+      if (field === 'city') {
+        next.cityCustom = ''
+        next.districtCustom = ''
+        next.district = value === LOCATION_OTHER_VALUE ? '' : resolveCitySelection(current.region, value).districtId
+      }
+      if (field === 'district' && value !== LOCATION_OTHER_VALUE) next.districtCustom = ''
+      return next
+    })
+  }
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    onSave(Object.fromEntries(Object.entries(form).map(([key, value]) => [key, String(value).trim()])))
+    if (!form.region || !form.city || !form.district || (form.city === LOCATION_OTHER_VALUE && !form.cityCustom.trim()) || (form.district === LOCATION_OTHER_VALUE && !form.districtCustom.trim())) {
+      notify.error('Please complete your region, city or town, and district')
+      return
+    }
+    const region = GHANA_LOCATIONS.find((item) => item.id === form.region)?.name ?? ''
+    const city_or_town = form.city === LOCATION_OTHER_VALUE ? form.cityCustom.trim() : getCityLabel(form.region, form.city)
+    const district = form.district === LOCATION_OTHER_VALUE ? form.districtCustom.trim() : getDistrictsByRegion(form.region).find((item) => item.id === form.district)?.name ?? ''
+    onSave({
+      first_name: form.first_name.trim(), last_name: form.last_name.trim(), email: form.email.trim(),
+      phone_number: form.phone_number.trim(), region, district, city_or_town,
+    })
   }
 
   return (
@@ -246,8 +320,10 @@ function EditProfileModal({ initialProfile, isSaving, onClose, onSave }) {
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {[
             ['first_name', 'First name'], ['last_name', 'Last name'], ['email', 'Email address'], ['phone_number', 'Phone number'],
-            ['region', 'Region'], ['district', 'District'], ['city_or_town', 'City or town'],
-          ].map(([name, label]) => <label key={name} className={`grid gap-2 text-sm font-semibold text-slate-700 ${name === 'city_or_town' ? 'sm:col-span-2' : ''}`}><span>{label}</span><input value={form[name]} onChange={(event) => setForm((current) => ({ ...current, [name]: event.target.value }))} className="h-12 rounded-xl border border-slate-300 px-4 font-normal outline-none transition-colors focus:border-auth-primary focus:ring-2 focus:ring-red-100" /></label>)}
+          ].map(([name, label]) => <label key={name} className="grid gap-2 text-sm font-semibold text-slate-700"><span>{label}</span><input value={form[name]} onChange={(event) => setForm((current) => ({ ...current, [name]: event.target.value }))} className="h-12 rounded-xl border border-slate-300 px-4 font-normal outline-none transition-colors focus:border-auth-primary focus:ring-2 focus:ring-red-100" /></label>)}
+          <SearchableSelect id="profile-region" label="Region" icon={MapPin} value={form.region} onChange={(value) => updateLocation('region', value)} options={profileRegionOptions} placeholder="Search regions…" emptyLabel="Select region" />
+          <SearchableSelect id="profile-city" label="City or town" icon={Building2} value={form.city} onChange={(value) => updateLocation('city', value)} options={cityOptions} placeholder="Search cities and towns…" emptyLabel="Select city or town" allowOther otherValue={LOCATION_OTHER_VALUE} otherLabel="Other (enter custom city)" customValue={form.cityCustom} onCustomChange={(cityCustom) => setForm((current) => ({ ...current, cityCustom }))} customInputPlaceholder="Type your city or town" disabled={!form.region} />
+          <div className="sm:col-span-2"><SearchableSelect id="profile-district" label="District" icon={Landmark} value={form.district} onChange={(value) => updateLocation('district', value)} options={districtOptions} placeholder="Search districts…" emptyLabel="Select district" allowOther otherValue={LOCATION_OTHER_VALUE} otherLabel="Other (enter custom district)" customValue={form.districtCustom} onCustomChange={(districtCustom) => setForm((current) => ({ ...current, districtCustom }))} customInputPlaceholder="Type your district name" disabled={!form.region || !form.city} /></div>
         </div>
         <div className="mt-7 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700">Cancel</button><button type="submit" disabled={isSaving} className="rounded-xl bg-auth-primary px-6 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover disabled:opacity-60">{isSaving ? 'Saving…' : 'Save changes'}</button></div>
       </form>
@@ -294,12 +370,17 @@ export default function AccountPage() {
   const logoutMutation = useLogoutMutation()
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isDeletingProfile, setIsDeletingProfile] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState('')
   const profileQuery = useQuery({ queryKey: ['user-profile'], queryFn: getUserProfile, staleTime: 60_000, retry: 1 })
   const liveUser = useMemo(
     () => profileQuery.data && typeof profileQuery.data === 'object' ? { ...user, ...profileQuery.data } : user,
     [profileQuery.data, user],
   )
   const profile = useMemo(() => getProfile(liveUser), [liveUser])
+  const displayedProfile = useMemo(
+    () => avatarPreview ? { ...profile, photo: avatarPreview } : profile,
+    [avatarPreview, profile],
+  )
   const addressesQuery = useQuery({ queryKey: ['user-addresses'], queryFn: getUserAddresses, staleTime: 60_000, retry: 1 })
   const shippingAddresses = useMemo(() => getShippingAddresses(addressesQuery.data), [addressesQuery.data])
   const defaultAddress = shippingAddresses.find((item) => item?.is_default || item?.isDefault) ?? shippingAddresses[0]
@@ -308,6 +389,10 @@ export default function AccountPage() {
     if (profileQuery.data && typeof profileQuery.data === 'object') dispatch(updateUser(profileQuery.data))
   }, [dispatch, profileQuery.data])
 
+  useEffect(() => () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+  }, [avatarPreview])
+
   const refreshProfile = async (updatedProfile, message) => {
     if (updatedProfile && typeof updatedProfile === 'object') dispatch(updateUser(updatedProfile))
     await queryClient.invalidateQueries({ queryKey: ['user-profile'] })
@@ -315,8 +400,8 @@ export default function AccountPage() {
   }
 
   const updateProfileMutation = useMutation({ mutationFn: updateUserProfile, onSuccess: async (data) => { await refreshProfile(data, 'Profile updated successfully'); setIsEditingProfile(false) }, onError: (error) => notify.fromError(error, 'Unable to update profile') })
-  const uploadAvatarMutation = useMutation({ mutationFn: uploadUserAvatar, onSuccess: (data) => refreshProfile(data, 'Profile picture updated'), onError: (error) => notify.fromError(error, 'Unable to upload profile picture') })
-  const deleteAvatarMutation = useMutation({ mutationFn: deleteUserAvatar, onSuccess: (data) => refreshProfile(data, 'Profile picture removed'), onError: (error) => notify.fromError(error, 'Unable to remove profile picture') })
+  const uploadAvatarMutation = useMutation({ mutationFn: uploadUserAvatar, onSuccess: (data) => refreshProfile(data, 'Profile picture updated'), onError: (error) => { setAvatarPreview(''); notify.fromError(error, 'Unable to upload profile picture') } })
+  const deleteAvatarMutation = useMutation({ mutationFn: deleteUserAvatar, onSuccess: (data) => { setAvatarPreview(''); return refreshProfile(data, 'Profile picture removed') }, onError: (error) => notify.fromError(error, 'Unable to remove profile picture') })
   const deleteProfileMutation = useMutation({ mutationFn: deleteUserProfile, onSuccess: async () => { dispatch(logout()); clearAuthOtpSession(); await persistor.persist(); notify.success('Account deleted successfully'); navigate('/') }, onError: (error) => notify.fromError(error, 'Unable to delete account') })
 
   const handleLogout = async () => {
@@ -329,16 +414,26 @@ export default function AccountPage() {
     <SiteLayout>
       <section className="min-h-[70vh] bg-[#f7f8fa] py-6 sm:py-8 lg:py-10">
         <Container>
-          <div className="mb-6"><p className="text-sm font-semibold text-auth-primary">My Account</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Account dashboard</h1><p className="mt-2 text-sm text-slate-500">Manage your profile, activity, addresses and preferences from one place.</p></div>
+          <div className="mb-6"><p className="text-sm font-semibold text-auth-primary">My Account</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{location.pathname === '/account/addresses' ? 'Address management' : location.pathname.startsWith('/account/orders') ? 'Order management' : location.pathname.startsWith('/account/wishlist') ? 'Wishlist' : 'Account dashboard'}</h1><p className="mt-2 text-sm text-slate-500">Manage your profile, activity, addresses and preferences from one place.</p></div>
           <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)]">
             <Sidebar pathname={location.pathname} isLoggingOut={logoutMutation.isPending} onLogout={handleLogout} />
             <div className="min-w-0 space-y-5">
-              <ProfileSummary profile={profile} isUploading={uploadAvatarMutation.isPending} onEdit={() => setIsEditingProfile(true)} onUpload={(file) => uploadAvatarMutation.mutate(file)} onDeleteAvatar={() => deleteAvatarMutation.mutate()} />
+              {location.pathname === '/account/addresses' ? (
+                <AccountAddressesPanel data={addressesQuery.data} isLoading={addressesQuery.isLoading} />
+              ) : location.pathname.startsWith('/account/orders') ? (
+                <AccountOrdersPanel />
+              ) : location.pathname.startsWith('/account/wishlist') ? (
+                <AccountWishlistPanel />
+              ) : (
+                <>
+              <ProfileSummary profile={displayedProfile} isUploading={uploadAvatarMutation.isPending} onEdit={() => setIsEditingProfile(true)} onUpload={(file) => { setAvatarPreview(URL.createObjectURL(file)); uploadAvatarMutation.mutate(file) }} onDeleteAvatar={() => deleteAvatarMutation.mutate()} />
               <StatisticCards />
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
                 <AccountInformation profile={profile} user={liveUser} onDeleteProfile={() => setIsDeletingProfile(true)} />
                 <DefaultAddress address={defaultAddress} isLoading={addressesQuery.isLoading} />
               </div>
+                </>
+              )}
             </div>
           </div>
         </Container>
