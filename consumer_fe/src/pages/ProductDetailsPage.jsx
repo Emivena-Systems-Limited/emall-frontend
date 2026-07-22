@@ -23,19 +23,26 @@ import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
-import { resolveProductDisplayPrices } from '../utils/extractProductVariantFacets'
 import { notify } from '../lib/notify'
 import { useCartActions } from '../hooks/useCartActions'
 import { useOptionalMiniCart } from '../context/MiniCartContext'
 import { selectCartItems } from '../store/slices/cartSlice'
 import {
   formatProductCondition,
-  isReservedKeyDetailKey,
   sortKeyDetailEntries,
 } from '../utils/keyDetailsOrder'
 import { normalizeProductDescription } from '../utils/productDescriptionHtml'
+import { mapKeyDetailsToObject } from '../utils/productKeyDetails'
+import { calculateDisplayDiscountPercent } from '../utils/productPricing'
+import {
+  getVariantAttributeValue,
+  getVariantCompatibleModels,
+  resolveBrandName,
+  resolveVariantAttributeFields,
+  variantHasCompatibleModel,
+} from '../utils/productVariantFields'
 
-const SHOW_PRODUCT_VARIANTS = false
+const SHOW_PRODUCT_VARIANTS = true
 
 const STAR_FILL = '#F59E0B'
 const STAR_EMPTY_FILL = '#E2E8F0'
@@ -345,9 +352,19 @@ function ProductInfoPanel({
   const cartItems = useSelector(selectCartItems)
   const { addToCart } = useCartActions()
   const miniCart = useOptionalMiniCart()
-  const outOfStock = !product.inStock
+  const stockAvailability = formatStockAvailability(
+    activeVariant?.quantity != null
+      ? toNumber(activeVariant.quantity, 0)
+      : product.stockCount,
+    product.lowStockThreshold ?? 10,
+  )
+  const outOfStock = activeVariant?.quantity != null
+    ? toNumber(activeVariant.quantity, 0) <= 0
+    : !product.inStock
   const colorValueSet = new Set((product.colors ?? []).map((value) => String(value).toLowerCase()))
-  const compatibleModelValues = product.compatibleModels ?? []
+  const compatibleModelValues = activeVariant
+    ? getVariantCompatibleModels(activeVariant)
+    : []
   const sizeValues = product.sizes ?? []
   const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
     && colorValueSet.size > 0
@@ -363,14 +380,6 @@ function ProductInfoPanel({
     && sizeValues.length > 0
     && !isColorVariantGroup
     && !hasDuplicateSizeValues
-
-  const handleColorSelect = (newColor) => {
-    setSelectedColor(newColor)
-    const varImage = product.colorImages?.[newColor]
-    if (varImage && setActiveImage) {
-      setActiveImage(varImage)
-    }
-  }
 
   useEffect(() => {
     if (!trustInfoOpen) return undefined
@@ -389,11 +398,11 @@ function ProductInfoPanel({
     setTrustInfoOpen((current) => (current === infoKey ? null : infoKey))
   }
 
-  const stockAvailability = formatStockAvailability(product.stockCount, product.lowStockThreshold ?? 10)
   const currentPriceParts = formatProductPriceParts(displayPriceInfo.price)
   const hasSalePrice =
     displayPriceInfo.compareAt != null &&
     displayPriceInfo.discountPercent != null &&
+    displayPriceInfo.discountPercent > 0 &&
     displayPriceInfo.compareAt > displayPriceInfo.price
   const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
   const activeCartKey = [
@@ -415,6 +424,12 @@ function ProductInfoPanel({
 
     if (isAddingToCart) return
 
+    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0
+    if (hasVariants && !activeVariant?.id) {
+      notify.error('Please select a product option before adding to cart.')
+      return
+    }
+
     setIsAddingToCart(true)
     try {
       const item = await addToCart(
@@ -430,7 +445,8 @@ function ProductInfoPanel({
           quantity,
           price: displayPriceInfo.price,
           compareAt: displayPriceInfo.compareAt,
-          variantId: activeVariant?.id,
+          variantId: activeVariant?.id ?? null,
+          product_variant_id: activeVariant?.id ?? null,
           sku: activeSku,
           variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
           size: selectedSize || selectedCompatibleModel || activeSku,
@@ -504,7 +520,7 @@ function ProductInfoPanel({
       </div>
 
       {SHOW_PRODUCT_VARIANTS && (
-        <ColorSwatches product={product} selected={selectedColor} onSelect={handleColorSelect} />
+        <ColorSwatches product={product} selected={selectedColor} onSelect={setSelectedColor} />
       )}
       
       {showCompatibleModels && (
@@ -609,20 +625,20 @@ function KeyDetails({ product, activeSku }) {
   const sortedEntries = sortKeyDetailEntries(Object.entries(detailsList))
 
   return (
-    <section className="relative min-w-0 bg-white p-3 sm:p-4">
+    <section className="relative min-w-0 h-full bg-white p-4 sm:p-6">
       <button
         type="button"
         onClick={() => shareProduct(product)}
-        className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 sm:right-4 sm:top-4"
+        className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 sm:right-4 sm:top-4"
       >
         <Share2 className="size-3.5" strokeWidth={2.2} />
         Share
       </button>
-      <h2 className="pr-24 text-sm font-bold text-slate-950">Key Details</h2>
-      <dl className="mt-2 grid gap-1 text-[0.6875rem] leading-4 text-slate-700">
+      <h2 className="pr-24 text-base font-bold text-slate-950">Key Details</h2>
+      <dl className="mt-3 grid gap-2.5 text-sm leading-5 text-slate-700">
         {sortedEntries.map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-1 sm:grid-cols-[11rem_1fr]">
-            <dt className="font-bold">{key}:</dt>
+          <div key={key} className="grid min-w-0 gap-1 py-0.5 sm:grid-cols-[11rem_1fr] sm:gap-3">
+            <dt className="font-bold text-slate-900">{key}:</dt>
             <dd className="wrap-break-word">{value}</dd>
           </div>
         ))}
@@ -643,9 +659,9 @@ function AboutThisItem({ product }) {
   const items = product.about?.length ? product.about : fallbackAboutItems
 
   return (
-    <section className="min-w-0 bg-white p-3 sm:p-4">
-      <h2 className="text-sm font-bold text-slate-950">About this item</h2>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.6875rem] leading-4 text-slate-700">
+    <section className="min-w-0 bg-white p-4 sm:p-6">
+      <h2 className="text-base font-bold text-slate-950">About this item</h2>
+      <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-5 text-slate-700">
         {items.map((item, index) => (
           <li key={`${item}-${index}`} className="wrap-break-word">{item}</li>
         ))}
@@ -1234,25 +1250,18 @@ function normalizeApiProductDetails(apiProduct) {
   if (!core) return null
 
   const metadata = toArray(apiProduct.metadata)
-  const sku = apiProduct.sku || apiProduct.variants?.[0]?.sku || getMetadataValue(metadata, 'sku') || 'N/A'
-  const quantity = toNumber(getMetadataValue(metadata, 'quantity'), 10)
+  const variants = toArray(apiProduct.variants)
+  const sku = getMetadataValue(metadata, 'sku') || apiProduct.sku || variants[0]?.sku || 'N/A'
+  const variantStockTotal = variants.reduce((sum, variant) => sum + toNumber(variant?.quantity, 0), 0)
+  const quantity = toNumber(getMetadataValue(metadata, 'quantity'), variantStockTotal || 10)
   const lowStockThreshold = toNumber(getMetadataValue(metadata, 'low_stock_threshold'), 10)
   const inStock = quantity > 0
 
-  // Build gallery
+  // Build gallery from product images only (variant images shown in swatches)
   const gallery = []
   if (Array.isArray(apiProduct.images)) {
-    apiProduct.images.forEach(img => {
+    apiProduct.images.forEach((img) => {
       if (img?.image_url) gallery.push(img.image_url)
-    })
-  }
-  if (Array.isArray(apiProduct.variants)) {
-    apiProduct.variants.forEach(v => {
-      if (Array.isArray(v.images)) {
-        v.images.forEach(img => {
-          if (img?.image_url) gallery.push(img.image_url)
-        })
-      }
     })
   }
   if (gallery.length === 0) {
@@ -1260,46 +1269,43 @@ function normalizeApiProductDetails(apiProduct) {
   }
   const uniqueGallery = [...new Set(gallery)]
 
-  // Build colors and other variant groups from API variants
   const colorImages = {}
   const colors = []
   const otherVariantGroups = {}
 
-  if (Array.isArray(apiProduct.variants)) {
-    apiProduct.variants.forEach(v => {
-      const attrs = v.attributes ?? {}
-      const attrKeys = Object.keys(attrs)
-      
-      // Use the color attribute; fall back to top-level color or variant_name
-      const colorKey = attrKeys.find(k => k.toLowerCase() === 'color')
-      const colorVal = colorKey ? attrs[colorKey] : (v.color || v.variant_name)
-      
-      if (colorVal) {
-        if (!colors.includes(colorVal)) {
-          colors.push(colorVal)
-        }
-        const varImage = v.images?.[0]?.image_url || v.image_url || v.image
-        if (varImage) {
-          colorImages[colorVal] = varImage
-        }
-      }
+  variants.forEach((variant) => {
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
+    const normalizedKey = String(attributeKey ?? '').trim().toLowerCase()
+    const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
 
-      // Collect all non-color attributes as separate variant groups
-      attrKeys.filter(k => k.toLowerCase() !== 'color').forEach(k => {
-        if (!otherVariantGroups[k]) otherVariantGroups[k] = new Set()
-        if (attrs[k]) otherVariantGroups[k].add(String(attrs[k]))
-      })
+    if (normalizedKey === 'color' && valueText) {
+      if (!colors.includes(valueText)) colors.push(valueText)
+      const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
+      if (varImage) colorImages[valueText] = varImage
+      return
+    }
 
-      // Also check for a top-level size field
-      const size = v.size || v.attributes?.size
-      if (size) {
-        if (!otherVariantGroups['size']) otherVariantGroups['size'] = new Set()
-        otherVariantGroups['size'].add(String(size))
-      }
-    })
-  }
+    if (attributeKey && valueText) {
+      const groupKey = String(attributeKey).trim()
+      if (!otherVariantGroups[groupKey]) otherVariantGroups[groupKey] = new Set()
+      otherVariantGroups[groupKey].add(valueText)
+      return
+    }
 
-  // Convert other variant groups to arrays with human-readable labels
+    const legacyColor = getVariantAttributeValue(variant, 'color')
+    if (legacyColor) {
+      if (!colors.includes(legacyColor)) colors.push(legacyColor)
+      const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
+      if (varImage) colorImages[legacyColor] = varImage
+    }
+
+    const legacySize = getVariantAttributeValue(variant, 'size')
+    if (legacySize) {
+      if (!otherVariantGroups.size) otherVariantGroups.size = new Set()
+      otherVariantGroups.size.add(legacySize)
+    }
+  })
+
   const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, valSet]) => ({
     label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
     values: [...valSet],
@@ -1309,9 +1315,9 @@ function normalizeApiProductDetails(apiProduct) {
   const uniqueSizes = extraVariantGroups[0]?.values ?? []
   const sizeGroupLabel = extraVariantGroups[0]?.label ?? 'Size'
 
-  const compatibleModels = Array.isArray(apiProduct.variants)
-    ? [...new Set(apiProduct.variants.map(v => v.variant_name).filter(Boolean))]
-    : []
+  const compatibleModels = [
+    ...new Set(variants.flatMap((variant) => getVariantCompatibleModels(variant))),
+  ]
 
   const { descriptionHtml, description } = normalizeProductDescription(apiProduct.description)
   const reviews = normalizeProductReviews(apiProduct)
@@ -1324,23 +1330,12 @@ function normalizeApiProductDetails(apiProduct) {
   const rating = toNumber(apiProduct.rating ?? apiProduct.average_rating ?? apiProduct.avg_rating ?? core.rating, 4.5)
 
   const categoryName = apiProduct.category?.category_name || 'General'
-  const barcode = getMetadataValue(metadata, 'barcode') || apiProduct.barcode || apiProduct.variants?.[0]?.barcode
-  const condition = formatProductCondition(getMetadataValue(metadata, 'condition'))
-  const brandName = apiProduct.brand?.brand_name
-    || apiProduct.brand?.name
-    || apiProduct.brand_name
-    || null
-
-  const customKeyDetails = {}
-  toArray(apiProduct.key_details).forEach((item) => {
-    const property = String(item?.property ?? item?.key ?? '').trim()
-    const value = String(item?.value ?? '').trim()
-    if (property && value && !isReservedKeyDetailKey(property)) {
-      customKeyDetails[property] = value
-    }
-  })
-
+  const barcode = getMetadataValue(metadata, 'barcode') || apiProduct.barcode || variants.find((v) => v?.barcode)?.barcode
+  const condition = formatProductCondition(apiProduct.condition ?? getMetadataValue(metadata, 'condition'))
+  const brandName = resolveBrandName(apiProduct) || null
+  const customKeyDetails = mapKeyDetailsToObject(apiProduct)
   const packageDimensions = formatPackageDimensions(metadata)
+  const itemWeight = formatItemWeight(metadata, null)
 
   return {
     ...core,
@@ -1357,7 +1352,7 @@ function normalizeApiProductDetails(apiProduct) {
     inStock,
     stockCount: quantity,
     lowStockThreshold,
-    variants: apiProduct.variants || [],
+    variants,
     gallery: uniqueGallery,
     colors: uniqueColors,
     sizes: uniqueSizes,
@@ -1373,7 +1368,7 @@ function normalizeApiProductDetails(apiProduct) {
       ...(condition ? { Condition: condition } : {}),
       ...(brandName ? { Brand: brandName } : {}),
       ...(packageDimensions ? { 'Package Dimensions': packageDimensions } : {}),
-      'Item Weight': formatItemWeight(metadata),
+      ...(itemWeight ? { 'Item Weight': itemWeight } : {}),
       ...customKeyDetails,
     },
     descriptiveImages: collectDescriptiveImageUrls(apiProduct),
@@ -1381,8 +1376,8 @@ function normalizeApiProductDetails(apiProduct) {
     description,
     details: {
       SKU: sku,
-      Condition: 'Brand New',
-      Category: apiProduct.category?.category_name || 'General',
+      Condition: condition || 'Not specified',
+      Category: categoryName,
     },
     ratingDistribution: [
       { label: 'Small', value: toNumber(apiProduct.rating_small, fallbackRatingDistribution[0].value) },
@@ -1449,100 +1444,121 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const [activeImage, setActiveImage] = useState(product.gallery?.[0] ?? null)
   const [selectedColor, setSelectedColor] = useState(product.colors?.[0] ?? '')
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] ?? '')
-  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(product.compatibleModels?.[0] ?? '')
+  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(() => {
+    const firstWithModels = product.variants?.find(
+      (variant) => getVariantCompatibleModels(variant).length > 0,
+    )
+    return getVariantCompatibleModels(firstWithModels)[0] ?? product.compatibleModels?.[0] ?? ''
+  })
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
-    
-    // Find if there is a variant that matches the new color and the current compatible model and size
-    let matchingVariant = product?.variants?.find((v) => {
-      const vColor = v.attributes?.color || v.color || v.variant_name || ''
-      const vSize = v.attributes?.size || v.size || ''
-      const vModel = v.variant_name || ''
-      
+
+    let matchingVariant = product?.variants?.find((variant) => {
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+      const vSize = getVariantAttributeValue(variant, product.sizeGroupLabel ?? 'size')
       const matchColor = String(vColor).toLowerCase() === String(newColor).toLowerCase()
-      const matchModel = !selectedCompatibleModel || String(vModel).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+      const matchModel = !selectedCompatibleModel
+        || variantHasCompatibleModel(variant, selectedCompatibleModel)
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
-      
+
       return matchColor && matchModel && matchSize
     })
-    
-    // If no exact match, find any variant that has this color
+
     if (!matchingVariant) {
-      matchingVariant = product?.variants?.find((v) => {
-        const vColor = v.attributes?.color || v.color || v.variant_name || ''
+      matchingVariant = product?.variants?.find((variant) => {
+        const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
         return String(vColor).toLowerCase() === String(newColor).toLowerCase()
       })
     }
-    
-    // If we found a matching variant, sync the other attributes!
+
     if (matchingVariant) {
-      const vModel = matchingVariant.variant_name
-      const vSize = matchingVariant.attributes?.size || matchingVariant.size
-      if (vModel) setSelectedCompatibleModel(vModel)
+      const models = getVariantCompatibleModels(matchingVariant)
+      setSelectedCompatibleModel(models[0] ?? '')
+      const vSize = getVariantAttributeValue(matchingVariant, product.sizeGroupLabel ?? 'size')
       if (vSize) setSelectedSize(vSize)
     }
 
-    // Update the image
     const varImage = product.colorImages?.[newColor]
-    if (varImage && setActiveImage) {
-      setActiveImage(varImage)
-    }
+    if (varImage) setActiveImage(varImage)
   }
 
   const handleCompatibleModelSelect = (newModel) => {
     setSelectedCompatibleModel(newModel)
-    
-    // Find if there is a variant that matches the new compatible model and the current color and size
-    let matchingVariant = product?.variants?.find((v) => {
-      const vColor = v.attributes?.color || v.color || v.variant_name || ''
-      const vSize = v.attributes?.size || v.size || ''
-      const vModel = v.variant_name || ''
-      
-      const matchModel = String(vModel).toLowerCase() === String(newModel).toLowerCase()
+
+    let matchingVariant = product?.variants?.find((variant) => {
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+      const vSize = getVariantAttributeValue(variant, product.sizeGroupLabel ?? 'size')
+      const matchModel = variantHasCompatibleModel(variant, newModel)
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
-      
+
       return matchColor && matchModel && matchSize
     })
-    
-    // If no exact match, find any variant that has this compatible model
+
     if (!matchingVariant) {
-      matchingVariant = product?.variants?.find((v) => {
-        const vModel = v.variant_name || ''
-        return String(vModel).toLowerCase() === String(newModel).toLowerCase()
-      })
+      matchingVariant = product?.variants?.find((variant) => variantHasCompatibleModel(variant, newModel))
     }
-    
-    // If we found a matching variant, sync the other attributes!
+
     if (matchingVariant) {
-      const vColor = matchingVariant.attributes?.color || matchingVariant.color
-      const vSize = matchingVariant.attributes?.size || matchingVariant.size
+      const vColor = getVariantAttributeValue(matchingVariant, 'color')
+      const vSize = getVariantAttributeValue(matchingVariant, product.sizeGroupLabel ?? 'size')
       if (vColor) {
         setSelectedColor(vColor)
         const varImage = product.colorImages?.[vColor]
-        if (varImage && setActiveImage) {
-          setActiveImage(varImage)
-        }
+        if (varImage) setActiveImage(varImage)
       }
       if (vSize) setSelectedSize(vSize)
     }
   }
 
-  const activeVariant = useMemo(() => {
-    if (!product || !product.variants || !product.variants.length) return null
+  const handleSizeSelect = (newSize) => {
+    setSelectedSize(newSize)
+    const sizeAttribute = product.sizeGroupLabel ?? 'size'
 
-    // Match variant by all three selected attributes (color, size, and compatible model)
-    return product.variants.find((v) => {
-      const vColor = v.attributes?.color || v.color || v.variant_name || ''
+    let matchingVariant = product?.variants?.find((variant) => {
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+      const vSize = getVariantAttributeValue(variant, sizeAttribute)
+      const matchSize = String(vSize).toLowerCase() === String(newSize).toLowerCase()
+      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
+      const matchModel = !selectedCompatibleModel
+        || variantHasCompatibleModel(variant, selectedCompatibleModel)
+
+      return matchColor && matchSize && matchModel
+    })
+
+    if (!matchingVariant) {
+      matchingVariant = product?.variants?.find((variant) => {
+        const vSize = getVariantAttributeValue(variant, sizeAttribute)
+        return String(vSize).toLowerCase() === String(newSize).toLowerCase()
+      })
+    }
+
+    if (matchingVariant) {
+      const vColor = getVariantAttributeValue(matchingVariant, 'color')
+      const models = getVariantCompatibleModels(matchingVariant)
+      if (vColor) {
+        setSelectedColor(vColor)
+        const varImage = product.colorImages?.[vColor]
+        if (varImage) setActiveImage(varImage)
+      }
+      setSelectedCompatibleModel(models[0] ?? '')
+    }
+  }
+
+  const activeVariant = useMemo(() => {
+    if (!product?.variants?.length) return null
+    const sizeAttribute = product.sizeGroupLabel ?? 'size'
+
+    return product.variants.find((variant) => {
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
 
-      const sizeKey = product.sizeGroupLabel ? product.sizeGroupLabel.toLowerCase().replace(/ /g, '_') : 'size'
-      const vSize = v.attributes?.[sizeKey] || v.attributes?.size || v.size || ''
+      const vSize = getVariantAttributeValue(variant, sizeAttribute)
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
 
-      const vModel = v.variant_name || ''
-      const matchModel = !selectedCompatibleModel || String(vModel).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+      const matchModel = !selectedCompatibleModel
+        || variantHasCompatibleModel(variant, selectedCompatibleModel)
 
       return matchColor && matchSize && matchModel
     }) ?? product.variants[0]
@@ -1554,27 +1570,27 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
   const displayPriceInfo = useMemo(() => {
     if (activeVariant) {
-      const { price, compareAt } = resolveProductDisplayPrices(product, activeVariant)
-      const metadata = toArray(product?.metadata)
-      const variationMetadata = toArray(activeVariant.metadata)
-      const explicitDiscount = getMetadataValue(metadata, 'percent_off')
-        ?? getMetadataValue(metadata, 'discount_percent')
-        ?? getMetadataValue(variationMetadata, 'percent_off')
-        ?? getMetadataValue(variationMetadata, 'discount_percent')
-      const discountPercent = explicitDiscount != null && toNumber(explicitDiscount) > 0
-        ? toNumber(explicitDiscount)
-        : compareAt != null && compareAt > price && price > 0
-          ? Math.round(((compareAt - price) / compareAt) * 100)
-          : null
+      const variantListPrice = toNumber(activeVariant.regular_price ?? activeVariant.price)
+      const variantSalePrice = toNumber(
+        activeVariant.regular_discount_price ?? activeVariant.discount_price,
+      )
+      const hasVariantSale = variantSalePrice > 0 && variantListPrice > variantSalePrice
+      const price = hasVariantSale ? variantSalePrice : variantListPrice
+      const compareAt = hasVariantSale ? variantListPrice : null
+      const discountPercent = hasVariantSale
+        ? calculateDisplayDiscountPercent(variantListPrice, variantSalePrice)
+        : null
 
       return { price, compareAt, discountPercent }
     }
-    
-    return {
-      price: product?.price ?? 0,
-      compareAt: product?.compareAt ?? null,
-      discountPercent: product?.discountPercent ?? null
-    }
+
+    const price = product?.price ?? 0
+    const compareAt = product?.compareAt ?? null
+    const discountPercent = compareAt != null && compareAt > price && price > 0
+      ? calculateDisplayDiscountPercent(compareAt, price)
+      : product?.discountPercent ?? null
+
+    return { price, compareAt, discountPercent }
   }, [product, activeVariant])
 
   const allApiProducts = useMemo(() => {
@@ -1607,7 +1623,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
       return getRelatedProducts(product.slug, 8)
     }
 
-    const currentVendorId = apiProduct.vendor_id
+    const currentVendorId = apiProduct.vendor?.id ?? apiProduct.vendor_id
     let matching = allApiProducts.filter(
       (p) => p.id !== product.id && p.vendor_id === currentVendorId
     )
@@ -1650,7 +1666,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
             </div>
 
             <div className="order-3 flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-2 lg:h-full">
-              <div className="min-w-0">
+              <div className="min-w-0 lg:flex-1">
                 <KeyDetails product={product} activeSku={activeSku} />
               </div>
               <div className="min-w-0">
@@ -1668,7 +1684,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
                 selectedColor={selectedColor}
                 setSelectedColor={handleColorSelect}
                 selectedSize={selectedSize}
-                setSelectedSize={setSelectedSize}
+                setSelectedSize={handleSizeSelect}
                 selectedCompatibleModel={selectedCompatibleModel}
                 setSelectedCompatibleModel={handleCompatibleModelSelect}
                 activeImage={activeImage}
@@ -1676,7 +1692,9 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
               />
-              <ReviewSummary product={product} fillHeight />
+              <div className="mt-auto min-w-0">
+                <ReviewSummary product={product} />
+              </div>
             </div>
           </section>
 

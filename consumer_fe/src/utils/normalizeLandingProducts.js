@@ -1,4 +1,5 @@
 import { enrichLandingProductForFilters, getMetadataValue, resolveProductDisplayPrices } from './extractProductVariantFacets'
+import { calculateDisplayDiscountPercent } from './productPricing'
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80'
@@ -108,7 +109,7 @@ function getDiscountPercent(product, variation, price, compareAt) {
     return explicitDiscount > 0 ? explicitDiscount : null
   }
   if (compareAt != null && compareAt > price && price > 0) {
-    return Math.round(((compareAt - price) / compareAt) * 100)
+    return calculateDisplayDiscountPercent(compareAt, price)
   }
   return null
 }

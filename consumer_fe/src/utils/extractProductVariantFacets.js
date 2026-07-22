@@ -1,3 +1,8 @@
+import {
+  getVariantAttributeValue,
+  resolveVariantAttributeFields,
+} from './productVariantFields'
+
 function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '')
 }
@@ -59,23 +64,24 @@ export function resolveProductDisplayPrices(product, variation = null) {
   const variationMetadata = toArray(variation?.metadata)
 
   const listPrice = pickRootPrice(
-    product?.regular_price,
     variation?.regular_price,
-    getMetadataValue(metadata, 'regular_price'),
+    variation?.price,
+    product?.regular_price,
+    product?.price,
     getMetadataValue(variationMetadata, 'regular_price'),
+    getMetadataValue(metadata, 'regular_price'),
   )
 
   const salePrice = pickRootPrice(
+    variation?.regular_discount_price,
+    variation?.discount_price,
     product?.regular_discount_price,
     product?.discount_price,
     product?.sale_price,
-    variation?.regular_discount_price,
-    variation?.discount_price,
-    variation?.sale_price,
-    getMetadataValue(metadata, 'sale_price'),
-    getMetadataValue(metadata, 'discount_price'),
-    getMetadataValue(variationMetadata, 'sale_price'),
     getMetadataValue(variationMetadata, 'discount_price'),
+    getMetadataValue(variationMetadata, 'sale_price'),
+    getMetadataValue(metadata, 'discount_price'),
+    getMetadataValue(metadata, 'sale_price'),
   )
 
   const price = salePrice ?? listPrice ?? 0
@@ -88,22 +94,23 @@ export function extractSlimVariants(product) {
   const fallbackPrices = resolveProductDisplayPrices(product)
 
   return toArray(product.variants || product.variations).map((variant) => {
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
     const attributes = variant.attributes && typeof variant.attributes === 'object'
       ? variant.attributes
       : {}
 
-    const colorKey = Object.keys(attributes).find((key) => key.toLowerCase() === 'color')
-    const color = colorKey
-      ? attributes[colorKey]
-      : firstValue(variant.color, variant.colour, variant.variant_name)
+    const color = getVariantAttributeValue(variant, 'color')
+      || (String(attributeKey).toLowerCase() === 'color' ? String(attributeValue) : '')
+      || firstValue(variant.colour, variant.variant_name)
 
-    const size = firstValue(
-      variant.size,
-      attributes.size,
-      attributes.Size,
-      attributes.storage,
-      attributes.Storage,
-    )
+    const size = getVariantAttributeValue(variant, 'size')
+      || firstValue(
+        variant.size,
+        attributes.size,
+        attributes.Size,
+        attributes.storage,
+        attributes.Storage,
+      )
 
     const variationMetadata = toArray(variant.metadata)
 
