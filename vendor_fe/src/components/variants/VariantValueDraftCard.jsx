@@ -3,16 +3,28 @@ import AttributeIcon from './AttributeIcon'
 import { resolveStockStatus } from './variantFormUtils'
 
 /** Card shown in the add-variant flow for each value, before and after its details are saved. */
-export default function VariantValueDraftCard({ attribute, value, persistedEntry, onEdit, onRemove, isRemoving }) {
+export default function VariantValueDraftCard({
+  attribute,
+  value,
+  persistedEntry,
+  onEdit,
+  onRemove,
+  isRemoving,
+  dataField,
+  error,
+}) {
   if (persistedEntry) {
     const { variantValue } = persistedEntry
-    const stock = resolveStockStatus(variantValue.quantity, variantValue.low_stock_threshold)
+    const stock = resolveStockStatus(variantValue.quantity, variantValue.minimum_threshold)
     const thumbnail = variantValue.images?.[0]?.preview
     const hasPrice = variantValue.price !== '' && variantValue.price != null
     const hasSale = variantValue.discount_price !== '' && variantValue.discount_price != null
 
     return (
-      <article className="group flex h-full flex-col rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-[0_4px_24px_rgba(15,23,42,0.06),0_12px_40px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/20 hover:shadow-[0_8px_32px_rgba(15,23,42,0.1),0_20px_48px_rgba(199,59,45,0.08)] sm:p-4">
+      <article
+        data-field={dataField}
+        className="group flex h-full flex-col rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-[0_4px_24px_rgba(15,23,42,0.06),0_12px_40px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/20 hover:shadow-[0_8px_32px_rgba(15,23,42,0.1),0_20px_48px_rgba(199,59,45,0.08)] sm:p-4"
+      >
         <div className="mx-auto size-16 shrink-0 overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200/80">
           {thumbnail ? (
             <img src={thumbnail} alt={value} className="size-full object-cover" />
@@ -46,10 +58,19 @@ export default function VariantValueDraftCard({ attribute, value, persistedEntry
               <span className={`size-1.5 rounded-full ${stock.dotClass}`} />
               {stock.label}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand">
-              <CheckCircle2 className="size-2.5" /> Ready
-            </span>
+            {error ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-100">
+                <AlertTriangle className="size-2.5" /> Needs attention
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand">
+                <CheckCircle2 className="size-2.5" /> Ready
+              </span>
+            )}
           </div>
+          {error && (
+            <p className="mt-1.5 text-[11px] leading-snug text-red-600" role="alert">{error}</p>
+          )}
         </div>
 
         <div className="mt-3 flex gap-1.5 border-t border-slate-100 pt-3">
@@ -77,7 +98,10 @@ export default function VariantValueDraftCard({ attribute, value, persistedEntry
   }
 
   return (
-    <article className="group flex h-full flex-col rounded-2xl border border-dashed border-slate-200 bg-white p-3.5 shadow-[0_4px_24px_rgba(15,23,42,0.05),0_12px_40px_rgba(15,23,42,0.03)] transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/25 hover:shadow-[0_8px_32px_rgba(15,23,42,0.08),0_20px_48px_rgba(199,59,45,0.06)] sm:p-4">
+    <article
+      data-field={dataField}
+      className="group flex h-full flex-col rounded-2xl border border-dashed border-slate-200 bg-white p-3.5 shadow-[0_4px_24px_rgba(15,23,42,0.05),0_12px_40px_rgba(15,23,42,0.03)] transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/25 hover:shadow-[0_8px_32px_rgba(15,23,42,0.08),0_20px_48px_rgba(199,59,45,0.06)] sm:p-4"
+    >
       <div className="mx-auto flex size-16 shrink-0 items-center justify-center rounded-xl bg-slate-50 ring-1 ring-slate-200/80">
         <AttributeIcon attribute={attribute} className="size-5 text-brand/35" />
       </div>

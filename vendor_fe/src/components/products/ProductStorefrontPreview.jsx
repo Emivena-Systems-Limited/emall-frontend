@@ -17,13 +17,20 @@ import {
   PowerOff,
   Share2,
   ShoppingCart,
-  Sparkles,
   Star,
   Trash2,
 } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import notify from '../../lib/notify'
-import { formatItemWeight, formatPackageDimensions, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsFromRecord, sortKeyDetailEntries } from '../../utils/productMetadata'
+import { formatItemWeight, formatPackageDimensions, getMetadataValue, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsFromRecord, sortKeyDetailEntries } from '../../utils/productMetadata'
+import { normalizeProductDescription } from '../../utils/productDescriptionHtml'
+import { calculateDisplayDiscountPercent } from '../../utils/productPricing'
+import {
+  getVariantAttributeValue,
+  getVariantCompatibleModels,
+  resolveVariantAttributeFields,
+  variantHasCompatibleModel,
+} from '../../utils/productPayload'
 
 const cediFormatter = new Intl.NumberFormat('en-GH', {
   style: 'currency',
@@ -40,10 +47,6 @@ function toNumber(value, fallback = 0) {
   if (value === undefined || value === null || value === '') return fallback
   const number = Number(String(value).replace(/[^\d.-]/g, ''))
   return Number.isFinite(number) ? number : fallback
-}
-
-function stripHtml(html) {
-  return String(html ?? '').replace(/<[^>]*>/g, '').trim()
 }
 
 const FALLBACK_REVIEWS = [
@@ -68,6 +71,13 @@ const FALLBACK_REVIEWS = [
     date: 'Jan 04, 2026',
     text: 'Looks nice and fits well. Packaging was clean and the product arrived safely.',
   },
+  {
+    id: 'preview-review-4',
+    name: 'Kwame Asante',
+    rating: 5,
+    date: 'Jan 02, 2026',
+    text: 'Solid build and great value for the price. Shipping was faster than I expected.',
+  },
 ]
 
 const FALLBACK_RATING_DISTRIBUTION = [
@@ -80,16 +90,17 @@ const FALLBACK_RATING_DISTRIBUTION = [
 
 function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) {
   const variants = Array.isArray(rawRecord?.variants) ? rawRecord.variants : []
-  const sku = (product?.sku && product.sku !== '—') ? product.sku : (variants[0]?.sku || 'N/A')
+  const metadata = Array.isArray(rawRecord?.metadata) ? rawRecord.metadata : []
+  const productSku = getMetadataValue(metadata, 'sku')
+    || (product?.sku && product.sku !== '—' ? product.sku : '')
+    || variants[0]?.sku
+    || 'N/A'
 
   const galleryUrls = []
   const sortedImages = [...(images ?? [])].sort(
     (a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0),
   )
   sortedImages.forEach((img) => { if (img?.image_url) galleryUrls.push(img.image_url) })
-  variants.forEach((variant) => {
-    (variant.images ?? []).forEach((img) => { if (img?.image_url) galleryUrls.push(img.image_url) })
-  })
   const gallery = [...new Set(galleryUrls)]
 
   const colorImages = {}
@@ -97,26 +108,35 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
   const otherVariantGroups = {}
 
   variants.forEach((variant) => {
-    const attrs = variant.attributes ?? {}
-    const attrKeys = Object.keys(attrs)
-    const colorKey = attrKeys.find((key) => key.toLowerCase() === 'color')
-    const colorVal = colorKey ? attrs[colorKey] : (variant.color || variant.variant_name)
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
+    const normalizedKey = String(attributeKey ?? '').trim().toLowerCase()
+    const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
 
-    if (colorVal) {
-      if (!colors.includes(colorVal)) colors.push(colorVal)
+    if (normalizedKey === 'color' && valueText) {
+      if (!colors.includes(valueText)) colors.push(valueText)
       const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
-      if (varImage) colorImages[colorVal] = varImage
+      if (varImage) colorImages[valueText] = varImage
+      return
     }
 
-    attrKeys.filter((key) => key.toLowerCase() !== 'color').forEach((key) => {
-      if (!otherVariantGroups[key]) otherVariantGroups[key] = new Set()
-      if (attrs[key]) otherVariantGroups[key].add(String(attrs[key]))
-    })
+    if (attributeKey && valueText) {
+      const groupKey = String(attributeKey).trim()
+      if (!otherVariantGroups[groupKey]) otherVariantGroups[groupKey] = new Set()
+      otherVariantGroups[groupKey].add(valueText)
+      return
+    }
 
-    const size = variant.size || variant.attributes?.size
-    if (size) {
+    const legacyColor = getVariantAttributeValue(variant, 'color')
+    if (legacyColor) {
+      if (!colors.includes(legacyColor)) colors.push(legacyColor)
+      const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
+      if (varImage) colorImages[legacyColor] = varImage
+    }
+
+    const legacySize = getVariantAttributeValue(variant, 'size')
+    if (legacySize) {
       if (!otherVariantGroups.size) otherVariantGroups.size = new Set()
-      otherVariantGroups.size.add(String(size))
+      otherVariantGroups.size.add(legacySize)
     }
   })
 
@@ -127,7 +147,9 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
 
   const sizes = extraVariantGroups[0]?.values ?? []
   const sizeGroupLabel = extraVariantGroups[0]?.label ?? 'Size'
-  const compatibleModels = [...new Set(variants.map((variant) => variant.variant_name).filter(Boolean))]
+  const compatibleModels = [
+    ...new Set(variants.flatMap((variant) => getVariantCompatibleModels(variant))),
+  ]
 
   const keyDetails = {}
   mapKeyDetailsFromRecord(rawRecord).forEach((item) => {
@@ -136,24 +158,25 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     if (key && value && !isReservedKeyDetailKey(key)) keyDetails[key] = value
   })
 
-  const metadata = Array.isArray(rawRecord?.metadata) ? rawRecord.metadata : []
   const categoryName = product?.category && product.category !== '—' ? product.category : 'General'
-  const conditionLabelFromMeta = getProductConditionLabel(
-    metadata.find((item) => item?.key === 'condition')?.value,
-  )
+  const resolvedCondition = conditionLabel
+    || getProductConditionLabel(rawRecord?.condition)
+    || getProductConditionLabel(getMetadataValue(metadata, 'condition'))
 
   keyDetails.Category = categoryName
-  keyDetails['Model/SKU'] = sku
-  if (product?.barcode) keyDetails.Barcode = product.barcode
-  if (conditionLabelFromMeta) keyDetails.Condition = conditionLabelFromMeta
+  keyDetails['Model/SKU'] = productSku
+  const productBarcode = product?.barcode || getMetadataValue(metadata, 'barcode')
+  if (productBarcode) keyDetails.Barcode = productBarcode
+  if (resolvedCondition) keyDetails.Condition = resolvedCondition
   if (product?.brand && product.brand !== '—') keyDetails.Brand = product.brand
   const packageDimensions = formatPackageDimensions(metadata)
   if (packageDimensions) keyDetails['Package Dimensions'] = packageDimensions
-  keyDetails['Item Weight'] = formatItemWeight(metadata)
+  const itemWeight = formatItemWeight(metadata, null)
+  if (itemWeight) keyDetails['Item Weight'] = itemWeight
 
-  const description = stripHtml(rawRecord?.description) || 'No description available for this product.'
+  const { descriptionHtml, description } = normalizeProductDescription(rawRecord?.description)
   const stockCount = product?.stock ?? 0
-  const barcode = product?.barcode || variants.find((variant) => variant?.barcode)?.barcode || null
+  const barcode = productBarcode || variants.find((variant) => variant?.barcode)?.barcode || null
   const tags = Array.isArray(rawRecord?.tags) ? rawRecord.tags : []
   const descriptiveImages = mapDescriptiveImageUrls(rawRecord?.descriptive_images)
 
@@ -182,11 +205,12 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     colorImages,
     keyDetails,
     description,
+    descriptionHtml,
     descriptiveImages,
     details: {
-      SKU: sku,
-      Condition: conditionLabel || 'Not specified',
-      Category: product?.category && product.category !== '—' ? product.category : 'General',
+      SKU: productSku,
+      Condition: resolvedCondition || 'Not specified',
+      Category: categoryName,
     },
     ratingDistribution: FALLBACK_RATING_DISTRIBUTION,
     rating: 4.5,
@@ -340,12 +364,16 @@ function InfoPanel({
     ? toNumber(activeVariant.quantity, 0)
     : null
   const stockCount = variantStock != null ? variantStock : preview.stockCount
-  const lowStockThreshold = activeVariant?.low_stock_threshold != null
-    ? toNumber(activeVariant.low_stock_threshold, preview.lowStockThreshold ?? 10)
+  const lowStockThreshold = activeVariant?.minimum_threshold != null
+    ? toNumber(activeVariant.minimum_threshold, preview.lowStockThreshold ?? 10)
+    : activeVariant?.low_stock_threshold != null
+      ? toNumber(activeVariant.low_stock_threshold, preview.lowStockThreshold ?? 10)
     : (preview.lowStockThreshold ?? 10)
   const outOfStock = stockCount <= 0
   const colorValueSet = new Set((preview.colors ?? []).map((value) => String(value).toLowerCase()))
-  const compatibleModelValues = preview.compatibleModels ?? []
+  const compatibleModelValues = activeVariant
+    ? getVariantCompatibleModels(activeVariant)
+    : (preview.compatibleModels ?? [])
   const sizeValues = preview.sizes ?? []
   const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
     && colorValueSet.size > 0
@@ -405,7 +433,7 @@ function InfoPanel({
           </p>
         )}
         <div className="flex flex-wrap items-end gap-2">
-          {displayPriceInfo.discountPercent != null && (
+          {displayPriceInfo.discountPercent != null && displayPriceInfo.discountPercent > 0 && (
             <span className="text-xl font-bold text-brand">-{displayPriceInfo.discountPercent}%</span>
           )}
           <span className="text-2xl font-extrabold text-slate-950">{formatCedi(displayPriceInfo.price)}</span>
@@ -609,13 +637,13 @@ function KeyDetailsBlock({ tags, keyDetails, activeSku, activeBarcode, onShare }
   const sortedEntries = sortKeyDetailEntries(Object.entries(detailsList))
 
   return (
-    <section className="min-w-0 bg-white p-3 sm:p-4">
+    <section className="min-w-0 h-full bg-white p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-slate-950">Key Details</h2>
+        <h2 className="text-base font-bold text-slate-950">Key Details</h2>
         <button
           type="button"
           onClick={onShare}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 px-4 py-1.5 text-[0.6875rem] font-bold text-slate-700 transition-colors hover:bg-slate-50"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"
         >
           <Share2 className="size-3.5" strokeWidth={2.4} />
           Share
@@ -623,11 +651,11 @@ function KeyDetailsBlock({ tags, keyDetails, activeSku, activeBarcode, onShare }
       </div>
 
       {tags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-4 flex flex-wrap gap-2">
           {tags.map((tag) => (
             <span
               key={tag}
-              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[0.625rem] font-semibold text-slate-600"
+              className="rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-600"
             >
               {tag}
             </span>
@@ -635,10 +663,10 @@ function KeyDetailsBlock({ tags, keyDetails, activeSku, activeBarcode, onShare }
         </div>
       )}
 
-      <dl className={`grid gap-1 text-[0.6875rem] leading-4 text-slate-700 ${tags.length > 0 ? 'mt-3' : 'mt-2'}`}>
+      <dl className={`grid gap-3 text-sm leading-6 text-slate-700 ${tags.length > 0 ? 'mt-5' : 'mt-4'}`}>
         {sortedEntries.map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-1 sm:grid-cols-[11rem_1fr]">
-            <dt className="font-bold">{key}:</dt>
+          <div key={key} className="grid min-w-0 gap-1.5 py-1 sm:grid-cols-[11rem_1fr] sm:gap-3">
+            <dt className="font-bold text-slate-900">{key}:</dt>
             <dd className="wrap-break-word">{value}</dd>
           </div>
         ))}
@@ -726,7 +754,7 @@ function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews }
   )
 }
 
-function DescriptionBlock({ details, description, gallery, descriptiveImages = [] }) {
+function DescriptionBlock({ details, description, descriptionHtml, gallery, descriptiveImages = [] }) {
   const detailsList = { ...details }
   delete detailsList.SKU
   delete detailsList.sku
@@ -746,8 +774,15 @@ function DescriptionBlock({ details, description, gallery, descriptiveImages = [
         ))}
         <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
           <dt className="font-bold text-slate-950">Description</dt>
-          <dd className="space-y-4 wrap-break-word text-slate-700">
-            <p>{description}</p>
+          <dd className="min-w-0 wrap-break-word text-slate-700">
+            {descriptionHtml ? (
+              <div
+                className="product-description text-sm leading-relaxed text-slate-700"
+                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+              />
+            ) : (
+              <p className="leading-relaxed">{description}</p>
+            )}
           </dd>
         </div>
       </div>
@@ -807,12 +842,8 @@ function SkeletonRail({ title, visibleCount = 5, note }) {
 
   return (
     <section className="min-w-0 bg-white p-3 sm:p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+      <div className="mb-3">
         <h2 className="text-base font-bold text-slate-950">{title}</h2>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-          <Sparkles className="size-3" />
-          Live on storefront
-        </span>
       </div>
       <div className="relative">
         <span
@@ -857,18 +888,22 @@ export default function ProductStorefrontPreview({
   const [activeImage, setActiveImage] = useState(preview.gallery[0] ?? null)
   const [selectedColor, setSelectedColor] = useState(preview.colors[0] ?? '')
   const [selectedSize, setSelectedSize] = useState(preview.sizes[0] ?? '')
-  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(preview.compatibleModels[0] ?? '')
+  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(() => {
+    const firstWithModels = preview.variants.find(
+      (variant) => getVariantCompatibleModels(variant).length > 0,
+    )
+    return getVariantCompatibleModels(firstWithModels)[0] ?? ''
+  })
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
 
     let matchingVariant = preview.variants.find((variant) => {
-      const vColor = variant.attributes?.color || variant.color || variant.variant_name || ''
-      const vSize = variant.attributes?.size || variant.size || ''
-      const vModel = variant.variant_name || ''
-
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+      const vSize = getVariantAttributeValue(variant, preview.sizeGroupLabel ?? 'size')
       const matchColor = String(vColor).toLowerCase() === String(newColor).toLowerCase()
-      const matchModel = !selectedCompatibleModel || String(vModel).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+      const matchModel = !selectedCompatibleModel
+        || variantHasCompatibleModel(variant, selectedCompatibleModel)
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
 
       return matchColor && matchModel && matchSize
@@ -876,14 +911,15 @@ export default function ProductStorefrontPreview({
 
     if (!matchingVariant) {
       matchingVariant = preview.variants.find((variant) => {
-        const vColor = variant.attributes?.color || variant.color || variant.variant_name || ''
+        const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
         return String(vColor).toLowerCase() === String(newColor).toLowerCase()
       })
     }
 
     if (matchingVariant) {
-      if (matchingVariant.variant_name) setSelectedCompatibleModel(matchingVariant.variant_name)
-      const vSize = matchingVariant.attributes?.size || matchingVariant.size
+      const models = getVariantCompatibleModels(matchingVariant)
+      setSelectedCompatibleModel(models[0] ?? '')
+      const vSize = getVariantAttributeValue(matchingVariant, preview.sizeGroupLabel ?? 'size')
       if (vSize) setSelectedSize(vSize)
     }
 
@@ -895,11 +931,9 @@ export default function ProductStorefrontPreview({
     setSelectedCompatibleModel(newModel)
 
     let matchingVariant = preview.variants.find((variant) => {
-      const vColor = variant.attributes?.color || variant.color || variant.variant_name || ''
-      const vSize = variant.attributes?.size || variant.size || ''
-      const vModel = variant.variant_name || ''
-
-      const matchModel = String(vModel).toLowerCase() === String(newModel).toLowerCase()
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+      const vSize = getVariantAttributeValue(variant, preview.sizeGroupLabel ?? 'size')
+      const matchModel = variantHasCompatibleModel(variant, newModel)
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
 
@@ -907,12 +941,12 @@ export default function ProductStorefrontPreview({
     })
 
     if (!matchingVariant) {
-      matchingVariant = preview.variants.find((variant) => String(variant.variant_name ?? '').toLowerCase() === String(newModel).toLowerCase())
+      matchingVariant = preview.variants.find((variant) => variantHasCompatibleModel(variant, newModel))
     }
 
     if (matchingVariant) {
-      const vColor = matchingVariant.attributes?.color || matchingVariant.color
-      const vSize = matchingVariant.attributes?.size || matchingVariant.size
+      const vColor = getVariantAttributeValue(matchingVariant, 'color')
+      const vSize = getVariantAttributeValue(matchingVariant, preview.sizeGroupLabel ?? 'size')
       if (vColor) {
         setSelectedColor(vColor)
         const varImage = preview.colorImages?.[vColor]
@@ -924,53 +958,52 @@ export default function ProductStorefrontPreview({
 
   const handleSizeSelect = (newSize) => {
     setSelectedSize(newSize)
+    const sizeAttribute = preview.sizeGroupLabel ?? 'size'
 
     let matchingVariant = preview.variants.find((variant) => {
-      const vColor = variant.attributes?.color || variant.color || variant.variant_name || ''
-      const sizeKey = preview.sizeGroupLabel ? preview.sizeGroupLabel.toLowerCase().replace(/ /g, '_') : 'size'
-      const vSize = variant.attributes?.[sizeKey] || variant.attributes?.size || variant.size || ''
-      const vModel = variant.variant_name || ''
-
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+      const vSize = getVariantAttributeValue(variant, sizeAttribute)
       const matchSize = String(vSize).toLowerCase() === String(newSize).toLowerCase()
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-      const matchModel = !selectedCompatibleModel || String(vModel).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+      const matchModel = !selectedCompatibleModel
+        || variantHasCompatibleModel(variant, selectedCompatibleModel)
 
       return matchColor && matchSize && matchModel
     })
 
     if (!matchingVariant) {
-      const sizeKey = preview.sizeGroupLabel ? preview.sizeGroupLabel.toLowerCase().replace(/ /g, '_') : 'size'
       matchingVariant = preview.variants.find((variant) => {
-        const vSize = variant.attributes?.[sizeKey] || variant.attributes?.size || variant.size || ''
+        const vSize = getVariantAttributeValue(variant, sizeAttribute)
         return String(vSize).toLowerCase() === String(newSize).toLowerCase()
       })
     }
 
     if (matchingVariant) {
-      const vColor = matchingVariant.attributes?.color || matchingVariant.color
-      const vModel = matchingVariant.variant_name
+      const vColor = getVariantAttributeValue(matchingVariant, 'color')
+      const models = getVariantCompatibleModels(matchingVariant)
       if (vColor) {
         setSelectedColor(vColor)
         const varImage = preview.colorImages?.[vColor]
         if (varImage) setActiveImage(varImage)
       }
-      if (vModel) setSelectedCompatibleModel(vModel)
+      if (models[0]) setSelectedCompatibleModel(models[0])
+      else setSelectedCompatibleModel('')
     }
   }
 
   const activeVariant = useMemo(() => {
     if (!preview.variants.length) return null
+    const sizeAttribute = preview.sizeGroupLabel ?? 'size'
 
     return preview.variants.find((variant) => {
-      const vColor = variant.attributes?.color || variant.color || variant.variant_name || ''
+      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
 
-      const sizeKey = preview.sizeGroupLabel ? preview.sizeGroupLabel.toLowerCase().replace(/ /g, '_') : 'size'
-      const vSize = variant.attributes?.[sizeKey] || variant.attributes?.size || variant.size || ''
+      const vSize = getVariantAttributeValue(variant, sizeAttribute)
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
 
-      const vModel = variant.variant_name || ''
-      const matchModel = !selectedCompatibleModel || String(vModel).toLowerCase() === String(selectedCompatibleModel).toLowerCase()
+      const matchModel = !selectedCompatibleModel
+        || variantHasCompatibleModel(variant, selectedCompatibleModel)
 
       return matchColor && matchSize && matchModel
     }) ?? preview.variants[0]
@@ -988,13 +1021,16 @@ export default function ProductStorefrontPreview({
 
   const displayPriceInfo = useMemo(() => {
     if (activeVariant) {
-      const variantPrice = toNumber(activeVariant.price)
-      const variantDiscountPrice = toNumber(activeVariant.discount_price)
+      const variantListPrice = toNumber(activeVariant.regular_price ?? activeVariant.price)
+      const variantSalePrice = toNumber(
+        activeVariant.regular_discount_price ?? activeVariant.discount_price,
+      )
 
-      const price = variantDiscountPrice > 0 ? variantDiscountPrice : variantPrice
-      const compareAt = variantDiscountPrice > 0 ? variantPrice : null
-      const discountPercent = compareAt > price && price > 0
-        ? Math.round(((compareAt - price) / compareAt) * 100)
+      const hasVariantSale = variantSalePrice > 0 && variantListPrice > variantSalePrice
+      const price = hasVariantSale ? variantSalePrice : variantListPrice
+      const compareAt = hasVariantSale ? variantListPrice : null
+      const discountPercent = hasVariantSale
+        ? calculateDisplayDiscountPercent(variantListPrice, variantSalePrice)
         : null
 
       return { price, compareAt, discountPercent }
@@ -1002,8 +1038,8 @@ export default function ProductStorefrontPreview({
 
     const price = preview.hasDiscount ? preview.salePrice : preview.regularPrice
     const compareAt = preview.hasDiscount ? preview.regularPrice : null
-    const discountPercent = preview.hasDiscount && preview.regularPrice > 0
-      ? Math.round(((preview.regularPrice - preview.salePrice) / preview.regularPrice) * 100)
+    const discountPercent = preview.hasDiscount
+      ? calculateDisplayDiscountPercent(preview.regularPrice, preview.salePrice)
       : null
 
     return { price, compareAt, discountPercent }
@@ -1048,8 +1084,8 @@ export default function ProductStorefrontPreview({
 
       <div className="bg-[#f2f2f2] p-2 sm:p-3">
         <div className="w-full space-y-3 sm:space-y-4">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
-            <div className="contents lg:block lg:min-w-0 lg:space-y-4">
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-stretch">
+            <div className="contents lg:flex lg:min-h-full lg:flex-col lg:gap-4">
               <div className="order-1 min-w-0">
                 <PreviewGallery
                   gallery={preview.gallery}
@@ -1058,7 +1094,7 @@ export default function ProductStorefrontPreview({
                   title={preview.title}
                 />
               </div>
-              <div className="order-3 min-w-0">
+              <div className="order-3 min-w-0 lg:flex-1">
                 <KeyDetailsBlock
                   tags={preview.tags}
                   keyDetails={preview.keyDetails}
@@ -1067,7 +1103,7 @@ export default function ProductStorefrontPreview({
                   onShare={handleShare}
                 />
               </div>
-              <div className="order-5 min-w-0 py-4 sm:py-5">
+              <div className="order-5 min-w-0">
                 <SkeletonRail
                   title="Other Items From Seller"
                   visibleCount={3}
@@ -1075,7 +1111,7 @@ export default function ProductStorefrontPreview({
                 />
               </div>
             </div>
-            <div className="contents lg:block lg:min-w-0 lg:space-y-4">
+            <div className="contents lg:flex lg:min-h-full lg:flex-col lg:gap-4">
               <div className="order-2 min-w-0">
                 <InfoPanel
                   preview={preview}
@@ -1103,6 +1139,7 @@ export default function ProductStorefrontPreview({
           <DescriptionBlock
             details={preview.details}
             description={preview.description}
+            descriptionHtml={preview.descriptionHtml}
             gallery={preview.gallery}
             descriptiveImages={preview.descriptiveImages}
           />

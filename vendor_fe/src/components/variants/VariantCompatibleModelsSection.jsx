@@ -50,7 +50,10 @@ export default function VariantCompatibleModelsSection({ formik, step }) {
           <div className="rounded-xl border border-brand/15 bg-brand-light/20 p-4">
             <VariantValuesInput
               values={formik.values.compatible_models}
-              onChange={(next) => formik.setFieldValue('compatible_models', next)}
+              onChange={(next) => {
+                formik.setFieldValue('compatible_models', next)
+                formik.setFieldValue('has_compatible_models', next.length > 0)
+              }}
               label="Compatible models"
               hint="Press Enter or comma after each model name."
               placeholder="iPhone 13, iPhone 13 Pro, iPhone 13 Pro Max"

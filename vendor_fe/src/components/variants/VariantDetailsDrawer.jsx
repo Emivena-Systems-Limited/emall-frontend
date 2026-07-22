@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Form, Formik } from 'formik'
 import { ArrowRight, CheckCircle2, Loader2, X } from 'lucide-react'
-import { singleVariantSchema } from '../../utils/validationSchemas'
+import {
+  getMainProductStockQuantity,
+  getVariantQuantityMainStockError,
+  singleVariantSchema,
+} from '../../utils/validationSchemas'
 import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
 import { scrollToFirstError, touchFieldsWithErrors } from '../../utils/scrollToFirstError'
 import AttributeIcon from './AttributeIcon'
@@ -62,18 +66,25 @@ function VariantDrawerHeader({ attribute, value, formik, productValues, onClose 
 }
 
 function VariantDetailsForm({ attribute, value, initialValues, productValues, onClose, onSave, isSaving }) {
-  const mainQty = productValues?.quantity ? Number(productValues.quantity) : null
+  const mainQty = getMainProductStockQuantity(productValues)
   const scrollContainerRef = useRef(null)
   const [isCustomPrice, setIsCustomPrice] = useState(() =>
     initialValues.price !== '' && initialValues.price != null,
   )
 
-  const validateCustomPrice = (values) => {
-    if (!isCustomPrice) return {}
-    if (values.price === '' || values.price == null) {
-      return { price: 'Enter a regular price for custom pricing' }
+  const validateVariantDetails = (values) => {
+    const errors = {}
+
+    if (isCustomPrice && (values.price === '' || values.price == null)) {
+      errors.price = 'Enter a regular price for custom pricing'
     }
-    return {}
+
+    const quantityError = getVariantQuantityMainStockError(values.quantity, mainQty)
+    if (quantityError) {
+      errors.quantity = quantityError
+    }
+
+    return errors
   }
 
   const handleAttemptSave = async (formik) => {
@@ -93,7 +104,7 @@ function VariantDetailsForm({ attribute, value, initialValues, productValues, on
     <Formik
       initialValues={initialValues}
       validationSchema={singleVariantSchema}
-      validate={validateCustomPrice}
+      validate={validateVariantDetails}
       validationContext={mainQty != null ? { mainProductQuantity: mainQty } : undefined}
       validateOnBlur
       validateOnChange={false}

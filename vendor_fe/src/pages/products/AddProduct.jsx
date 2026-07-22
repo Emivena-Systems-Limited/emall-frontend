@@ -28,6 +28,7 @@ import AttributeIcon from '../../components/variants/AttributeIcon'
 import AttributeTypePicker from '../../components/variants/AttributeTypePicker'
 import CardStepHeader from '../../components/variants/CardStepHeader'
 import VariantDetailsDrawer from '../../components/variants/VariantDetailsDrawer'
+import VariantReviewCard from '../../components/variants/VariantReviewCard'
 import VariantValueDraftCard from '../../components/variants/VariantValueDraftCard'
 import VariantValuesInput from '../../components/variants/VariantValuesInput'
 import { isPresetAttribute } from '../../components/variants/variantConstants'
@@ -66,7 +67,11 @@ import { useApprovedBrands } from '../../hooks/useBrands'
 import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
 import { useProductCategoryOptions } from '../../hooks/useCategories'
 import { productListingSchema } from '../../utils/validationSchemas'
-import { buildProductPayload, buildProductCreateJsonPayload, formatProductPayloadSample } from '../../utils/productPayload'
+import {
+  buildProductPayload,
+  buildProductCreateJsonPayload,
+  formatProductPayloadSample,
+} from '../../utils/productPayload'
 import {
   buildProductMediaPresignRequest,
   buildProductMediaSaveImagesPayload,
@@ -103,7 +108,7 @@ const productListingSteps = [
   { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
   { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
   { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
-  { id: 'variations', title: 'Variations',    caption: 'Size, color, weight'     },
+  { id: 'variations', title: 'Variations',    caption: 'Required — add at least one'     },
   { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
   { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
 ]
@@ -151,24 +156,27 @@ function getTouchedForFields(fields, values) {
       }
     }
     if (field === 'variations') {
+      const variationGroups = values.variations ?? []
       return {
         ...touched,
-        variations: values.variations.map((v) => ({
-          attribute: true,
-          values: v.values.length > 0
-            ? v.values.map(() => ({
-              value: true,
-              variant_name: true,
-              sku: true,
-              price: true,
-              discount_price: true,
-              quantity: true,
-              reserved_quantity: true,
-              low_stock_threshold: true,
-              barcode: true,
-            }))
-            : true,
-        })),
+        variations: variationGroups.length > 0
+          ? variationGroups.map((v) => ({
+            attribute: true,
+            values: v.values.length > 0
+              ? v.values.map(() => ({
+                value: true,
+                variant_name: true,
+                sku: true,
+                price: true,
+                discount_price: true,
+                quantity: true,
+                reserved_quantity: true,
+                minimum_threshold: true,
+                barcode: true,
+              }))
+              : true,
+          }))
+          : true,
       }
     }
     return { ...touched, [field]: true }
@@ -185,7 +193,9 @@ function createVariantValue(value) {
     discount_price: '',
     quantity: '',
     reserved_quantity: '',
-    low_stock_threshold: '',
+    // Left blank — defaulted to DEFAULT_VARIANT_MINIMUM_THRESHOLD only at payload build time
+    // so it never conflicts with a low quantity value while the form is still being filled in.
+    minimum_threshold: '',
     barcode: '',
     barcode_type: 'UPC',
     weight: '',
@@ -213,6 +223,17 @@ function createVariantGroupId() {
 function getVariantPrimaryPreview(variantValue) {
   if (variantValue?.images?.length > 0) return variantValue.images[0].preview
   return variantValue?.image_url || null
+}
+
+/** First readable error message for a single variant value, once its errors have been touched. */
+function getVariantValueErrorMessage(formik, groupIndex, valueIndex) {
+  const valueErrors = formik.errors?.variations?.[groupIndex]?.values?.[valueIndex]
+  const valueTouched = formik.touched?.variations?.[groupIndex]?.values?.[valueIndex]
+  if (!valueErrors || (!valueTouched && formik.submitCount === 0)) return ''
+  if (typeof valueErrors === 'string') return valueErrors
+
+  const firstError = Object.values(valueErrors).find((entry) => typeof entry === 'string')
+  return firstError ?? ''
 }
 
 function hasVariationStepErrors(variationErrors) {
@@ -840,22 +861,23 @@ export function VariationsStep({ formik }) {
     scrollToSavedVariationValues(savedValuesRef.current)
   }
 
-  const handleRemoveValue = (id) => {
-    const location = findValueLocation(id)
-    if (!location) return
-    const { groupIndex } = location
-    const nextValues = groups[groupIndex].values.filter((item) => item.id !== id)
+  const handleRemoveValue = async (id) => {
+    const nextGroups = groups
+      .map((group) => ({
+        ...group,
+        values: group.values.filter((item) => item.id !== id),
+      }))
+      .filter((group) => group.values.length > 0)
 
-    if (nextValues.length === 0) {
-      formik.setFieldValue('variations', groups.filter((_, index) => index !== groupIndex))
-    } else {
-      formik.setFieldValue(`variations.${groupIndex}.values`, nextValues)
-    }
+    await formik.setFieldValue('variations', nextGroups, true)
+    formik.setFieldError('variations', undefined)
     if (editingId === id) setEditingId(null)
   }
 
-  const handleRemoveGroup = (groupIndex) => {
-    formik.setFieldValue('variations', groups.filter((_, index) => index !== groupIndex))
+  const handleRemoveGroup = async (groupIndex) => {
+    const nextGroups = groups.filter((_, index) => index !== groupIndex)
+    await formik.setFieldValue('variations', nextGroups, true)
+    formik.setFieldError('variations', undefined)
   }
 
   const handleDrawerSave = async (variantFormValues) => {
@@ -885,19 +907,23 @@ export function VariationsStep({ formik }) {
   )
   const priceRange = getVariationCustomerPriceRange(groups, formik.values)
   const rangeLabel = formatCustomerPriceRange(priceRange)
-  const stepError = typeof formik.errors.variations === 'string' && formik.touched.variations
+  const stepError = typeof formik.errors.variations === 'string'
+    && (formik.touched.variations || formik.submitCount > 0)
     ? formik.errors.variations
     : ''
 
   return (
-    <div className="space-y-6" data-field="variations">
+    <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Optional</p>
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Required</p>
         <h3 className="text-lg font-bold text-slate-900">Product variations</h3>
         <p className="text-sm text-slate-500">
-          Add option types like Color, Size, or your own (Material, Capacity, etc.), each with its own values.
-          Skip this step entirely if this product has no variants.
+          Every product needs at least one variation (for example Color or Size), each with a photo, price, and stock.
+          Add option types like Color, Size, or your own (Material, Capacity, etc.), then fill in details for each value.
         </p>
+        {stepError && (
+          <p className="text-xs font-semibold text-red-600" role="alert">{stepError}</p>
+        )}
         {rangeLabel && totalValues > 0 && (
           <p className="text-xs font-semibold leading-relaxed text-slate-600">
             Customer price range: <span className="whitespace-nowrap text-brand">{rangeLabel}</span>
@@ -982,7 +1008,7 @@ export function VariationsStep({ formik }) {
       </div>
 
       {/* All added option groups */}
-      <div ref={savedValuesRef} className="scroll-mt-6">
+      <div ref={savedValuesRef} className="scroll-mt-6" data-field="variations">
         {groups.length > 0 ? (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
@@ -1027,12 +1053,14 @@ export function VariationsStep({ formik }) {
                     </button>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {group.values.map((value) => (
+                    {group.values.map((value, valueIndex) => (
                       <VariantValueDraftCard
                         key={value.id}
+                        dataField={`variations.${groupIndex}.values.${valueIndex}`}
                         attribute={group.attribute}
                         value={value.value}
                         persistedEntry={isVariantValueReady(value) ? { variantValue: value } : null}
+                        error={getVariantValueErrorMessage(formik, groupIndex, valueIndex)}
                         onEdit={() => setEditingId(value.id)}
                         onRemove={() => handleRemoveValue(value.id)}
                         isRemoving={false}
@@ -1174,6 +1202,14 @@ export function ReviewStep({
 
   const filledKeyDetails = (formik.values.key_details ?? []).filter(
     (item) => item?.key?.trim() && item?.value?.trim(),
+  )
+
+  const variationPriceRange = includeVariations
+    ? getVariationCustomerPriceRange(formik.values.variations, formik.values)
+    : null
+  const variationCount = formik.values.variations.reduce(
+    (count, variation) => count + variation.values.length,
+    0,
   )
 
   const summaryRows = [
@@ -1334,46 +1370,57 @@ export function ReviewStep({
         ))}
       </div>
 
-      {includeVariations && formik.values.variations.some((variation) => variation.values.length > 0) && (
+      {includeVariations && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
-            <Box className="size-4 text-cyan-700" />
-            Variants
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-              {formik.values.variations.reduce((count, variation) => count + variation.values.length, 0)}
-            </span>
-          </h3>
-          <div className="space-y-3">
-            {formik.values.variations.map((variation) => (
-              <div key={variation.id} className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  {variation.attribute}
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <Box className="size-4 text-cyan-700" />
+                Variants
+                {variationCount > 0 && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+                    {variationCount}
+                  </span>
+                )}
+              </h3>
+              {variationPriceRange && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Price range:{' '}
+                  <span className="font-bold text-slate-800">
+                    {formatCustomerPriceRange(variationPriceRange)}
+                  </span>
                 </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {variation.values.map((val) => {
-                    const pricing = resolveVariantPricing(val, formik.values)
-                    const label = val.variant_name?.trim() || val.value
-                    return (
-                      <span
-                        key={val.id}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-white py-1 pl-2.5 pr-3 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
-                      >
-                        {getVariantPrimaryPreview(val) && (
-                          <img src={getVariantPrimaryPreview(val)} alt="" className="size-5 rounded-full object-cover" />
-                        )}
-                        <span>{label}</span>
-                        {pricing.customerPrice > 0 && (
-                          <span className="text-[10px] font-bold text-emerald-700">
-                            GH₵ {formatMoney(pricing.customerPrice)}
-                          </span>
-                        )}
-                      </span>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
+
+          {formik.values.variations.some((variation) => variation.values.length > 0) ? (
+            <div className="space-y-5">
+              {formik.values.variations.map((variation) => (
+                variation.values.length > 0 && (
+                  <div key={variation.id} className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      {variation.attribute}
+                    </p>
+                    <div className="space-y-3">
+                      {variation.values.map((val) => (
+                        <VariantReviewCard
+                          key={val.id}
+                          attribute={variation.attribute}
+                          variantValue={val}
+                          productValues={formik.values}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm font-semibold text-red-600">
+              Add at least one variation with photo, price, and stock before publishing.
+            </p>
+          )}
         </section>
       )}
 
@@ -1642,6 +1689,7 @@ export function ProductListingForm({
                 setMainImage(nextMediaState.mainImage)
                 setSubImages(nextMediaState.subImages)
                 setDescriptiveImages(nextMediaState.descriptiveImages)
+                actions.setFieldValue('variations', nextMediaState.variations ?? formValues.variations)
 
                 if (import.meta.env.DEV) {
                   console.log(
@@ -1689,6 +1737,7 @@ export function ProductListingForm({
                   {
                     includeVariations: true,
                     descriptiveImages: nextMediaState.descriptiveImages,
+                    variations: nextMediaState.variations,
                   },
                 )
 
@@ -1755,6 +1804,11 @@ export function ProductListingForm({
                 <DevProductFormTools
                   activeStep={activeStep}
                   stepTitle={productListingSteps[activeStep].title}
+                  catalogContext={{
+                    parentCategories,
+                    categoryTree,
+                    approvedBrands,
+                  }}
                   onFillStep={(fixture) => {
                     formik.setValues({ ...formik.values, ...fixture })
                     formik.setErrors({})

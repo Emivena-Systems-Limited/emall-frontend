@@ -22,6 +22,16 @@ import {
 } from '../../utils/productStatusActions'
 import { getUniqueOrderProducts } from '../../utils/orderProductNavigation'
 
+// Reactivate later — listing status banner (API `status`, e.g. pending_approval)
+// function formatApiStatusLabel(status) {
+//   const normalized = String(status ?? '').trim().toLowerCase()
+//   if (!normalized) return null
+//   return normalized
+//     .split('_')
+//     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+//     .join(' ')
+// }
+
 export default function ViewProduct() {
   const { productId } = useParams()
   const [searchParams] = useSearchParams()
@@ -82,6 +92,7 @@ export default function ViewProduct() {
   }
 
   const product = toCatalogProduct(rawRecord)
+  // const apiStatusLabel = formatApiStatusLabel(rawRecord.status)
   const allImages = Array.isArray(rawRecord.images) ? rawRecord.images : []
   const images = allImages.filter((image) => !isDescriptiveProductImage(image))
   const conditionLabel = getProductConditionLabel(
@@ -138,6 +149,14 @@ export default function ViewProduct() {
             />
           )}
         </div>
+
+        {/* Listing status — reactivate later
+        {apiStatusLabel && apiStatusLabel !== 'Active' && apiStatusLabel !== 'Approved' && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <span className="font-bold">Listing status:</span> {apiStatusLabel}
+          </div>
+        )}
+        */}
 
         <div className="-mx-4 sm:-mx-6 lg:-mx-8">
           <ProductStorefrontPreview

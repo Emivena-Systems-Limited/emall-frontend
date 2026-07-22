@@ -134,7 +134,7 @@ export function useUpdateProductVariantsMutation() {
             discount_price: variantValue.discount_price,
             quantity: variantValue.quantity,
             reserved_quantity: variantValue.reserved_quantity,
-            low_stock_threshold: variantValue.low_stock_threshold,
+            minimum_threshold: variantValue.minimum_threshold,
             barcode: variantValue.barcode,
             barcode_type: variantValue.barcode_type,
             weight: variantValue.weight,

@@ -53,13 +53,23 @@ export function scrollToFirstError(errors, scrollContainer = null) {
     ? Array.from(scrollContainer.querySelectorAll('[data-field]'))
     : Array.from(document.querySelectorAll('[data-field]'))
 
-  const first = fieldEls.find((el) => {
+  let bestMatch = null
+
+  for (const el of fieldEls) {
     const name = el.getAttribute('data-field')
-    if (!name) return false
-    return Object.keys(flat).some(
+    if (!name) continue
+
+    const matched = Object.keys(flat).some(
       (path) => path === name || path.startsWith(`${name}.`),
     )
-  })
+    if (!matched) continue
+
+    if (!bestMatch || name.length > bestMatch.name.length) {
+      bestMatch = { el, name }
+    }
+  }
+
+  const first = bestMatch?.el
   if (!first) return
 
   if (scrollContainer) {

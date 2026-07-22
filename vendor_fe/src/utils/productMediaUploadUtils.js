@@ -316,18 +316,44 @@ function normalizePresignTarget(item, scope) {
   }
 }
 
-function findPresignTargetForManifestEntry(entry, presignTargets, usedTargetIndexes) {
+function groupPresignTargetsByScope(presignTargets) {
+  const groups = {
+    product: [],
+    description: [],
+    variant: [],
+  }
+
+  for (const target of presignTargets) {
+    if (groups[target.scope]) {
+      groups[target.scope].push(target)
+    }
+  }
+
+  return groups
+}
+
+function findPresignTargetForManifestEntry(entry, scopeTargets, scopeIndex, presignTargets) {
+  const nextIndex = scopeIndex[entry.scope] ?? 0
+  const orderedTarget = scopeTargets[entry.scope]?.[nextIndex]
+
+  if (orderedTarget?.upload_url && orderedTarget?.upload_id) {
+    scopeIndex[entry.scope] = nextIndex + 1
+    return { target: orderedTarget }
+  }
+
   const fileName = entry.file?.name ?? ''
   const fileSize = entry.file?.size ?? 0
 
-  const matchIndex = presignTargets.findIndex((target, index) => {
-    if (usedTargetIndexes.has(index)) return false
-    if (target.scope !== entry.scope) return false
-    return target.name === fileName && target.size === fileSize
-  })
+  const fallbackTarget = presignTargets.find((candidate) => (
+    candidate.scope === entry.scope
+    && candidate.name === fileName
+    && candidate.size === fileSize
+    && candidate.upload_url
+    && candidate.upload_id
+  ))
 
-  if (matchIndex >= 0) {
-    return { index: matchIndex, target: presignTargets[matchIndex] }
+  if (fallbackTarget) {
+    return { target: fallbackTarget }
   }
 
   return null
@@ -335,23 +361,32 @@ function findPresignTargetForManifestEntry(entry, presignTargets, usedTargetInde
 
 /**
  * Join manifest entries with presign targets ready for S3 upload.
- * Matches by scope + file name + size (response echoes name/size per upload).
+ * Matches in request order within each scope (product → description → variant).
+ * Falls back to name + size when order-based matching fails.
  *
  * @param {ProductMediaUploadManifestEntry[]} manifest
  * @param {ProductMediaPresignTarget[]} presignTargets
  */
 export function mergePresignTargetsWithManifest(manifest, presignTargets) {
-  const usedTargetIndexes = new Set()
+  const scopeTargets = groupPresignTargetsByScope(presignTargets)
+  const scopeIndex = {
+    product: 0,
+    description: 0,
+    variant: 0,
+  }
 
   return manifest.map((entry, index) => {
-    const match = findPresignTargetForManifestEntry(entry, presignTargets, usedTargetIndexes)
+    const match = findPresignTargetForManifestEntry(
+      entry,
+      scopeTargets,
+      scopeIndex,
+      presignTargets,
+    )
 
     if (!match?.target?.upload_url || !match?.target?.upload_id) {
       const label = entry.file?.name ?? `image ${index + 1}`
       throw new Error(`Missing presigned upload URL for "${label}".`)
     }
-
-    usedTargetIndexes.add(match.index)
 
     return {
       ...entry,
@@ -603,7 +638,6 @@ function toSavedProductImage(image, index) {
   if (uploadId) {
     return {
       upload_id: uploadId,
-      image_url: uploadId,
       sort_order: index,
       is_primary: index === 0,
     }
@@ -645,32 +679,7 @@ export function buildProductMediaSaveImagesPayload({
 
   const description_images = (Array.isArray(descriptiveImages) ? descriptiveImages : [])
     .filter(Boolean)
-    .map((image, index) => {
-      const uploadId = resolveImageUploadId(image)
-      const imageUrl = resolveImageUrl(image)
-      const remoteId = resolveRemoteProductImageId(image)
-
-      if (uploadId) {
-        return {
-          upload_id: uploadId,
-          image_url: uploadId,
-          sort_order: index,
-        }
-      }
-
-      if (imageUrl) {
-        return {
-          image_url: imageUrl,
-          sort_order: index,
-        }
-      }
-
-      if (remoteId) {
-        return { id: remoteId, sort_order: index }
-      }
-
-      return null
-    })
+    .map((image, index) => toSavedProductImage(image, index))
     .filter(Boolean)
 
   const variationsPayload = (variations ?? [])

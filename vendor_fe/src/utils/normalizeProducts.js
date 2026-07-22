@@ -1,15 +1,15 @@
 import { unwrapApiEnvelope } from './parseApiError'
 
+export function isProductActive(isActive) {
+  if (isActive === true || isActive === 1 || isActive === '1') return true
+  if (isActive === false || isActive === 0 || isActive === '0') return false
+  return String(isActive ?? '').trim().toLowerCase() === 'true'
+}
+
+/** Catalogue visibility is driven by API `is_active`; `status` is only used for draft. */
 export function mapApiProductStatus(status, isActive) {
-  const normalizedStatus = String(status ?? '').toLowerCase()
-  const active = isActive === true || isActive === 1 || isActive === '1'
-
-  if (normalizedStatus === 'approved' && active) return 'active'
-  if (normalizedStatus === 'active' && active) return 'active'
-  if (normalizedStatus === 'draft') return 'draft'
-  if (!active) return 'inactive'
-
-  return normalizedStatus === 'approved' ? 'active' : 'inactive'
+  if (String(status ?? '').trim().toLowerCase() === 'draft') return 'draft'
+  return isProductActive(isActive) ? 'active' : 'inactive'
 }
 
 function resolveImageUrl(image) {
@@ -264,7 +264,7 @@ export function toCatalogProduct(record, context = {}) {
     id: record.id,
     name: record.name,
     slug: record.slug ?? '',
-    sku: context.sku ?? firstVariant?.sku ?? record.sku ?? meta.sku ?? '—',
+    sku: context.sku ?? record.sku ?? meta.sku ?? firstVariant?.sku ?? '—',
     brandId: resolveBrandId(record),
     brand: brandName || '—',
     brandSlug: resolveBrandSlug(record, context),
@@ -274,7 +274,7 @@ export function toCatalogProduct(record, context = {}) {
     subcategorySlug: subcategoryRecord?.slug ?? '',
     stock: resolveProductStock(record, variants, context, meta),
     lowStockThreshold: meta.low_stock_threshold ? Number(meta.low_stock_threshold) : null,
-    barcode: firstVariant?.barcode ?? meta.barcode ?? null,
+    barcode: meta.barcode ?? record.barcode ?? firstVariant?.barcode ?? null,
     status: mapApiProductStatus(record.status, record.is_active),
     regularPrice,
     salePrice,

@@ -151,12 +151,35 @@ export function mapKeyDetailsFromRecord(record) {
   const fromKeyDetails = Array.isArray(record?.key_details) ? record.key_details : []
   if (fromKeyDetails.length > 0) {
     return fromKeyDetails
-      .map((item, index) => ({
-        id: item.id ?? `kd-${index}-${Math.random().toString(36).slice(2, 7)}`,
-        key: String(item.property ?? item.key ?? '').trim(),
-        value: item.value ?? '',
-      }))
-      .filter((item) => item.key)
+      .map((item, index) => {
+        if (typeof item === 'string') {
+          const trimmed = item.trim()
+          if (!trimmed) return null
+          try {
+            const parsed = JSON.parse(trimmed)
+            if (parsed && typeof parsed === 'object') {
+              return {
+                id: parsed.id ?? `kd-${index}-${Math.random().toString(36).slice(2, 7)}`,
+                key: String(parsed.property ?? parsed.key ?? '').trim(),
+                value: parsed.value ?? '',
+              }
+            }
+          } catch {
+            return {
+              id: `kd-${index}-${Math.random().toString(36).slice(2, 7)}`,
+              key: trimmed,
+              value: '',
+            }
+          }
+        }
+
+        return {
+          id: item.id ?? `kd-${index}-${Math.random().toString(36).slice(2, 7)}`,
+          key: String(item.property ?? item.key ?? '').trim(),
+          value: item.value ?? '',
+        }
+      })
+      .filter((item) => item?.key)
   }
 
   return mapKeyDetailsFromMetadata(record?.metadata)

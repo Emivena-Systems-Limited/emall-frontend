@@ -14,6 +14,9 @@ export const BARCODE_TYPE_OPTIONS = [
 
 export const VARIANT_DESCRIPTION_MAX_LENGTH = 300
 
+/** Default variant low-stock alert threshold sent when the field is left blank. */
+export const DEFAULT_VARIANT_MINIMUM_THRESHOLD = 5
+
 // Backend currently only stores a single image per variant. Bump this once multi-image
 // variant uploads are supported server-side — the upload UI already handles it either way.
 export const MAX_VARIANT_IMAGE_COUNT = 1

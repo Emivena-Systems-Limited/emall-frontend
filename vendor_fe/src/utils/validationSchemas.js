@@ -1,5 +1,6 @@
 import * as Yup from 'yup'
 import { PRODUCT_CONDITION_OPTIONS } from '../constants/products'
+import { isPresentVariantField } from '../components/variants/variantFormUtils'
 import { hasUsableProductImages } from './productImageUtils'
 import { stripHtml } from './richText'
 
@@ -144,9 +145,47 @@ export const vendorResetPasswordSchema = Yup.object({
 const nullableNumber = Yup.number()
   .nullable()
   .transform((value, originalValue) => {
-    if (originalValue === '' || originalValue === null || originalValue === undefined) return null
+    if (
+      originalValue === ''
+      || originalValue == null
+      || originalValue === undefined
+      || originalValue === 'N/A'
+    ) {
+      return null
+    }
     return value
   })
+
+const variantBarcodeSchema = Yup.string()
+  .trim()
+  .nullable()
+  .transform((value) => (isPresentVariantField(value) ? String(value).trim() : null))
+
+const variantBarcodeTypeSchema = Yup.string()
+  .nullable()
+  .when('barcode', {
+    is: (barcode) => isPresentVariantField(barcode),
+    then: (schema) => schema
+      .oneOf(['UPC', 'EAN', 'ISBN', 'GTIN'], 'Select a valid barcode type')
+      .required('Select a barcode type when barcode is provided'),
+    otherwise: (schema) => schema.nullable().notRequired(),
+  })
+
+const variantReservedQuantitySchema = nullableNumber
+  .transform((value, originalValue) => {
+    if (
+      originalValue === ''
+      || originalValue == null
+      || originalValue === undefined
+      || originalValue === 'N/A'
+    ) {
+      return 0
+    }
+    return value
+  })
+  .integer('Must be a whole number')
+  .min(0, 'Cannot be negative')
+  .default(0)
 
 function getRootFormValues(from = []) {
   return from[from.length - 1]?.value ?? {}
@@ -164,9 +203,13 @@ function parseOptionalStockThreshold(value) {
   return Number.isFinite(threshold) ? threshold : null
 }
 
-function stockQuantityNotBelowThresholdTest(message = 'Stock quantity cannot be less than the low stock threshold') {
+function stockQuantityNotBelowThresholdTest(
+  message = 'Stock quantity cannot be less than the low stock alert threshold',
+) {
   return function validateQuantity(value) {
-    const threshold = parseOptionalStockThreshold(this.parent.low_stock_threshold)
+    const threshold = parseOptionalStockThreshold(
+      this.parent.minimum_threshold ?? this.parent.low_stock_threshold,
+    )
     if (threshold == null) return true
 
     const quantity = parseVariantQuantity(value)
@@ -181,7 +224,7 @@ function stockQuantityNotBelowThresholdTest(message = 'Stock quantity cannot be 
 }
 
 function lowStockThresholdNotAboveQuantityTest(
-  message = 'Low stock threshold cannot exceed stock quantity',
+  message = 'Low stock alert threshold cannot exceed stock quantity',
 ) {
   return function validateThreshold(value) {
     if (value == null) return true
@@ -200,9 +243,24 @@ function lowStockThresholdNotAboveQuantityTest(
   }
 }
 
-function getMainProductStockQuantity(values = {}) {
+export function getMainProductStockQuantity(values = {}) {
   const quantity = Number(values.quantity)
   return Number.isFinite(quantity) ? quantity : null
+}
+
+/** Shared copy for variant quantity vs main product stock — used in drawer + listing schema. */
+export function getVariantQuantityMainStockError(quantity, mainProductQuantity) {
+  const mainQty = mainProductQuantity ?? null
+  if (mainQty == null) return null
+
+  const qty = parseVariantQuantity(quantity)
+  if (qty == null) return null
+
+  if (qty > mainQty) {
+    return `Variant stock cannot exceed main product stock (${mainQty}).`
+  }
+
+  return null
 }
 
 function sumVariantStockQuantities(variations = []) {
@@ -240,7 +298,18 @@ const VARIANT_DESCRIPTION_MAX_LENGTH = 300
 const productVariationValueSchema = Yup.object({
   id: Yup.string(),
   value: Yup.string().trim().required('Value is required'),
-  variant_name: Yup.string().trim().nullable(),
+  variant_name: Yup.string()
+    .trim()
+    .nullable()
+    .test(
+      'variant-name-present',
+      'Variant display name is required',
+      function validateVariantName(value) {
+        const resolved = String(value ?? '').trim()
+          || String(this.parent.value ?? '').trim()
+        return Boolean(resolved)
+      },
+    ),
   sku: Yup.string()
     .trim()
     .matches(/^[A-Z0-9-]*$/i, 'SKU format: letters, numbers, hyphens')
@@ -266,25 +335,22 @@ const productVariationValueSchema = Yup.object({
       'Variant stock cannot exceed main product stock',
       function validateVariantQuantity(value) {
         const mainQty = getMainProductStockQuantity(getRootFormValues(this.from))
-        if (mainQty == null) return true
-
-        if (value > mainQty) {
-          return this.createError({
-            message: `Variant stock cannot exceed main product stock (${mainQty}).`,
-          })
+        const error = getVariantQuantityMainStockError(value, mainQty)
+        if (error) {
+          return this.createError({ message: error })
         }
 
         return true
       },
     )
     .test('variant-qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
-  reserved_quantity: nullableNumber.integer('Must be a whole number').min(0, 'Cannot be negative'),
-  low_stock_threshold: nullableNumber
+  reserved_quantity: variantReservedQuantitySchema,
+  minimum_threshold: nullableNumber
     .integer('Must be a whole number')
     .min(1, 'Threshold must be at least 1')
     .test('variant-threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
-  barcode: Yup.string().trim().nullable(),
-  barcode_type: Yup.string().oneOf(['UPC', 'EAN', 'ISBN', 'GTIN']).nullable(),
+  barcode: variantBarcodeSchema,
+  barcode_type: variantBarcodeTypeSchema,
   weight: nullableNumber.min(0, 'Cannot be negative'),
   length: nullableNumber.min(0, 'Cannot be negative'),
   width: nullableNumber.min(0, 'Cannot be negative'),
@@ -390,7 +456,10 @@ export const productListingSchemaBase = Yup.object({
     .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
 
-  variations: Yup.array().of(productVariationSchema).default([]),
+  variations: Yup.array()
+    .of(productVariationSchema)
+    .min(1, 'Add at least one product variation')
+    .required('Product variations are required'),
 
   shipping_weight: nullableNumber.min(0, 'Cannot be negative'),
   shipping_length: nullableNumber.min(0, 'Cannot be negative'),
@@ -405,7 +474,18 @@ export const productListingSchema = withVariantStockCapValidation(productListing
 export const singleVariantSchema = Yup.object({
   attribute: Yup.string().trim().required('Variation type is required (e.g. Color, Size)'),
   value: Yup.string().trim().required('Variation value is required (e.g. Black, Large)'),
-  variant_name: Yup.string().trim().nullable(),
+  variant_name: Yup.string()
+    .trim()
+    .nullable()
+    .test(
+      'variant-name-present',
+      'Variant display name is required',
+      function validateVariantName(value) {
+        const resolved = String(value ?? '').trim()
+          || String(this.parent.value ?? '').trim()
+        return Boolean(resolved)
+      },
+    ),
   sku: Yup.string()
     .trim()
     .matches(/^[A-Z0-9-]*$/i, 'SKU: letters, numbers, and hyphens only')
@@ -424,22 +504,22 @@ export const singleVariantSchema = Yup.object({
     .integer('Must be a whole number')
     .min(0, 'Cannot be negative')
     .required('Stock quantity is required')
-    .test('not-exceed-main', 'Cannot exceed main product stock', function validateQty(value) {
-      const mainQty = this.options.context?.mainProductQuantity
-      if (mainQty == null) return true
-      if (value > mainQty) {
-        return this.createError({ message: `Cannot exceed main product stock (${mainQty}).` })
+    .test('not-exceed-main', 'Variant stock cannot exceed main product stock', function validateQty(value) {
+      const mainQty = this.options.context?.mainProductQuantity ?? null
+      const error = getVariantQuantityMainStockError(value, mainQty)
+      if (error) {
+        return this.createError({ message: error })
       }
       return true
     })
     .test('qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
-  reserved_quantity: nullableNumber.integer('Must be a whole number').min(0, 'Cannot be negative'),
-  low_stock_threshold: nullableNumber
+  reserved_quantity: variantReservedQuantitySchema,
+  minimum_threshold: nullableNumber
     .integer('Must be a whole number')
     .min(1, 'Must be at least 1')
     .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
-  barcode: Yup.string().trim().nullable(),
-  barcode_type: Yup.string().oneOf(['UPC', 'EAN', 'ISBN', 'GTIN']).nullable(),
+  barcode: variantBarcodeSchema,
+  barcode_type: variantBarcodeTypeSchema,
   weight: nullableNumber.min(0, 'Cannot be negative'),
   length: nullableNumber.min(0, 'Cannot be negative'),
   width: nullableNumber.min(0, 'Cannot be negative'),

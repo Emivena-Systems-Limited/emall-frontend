@@ -10,6 +10,12 @@ import {
   isBlankVariantField,
   optionalVariantFieldForPayload,
   optionalVariantNumberForPayload,
+  optionalVariantStringForJsonPayload,
+  optionalVariantNumberOrNullForJsonPayload,
+  resolveVariantBarcodePayloadFields,
+  resolveVariantCompatibleModelsForPayload,
+  resolveVariantDisplayName,
+  variantMinimumThresholdForPayload,
 } from '../components/variants/variantFormUtils'
 import { normalizeKeyDetailsForPayload, normalizeKeyDetailsForJsonPayload } from './productMetadata'
 import {
@@ -175,6 +181,65 @@ export function parseVariantAttributes(attributes) {
   return { attributeKey: 'option', attributeValue: '' }
 }
 
+/** API variants may expose flat `attribute`/`value` or nested `attributes`. */
+export function resolveVariantAttributeFields(variant) {
+  if (!variant || typeof variant !== 'object') {
+    return { attributeKey: 'option', attributeValue: '' }
+  }
+
+  const flatAttribute = String(variant.attribute ?? '').trim()
+  const flatValue = variant.value ?? variant.variant_name ?? ''
+
+  if (flatAttribute) {
+    return { attributeKey: flatAttribute, attributeValue: flatValue ?? '' }
+  }
+
+  return parseVariantAttributes(variant.attributes)
+}
+
+export function getVariantAttributeValue(variant, attributeName) {
+  const normalized = String(attributeName ?? '').trim().toLowerCase()
+  if (!normalized || !variant || typeof variant !== 'object') return ''
+
+  const flatAttribute = String(variant.attribute ?? '').trim().toLowerCase()
+  if (flatAttribute === normalized) {
+    return String(variant.value ?? variant.variant_name ?? '').trim()
+  }
+
+  if (variant.attributes && typeof variant.attributes === 'object') {
+    for (const [key, value] of Object.entries(variant.attributes)) {
+      if (String(key).trim().toLowerCase() === normalized && value != null && value !== '') {
+        return String(value).trim()
+      }
+    }
+  }
+
+  if (normalized === 'color' && variant.color != null && variant.color !== '') {
+    return String(variant.color).trim()
+  }
+  if (normalized === 'size' && variant.size != null && variant.size !== '') {
+    return String(variant.size).trim()
+  }
+
+  return ''
+}
+
+export function getVariantCompatibleModels(variant) {
+  if (!variant?.has_compatible_models) return []
+  if (!Array.isArray(variant.compatible_models)) return []
+  return variant.compatible_models
+    .map((model) => (typeof model === 'string' ? model : model?.name ?? '').trim())
+    .filter(Boolean)
+}
+
+export function variantHasCompatibleModel(variant, model) {
+  const target = String(model ?? '').trim().toLowerCase()
+  if (!target) return true
+  return getVariantCompatibleModels(variant).some(
+    (entry) => entry.toLowerCase() === target,
+  )
+}
+
 function resolveImageFile(image) {
   if (isFileValue(image)) return image
   if (isFileValue(image?.file)) return image.file
@@ -239,14 +304,7 @@ function assertVariantImagesPresent(variantValue, variation, { mode = 'create' }
   }
 }
 
-function buildVariantCompatibleModelsPayload(variantValue) {
-  if (!variantValue.has_compatible_models) return []
-  return (variantValue.compatible_models ?? [])
-    .map((model) => String(model ?? '').trim())
-    .filter(Boolean)
-}
-
-function buildSingleVariationValueData(variantValue, variation, values) {
+function buildSingleVariationFields(variantValue, variation, values) {
   const attributeValue = variantValue.value?.trim()
   const pricing = resolveVariantPricing(variantValue, values)
   const hasCustomPrice =
@@ -261,30 +319,89 @@ function buildSingleVariationValueData(variantValue, variation, values) {
     }
   }
 
+  const barcodeFields = resolveVariantBarcodePayloadFields(variantValue)
+  const compatibleModelsFields = resolveVariantCompatibleModelsForPayload(variantValue)
+
   return {
     value: attributeValue || null,
-    variant_name: optionalVariantFieldForPayload(variantValue.variant_name),
+    variant_name: resolveVariantDisplayName(variantValue, variation, values),
     quantity: toNumberOrNull(variantValue.quantity) ?? 0,
-    reserved_quantity: optionalVariantNumberForPayload(variantValue.reserved_quantity),
-    low_stock_threshold: optionalVariantNumberForPayload(variantValue.low_stock_threshold),
-    barcode: optionalVariantFieldForPayload(variantValue.barcode),
-    barcode_type: isBlankVariantField(variantValue.barcode)
-      || variantValue.barcode === VARIANT_OPTIONAL_EMPTY_VALUE
-      ? VARIANT_OPTIONAL_EMPTY_VALUE
-      : (variantValue.barcode_type || 'UPC'),
-    weight: optionalVariantNumberForPayload(variantValue.weight),
-    length: optionalVariantNumberForPayload(variantValue.length),
-    width: optionalVariantNumberForPayload(variantValue.width),
-    height: optionalVariantNumberForPayload(variantValue.height),
+    reserved_quantity: optionalVariantNumberForPayload(variantValue.reserved_quantity, 0),
+    low_stock_threshold: variantMinimumThresholdForPayload(
+      variantValue.minimum_threshold ?? variantValue.low_stock_threshold,
+    ),
+    ...barcodeFields,
+    weight: optionalVariantNumberForPayload(variantValue.weight, 0),
+    length: optionalVariantNumberForPayload(variantValue.length, 0),
+    width: optionalVariantNumberForPayload(variantValue.width, 0),
+    height: optionalVariantNumberForPayload(variantValue.height, 0),
     description: optionalVariantFieldForPayload(variantValue.description),
-    has_compatible_models: Boolean(variantValue.has_compatible_models),
-    compatible_models: buildVariantCompatibleModelsPayload(variantValue),
+    ...compatibleModelsFields,
     price: pricing.listPrice,
     regular_price: pricing.listPrice,
     discount_price: discountPrice,
     regular_discount_price: discountPrice,
     sku: optionalVariantFieldForPayload(variantValue.sku),
+  }
+}
+
+function buildSingleVariationJsonFields(variantValue, variation, values) {
+  const attributeValue = variantValue.value?.trim()
+  const pricing = resolveVariantPricing(variantValue, values)
+  const hasCustomPrice =
+    !isBlankVariantField(variantValue.price)
+    && variantValue.price !== VARIANT_OPTIONAL_EMPTY_VALUE
+
+  let discountPrice = pricing.salePrice
+  if (hasCustomPrice) {
+    const rawSale = variantValue.discount_price
+    if (isBlankVariantField(rawSale) || rawSale === VARIANT_OPTIONAL_EMPTY_VALUE) {
+      discountPrice = null
+    }
+  }
+
+  const barcodeFields = resolveVariantBarcodePayloadFields(variantValue)
+  const compatibleModelsFields = resolveVariantCompatibleModelsForPayload(variantValue)
+
+  return {
+    value: attributeValue || null,
+    variant_name: resolveVariantDisplayName(variantValue, variation, values),
+    quantity: toNumberOrNull(variantValue.quantity) ?? 0,
+    reserved_quantity: optionalVariantNumberForPayload(variantValue.reserved_quantity, 0),
+    low_stock_threshold: variantMinimumThresholdForPayload(
+      variantValue.minimum_threshold ?? variantValue.low_stock_threshold,
+    ),
+    ...barcodeFields,
+    weight: optionalVariantNumberOrNullForJsonPayload(variantValue.weight),
+    length: optionalVariantNumberOrNullForJsonPayload(variantValue.length),
+    width: optionalVariantNumberOrNullForJsonPayload(variantValue.width),
+    height: optionalVariantNumberOrNullForJsonPayload(variantValue.height),
+    description: optionalVariantStringForJsonPayload(variantValue.description),
+    ...compatibleModelsFields,
+    price: pricing.listPrice,
+    regular_price: pricing.listPrice,
+    discount_price: discountPrice,
+    regular_discount_price: discountPrice,
+    sku: optionalVariantStringForJsonPayload(variantValue.sku),
+  }
+}
+
+function buildSingleVariationValueData(variantValue, variation, values) {
+  return {
+    ...buildSingleVariationFields(variantValue, variation, values),
     images: buildVariantImagesPayload(variantValue.images, { filesOnly: true }),
+  }
+}
+
+function buildSingleVariationJsonValueData(variantValue, variation, values) {
+  const images = (variantValue.images ?? [])
+    .filter(Boolean)
+    .map((image, index) => buildStoragePathImageEntry(image, index))
+    .filter(Boolean)
+
+  return {
+    ...buildSingleVariationJsonFields(variantValue, variation, values),
+    images,
   }
 }
 
@@ -497,6 +614,87 @@ function appendKeyDetailsToFormData(formData, keyDetails = []) {
   })
 }
 
+/** Presigned JSON create expects each key_details[n] to be a JSON string. */
+function appendKeyDetailsStringsToFormData(formData, keyDetails = []) {
+  const entries = normalizeKeyDetailsForJsonPayload(keyDetails)
+
+  if (entries.length === 0) {
+    appendFormDataEmptyArray(formData, 'key_details')
+    return
+  }
+
+  entries.forEach((entry, index) => {
+    formData.append(`key_details[${index}]`, entry)
+  })
+}
+
+function appendPresignedImageEntry(formData, image, prefix, { includePrimary = true } = {}) {
+  if (!image) return false
+
+  let appended = false
+
+  if (image.upload_id) {
+    formData.append(`${prefix}[upload_id]`, String(image.upload_id))
+    appended = true
+  } else if (image.image_url) {
+    formData.append(`${prefix}[image_url]`, String(image.image_url))
+    appended = true
+  } else if (image.id) {
+    formData.append(`${prefix}[id]`, String(image.id))
+    appended = true
+  }
+
+  if (!appended) return false
+
+  formData.append(`${prefix}[sort_order]`, String(image.sort_order ?? 0))
+
+  if (includePrimary) {
+    formData.append(
+      `${prefix}[is_primary]`,
+      (image.is_primary ?? false) ? '1' : '0',
+    )
+  }
+
+  return true
+}
+
+function appendPresignedImagesToFormData(
+  formData,
+  images = [],
+  prefix = 'product_images',
+  options = {},
+) {
+  const list = (Array.isArray(images) ? images : []).filter(Boolean)
+
+  if (list.length === 0) {
+    appendFormDataEmptyArray(formData, prefix)
+    return
+  }
+
+  list.forEach((image, index) => {
+    appendPresignedImageEntry(formData, image, `${prefix}[${index}]`, options)
+  })
+}
+
+function appendPresignedVariationsToFormData(formData, variations = []) {
+  variations.forEach((group, groupIndex) => {
+    const groupPrefix = `variations[${groupIndex}]`
+    formData.append(`${groupPrefix}[attribute]`, group.attribute)
+
+    group.values.forEach((valueData, valueIndex) => {
+      const valuePrefix = `${groupPrefix}[values][${valueIndex}]`
+      appendVariationValueFields(formData, valueData, valuePrefix)
+      // Same bracket shape as product_images: [upload_id][sort_order][is_primary]
+      appendPresignedImagesToFormData(
+        formData,
+        valueData.images ?? [],
+        `${valuePrefix}[images]`,
+        { includePrimary: true },
+      )
+    })
+  })
+}
+
 function appendDescriptiveImagesToFormData(
   formData,
   descriptiveImages,
@@ -695,31 +893,30 @@ function normalizeVariantUpdateData(variationData, variantValue, variation, prod
       ? { [attributeKey]: attributeValue.toLowerCase() }
       : variationData.attributes
 
+  const barcodeFields = resolveVariantBarcodePayloadFields(variantValue)
+  const compatibleModelsFields = resolveVariantCompatibleModelsForPayload(variantValue)
+
   return {
     ...variationData,
     attribute: variation.attribute?.trim() || variationData.attribute || null,
     value: attributeValue || variationData.value || null,
-    variant_name:
-      variationData.variant_name
-      || attributeValue
-      || variantValue.sku?.trim()
-      || productValues.sku?.trim()
-      || 'Variant',
+    variant_name: resolveVariantDisplayName(variantValue, variation, productValues),
     quantity: variationData.quantity ?? 0,
-    reserved_quantity: variationData.reserved_quantity ?? 0,
+    reserved_quantity: optionalVariantNumberForPayload(variantValue.reserved_quantity, 0),
     low_stock_threshold:
       variationData.low_stock_threshold
-      ?? toNumberOrNull(productValues.low_stock_threshold)
-      ?? 1,
-    barcode: variationData.barcode || productValues.barcode?.trim() || '',
-    barcode_type: variationData.barcode_type || null,
+      ?? variationData.minimum_threshold
+      ?? variantMinimumThresholdForPayload(
+        variantValue.minimum_threshold ?? variantValue.low_stock_threshold,
+      ),
+    barcode: barcodeFields.barcode ?? '',
+    barcode_type: barcodeFields.barcode_type,
     weight: variationData.weight ?? null,
     length: variationData.length ?? null,
     width: variationData.width ?? null,
     height: variationData.height ?? null,
     description: variationData.description || null,
-    has_compatible_models: Boolean(variantValue.has_compatible_models),
-    compatible_models: variationData.compatible_models ?? [],
+    ...compatibleModelsFields,
     price: variationData.price ?? toNumberOrNull(productValues.price) ?? 0,
     regular_price:
       variationData.regular_price
@@ -878,7 +1075,6 @@ function buildStoragePathImageEntry(image, index) {
   if (uploadId) {
     return {
       upload_id: String(uploadId),
-      image_url: String(uploadId),
       sort_order: index,
       is_primary: index === 0,
     }
@@ -905,22 +1101,15 @@ function buildVariationsJsonPayload(variations, values, { mode = 'create' } = {}
     for (const val of variation.values ?? []) {
       assertVariantImagesPresent(val, variation, { mode })
 
-      const valueData = buildSingleVariationValueData(val, variation, values)
-      const images = (val.images ?? [])
-        .filter(Boolean)
-        .map((image, index) => buildStoragePathImageEntry(image, index))
-        .filter(Boolean)
+      const valueData = buildSingleVariationJsonValueData(val, variation, values)
 
-      if (images.length === 0) {
+      if (valueData.images.length === 0) {
         throw new Error(
           `"${resolveVariantImageLabel(val, variation)}" image upload did not finish. Please try again.`,
         )
       }
 
-      groupValues.push({
-        ...valueData,
-        images,
-      })
+      groupValues.push(valueData)
     }
 
     if (groupValues.length === 0) continue
@@ -959,7 +1148,8 @@ function assertProductImagesUploaded(mainImage, subImages = []) {
 }
 
 /**
- * JSON product create payload using S3 storage paths (after presigned upload).
+ * JSON product create payload using presigned upload_id references (after S3 upload).
+ * Sent as application/json so the request body is readable in devtools.
  */
 export function buildProductCreateJsonPayload(
   values,
@@ -970,7 +1160,10 @@ export function buildProductCreateJsonPayload(
   const {
     includeVariations = true,
     descriptiveImages = [],
+    variations: variationsOverride,
   } = options
+
+  const variationSource = variationsOverride ?? values.variations
 
   assertProductImagesUploaded(mainImage, subImages)
 
@@ -993,7 +1186,7 @@ export function buildProductCreateJsonPayload(
     mainImage,
     subImages,
     descriptiveImages,
-    variations: values.variations,
+    variations: variationSource,
   })
 
   return {
@@ -1028,9 +1221,93 @@ export function buildProductCreateJsonPayload(
     product_images: mediaImages.product_images,
     description_images: mediaImages.description_images,
     variations: includeVariations
-      ? buildVariationsJsonPayload(values.variations, values, { mode: 'create' })
+      ? buildVariationsJsonPayload(variationSource, values, { mode: 'create' })
       : [],
   }
+}
+
+/** @deprecated Prefer buildProductCreateJsonPayload for presigned create (readable JSON body). */
+export function buildProductCreateFormDataPayload(
+  values,
+  mainImage,
+  subImages = [],
+  options = {},
+) {
+  const {
+    includeVariations = true,
+    descriptiveImages = [],
+    variations: variationsOverride,
+  } = options
+
+  const variationSource = variationsOverride ?? values.variations
+
+  assertProductImagesUploaded(mainImage, subImages)
+
+  if (descriptiveImages.length > 0) {
+    const limitsResult = validateDescriptiveImageLimits(descriptiveImages)
+    if (!limitsResult.valid) {
+      throw new Error(limitsResult.message)
+    }
+
+    descriptiveImages.forEach((image, index) => {
+      if (isImageUploadedToStorage(image) || isKeptRemoteProductImage(image)) return
+      throw new Error(`Descriptive image ${index + 1} upload did not finish. Please try publishing again.`)
+    })
+  }
+
+  const metadata = mergeProductMetadata(values)
+  const mediaImages = buildProductMediaSaveImagesPayload({
+    mainImage,
+    subImages,
+    descriptiveImages,
+    variations: variationSource,
+  })
+
+  const variations = includeVariations
+    ? buildVariationsJsonPayload(variationSource, values, { mode: 'create' })
+    : []
+
+  const formData = new FormData()
+
+  appendFormData(formData, 'name', values.name.trim())
+  appendFormData(formData, 'sku', values.sku.trim())
+  appendFormData(formData, 'description', values.description.trim())
+  appendFormData(formData, 'category_id', resolvePayloadId(values.category_id))
+  appendFormData(formData, 'subcategory_id', resolvePayloadId(values.subcategory_id))
+  appendFormData(formData, 'brand_id', resolvePayloadId(values.brand_id))
+  appendFormData(formData, 'condition', values.condition)
+  appendFormData(
+    formData,
+    'fulfillment_channel',
+    values.fulfillment_channel || DEFAULT_PRODUCT_FULFILLMENT_CHANNEL,
+  )
+  appendFormData(formData, 'is_active', values.status === 'active' ? true : Boolean(values.is_active))
+  appendFormData(formData, 'status', values.status)
+  appendRootPricingFields(formData, values)
+  appendFormData(formData, 'quantity', Number(values.quantity))
+  appendFormData(formData, 'low_stock_threshold', toNumberOrNull(values.low_stock_threshold))
+  appendFormData(formData, 'barcode', values.barcode?.trim() || null)
+  appendFormData(formData, 'tags', values.tags ?? [])
+  appendKeyDetailsStringsToFormData(formData, values.key_details)
+  appendMetadata(formData, metadata)
+  appendFormData(formData, 'shipping', {
+    weight: toMoneyOrNull(values.shipping_weight),
+    length: toMoneyOrNull(values.shipping_length),
+    width: toMoneyOrNull(values.shipping_width),
+    height: toMoneyOrNull(values.shipping_height),
+  })
+  appendPresignedImagesToFormData(formData, mediaImages.product_images, 'product_images', {
+    includePrimary: true,
+  })
+  appendPresignedImagesToFormData(formData, mediaImages.description_images, 'description_images', {
+    includePrimary: true,
+  })
+
+  if (variations.length > 0) {
+    appendPresignedVariationsToFormData(formData, variations)
+  }
+
+  return formData
 }
 
 function appendPutMethodOverride(formData) {
@@ -1079,7 +1356,7 @@ function buildSingleVariantFormData(variantFormValues, productValues) {
     discount_price: variantFormValues.discount_price,
     quantity: variantFormValues.quantity,
     reserved_quantity: variantFormValues.reserved_quantity,
-    low_stock_threshold: variantFormValues.low_stock_threshold,
+    minimum_threshold: variantFormValues.minimum_threshold,
     barcode: variantFormValues.barcode,
     barcode_type: variantFormValues.barcode_type,
     weight: variantFormValues.weight,

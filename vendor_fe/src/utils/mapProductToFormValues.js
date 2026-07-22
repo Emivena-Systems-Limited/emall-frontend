@@ -1,10 +1,11 @@
 import { convertDiscountAmountToPercent } from './productPricing'
-import { parseVariantAttributes } from './productPayload'
+import { resolveVariantAttributeFields } from './productPayload'
 import { fromVariantOptionalField } from '../components/variants/variantFormUtils'
 import {
   mapApiProductStatus,
   resolveBrandId,
   resolveSubcategoryRecord,
+  isProductActive,
 } from './normalizeProducts'
 import { createProductImageFromRemote, isGalleryProductImage, isPrimaryProductImage } from './productImageUtils'
 import { isDescriptiveProductImage, mapKeyDetailsFromRecord } from './productMetadata'
@@ -133,8 +134,9 @@ function mapVariantsToFormVariations(variants = []) {
   const grouped = new Map()
 
   variants.forEach((variant) => {
-    const { attributeKey, attributeValue } = parseVariantAttributes(variant.attributes)
-    const attributeLabel = humanizeAttributeKey(attributeKey)
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
+    const attributeLabel = String(variant.attribute ?? '').trim()
+      || humanizeAttributeKey(attributeKey)
 
     if (!grouped.has(attributeLabel)) {
       grouped.set(attributeLabel, {
@@ -155,7 +157,10 @@ function mapVariantsToFormVariations(variants = []) {
       ),
       quantity: variant.quantity == null ? '' : String(variant.quantity),
       reserved_quantity: fromVariantOptionalField(resolveVariantInventoryValue(variant, 'reserved_quantity')),
-      low_stock_threshold: fromVariantOptionalField(resolveVariantInventoryValue(variant, 'low_stock_threshold')),
+      minimum_threshold: fromVariantOptionalField(
+        resolveVariantInventoryValue(variant, 'minimum_threshold')
+        || resolveVariantInventoryValue(variant, 'low_stock_threshold'),
+      ),
       barcode: fromVariantOptionalField(variant.barcode),
       barcode_type: fromVariantOptionalField(variant.barcode_type) || 'UPC',
       weight: fromVariantOptionalField(variant.weight == null ? '' : String(variant.weight)),
@@ -163,8 +168,12 @@ function mapVariantsToFormVariations(variants = []) {
       width: fromVariantOptionalField(variant.width == null ? '' : String(variant.width)),
       height: fromVariantOptionalField(variant.height == null ? '' : String(variant.height)),
       description: fromVariantOptionalField(variant.description),
-      has_compatible_models: Boolean(variant.compatible_models?.length),
-      compatible_models: Array.isArray(variant.compatible_models) ? variant.compatible_models : [],
+      has_compatible_models: Boolean(
+        variant.has_compatible_models ?? variant.compatible_models?.length,
+      ),
+      compatible_models: Array.isArray(variant.compatible_models)
+        ? variant.compatible_models.filter(Boolean)
+        : [],
       images: mapVariantImages(variant.images),
     })
   })
@@ -240,7 +249,7 @@ export function mapProductRecordToFormValues(record) {
     shipping_height: shipping.height ?? record.shipping_height ?? metadataMap.shipping_height ?? '',
     status: mapApiProductStatus(record.status, record.is_active),
     fulfillment_channel: record.fulfillment_channel ?? 'vendor',
-    is_active: record.is_active === true || record.is_active === 1 || record.is_active === '1',
+    is_active: isProductActive(record.is_active),
   }
 }
 

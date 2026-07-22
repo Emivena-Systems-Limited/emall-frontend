@@ -113,15 +113,26 @@ export default function VariantDetailFields({ formik, productValues, isCustomPri
       {/* Step: Stock */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
         <CardStepHeader step={startStep + 3} title="Stock quantity" required />
-        <div className="grid items-stretch gap-4 sm:grid-cols-1 lg:max-w-xs">
+        {mainQty != null ? (
+          <p className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
+            Main product stock: <strong>{mainQty}</strong> units. This variant cannot exceed that amount.
+          </p>
+        ) : (
+          <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+            Set the main product stock on the Pricing step before entering variant quantities.
+          </p>
+        )}
+        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <ProductInput
             id="quantity"
             name="quantity"
             type="number"
+            min={0}
+            max={mainQty ?? undefined}
             label="Units in stock"
             hint={
               mainQty != null
-                ? `Max ${mainQty} units (main product stock).`
+                ? `Enter up to ${mainQty} units for this variant.`
                 : 'Set main stock on the product first.'
             }
             placeholder="0"
@@ -130,7 +141,31 @@ export default function VariantDetailFields({ formik, productValues, isCustomPri
             onBlur={formik.handleBlur}
             error={svFieldError(formik, 'quantity')}
           />
-          {/* Reserved quantity and low stock alert hidden for variant add/edit for now. */}
+          <ProductInput
+            id="reserved_quantity"
+            name="reserved_quantity"
+            type="number"
+            label="Reserved quantity"
+            hint="Units held for pending orders."
+            placeholder="0"
+            optional
+            value={formik.values.reserved_quantity}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={svFieldError(formik, 'reserved_quantity')}
+          />
+          <ProductInput
+            id="minimum_threshold"
+            name="minimum_threshold"
+            type="number"
+            label="Low stock alert"
+            hint="Alert when stock falls to this level. Defaults to 5."
+            placeholder="5"
+            value={formik.values.minimum_threshold}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={svFieldError(formik, 'minimum_threshold')}
+          />
         </div>
       </div>
 

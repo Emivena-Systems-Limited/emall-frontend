@@ -1,9 +1,16 @@
+import { DEFAULT_VARIANT_MINIMUM_THRESHOLD } from './variantConstants'
+
 export const VARIANT_OPTIONAL_EMPTY_VALUE = 'N/A'
 
 export function isBlankVariantField(value) {
   if (value == null) return true
   if (typeof value === 'string' && value.trim() === '') return true
   return false
+}
+
+export function isPresentVariantField(value) {
+  if (isBlankVariantField(value)) return false
+  return String(value).trim() !== VARIANT_OPTIONAL_EMPTY_VALUE
 }
 
 /** Maps stored N/A (or blank) back to empty string for form inputs. */
@@ -32,22 +39,42 @@ export function normalizeVariantOptionalFields(values, { isCustomPrice = false }
   next.variant_name = optionalFieldOrNa(values.variant_name)
   next.sku = optionalFieldOrNa(values.sku)
   next.barcode = optionalFieldOrNa(values.barcode)
+  // Keep the form select on a valid enum value; omit barcode_type from API when barcode is blank.
   next.barcode_type = isBlankVariantField(values.barcode)
-    ? VARIANT_OPTIONAL_EMPTY_VALUE
+    ? 'UPC'
     : (values.barcode_type || 'UPC')
   next.weight = optionalNumberFieldOrNa(values.weight)
   next.length = optionalNumberFieldOrNa(values.length)
   next.width = optionalNumberFieldOrNa(values.width)
   next.height = optionalNumberFieldOrNa(values.height)
   next.description = optionalFieldOrNa(values.description)
-  next.reserved_quantity = optionalNumberFieldOrNa(values.reserved_quantity)
-  next.low_stock_threshold = optionalNumberFieldOrNa(values.low_stock_threshold)
+  next.reserved_quantity = isBlankVariantField(values.reserved_quantity)
+    ? ''
+    : optionalNumberFieldOrNa(values.reserved_quantity)
+  next.minimum_threshold = optionalNumberFieldOrNa(values.minimum_threshold)
 
   if (isCustomPrice) {
     next.discount_price = optionalNumberFieldOrNa(values.discount_price)
   }
 
+  next.compatible_models = (values.compatible_models ?? [])
+    .map((model) => String(model ?? '').trim())
+    .filter(Boolean)
+  next.has_compatible_models = next.compatible_models.length > 0
+
   return next
+}
+
+/** Normalize compatible models for API payloads — driven by the models list, not the toggle alone. */
+export function resolveVariantCompatibleModelsForPayload(variantValue = {}) {
+  const compatible_models = (variantValue.compatible_models ?? [])
+    .map((model) => String(model ?? '').trim())
+    .filter(Boolean)
+
+  return {
+    has_compatible_models: compatible_models.length > 0,
+    compatible_models,
+  }
 }
 
 export function optionalVariantFieldForPayload(value) {
@@ -56,12 +83,75 @@ export function optionalVariantFieldForPayload(value) {
   return str === VARIANT_OPTIONAL_EMPTY_VALUE ? VARIANT_OPTIONAL_EMPTY_VALUE : str
 }
 
-export function optionalVariantNumberForPayload(value) {
+export function optionalVariantNumberForPayload(value, fallback = 0) {
   if (isBlankVariantField(value) || String(value).trim() === VARIANT_OPTIONAL_EMPTY_VALUE) {
-    return VARIANT_OPTIONAL_EMPTY_VALUE
+    return fallback
   }
   const num = Number(value)
-  return Number.isFinite(num) ? num : VARIANT_OPTIONAL_EMPTY_VALUE
+  return Number.isFinite(num) ? num : fallback
+}
+
+export function optionalVariantStringForJsonPayload(value) {
+  if (!isPresentVariantField(value)) return null
+  return String(value).trim()
+}
+
+/** Backend requires variant_name — default to the option value, then SKU, then product SKU. */
+export function resolveVariantDisplayName(variantValue, variation, productValues = {}) {
+  const customName = optionalVariantStringForJsonPayload(variantValue.variant_name)
+  if (customName) return customName
+
+  const attributeValue = variantValue.value?.trim()
+  if (attributeValue) return attributeValue
+
+  const sku = optionalVariantStringForJsonPayload(variantValue.sku)
+    ?? optionalVariantStringForJsonPayload(productValues.sku)
+  if (sku) return sku
+
+  const attribute = variation?.attribute?.trim()
+  return attribute ? `${attribute} variant` : 'Variant'
+}
+
+export function resolveVariantBarcodePayloadFields(variantValue) {
+  const barcode = optionalVariantStringForJsonPayload(variantValue.barcode)
+
+  if (!barcode) {
+    return {
+      barcode: null,
+      barcode_type: null,
+    }
+  }
+
+  const barcodeType = isPresentVariantField(variantValue.barcode_type)
+    ? String(variantValue.barcode_type).trim()
+    : 'UPC'
+
+  return {
+    barcode,
+    barcode_type: barcodeType,
+  }
+}
+
+export function optionalVariantNumberOrNullForJsonPayload(value) {
+  if (!isPresentVariantField(value)) return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+export function resolveVariantMinimumThreshold(
+  value,
+  fallback = DEFAULT_VARIANT_MINIMUM_THRESHOLD,
+) {
+  if (isBlankVariantField(value) || String(value).trim() === VARIANT_OPTIONAL_EMPTY_VALUE) {
+    return fallback
+  }
+
+  const num = Number(value)
+  return Number.isFinite(num) ? num : fallback
+}
+
+export function variantMinimumThresholdForPayload(value) {
+  return resolveVariantMinimumThreshold(value)
 }
 
 export const EMPTY_VARIANT_VALUES = {
@@ -73,7 +163,10 @@ export const EMPTY_VARIANT_VALUES = {
   discount_price: '',
   quantity: '',
   reserved_quantity: '',
-  low_stock_threshold: '',
+  // Left blank in the form — defaulted to DEFAULT_VARIANT_MINIMUM_THRESHOLD only when
+  // building the submit payload (variantMinimumThresholdForPayload), so it never conflicts
+  // with a low quantity value while the vendor is still filling in the form.
+  minimum_threshold: '',
   barcode: '',
   barcode_type: 'UPC',
   weight: '',
@@ -99,7 +192,9 @@ export function toVariantFormValues(variantValue, attributeType) {
     discount_price: fromVariantOptionalField(variantValue.discount_price),
     quantity: variantValue.quantity ?? '',
     reserved_quantity: fromVariantOptionalField(variantValue.reserved_quantity),
-    low_stock_threshold: fromVariantOptionalField(variantValue.low_stock_threshold),
+    minimum_threshold: fromVariantOptionalField(
+      variantValue.minimum_threshold ?? variantValue.low_stock_threshold,
+    ),
     barcode,
     barcode_type: barcode && barcodeType ? barcodeType : 'UPC',
     weight: fromVariantOptionalField(variantValue.weight),
