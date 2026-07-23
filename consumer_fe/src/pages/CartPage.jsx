@@ -12,6 +12,7 @@ import { useAuthenticatedCart } from '../hooks/useAuthenticatedCart'
 import { useGuestCart } from '../hooks/useGuestCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
+import { formatCartItemOptions, resolveCartItemDisplayImage } from '../utils/normalizeCart'
 import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
 
@@ -47,21 +48,6 @@ async function shareCartItem(item) {
       }
     }
   }
-}
-
-function formatCartItemOptions(item) {
-  const variant = String(item.variant ?? '').trim()
-  const storage = String(item.storage ?? '').trim()
-  const parts = []
-
-  if (variant && variant.toLowerCase() !== 'default') {
-    parts.push(variant)
-  }
-  if (storage && storage !== variant && storage !== String(item.sku ?? '').trim()) {
-    parts.push(storage)
-  }
-
-  return parts.join(' · ')
 }
 
 function QuantityStepper({ value, onChange }) {
@@ -122,6 +108,7 @@ function CartItemRow({
 }) {
   const subtotal = item.displaySubtotal ?? item.price * item.quantity
   const optionLabel = formatCartItemOptions(item)
+  const displayImage = resolveCartItemDisplayImage(item)
   const productHref = resolveProductHref(item)
 
   return (
@@ -136,7 +123,7 @@ function CartItemRow({
         />
         <Link to={productHref} className="shrink-0">
           <img
-            src={item.image}
+            src={displayImage}
             alt={item.name}
             className="size-16 rounded-md border border-red-100 object-cover sm:size-20"
           />
@@ -235,7 +222,7 @@ function ItemTable({
         </div>
         {items.map((item) => (
           <CartItemRow
-            key={item.id}
+            key={item.key ?? item.id}
             item={item}
             saved={saved}
             showSaveForLater={showSaveForLater}

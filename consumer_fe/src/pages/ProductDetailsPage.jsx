@@ -450,7 +450,9 @@ function ProductInfoPanel({
           sku: activeSku,
           variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
           size: selectedSize || selectedCompatibleModel || activeSku,
-          image: activeImage || product.gallery?.[0] || product.image,
+          image: activeImage || product.colorImages?.[selectedColor] || product.gallery?.[0] || product.image,
+          variantImage: activeImage || product.colorImages?.[selectedColor] || null,
+          variantRecord: activeVariant ?? null,
         },
       )
 

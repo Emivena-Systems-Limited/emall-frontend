@@ -33,6 +33,7 @@ import {
 } from '../services/addressService'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
+import { formatCartItemOptions, enrichCartItemsForDisplay, extractCheckoutPreviewItems, resolveCartItemDisplayImage } from '../utils/normalizeCart'
 import { normalizePreviewTotals } from '../utils/checkoutTotals'
 import {
   GHANA_LOCATIONS,
@@ -1165,17 +1166,25 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Order Summary</h2>
       <div className={`mt-4 divide-y divide-slate-300 ${items.length > 4 ? 'max-h-[31rem] overflow-y-auto pr-1' : ''}`}>
-        {items.map((item) => (
+        {items.map((item) => {
+          const optionLabel = formatCartItemOptions(item)
+          const displayImage = resolveCartItemDisplayImage(item)
+
+          return (
           <article
-            key={item.id}
+            key={item.key ?? item.id}
             className="grid grid-cols-[5.25rem_minmax(0,1fr)_auto] gap-3 py-3 sm:grid-cols-[6.5rem_minmax(0,1fr)_auto] sm:gap-4"
           >
-            <img src={item.image} alt={item.name} className="h-21 w-21 rounded-lg border border-red-100 object-cover sm:h-27 sm:w-27" />
+            <img
+              src={displayImage}
+              alt={item.name}
+              className="h-21 w-21 rounded-lg border border-red-100 object-contain p-0.5 sm:h-27 sm:w-27"
+            />
             <div className="min-w-0">
               <h3 className="truncate text-base font-bold text-slate-900">{item.name}</h3>
-              <p className="mt-1 truncate text-[0.6875rem] text-slate-500">
-                Color:{item.variant} <span className="ml-2">Storage:{item.storage}</span>
-              </p>
+              {optionLabel ? (
+                <p className="mt-1 truncate text-[0.6875rem] text-slate-500">{optionLabel}</p>
+              ) : null}
               <div className="mt-5">
                 <QuantityPill
                   value={item.quantity}
@@ -1191,7 +1200,8 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
               </button>
             </div>
           </article>
-        ))}
+          )
+        })}
       </div>
     </section>
   )
@@ -1491,6 +1501,14 @@ export default function CheckoutPage() {
   )
 
   const previewTotals = normalizePreviewTotals(previewQuery.data)
+  const previewItems = useMemo(
+    () => extractCheckoutPreviewItems(previewQuery.data),
+    [previewQuery.data],
+  )
+  const displayItems = useMemo(
+    () => enrichCartItemsForDisplay(items, previewItems),
+    [items, previewItems],
+  )
   const totals = {
     ...previewTotals,
     couponDiscount,
@@ -1899,7 +1917,7 @@ export default function CheckoutPage() {
                 />
               </div>
               <aside className="space-y-5">
-                <OrderSummary items={items} onQuantityChange={updateQuantity} onDelete={deleteItem} />
+                <OrderSummary items={displayItems} onQuantityChange={updateQuantity} onDelete={deleteItem} />
                 <OrderTotal itemCount={orderItemCount} subtotal={orderSubtotal} totals={totals} />
                 <DeliveryDate />
                 <PromoCode

@@ -54,6 +54,10 @@ export function buildCartItem(product, options = {}) {
   const displaySubtotal = options.displaySubtotal ?? product?.displaySubtotal ?? null
   const lineSavings = options.lineSavings ?? product?.lineSavings ?? null
   const key = getCartKey({ productId, variantId, sku }) || String(product?.id ?? Date.now())
+  const image = options.image ?? product?.image ?? product?.gallery?.[0] ?? ''
+  const variantImage = variantId
+    ? (options.variantImage ?? options.image ?? product?.variantImage ?? null)
+    : (product?.variantImage ?? null)
 
   return {
     id: product?.cartItemId ?? product?.cart_item_id ?? product?.cartId ?? key,
@@ -70,7 +74,10 @@ export function buildCartItem(product, options = {}) {
     displaySubtotal: displaySubtotal == null ? null : Number(displaySubtotal),
     lineSavings: lineSavings == null ? null : Number(lineSavings),
     quantity,
-    image: options.image ?? product?.image ?? product?.gallery?.[0] ?? '',
+    image,
+    variantImage,
+    product: options.productRecord ?? product?.productRecord ?? null,
+    variantRecord: options.variantRecord ?? product?.variantRecord ?? null,
     href: product?.href ?? (product?.slug ? `/${product.slug}` : '/cart'),
     selected: product?.selected ?? true,
     seller: product?.seller ?? product?.storeName ?? product?.store_name ?? 'EZ-Stores',
@@ -109,6 +116,10 @@ function mergeItemsIntoList(existingItems, incomingRaw) {
         ...item,
         quantity: item.quantity || items[existingIndex].quantity,
         selected: item.selected ?? items[existingIndex].selected,
+        image: items[existingIndex].variantImage
+          ?? items[existingIndex].image
+          ?? item.image,
+        variantImage: items[existingIndex].variantImage ?? item.variantImage ?? null,
       }
       return
     }

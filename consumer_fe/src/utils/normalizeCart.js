@@ -57,22 +57,81 @@ function resolveImageSource(images) {
   if (typeof images === 'string' && images) return images
   if (!Array.isArray(images) || images.length === 0) return null
 
-  const first = images[0]
-  if (typeof first === 'string') return first
-  return first?.url ?? first?.image_url ?? first?.image ?? null
+  const primary = images.find((entry) => entry?.is_primary === true || entry?.is_primary === '1')
+  const ordered = primary ? [primary, ...images.filter((entry) => entry !== primary)] : images
+
+  for (const entry of ordered) {
+    if (typeof entry === 'string' && entry) return entry
+    const url = entry?.url ?? entry?.image_url ?? entry?.image
+    if (url) return url
+  }
+
+  return null
+}
+
+function findProductVariant(product, variantId) {
+  if (!product || variantId == null || variantId === '') return null
+  const variants = product.variants ?? product.variations ?? product.product_variants ?? []
+  if (!Array.isArray(variants)) return null
+
+  return variants.find((entry) => String(entry?.id) === String(variantId)) ?? null
+}
+
+function resolveVariantImage(variant) {
+  if (!variant || typeof variant !== 'object') return null
+
+  return resolveImageSource(
+    firstValue(
+      variant.images,
+      variant.variant_images,
+      variant.image_url,
+      variant.image,
+      variant.thumbnail,
+    ),
+  )
 }
 
 function getImage(record) {
   const product = record.product ?? record.item ?? {}
-  const variant = record.variant ?? record.product_variant ?? product.variant ?? {}
+  const variant = record.variant ?? record.product_variant ?? record.product_variation ?? {}
+  const variantId = firstValue(record.product_variant_id, record.variant_id, variant.id)
 
-  const recordImage = resolveImageSource(
-    firstValue(record.images, record.variant_images, record.image, record.image_url),
+  const explicitVariantImage = resolveImageSource(
+    firstValue(
+      record.variant_image,
+      record.variant_image_url,
+      record.product_variant_image,
+      record.product_variant_image_url,
+    ),
   )
-  if (recordImage) return recordImage
+  if (explicitVariantImage) return explicitVariantImage
 
-  const variantImage = resolveImageSource(variant.images ?? variant.variant_images)
-  if (variantImage) return variantImage
+  const nestedVariantImage = resolveVariantImage(variant)
+  if (nestedVariantImage) return nestedVariantImage
+
+  if (variantId) {
+    const matchedVariant = findProductVariant(product, variantId)
+    const matchedVariantImage = resolveVariantImage(matchedVariant)
+    if (matchedVariantImage) return matchedVariantImage
+  }
+
+  const variantSpecificRecordImage = resolveImageSource(
+    firstValue(record.variant_images, record.variant_image),
+  )
+  if (variantSpecificRecordImage) return variantSpecificRecordImage
+
+  if (variantId) {
+    const lineImage = resolveImageSource(firstValue(record.image, record.image_url))
+    if (lineImage) return lineImage
+  }
+
+  // Generic record.image when no variant is selected.
+  if (!variantId) {
+    const recordImage = resolveImageSource(
+      firstValue(record.images, record.image, record.image_url),
+    )
+    if (recordImage) return recordImage
+  }
 
   const productImages = product.images ?? product.product_images ?? []
   const productImage = resolveImageSource(productImages)
@@ -82,7 +141,103 @@ function getImage(record) {
     product.image,
     product.image_url,
     product.thumbnail,
+    record.image,
+    record.image_url,
   )
+}
+
+export function formatCartItemOptions(item) {
+  const variant = String(item?.variant ?? '').trim()
+  const storage = String(item?.storage ?? '').trim()
+  const parts = []
+
+  if (variant && variant.toLowerCase() !== 'default') {
+    parts.push(variant)
+  }
+  if (storage && storage !== variant && storage !== String(item?.sku ?? '').trim()) {
+    parts.push(storage)
+  }
+
+  return parts.join(' · ')
+}
+
+export function resolveCartItemDisplayImage(item) {
+  if (!item || typeof item !== 'object') return ''
+
+  if (item.variantImage) return item.variantImage
+
+  const resolved = getImage({
+    product_variant_id: item.variantId,
+    product: item.product ?? {},
+    variant: item.variantRecord ?? item.product_variant ?? item.variant ?? {},
+    image: item.image,
+    image_url: item.image,
+    sku: item.sku,
+  })
+
+  if (resolved) return resolved
+  return item.image ?? ''
+}
+
+function matchCartDisplayLine(cartItem, apiItem) {
+  const cartLineId = cartItem?.cartItemId ?? cartItem?.id
+  const apiLineId = apiItem?.id ?? apiItem?.cart_item_id
+  if (cartLineId && apiLineId && String(cartLineId) === String(apiLineId)) return true
+
+  const cartVariantId = cartItem?.variantId ?? cartItem?.product_variant_id
+  const apiVariantId = apiItem?.product_variant_id ?? apiItem?.variant_id ?? apiItem?.variant?.id
+  if (cartVariantId && apiVariantId && String(cartVariantId) === String(apiVariantId)) return true
+
+  const cartProductId = cartItem?.productId ?? cartItem?.product_id
+  const apiProductId = apiItem?.product_id ?? apiItem?.productId ?? apiItem?.product?.id
+  return Boolean(
+    cartProductId
+    && apiProductId
+    && cartVariantId
+    && apiVariantId
+    && String(cartProductId) === String(apiProductId)
+    && String(cartVariantId) === String(apiVariantId),
+  )
+}
+
+/** Merge checkout/cart API line details into Redux rows for accurate variant images. */
+export function enrichCartItemsForDisplay(cartItems, apiItems) {
+  if (!Array.isArray(cartItems) || cartItems.length === 0) return []
+  if (!Array.isArray(apiItems) || apiItems.length === 0) return cartItems
+
+  return cartItems.map((cartItem) => {
+    const apiMatch = apiItems.find((apiItem) => matchCartDisplayLine(cartItem, apiItem))
+    if (!apiMatch) return cartItem
+
+    const product = apiMatch.product ?? apiMatch.item ?? cartItem.product ?? {}
+    const variantRecord = apiMatch.variant ?? apiMatch.product_variant ?? cartItem.variantRecord ?? {}
+    const variantId = firstValue(
+      cartItem.variantId,
+      apiMatch.product_variant_id,
+      apiMatch.variant_id,
+      variantRecord.id,
+    )
+    const resolvedImage = getImage({
+      ...apiMatch,
+      product_variant_id: variantId,
+      product,
+      variant: variantRecord,
+      image: cartItem.variantImage ?? cartItem.image,
+      image_url: cartItem.variantImage ?? cartItem.image,
+    })
+
+    return {
+      ...cartItem,
+      product,
+      variantRecord,
+      variantImage: resolvedImage || cartItem.variantImage || cartItem.image || null,
+      image: resolvedImage || cartItem.variantImage || cartItem.image || '',
+    }
+  })
+}
+
+export function extractCheckoutPreviewItems(preview) {
+  return toArray(preview?.items ?? preview?.cart_items ?? preview?.lines)
 }
 
 function resolveCartLinePricing(record, quantity) {
@@ -125,12 +280,15 @@ function resolveCartLinePricing(record, quantity) {
 
 export function normalizeCartItem(record) {
   const product = record.product ?? record.item ?? {}
-  const variant = record.variant ?? record.product_variant ?? product.variant ?? {}
+  const variant = record.variant ?? record.product_variant ?? record.product_variation ?? product.variant ?? {}
   const productId = firstValue(record.product_id, product.id, product.product_id)
   const variantId = firstValue(record.product_variant_id, record.variant_id, variant.id)
   const cartItemId = firstValue(record.id, record.cart_item_id, record.item_id)
   const quantity = firstValue(record.quantity, record.qty, 1)
   const pricing = resolveCartLinePricing(record, quantity)
+  const matchedVariant = variantId ? findProductVariant(product, variantId) ?? variant : variant
+  const image = getImage(record)
+  const variantImage = variantId ? image : null
 
   return buildCartItem({
     cartItemId,
@@ -138,17 +296,36 @@ export function normalizeCartItem(record) {
     product_id: productId,
     syncable: Boolean(productId && cartItemId),
     variantId,
-    sku: firstValue(record.sku, variant.sku, product.sku),
+    sku: firstValue(record.sku, matchedVariant.sku, variant.sku, product.sku),
     name: firstValue(record.product_name, product.name, product.product_name, product.title, record.name),
     title: firstValue(record.product_name, product.title, product.name, record.name),
-    variant: firstValue(record.variant_name, variant.variant_name, variant.name, record.color, product.color),
-    storage: firstValue(record.storage, record.size, variant.size, variant.sku),
+    variant: firstValue(
+      record.variant_name,
+      matchedVariant.variant_name,
+      matchedVariant.value,
+      variant.variant_name,
+      variant.value,
+      variant.name,
+      record.color,
+      product.color,
+    ),
+    storage: firstValue(
+      record.storage,
+      record.size,
+      matchedVariant.size,
+      variant.size,
+      matchedVariant.sku,
+      variant.sku,
+    ),
     price: pricing.price,
     compareAt: pricing.compareAt ?? firstValue(variant.price, product.original_price),
     displaySubtotal: pricing.displaySubtotal,
     lineSavings: pricing.lineSavings,
     quantity,
-    image: getImage(record),
+    image,
+    variantImage,
+    product,
+    variantRecord: matchedVariant,
     href: product.slug ? `/${product.slug}` : (productId ? `/${productId}` : undefined),
     selected: record.is_selected ?? record.selected ?? true,
     seller: firstValue(product.store?.store_name, product.store?.name, product.vendor?.name, record.store_name),
@@ -332,6 +509,14 @@ export function mergeGuestAddItemWithLocal(apiItem, localItem) {
   const displaySubtotal = apiItem.displaySubtotal ?? (
     Number.isFinite(apiPrice) && apiPrice > 0 ? apiPrice * quantity : localItem.displaySubtotal
   )
+  const variantIdsMatch = localItem.variantId
+    && String(localItem.variantId) === String(apiItem.variantId)
+  const preservedVariantImage = variantIdsMatch
+    ? (localItem.variantImage ?? localItem.image)
+    : (localItem.variantImage ?? apiItem.variantImage ?? null)
+  const preservedImage = variantIdsMatch && localItem.image
+    ? localItem.image
+    : (preservedVariantImage || localItem.image || apiItem.image)
 
   return {
     ...localItem,
@@ -341,7 +526,10 @@ export function mergeGuestAddItemWithLocal(apiItem, localItem) {
     name: localItem.name || apiItem.name,
     price: Number.isFinite(apiPrice) && apiPrice > 0 ? apiPrice : localItem.price,
     compareAt: apiItem.compareAt ?? localItem.compareAt,
-    image: localItem.image || apiItem.image,
+    image: preservedImage,
+    variantImage: preservedVariantImage || preservedImage || null,
+    product: apiItem.product ?? localItem.product,
+    variantRecord: apiItem.variantRecord ?? localItem.variantRecord,
     href: localItem.href || apiItem.href,
     variant: localItem.variant || apiItem.variant,
     storage: localItem.storage || apiItem.storage,

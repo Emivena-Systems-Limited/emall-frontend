@@ -8,6 +8,7 @@ import { useMiniCart } from '../../context/MiniCartContext'
 import { useCartActions } from '../../hooks/useCartActions'
 import { selectCartCount, selectCartItems } from '../../store/slices/cartSlice'
 import { formatCedi } from '../../utils/formatCurrency'
+import { resolveCartItemDisplayImage } from '../../utils/normalizeCart'
 
 const drawerEase = [0.16, 1, 0.3, 1]
 
@@ -46,6 +47,7 @@ function MiniQuantityStepper({ value, onChange, disabled = false }) {
 function MiniCartItem({ item, onQuantityChange, onRemove, onNavigate }) {
   const productHref = item.href?.replace(/^\/products\//, '/') ?? '/'
   const lineTotal = item.displaySubtotal ?? (Number(item.price) || 0) * (Number(item.quantity) || 0)
+  const displayImage = resolveCartItemDisplayImage(item)
 
   return (
     <article className="rounded-xl bg-slate-50/90 p-2.5 ring-1 ring-slate-200/60">
@@ -56,7 +58,7 @@ function MiniCartItem({ item, onQuantityChange, onRemove, onNavigate }) {
           className="size-14 shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-slate-200/70"
         >
           <img
-            src={item.image}
+            src={displayImage}
             alt=""
             className="size-full object-contain p-0.5"
             loading="lazy"
@@ -158,7 +160,7 @@ export default function MiniCartDrawer() {
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-80" role="dialog" aria-modal="true" aria-label="Your cart">
+        <div className="fixed inset-0 z-[130]" role="dialog" aria-modal="true" aria-label="Your cart">
           <motion.button
             type="button"
             aria-label="Close cart"
