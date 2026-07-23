@@ -1055,6 +1055,8 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
     descriptiveImages = [],
     removedProductImageIds = [],
     removedDescriptiveImageIds = [],
+    omitRootSku = false,
+    omitRootQuantity = false,
   } = options
   const productImages = validateProductImageFiles(mainImage, subImages, { mode })
   const descriptiveImagePayload = validateDescriptiveImageFiles(descriptiveImages, { mode })
@@ -1067,7 +1069,9 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
   const formData = new FormData()
 
   appendFormData(formData, 'name', values.name.trim())
-  appendFormData(formData, 'sku', values.sku.trim())
+  if (!omitRootSku) {
+    appendFormData(formData, 'sku', values.sku.trim())
+  }
   appendFormData(formData, 'description', values.description.trim())
   appendFormData(formData, 'category_id', values.category_id)
   appendFormData(formData, 'subcategory_id', values.subcategory_id)
@@ -1081,7 +1085,9 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
   appendFormData(formData, 'is_active', values.status === 'active' ? true : Boolean(values.is_active))
   appendFormData(formData, 'status', values.status)
   appendRootPricingFields(formData, values)
-  appendFormData(formData, 'quantity', Number(values.quantity))
+  if (!omitRootQuantity) {
+    appendFormData(formData, 'quantity', Number(values.quantity))
+  }
   appendFormData(formData, 'low_stock_threshold', toNumberOrNull(values.low_stock_threshold))
   appendFormData(formData, 'barcode', values.barcode?.trim() || null)
 
@@ -1191,6 +1197,83 @@ function assertProductImagesUploaded(mainImage, subImages = []) {
         : `Gallery image ${index} upload did not finish. Please try publishing again.`,
     )
   })
+}
+
+function assertProductInfoImagesReady(mainImage, subImages = [], descriptiveImages = []) {
+  assertProductImagesUploaded(mainImage, subImages)
+
+  if (descriptiveImages.length === 0) return
+
+  const limitsResult = validateDescriptiveImageLimits(descriptiveImages)
+  if (!limitsResult.valid) {
+    throw new Error(limitsResult.message)
+  }
+
+  descriptiveImages.forEach((image, index) => {
+    if (isImageUploadedToStorage(image) || isKeptRemoteProductImage(image)) return
+
+    throw new Error(
+      `Detail image ${index + 1} upload did not finish. Please try saving again.`,
+    )
+  })
+}
+
+/**
+ * JSON product info update payload.
+ * Existing images → { id, sort_order, is_primary }
+ * New uploads     → { upload_id, sort_order, is_primary }
+ * Removed images  → omitted from product_images / description_images
+ */
+export function buildProductInfoJsonPayload(
+  values,
+  mainImage,
+  subImages = [],
+  options = {},
+) {
+  const { descriptiveImages = [] } = options
+
+  assertProductInfoImagesReady(mainImage, subImages, descriptiveImages)
+
+  const { discountMode, listPrice, salePrice, discountPercent, discountAmount } =
+    resolveProductPricingValues(values)
+  const metadata = mergeProductMetadata(values)
+  const mediaImages = buildProductMediaSaveImagesPayload({
+    mainImage,
+    subImages,
+    descriptiveImages,
+    variations: [],
+  })
+
+  return {
+    name: values.name.trim(),
+    description: values.description.trim(),
+    category_id: resolvePayloadId(values.category_id),
+    subcategory_id: resolvePayloadId(values.subcategory_id),
+    brand_id: resolvePayloadId(values.brand_id),
+    condition: values.condition,
+    fulfillment_channel: values.fulfillment_channel || DEFAULT_PRODUCT_FULFILLMENT_CHANNEL,
+    is_active: values.status === 'active' ? true : Boolean(values.is_active),
+    status: values.status,
+    regular_price: listPrice,
+    price: listPrice,
+    discount_mode: discountMode,
+    discount_percent: discountMode === 'percent' ? discountPercent : undefined,
+    discount_price: discountMode === 'percent' ? undefined : (discountAmount ?? salePrice),
+    regular_discount_price: salePrice,
+    low_stock_threshold: toNumberOrNull(values.low_stock_threshold),
+    barcode: values.barcode?.trim() || null,
+    tags: values.tags ?? [],
+    key_details: normalizeKeyDetailsForJsonPayload(values.key_details),
+    metadata,
+    shipping: {
+      weight: toMoneyOrNull(values.shipping_weight),
+      length: toMoneyOrNull(values.shipping_length),
+      width: toMoneyOrNull(values.shipping_width),
+      height: toMoneyOrNull(values.shipping_height),
+    },
+    product_images: mediaImages.product_images,
+    description_images: mediaImages.description_images,
+  }
 }
 
 /**
@@ -1361,16 +1444,14 @@ function appendPutMethodOverride(formData) {
 }
 
 export function buildProductInfoPayload(values, mainImage, subImages = [], options = {}) {
-  const formData = buildProductPayload(values, mainImage, subImages, {
+  return buildProductPayload(values, mainImage, subImages, {
     ...options,
     mode: options.mode ?? 'edit',
     includeVariations: false,
     descriptiveImages: options.descriptiveImages ?? [],
+    omitRootSku: true,
+    omitRootQuantity: true,
   })
-
-  appendPutMethodOverride(formData)
-
-  return formData
 }
 
 export function isPersistedVariantId(variantId) {

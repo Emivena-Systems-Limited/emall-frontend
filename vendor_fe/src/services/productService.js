@@ -105,8 +105,8 @@ export async function updateProduct(productId, formData) {
   return record
 }
 
-export async function updateProductInfo(productId, formData) {
-  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.updateInfoById(productId), formData)
+export async function updateProductInfo(productId, body) {
+  const { data } = await apiClient.put(PRODUCT_ENDPOINTS.updateInfoById(productId), body)
   assertApiSuccess(data)
 
   const record = extractProductRecord(data)

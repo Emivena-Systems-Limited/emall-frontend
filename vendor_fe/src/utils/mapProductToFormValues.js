@@ -8,7 +8,7 @@ import {
   isProductActive,
 } from './normalizeProducts'
 import { createProductImageFromRemote, isGalleryProductImage, isPrimaryProductImage } from './productImageUtils'
-import { isDescriptiveProductImage, mapKeyDetailsFromRecord } from './productMetadata'
+import { isDescriptiveProductImage, getMetadataValue, mapKeyDetailsFromRecord } from './productMetadata'
 
 function humanizeAttributeKey(key = '') {
   return key
@@ -220,15 +220,23 @@ export function mapProductRecordToFormValues(record) {
   const pricing = resolvePricingFields(record, firstVariant, metadataMap)
 
   const resolveQuantity = () => {
+    const metadataQuantity = getMetadataValue(record.metadata, 'quantity')
+    if (metadataQuantity != null && metadataQuantity !== '') {
+      return String(metadataQuantity)
+    }
+    if (metadataMap.quantity != null) return String(metadataMap.quantity)
     if (record.quantity != null) return String(record.quantity)
     if (firstVariant?.quantity != null) return String(firstVariant.quantity)
-    if (metadataMap.quantity != null) return String(metadataMap.quantity)
     return ''
   }
 
   return {
     name: record.name ?? '',
-    sku: record.sku ?? firstVariant?.sku ?? metadataMap.sku ?? '',
+    sku: getMetadataValue(record.metadata, 'sku')
+      ?? metadataMap.sku
+      ?? record.sku
+      ?? firstVariant?.sku
+      ?? '',
     description: record.description ?? '',
     category_id,
     subcategory_id,

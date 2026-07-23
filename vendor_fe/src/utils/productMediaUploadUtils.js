@@ -632,7 +632,6 @@ function resolveImageUrl(image) {
 
 function toSavedProductImage(image, index) {
   const uploadId = resolveImageUploadId(image)
-  const imageUrl = resolveImageUrl(image)
   const remoteId = resolveRemoteProductImageId(image)
 
   if (uploadId) {
@@ -643,17 +642,19 @@ function toSavedProductImage(image, index) {
     }
   }
 
-  if (imageUrl) {
+  // Kept existing images must reference backend id — not preview/storage URLs.
+  if (remoteId) {
     return {
-      image_url: imageUrl,
+      id: remoteId,
       sort_order: index,
       is_primary: index === 0,
     }
   }
 
-  if (remoteId) {
+  const imageUrl = resolveImageUrl(image)
+  if (imageUrl) {
     return {
-      id: remoteId,
+      image_url: imageUrl,
       sort_order: index,
       is_primary: index === 0,
     }

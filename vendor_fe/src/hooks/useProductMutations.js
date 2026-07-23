@@ -93,8 +93,8 @@ export function useUpdateProductInfoMutation() {
 
   return useMutation({
     mutationKey: ['products', 'update-info'],
-    mutationFn: async ({ productId, formData }) => {
-      await updateProductInfo(productId, formData)
+    mutationFn: async ({ productId, formData, payload }) => {
+      await updateProductInfo(productId, payload ?? formData)
       return getProductById(productId)
     },
     onSuccess: (freshRecord, variables) => {

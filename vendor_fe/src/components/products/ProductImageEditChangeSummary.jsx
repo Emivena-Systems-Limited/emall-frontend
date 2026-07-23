@@ -32,7 +32,9 @@ export default function ProductImageEditChangeSummary({ summary }) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-slate-900">Pending photo changes</p>
           <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
-            These updates will be sent when you save product info. Existing photos you keep stay linked by ID; removed photos are dropped; new uploads replace or add gallery slots.
+            Kept photos are sent with their backend <code className="rounded bg-white px-1 text-[10px]">id</code>.
+            New uploads are sent with <code className="rounded bg-white px-1 text-[10px]">upload_id</code> after S3 upload.
+            Removed photos are simply omitted from the save payload.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <ChangeStat label="product kept" value={product.kept} tone="slate" />

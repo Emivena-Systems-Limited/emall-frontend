@@ -29,7 +29,7 @@ export default function EditProductImagesStep({
           <div>
             <p className="text-sm font-semibold text-cyan-950">Editing product photos</p>
             <p className="mt-0.5 text-xs leading-relaxed text-cyan-900/80">
-              Remove photos you no longer need, replace any image by uploading a new file, or add new gallery and detail shots. Unchanged photos are kept automatically.
+              Remove photos you no longer need, replace any image by uploading a new file, or add new gallery and detail shots. Kept photos keep their backend id; new files upload first and save with upload_id.
             </p>
           </div>
         </div>
