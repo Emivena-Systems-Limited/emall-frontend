@@ -88,6 +88,24 @@ export function variantHasCompatibleModel(variant, model) {
   )
 }
 
+export function isSameVariantOption(selected, value) {
+  if (selected == null || value == null || selected === '' || value === '') return false
+  return String(selected).trim().toLowerCase() === String(value).trim().toLowerCase()
+}
+
+/** Map a variant attribute value to the matching option label from the product list. */
+export function resolveCanonicalVariantOption(rawValue, options = []) {
+  if (rawValue == null || rawValue === '') return ''
+  const normalized = String(rawValue).trim().toLowerCase()
+  if (!normalized) return ''
+
+  const match = (Array.isArray(options) ? options : []).find(
+    (option) => String(option).trim().toLowerCase() === normalized,
+  )
+
+  return match != null ? String(match) : String(rawValue).trim()
+}
+
 export function resolveNestedBrand(record) {
   if (record?.brand && typeof record.brand === 'object') {
     return record.brand

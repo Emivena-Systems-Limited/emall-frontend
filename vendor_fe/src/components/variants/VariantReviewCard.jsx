@@ -105,7 +105,7 @@ export default function VariantReviewCard({ attribute, variantValue, productValu
             </span>
           </div>
 
-          <div className="rounded-xl border border-brand/10 bg-gradient-to-br from-brand-light/30 via-white to-white p-3">
+          <div className="rounded-xl border border-brand/10 bg-linear-to-br from-brand-light/30 via-white to-white p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-brand/70">Customer pays</p>

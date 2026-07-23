@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Form, Formik, getIn } from 'formik'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -13,15 +13,24 @@ import {
   Package,
 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import EditProductImagesStep from '../../components/products/EditProductImagesStep'
 import ProductStepper from '../../components/products/ProductStepper'
-import { ImagesStep, InfoStep, PricingStep, ReviewStep, ShippingStep } from './AddProduct'
+import { InfoStep, PricingStep, ReviewStep, ShippingStep } from './AddProduct'
 import VariationsEditForm from '../../components/variants/VariationsEditForm'
 import { useApprovedBrands } from '../../hooks/useBrands'
 import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
 import { useProductCategoryOptions } from '../../hooks/useCategories'
 import { useUpdateProductInfoMutation } from '../../hooks/useProductMutations'
+import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
 import { useProduct, productQueryKeys } from '../../hooks/useProducts'
+import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../../constants/productMediaUpload'
 import { mapProductRecordToFormState } from '../../utils/mapProductToFormValues'
+import { captureProductImageBaseline, summarizeProductImageChanges } from '../../utils/productImageEditUtils'
+import {
+  buildProductMediaPresignRequest,
+  buildProductMediaSaveImagesPayload,
+  hasPendingProductMediaUploads,
+} from '../../utils/productMediaUploadUtils'
 import { productInfoSchema } from '../../utils/validationSchemas'
 import {
   validateProductImageLimits,
@@ -245,8 +254,19 @@ function ProductInfoEditForm({
   const [mainImageError, setMainImageError] = useState('')
   const [galleryImagesError, setGalleryImagesError] = useState('')
   const [descriptiveImagesError, setDescriptiveImagesError] = useState('')
+  const [imageBaseline] = useState(() => captureProductImageBaseline(formState))
   const updateProductInfoMutation = useUpdateProductInfoMutation()
   const createBrandMutation = useCreateBrandMutation()
+  const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
+
+  const imageChangeSummary = useMemo(
+    () => summarizeProductImageChanges(imageBaseline, {
+      mainImage,
+      subImages,
+      descriptiveImages,
+    }),
+    [imageBaseline, mainImage, subImages, descriptiveImages],
+  )
 
   const navigateToStep = (stepIndex) => {
     setActiveStep(stepIndex)
@@ -507,12 +527,46 @@ function ProductInfoEditForm({
         onSubmit={async (values, actions) => {
           try {
             const formValues = { ...values, status: values.status || 'active' }
-            const payload = buildProductInfoPayload(formValues, mainImage, subImages, {
-              mode: 'edit',
+            const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD
+
+            const mediaState = {
+              mainImage,
+              subImages,
               descriptiveImages,
+              variations: [],
+            }
+
+            if (import.meta.env.DEV) {
+              console.log('[edit product info] media presign request:', buildProductMediaPresignRequest(mediaState))
+            }
+
+            let nextMediaState = mediaState
+
+            if (usePresignedUpload && hasPendingProductMediaUploads(buildProductMediaPresignRequest(mediaState))) {
+              nextMediaState = await uploadPendingMedia(mediaState)
+              setMainImage(nextMediaState.mainImage)
+              setSubImages(nextMediaState.subImages)
+              setDescriptiveImages(nextMediaState.descriptiveImages ?? [])
+
+              if (import.meta.env.DEV) {
+                console.log(
+                  '[edit product info] media save payload:',
+                  buildProductMediaSaveImagesPayload(nextMediaState),
+                )
+              }
+            }
+
+            const nextImageChanges = summarizeProductImageChanges(imageBaseline, nextMediaState)
+
+            const payload = buildProductInfoPayload(formValues, nextMediaState.mainImage, nextMediaState.subImages, {
+              mode: 'edit',
+              descriptiveImages: nextMediaState.descriptiveImages,
+              removedProductImageIds: nextImageChanges.removedProductImageIds,
+              removedDescriptiveImageIds: nextImageChanges.removedDescriptiveImageIds,
             })
 
             if (import.meta.env.DEV) {
+              console.log('[edit product info] image changes:', nextImageChanges)
               console.log('[edit product info] FormData payload:', formatProductPayloadSample(payload))
             }
 
@@ -565,7 +619,8 @@ function ProductInfoEditForm({
                 />
               )}
               {activeStep === 1 && (
-                <ImagesStep
+                <EditProductImagesStep
+                  imageBaseline={imageBaseline}
                   mainImage={mainImage}
                   onMainImageChange={(image) => {
                     setMainImage(image)
@@ -602,6 +657,7 @@ function ProductInfoEditForm({
                   categoryTree={categoryTree}
                   approvedBrands={approvedBrands}
                   includeVariations={false}
+                  imageChangeSummary={imageChangeSummary}
                 />
               )}
             </section>
@@ -628,11 +684,14 @@ function ProductInfoEditForm({
                 <button
                   type="button"
                   onClick={() => handleSaveProductInfo(formik)}
-                  disabled={formik.isSubmitting || updateProductInfoMutation.isPending}
+                  disabled={formik.isSubmitting || updateProductInfoMutation.isPending || isUploadingMedia}
                   className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {formik.isSubmitting || updateProductInfoMutation.isPending ? (
-                    <><Loader2 className="size-4 animate-spin" /> Saving…</>
+                  {formik.isSubmitting || updateProductInfoMutation.isPending || isUploadingMedia ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      {isUploadingMedia ? 'Uploading photos…' : 'Saving…'}
+                    </>
                   ) : (
                     <>Save product info <ArrowRight className="size-4" /></>
                   )}
@@ -728,6 +787,7 @@ export default function EditProduct() {
     <DashboardLayout pageTitle="Edit Product">
       {section === EDIT_SECTIONS.INFO && (
         <ProductInfoEditForm
+          key={productId}
           productId={productId}
           formState={formState}
           onSaved={() => navigate(`/products/${productId}/edit?section=${EDIT_SECTIONS.INFO}&finished=1`)}

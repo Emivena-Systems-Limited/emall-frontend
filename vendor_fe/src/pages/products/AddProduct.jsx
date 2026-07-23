@@ -24,6 +24,7 @@ import ProductImageUploader from '../../components/products/ProductImageUploader
 import DescriptiveImageUploader from '../../components/products/DescriptiveImageUploader'
 import ProductKeyDetailsInput from '../../components/products/ProductKeyDetailsInput'
 import ProductMainImageUpload from '../../components/products/ProductMainImageUpload'
+import ProductImageEditChangeSummary from '../../components/products/ProductImageEditChangeSummary'
 import AttributeIcon from '../../components/variants/AttributeIcon'
 import AttributeTypePicker from '../../components/variants/AttributeTypePicker'
 import CardStepHeader from '../../components/variants/CardStepHeader'
@@ -88,7 +89,6 @@ import {
   getDiscountSummary,
   getParentProductPricing,
   getVariationCustomerPriceRange,
-  resolveVariantPricing,
 } from '../../utils/productPricing'
 import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirstError'
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
@@ -220,10 +220,7 @@ function createVariantGroupId() {
   return `var-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-function getVariantPrimaryPreview(variantValue) {
-  if (variantValue?.images?.length > 0) return variantValue.images[0].preview
-  return variantValue?.image_url || null
-}
+
 
 /** First readable error message for a single variant value, once its errors have been touched. */
 function getVariantValueErrorMessage(formik, groupIndex, valueIndex) {
@@ -1184,6 +1181,7 @@ export function ReviewStep({
   categoryTree,
   approvedBrands,
   includeVariations = true,
+  imageChangeSummary = null,
 }) {
   const selectedCategory =
     findCategoryById(categoryTree, formik.values.category_id)
@@ -1268,12 +1266,17 @@ export function ReviewStep({
         </p>
       </div>
 
-      {(mainImage || subImages.length > 0 || descriptiveImages.length > 0) && (
+      {(mainImage || subImages.length > 0 || descriptiveImages.length > 0 || imageChangeSummary?.hasChanges) && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
             <ImagePlus className="size-4 text-cyan-700" />
             Product images
           </h3>
+          {imageChangeSummary?.hasChanges && (
+            <div className="mb-4">
+              <ProductImageEditChangeSummary summary={imageChangeSummary} />
+            </div>
+          )}
           <div className="space-y-4">
             {mainImage && (
               <div>

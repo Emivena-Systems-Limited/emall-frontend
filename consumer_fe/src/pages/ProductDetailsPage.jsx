@@ -37,7 +37,9 @@ import { calculateDisplayDiscountPercent } from '../utils/productPricing'
 import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
+  isSameVariantOption,
   resolveBrandName,
+  resolveCanonicalVariantOption,
   resolveVariantAttributeFields,
   variantHasCompatibleModel,
 } from '../utils/productVariantFields'
@@ -190,7 +192,7 @@ function ColorSwatches({ product, selected, onSelect }) {
             type="button"
             onClick={() => onSelect(color)}
             className={`border bg-white p-1 text-center transition-colors ${
-              selected === color ? 'border-auth-primary' : 'border-slate-200'
+              isSameVariantOption(selected, color) ? 'border-auth-primary ring-1 ring-auth-primary' : 'border-slate-200'
             }`}
           >
             <img
@@ -219,8 +221,8 @@ function VariantGroup({ label, values, selected, onSelect }) {
             type="button"
             onClick={() => onSelect(value)}
             className={`rounded-full border px-3 py-1.5 text-[0.625rem] font-semibold transition-colors ${
-              selected === value
-                ? 'border-slate-950 bg-white text-slate-950'
+              isSameVariantOption(selected, value)
+                ? 'border-auth-primary bg-red-50 text-auth-primary ring-1 ring-auth-primary'
                 : 'border-slate-200 bg-white text-slate-500 hover:border-auth-primary hover:text-auth-primary'
             }`}
           >
@@ -333,7 +335,6 @@ const fallbackRatingDistribution = [
 
 function ProductInfoPanel({
   product,
-  setActiveImage,
   selectedColor,
   setSelectedColor,
   selectedSize,
@@ -362,9 +363,11 @@ function ProductInfoPanel({
     ? toNumber(activeVariant.quantity, 0) <= 0
     : !product.inStock
   const colorValueSet = new Set((product.colors ?? []).map((value) => String(value).toLowerCase()))
-  const compatibleModelValues = activeVariant
-    ? getVariantCompatibleModels(activeVariant)
-    : []
+  const compatibleModelValues = (product.compatibleModels?.length
+    ? product.compatibleModels
+    : activeVariant
+      ? getVariantCompatibleModels(activeVariant)
+      : [])
   const sizeValues = product.sizes ?? []
   const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
     && colorValueSet.size > 0
@@ -678,7 +681,7 @@ function ReviewSummary({ product, fillHeight = false }) {
   return (
     <section
       id="reviews"
-      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-[280px] flex-1 flex-col' : ''}`}
+      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-70 flex-1 flex-col' : ''}`}
     >
       <div className="shrink-0">
         <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
@@ -1007,7 +1010,7 @@ function DescriptiveImagesGrid({ product }) {
   const closeLightbox = useCallback(() => {
     setLightboxIndex(null)
     setZoom(1)
-  }, [])
+  }, [setLightboxIndex, setZoom])
 
   const goPrev = useCallback(() => {
     if (viewableImages.length <= 1) return
@@ -1015,7 +1018,7 @@ function DescriptiveImagesGrid({ product }) {
     setLightboxIndex((index) => (
       index === null ? null : (index - 1 + viewableImages.length) % viewableImages.length
     ))
-  }, [viewableImages.length])
+  }, [viewableImages.length, setLightboxIndex, setZoom])
 
   const goNext = useCallback(() => {
     if (viewableImages.length <= 1) return
@@ -1023,7 +1026,7 @@ function DescriptiveImagesGrid({ product }) {
     setLightboxIndex((index) => (
       index === null ? null : (index + 1) % viewableImages.length
     ))
-  }, [viewableImages.length])
+  }, [viewableImages.length, setLightboxIndex, setZoom])
 
   const openLightbox = (src) => {
     const index = viewableImages.indexOf(src)
@@ -1085,7 +1088,7 @@ function DescriptiveImagesGrid({ product }) {
               : (
                 <div
                   key={index}
-                  className="flex aspect-[970/600] w-full items-center justify-center rounded-sm bg-slate-100"
+                  className="flex aspect-970/600 w-full items-center justify-center rounded-sm bg-slate-100"
                 >
                   <DescriptiveImagePlaceholder />
                 </div>
@@ -1442,16 +1445,37 @@ export default function ProductDetailsPage() {
   )
 }
 
+function resolveInitialVariantSelections(product) {
+  const firstVariant = product.variants?.[0] ?? null
+
+  if (!firstVariant) {
+    return {
+      color: product.colors?.[0] ?? '',
+      size: product.sizes?.[0] ?? '',
+      compatibleModel: product.compatibleModels?.[0] ?? '',
+    }
+  }
+
+  const rawColor = getVariantAttributeValue(firstVariant, 'color') || firstVariant.variant_name || ''
+  const rawSize = getVariantAttributeValue(firstVariant, product.sizeGroupLabel ?? 'size')
+  const variantModels = getVariantCompatibleModels(firstVariant)
+
+  return {
+    color: resolveCanonicalVariantOption(rawColor, product.colors) || product.colors?.[0] || '',
+    size: resolveCanonicalVariantOption(rawSize, product.sizes) || product.sizes?.[0] || '',
+    compatibleModel: resolveCanonicalVariantOption(variantModels[0], product.compatibleModels)
+      || product.compatibleModels?.[0]
+      || variantModels[0]
+      || '',
+  }
+}
+
 function ProductDetailsView({ product, apiProduct, landingData }) {
+  const initialSelections = useMemo(() => resolveInitialVariantSelections(product), [product])
   const [activeImage, setActiveImage] = useState(product.gallery?.[0] ?? null)
-  const [selectedColor, setSelectedColor] = useState(product.colors?.[0] ?? '')
-  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] ?? '')
-  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(() => {
-    const firstWithModels = product.variants?.find(
-      (variant) => getVariantCompatibleModels(variant).length > 0,
-    )
-    return getVariantCompatibleModels(firstWithModels)[0] ?? product.compatibleModels?.[0] ?? ''
-  })
+  const [selectedColor, setSelectedColor] = useState(initialSelections.color)
+  const [selectedSize, setSelectedSize] = useState(initialSelections.size)
+  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
@@ -1476,9 +1500,11 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
     if (matchingVariant) {
       const models = getVariantCompatibleModels(matchingVariant)
-      setSelectedCompatibleModel(models[0] ?? '')
+      const nextModel = resolveCanonicalVariantOption(models[0], product.compatibleModels) || models[0] || ''
+      setSelectedCompatibleModel(nextModel)
       const vSize = getVariantAttributeValue(matchingVariant, product.sizeGroupLabel ?? 'size')
-      if (vSize) setSelectedSize(vSize)
+      const nextSize = resolveCanonicalVariantOption(vSize, product.sizes)
+      if (nextSize) setSelectedSize(nextSize)
     }
 
     const varImage = product.colorImages?.[newColor]
@@ -1505,12 +1531,14 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     if (matchingVariant) {
       const vColor = getVariantAttributeValue(matchingVariant, 'color')
       const vSize = getVariantAttributeValue(matchingVariant, product.sizeGroupLabel ?? 'size')
-      if (vColor) {
-        setSelectedColor(vColor)
-        const varImage = product.colorImages?.[vColor]
+      const nextColor = resolveCanonicalVariantOption(vColor, product.colors)
+      if (nextColor) {
+        setSelectedColor(nextColor)
+        const varImage = product.colorImages?.[nextColor]
         if (varImage) setActiveImage(varImage)
       }
-      if (vSize) setSelectedSize(vSize)
+      const nextSize = resolveCanonicalVariantOption(vSize, product.sizes)
+      if (nextSize) setSelectedSize(nextSize)
     }
   }
 
@@ -1539,12 +1567,14 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     if (matchingVariant) {
       const vColor = getVariantAttributeValue(matchingVariant, 'color')
       const models = getVariantCompatibleModels(matchingVariant)
-      if (vColor) {
-        setSelectedColor(vColor)
-        const varImage = product.colorImages?.[vColor]
+      const nextColor = resolveCanonicalVariantOption(vColor, product.colors)
+      if (nextColor) {
+        setSelectedColor(nextColor)
+        const varImage = product.colorImages?.[nextColor]
         if (varImage) setActiveImage(varImage)
       }
-      setSelectedCompatibleModel(models[0] ?? '')
+      const nextModel = resolveCanonicalVariantOption(models[0], product.compatibleModels) || models[0] || ''
+      setSelectedCompatibleModel(nextModel)
     }
   }
 
@@ -1682,7 +1712,6 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
             <div className="order-2 flex min-w-0 flex-col gap-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-full">
               <ProductInfoPanel
                 product={product}
-                setActiveImage={setActiveImage}
                 selectedColor={selectedColor}
                 setSelectedColor={handleColorSelect}
                 selectedSize={selectedSize}

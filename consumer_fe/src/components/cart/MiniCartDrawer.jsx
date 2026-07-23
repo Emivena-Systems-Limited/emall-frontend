@@ -109,7 +109,7 @@ function EmptyMiniCart({ onClose }) {
         <ShoppingBag className="size-6" strokeWidth={1.75} />
       </span>
       <p className="mt-3 text-sm font-bold text-slate-900">Your cart is empty</p>
-      <p className="mt-1 max-w-[14rem] text-xs leading-relaxed text-slate-500">
+      <p className="mt-1 max-w-56 text-xs leading-relaxed text-slate-500">
         Add items from product cards to see them here.
       </p>
       <button
@@ -160,7 +160,7 @@ export default function MiniCartDrawer() {
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[130]" role="dialog" aria-modal="true" aria-label="Your cart">
+        <div className="fixed inset-0 z-130" role="dialog" aria-modal="true" aria-label="Your cart">
           <motion.button
             type="button"
             aria-label="Close cart"

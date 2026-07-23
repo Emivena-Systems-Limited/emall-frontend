@@ -354,7 +354,7 @@ function MobileCheckoutBar({ itemCount, total, hasSelectedItems, onProceedChecko
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3">
+      <div className="mx-auto flex max-w-360 items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-500">
             {itemCount} item{itemCount === 1 ? '' : 's'} selected

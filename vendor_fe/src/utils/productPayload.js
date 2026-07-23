@@ -256,6 +256,7 @@ function buildProductImagesPayload(mainImage, subImages = []) {
       file,
       remoteId: image?.remoteId ?? null,
       imageUrl: image?.isRemote ? image.preview : null,
+      upload_id: image?.upload_id ?? null,
       sort_order: index,
       is_primary: index === 0,
     }
@@ -532,23 +533,35 @@ function appendKeepImageIds(formData, keepImageIds = [], keyPrefix = '') {
   })
 }
 
+function appendRemovedImageIds(formData, removedImageIds = [], fieldName = 'removed_image_ids') {
+  removedImageIds.forEach((id, index) => {
+    formData.append(`${fieldName}[${index}]`, String(id))
+  })
+}
+
 function appendNewProductImageFiles(formData, productImages = []) {
   let newImageIndex = 0
 
   productImages.forEach((image) => {
-    if (!isFileValue(image.file)) return
+    if (isFileValue(image.file)) {
+      formData.append(
+        `images[${newImageIndex}][image_url]`,
+        image.file,
+        image.file.name,
+      )
+      formData.append(`images[${newImageIndex}][sort_order]`, String(image.sort_order))
+      formData.append(
+        `images[${newImageIndex}][is_primary]`,
+        image.is_primary ? '1' : '0',
+      )
+      newImageIndex += 1
+      return
+    }
 
-    formData.append(
-      `images[${newImageIndex}][image_url]`,
-      image.file,
-      image.file.name,
-    )
-    formData.append(`images[${newImageIndex}][sort_order]`, String(image.sort_order))
-    formData.append(
-      `images[${newImageIndex}][is_primary]`,
-      image.is_primary ? '1' : '0',
-    )
-    newImageIndex += 1
+    if (image.upload_id && !image.remoteId) {
+      appendPresignedImageEntry(formData, image, `images[${newImageIndex}]`)
+      newImageIndex += 1
+    }
   })
 }
 
@@ -562,6 +575,7 @@ function buildDescriptiveImagesPayload(descriptiveImages = []) {
         file,
         remoteId: image?.remoteId ?? null,
         imageUrl: image?.isRemote ? image.preview : null,
+        upload_id: image?.upload_id ?? null,
       }
     })
 }
@@ -589,14 +603,22 @@ function appendNewDescriptiveImageFiles(formData, descriptiveImages = []) {
   let newImageIndex = 0
 
   descriptiveImages.forEach((image) => {
-    if (!isFileValue(image.file)) return
+    if (isFileValue(image.file)) {
+      formData.append(
+        `descriptive_images[${newImageIndex}]`,
+        image.file,
+        image.file.name,
+      )
+      newImageIndex += 1
+      return
+    }
 
-    formData.append(
-      `descriptive_images[${newImageIndex}]`,
-      image.file,
-      image.file.name,
-    )
-    newImageIndex += 1
+    if (image.upload_id && !image.remoteId) {
+      appendPresignedImageEntry(formData, image, `descriptive_images[${newImageIndex}]`, {
+        includePrimary: false,
+      })
+      newImageIndex += 1
+    }
   })
 }
 
@@ -698,12 +720,17 @@ function appendPresignedVariationsToFormData(formData, variations = []) {
 function appendDescriptiveImagesToFormData(
   formData,
   descriptiveImages,
-  { mode = 'create', sourceImages = [] } = {},
+  { mode = 'create', sourceImages = [], removedDescriptiveImageIds = [] } = {},
 ) {
   if (mode === 'edit') {
     collectKeepDescriptiveImageIds(sourceImages).forEach((id, index) => {
       formData.append(`keep_descriptive_image_ids[${index}]`, id)
     })
+
+    if (removedDescriptiveImageIds.length > 0) {
+      appendRemovedImageIds(formData, removedDescriptiveImageIds, 'removed_descriptive_image_ids')
+    }
+
     appendNewDescriptiveImageFiles(formData, descriptiveImages)
     return
   }
@@ -726,7 +753,7 @@ export function validateDescriptiveImageFiles(descriptiveImages = [], options = 
   const payload = buildDescriptiveImagesPayload(images)
 
   payload.forEach((image, index) => {
-    if (mode === 'edit' && !image.file && (image.remoteId || image.imageUrl)) {
+    if (mode === 'edit' && !image.file && (image.remoteId || image.imageUrl || image.upload_id)) {
       return
     }
 
@@ -736,14 +763,19 @@ export function validateDescriptiveImageFiles(descriptiveImages = [], options = 
   })
 
   return mode === 'edit'
-    ? payload.filter((image) => isFileValue(image.file))
+    ? payload.filter((image) => isFileValue(image.file) || image.upload_id)
     : payload
 }
 
 function appendProductImagesToFormData(
   formData,
   productImages,
-  { mode = 'create', mainImage = null, subImages = [] } = {},
+  {
+    mode = 'create',
+    mainImage = null,
+    subImages = [],
+    removedProductImageIds = [],
+  } = {},
 ) {
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0]
   const primaryFile = primaryImage?.file
@@ -751,8 +783,14 @@ function appendProductImagesToFormData(
   if (mode === 'edit') {
     appendKeepImageIds(formData, collectKeepImageIds(mainImage, subImages))
 
+    if (removedProductImageIds.length > 0) {
+      appendRemovedImageIds(formData, removedProductImageIds)
+    }
+
     if (isFileValue(primaryFile)) {
       formData.append('primary_image', primaryFile, primaryFile.name)
+    } else if (primaryImage?.upload_id && !primaryImage?.remoteId) {
+      appendPresignedImageEntry(formData, primaryImage, 'primary_image')
     }
 
     appendNewProductImageFiles(formData, productImages)
@@ -994,7 +1032,7 @@ export function validateProductImageFiles(mainImage, subImages = [], options = {
   }
 
   productImages.forEach((image, index) => {
-    if (mode === 'edit' && !image.file && (image.remoteId || image.imageUrl)) {
+    if (mode === 'edit' && !image.file && (image.remoteId || image.imageUrl || image.upload_id)) {
       return
     }
 
@@ -1015,6 +1053,8 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
     mode = 'create',
     includeVariations = true,
     descriptiveImages = [],
+    removedProductImageIds = [],
+    removedDescriptiveImageIds = [],
   } = options
   const productImages = validateProductImageFiles(mainImage, subImages, { mode })
   const descriptiveImagePayload = validateDescriptiveImageFiles(descriptiveImages, { mode })
@@ -1055,10 +1095,16 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
     height: toMoneyOrNull(values.shipping_height),
   })
 
-  appendProductImagesToFormData(formData, productImages, { mode, mainImage, subImages })
+  appendProductImagesToFormData(formData, productImages, {
+    mode,
+    mainImage,
+    subImages,
+    removedProductImageIds,
+  })
   appendDescriptiveImagesToFormData(formData, descriptiveImagePayload, {
     mode,
     sourceImages: descriptiveImages,
+    removedDescriptiveImageIds,
   })
 
   if (includeVariations) {

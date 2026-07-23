@@ -1165,7 +1165,7 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Order Summary</h2>
-      <div className={`mt-4 divide-y divide-slate-300 ${items.length > 4 ? 'max-h-[31rem] overflow-y-auto pr-1' : ''}`}>
+      <div className={`mt-4 divide-y divide-slate-300 ${items.length > 4 ? 'max-h-124 overflow-y-auto pr-1' : ''}`}>
         {items.map((item) => {
           const optionLabel = formatCartItemOptions(item)
           const displayImage = resolveCartItemDisplayImage(item)
