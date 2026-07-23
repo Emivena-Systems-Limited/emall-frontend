@@ -24,7 +24,10 @@ const navItems = [
   { id: 'landing', label: 'Landing page' },
   { id: 'dashboard', label: 'Dashboard shell' },
   { id: 'products', label: 'Product catalog' },
-  { id: 'add-product', label: 'Add product form' },
+  { id: 'add-product', label: 'Add product' },
+  { id: 'edit-product', label: 'Edit product' },
+  { id: 'media-upload', label: 'Media upload' },
+  { id: 'integrations', label: 'API vs mock data' },
   { id: 'new-page', label: 'Build a page' },
   { id: 'routing', label: 'Routing' },
   { id: 'redux', label: 'Redux & auth' },
@@ -38,52 +41,85 @@ const navItems = [
 const folderStructure = `src/
 ├── assets/images/          # Bundled images (imported in Images.jsx)
 ├── components/
-│   ├── auth/               # AuthLayout, OtpInput, SearchableSelect, SignupSuccessState, …
-│   ├── dashboard/          # DashboardLayout, Sidebar, PendingApprovalGuard, …
-│   ├── landing/            # Landing page sections (Hero, Benefits, FAQ, Footer, …)
-│   ├── products/           # ProductTable, ProductStepper, image uploaders, …
+│   ├── auth/               # AuthLayout, OtpInput, SearchableSelect, …
+│   ├── common/             # ConfirmModal, PortalMenu, …
+│   ├── dashboard/          # DashboardLayout, Sidebar, charts, KPI cards, …
+│   ├── finance/            # Finance tables, payout modals, …
+│   ├── landing/            # Public seller landing sections
+│   ├── products/           # Catalog table, uploaders, storefront preview, …
+│   ├── promotions/         # Promotion catalog + form sections
+│   ├── variants/           # Variant cards, drawers, edit flows
+│   ├── orders/             # Order table, status badges, …
+│   ├── customers/          # Customer catalog + detail sections
+│   ├── reviews/            # Review cards, filters, insights
+│   ├── analytics/          # Analytics charts + export
+│   ├── messages/           # Inbox UI
+│   ├── settings/           # Store settings panels
+│   ├── users/              # Users & permissions modals
+│   ├── help/               # Help & support sections
 │   └── guide/              # Developer guide UI
 ├── constants/
 │   ├── auth.js             # Auth endpoints, OTP config
 │   ├── categories.js       # Category API endpoints
-│   ├── ghanaRegions.js     # Region/city options for signup
-│   ├── landingPageData.js  # Landing copy, FAQ, footer links
-│   └── productCatalog.js   # Mock catalog data + summary filter keys
+│   ├── products.js         # Product endpoints + image dimension limits
+│   ├── productMediaUpload.js # Presigned S3 upload settings
+│   ├── sidebarNav.js       # Dashboard navigation sections
+│   ├── emptyStates.js      # Empty-state presets per page
+│   └── *Data.js            # Mock datasets (orders, finance, reviews, …)
 ├── hooks/
-│   ├── useAuthMutations.js # TanStack Query auth mutations
-│   ├── useCategories.js    # Category tree queries
-│   └── useSidebar.js       # Dashboard sidebar state
+│   ├── useAuthMutations.js
+│   ├── useProducts.js      # Product list + detail queries
+│   ├── useProductMutations.js # Create, update, delete, duplicate, variants
+│   ├── useProductMediaUpload.js # Presign → S3 upload orchestration
+│   ├── useCategories.js
+│   ├── useBrands.js
+│   └── useBrandMutations.js
 ├── lib/
 │   ├── apiClient.js        # Axios instance + auth interceptors
 │   ├── notify.js           # Toast helper (Sonner)
-│   ├── persistStorage.js   # Redux persist localStorage adapter
-│   └── queryClient.js      # TanStack Query defaults
+│   ├── persistStorage.js
+│   └── queryClient.js
 ├── pages/
-│   ├── auth_pages/         # Login, Signup, VerifyAccount
-│   ├── products/           # Products (catalog), AddProduct (6-step form)
-│   ├── orders/             # Orders list + OrderDetails
-│   ├── inventory/          # Inventory
+│   ├── auth_pages/         # Login, Signup, VerifyAccount, ForgotPassword
+│   ├── products/           # Products, AddProduct, EditProduct, ViewProduct
+│   ├── orders/             # Orders, OrderDetails, OrderProducts
+│   ├── customers/          # Customers, CustomerDetails
+│   ├── promotions/         # Promotions CRUD pages
+│   ├── finance/            # Finance
+│   ├── reviews/            # Reviews & ratings
+│   ├── analytics/          # Analytics & reports
+│   ├── messages/           # Messages
+│   ├── profile/            # Vendor profile
+│   ├── settings/           # Store settings
+│   ├── users/              # Users & permissions
+│   ├── help/               # Help & support
+│   ├── inventory/          # Low-stock inventory view
 │   ├── notifications/      # Notifications
-│   ├── LandingPage.jsx     # Public seller landing page
-│   ├── Dashboard.jsx       # Post-auth home (protected)
+│   ├── LandingPage.jsx
+│   ├── Dashboard.jsx
 │   └── DeveloperGuide.jsx
 ├── routes/
 │   ├── AppRoutes.jsx
-│   ├── GuestOnlyRoute.jsx  # Redirect authenticated users away
-│   └── ProtectedRoute.jsx  # Require auth
+│   ├── GuestOnlyRoute.jsx
+│   └── ProtectedRoute.jsx
 ├── services/
-│   ├── authService.js      # Vendor auth API calls
-│   └── categoriesService.js
+│   ├── authService.js
+│   ├── categoriesService.js
+│   ├── brandsService.js
+│   ├── productService.js
+│   └── productMediaService.js
 ├── store/
-│   ├── slices/             # Redux slices (auth, …)
-│   └── store.js            # Store + redux-persist config
+│   ├── slices/             # authSlice (+ redux-persist)
+│   └── store.js
 └── utils/
+    ├── productPayload.js   # FormData + JSON payload builders
+    ├── productMediaUploadUtils.js
+    ├── productImageUtils.js / productImageEditUtils.js
+    ├── mapProductToFormValues.js
+    ├── normalizeProducts.js / normalizeCategories.js / normalizeBrands.js
+    ├── validationSchemas.js
     ├── Config.jsx          # API base URL
-    ├── Images.jsx          # Central image registry
-    ├── productPayload.js   # buildProductPayload, image encoding
-    ├── productPricing.js   # Discount + variant pricing helpers
-    ├── validationSchemas.js # Formik/Yup schemas
-    └── vendorAuth.js       # isVendorVerified, isVendorPendingApproval`
+    └── Images.jsx          # Static image registry`
 
 export default function DeveloperGuide() {
   const auth = useSelector((state) => state.auth)
@@ -102,7 +138,7 @@ export default function DeveloperGuide() {
             </div>
           </div>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-            Stack ready
+            Products API live
           </span>
         </div>
       </header>
@@ -125,11 +161,10 @@ export default function DeveloperGuide() {
         <main className="min-w-0 space-y-12">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm leading-relaxed text-slate-600">
-              This page documents the shared setup for the vendor frontend. Use it as a
-              reference when building pages, hooks, slices, and API integrations. Auth,
-              landing, dashboard shell, product catalog UI, and the add-product form are
-              already wired — see sections below for routes, payloads, and what is still
-              mock vs API-backed.
+              Reference for the vendor frontend stack and feature wiring. Auth, landing, dashboard
+              shell, and the full product lifecycle (list, create, view, edit info, edit variants)
+              are implemented. Several secondary modules still use local mock data until their
+              backend endpoints are ready — see <strong>API vs mock data</strong> below.
             </p>
             <dl className="mt-6 grid gap-4 sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-4">
@@ -165,69 +200,35 @@ export default function DeveloperGuide() {
             <ol className="space-y-3 text-sm leading-relaxed text-slate-700">
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">1</span>
-                <span><strong>Signup</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/signup</code>) — API returns vendor in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">data</code> with no tokens. Redux stores <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">pendingVerificationEmail</code>. <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">SignupSuccessState</code> explains email verification (not activation) and links to verify.</span>
+                <span><strong>Signup</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/signup</code>) — API returns vendor in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">data</code> with no tokens. Redux stores <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">pendingVerificationEmail</code>.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">2</span>
-                <span><strong>Verify email</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/verify-account</code>) — 6-box OTP input with 15s resend timer. Copy: “Enter it below to verify your email address.” <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">useVerifyVendorOtpMutation</code> posts <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{'{ email, otp_token, type: "registration" }'}</code>.</span>
+                <span><strong>Verify email</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/verify-account</code>) — 6-box OTP. <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">useVerifyVendorOtpMutation</code> posts <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{'{ email, otp_token, type: "registration" }'}</code>.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">3</span>
-                <span><strong>Resend OTP</strong> — <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">useResendVendorOtpMutation</code> posts to <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/api/notification/re-send/otp</code> with <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{'{ email, type: "registration" }'}</code>.</span>
+                <span><strong>Forgot password</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/forgot-password</code>) — standalone route (not guest-only wrapped).</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">4</span>
-                <span><strong>Verify / Login</strong> — On success, tokens are stored via <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">setCredentials</code>. <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">apiClient</code> sends <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Authorization: Bearer</code> and <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Application-Token</code> on every request.</span>
+                <span><strong>Tokens</strong> — On verify/login, <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">setCredentials</code> stores JWT + application token. <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">apiClient</code> attaches both headers on every request.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">5</span>
-                <span><strong>Pending approval</strong> — If <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">user.status === 'pending_approval'</code>, <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">PendingApprovalGuard</code> blocks the dashboard with a non-closable modal until admin activates the account.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">6</span>
-                <span><strong>Dashboard</strong> (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/dashboard</code>) — Protected route inside <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">DashboardLayout</code>. Public seller landing lives at <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/</code>.</span>
+                <span><strong>Pending approval</strong> — <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">PendingApprovalGuard</code> blocks dashboard interaction when <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">user.status === 'pending_approval'</code>.</span>
               </li>
             </ol>
 
             <CodeBlock
-              title="Auth mutation hooks (TanStack Query)"
+              title="Auth mutation hooks"
               code={`import {
   useLoginVendorMutation,
   useRegisterVendorMutation,
   useVerifyVendorOtpMutation,
   useResendVendorOtpMutation,
-} from '../hooks/useAuthMutations'
-
-const registerMutation = useRegisterVendorMutation()
-const verifyMutation = useVerifyVendorOtpMutation()
-const resendMutation = useResendVendorOtpMutation()
-
-// After signup — no tokens yet
-const { user, needsVerification } = await registerMutation.mutateAsync(signupPayload)
-dispatch(setPendingVerificationEmail(signupPayload.email))
-dispatch(setPendingVendor(user))
-
-// After OTP verify — tokens issued
-const data = await verifyMutation.mutateAsync({ email, otp_token: otp })
-dispatch(setCredentials({
-  user: data.user,
-  accessToken: data.accessToken,
-  applicationToken: data.applicationToken,
-}))
-
-// Resend (15s timer in ResendTimer.jsx)
-await resendMutation.mutateAsync({ email })`}
-            />
-
-            <CodeBlock
-              title="Auth endpoints (constants/auth.js)"
-              code={`export const VENDOR_AUTH_ENDPOINTS = {
-  REGISTER: '/api/vendor/auth/register',
-  LOGIN: '/api/vendor/auth/login',
-  VERIFY: '/api/vendor/auth/verify_otp',
-  RESEND_OTP: '/api/notification/re-send/otp',
-  LOGOUT: '/api/vendor/auth/logout',
-}`}
+  useLogoutVendorMutation,
+} from '../hooks/useAuthMutations'`}
             />
           </GuideSection>
 
@@ -247,9 +248,7 @@ await resendMutation.mutateAsync({ email })`}
 <LandingCtaSection />
 <LandingFooter />
 
-// Copy, FAQ, footer groups → src/constants/landingPageData.js
-// Footer links use { label, href } — hash anchors, react-router paths, or external URLs
-// Ghana map illustration → components/landing/GhanaMapIllustration.jsx`}
+// Copy → src/constants/landingPageData.js`}
             />
           </GuideSection>
 
@@ -260,10 +259,11 @@ await resendMutation.mutateAsync({ email })`}
             description="All authenticated vendor pages wrap content in DashboardLayout (sidebar, navbar, scroll panel)."
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
-              <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardLayout</code> — sidebar + navbar + <code className="rounded bg-slate-100 px-1 text-xs">data-dashboard-scroll-panel</code> scroll container.</li>
-              <li>• <code className="rounded bg-slate-100 px-1 text-xs">PendingApprovalGuard</code> — modal when <code className="rounded bg-slate-100 px-1 text-xs">user.status === 'pending_approval'</code>; blocks interaction until admin approval.</li>
-              <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardHeader</code> — store status badge for <code className="rounded bg-slate-100 px-1 text-xs">active</code> or <code className="rounded bg-slate-100 px-1 text-xs">pending_approval</code> only.</li>
-              <li>• Helpers in <code className="rounded bg-slate-100 px-1 text-xs">utils/vendorAuth.js</code> — <code className="rounded bg-slate-100 px-1 text-xs">isVendorVerified</code>, <code className="rounded bg-slate-100 px-1 text-xs">isVendorPendingApproval</code>, <code className="rounded bg-slate-100 px-1 text-xs">getVendorAccountLabel</code>.</li>
+              <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardLayout</code> — sidebar + navbar + scroll panel (<code className="rounded bg-slate-100 px-1 text-xs">data-dashboard-scroll-panel</code>).</li>
+              <li>• <code className="rounded bg-slate-100 px-1 text-xs">Sidebar</code> — nav from <code className="rounded bg-slate-100 px-1 text-xs">constants/sidebarNav.js</code> (Main / Insights / Config sections).</li>
+              <li>• <code className="rounded bg-slate-100 px-1 text-xs">PendingApprovalGuard</code> — modal when account is pending admin approval.</li>
+              <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardReveal</code> — staggered entrance animations for KPI cards and charts.</li>
+              <li>• Helpers in <code className="rounded bg-slate-100 px-1 text-xs">utils/vendorAuth.js</code>.</li>
             </ul>
           </GuideSection>
 
@@ -271,94 +271,175 @@ await resendMutation.mutateAsync({ email })`}
             id="products"
             icon={Package}
             title="Product catalog"
-            description="/products — vendor catalogue UI with search, filters, export, and bulk actions. Currently uses local state (empty by default); wire to API when ready."
+            description="/products — live vendor catalogue backed by GET /api/product/get/vendor (paginated fetch). Supports search, filters, bulk actions, export, duplicate, and activate/deactivate."
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
-              <li>• <strong>Header</strong> — “All Products” + Add product → <code className="rounded bg-slate-100 px-1 text-xs">/products/new</code>.</li>
-              <li>• <strong>Summary cards</strong> — Listed / Active / Low stock; click to filter (<code className="rounded bg-slate-100 px-1 text-xs">ProductSummaryCards</code>).</li>
-              <li>• <strong>Toolbar</strong> — Search, category, brand filters; export Excel (CSV) and PDF (<code className="rounded bg-slate-100 px-1 text-xs">ProductCatalogToolbar</code>).</li>
-              <li>• <strong>Table</strong> — Checkbox selection, row actions (view/edit notify, duplicate, delete). Bulk activate / deactivate / delete / export.</li>
-              <li>• <strong>Empty state</strong> — Shown when catalogue is empty (<code className="rounded bg-slate-100 px-1 text-xs">EMPTY_STATE_PRESETS.products</code>).</li>
+              <li>• <strong>Data</strong> — <code className="rounded bg-slate-100 px-1 text-xs">useProducts()</code> loads all pages; normalized via <code className="rounded bg-slate-100 px-1 text-xs">toCatalogProduct</code>.</li>
+              <li>• <strong>Mutations</strong> — delete, duplicate, toggle active (single + bulk) via <code className="rounded bg-slate-100 px-1 text-xs">useProductMutations.js</code>.</li>
+              <li>• <strong>Row actions</strong> — View → <code className="rounded bg-slate-100 px-1 text-xs">/products/:id/view</code>, Edit → <code className="rounded bg-slate-100 px-1 text-xs">/products/:id/edit</code>.</li>
+              <li>• <strong>Export</strong> — Excel (CSV) via <code className="rounded bg-slate-100 px-1 text-xs">exportProductCatalog.js</code>.</li>
             </ul>
 
             <CodeBlock
               title="Key files"
               code={`src/pages/products/Products.jsx
-src/components/products/ProductTable.jsx
-src/components/products/ProductCatalogToolbar.jsx
-src/components/products/ProductSummaryCards.jsx
-src/constants/productCatalog.js          // SUMMARY_FILTERS, getCatalogSummary
-src/utils/productCatalogFilters.js       // filterProductCatalog
-src/utils/exportProductCatalog.js        // exportProductsToExcel, exportProductsToPdf`}
+src/hooks/useProducts.js              // productQueryKeys.list / detail
+src/hooks/useProductMutations.js
+src/services/productService.js        // PRODUCT_ENDPOINTS in constants/products.js
+src/utils/normalizeProducts.js        // API record → catalogue row`}
             />
           </GuideSection>
 
           <GuideSection
             id="add-product"
             icon={Package}
-            title="Add product form"
-            description="/products/new — 6-step Formik wizard. Payload builder is ready; submit currently logs formatProductPayloadSample to console (API hookup pending)."
+            title="Add product"
+            description="/products/new — 6-step Formik wizard. Creates products via live API with optional presigned S3 media upload."
           >
             <ol className="space-y-2 text-sm leading-relaxed text-slate-700">
-              <li><strong>1. Product Info</strong> — Name, SKU, rich description, category + sub category, brand (<code className="rounded bg-slate-100 px-1 text-xs">SearchableSelect</code> with custom entry), tags. Specs are hidden; <code className="rounded bg-slate-100 px-1 text-xs">metadata</code> submits as an empty object.</li>
-              <li><strong>2. Images</strong> — Required main photo (<code className="rounded bg-slate-100 px-1 text-xs">ProductMainImageUpload</code>) + optional gallery (<code className="rounded bg-slate-100 px-1 text-xs">ProductImageUploader</code>).</li>
+              <li><strong>1. Product Info</strong> — Name, SKU, rich-text description, category + subcategory, brand (<code className="rounded bg-slate-100 px-1 text-xs">SearchableSelect</code> + inline brand create), condition, tags, key details.</li>
+              <li><strong>2. Images</strong> — Required main photo + gallery + optional descriptive (2×2 grid) images with dimension validation.</li>
               <li><strong>3. Pricing</strong> — List price, discount (amount or %), quantity, low stock, barcode.</li>
-              <li><strong>4. Variations</strong> — Optional groups (Size / Color / Weight presets or custom). Per-value SKU, pricing, inventory, multi-image upload (<code className="rounded bg-slate-100 px-1 text-xs">VariantImageUpload</code>).</li>
+              <li><strong>4. Variations</strong> — Optional attribute groups with per-value SKU, pricing, stock, compatible models, variant images.</li>
               <li><strong>5. Shipping</strong> — Weight and dimensions.</li>
-              <li><strong>6. Review</strong> — Summary + publish / save draft.</li>
+              <li><strong>6. Review</strong> — Summary + publish.</li>
             </ol>
 
             <CodeBlock
-              title="Categories (TanStack Query)"
-              code={`// src/hooks/useCategories.js
-const { parentCategories, categoryTree, isLoading } = useProductCategoryOptions()
+              title="Create flow (presigned upload enabled by default)"
+              code={`// Submit in AddProduct.jsx
+const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD
 
-// Endpoints (constants/categories.js)
-GET_PARENTS: '/api/category/get_parents'
-GET_WITH_CHILDREN: '/api/category/get_with_children'`}
+if (usePresignedUpload) {
+  // 1. Request signed URLs → 2. PUT files to S3 → 3. POST JSON create
+  nextMediaState = await uploadPendingMedia(mediaState)
+  const payload = buildProductCreateJsonPayload(formValues, mainImage, subImages, {
+    descriptiveImages, variations,
+  })
+  await createProductMutation.mutateAsync({ payload, context })
+} else {
+  // Fallback: multipart FormData via buildProductPayload
+}
+
+// Progress UI → ProductPublishProgressModal
+// Dev autofill → DevProductFormTools (local env only)`}
             />
 
             <CodeBlock
-              title="Multipart payload (utils/productPayload.js)"
-              code={`const formData = buildProductPayload(values, mainImage, subImages)
+              title="Shared step exports (reused by Edit Product info flow)"
+              code={`// Exported from AddProduct.jsx for reuse:
+export function InfoStep({ ... })
+export function ImagesStep({ ... })
+export function PricingStep({ ... })
+export function ShippingStep({ ... })
+export function ReviewStep({ ... })
 
-// Root fields: name, description, category_slug, subcategory_slug,
-// brand_slug, tags, metadata={}, quantity, primary_image File, product_images Files, shipping
-// Variants flattened — one API object per value:
-{
-  variant_name: 'Black / Large',
-  quantity: 25,
-  reserved_quantity: 10,
-  low_stock_threshold: 10,
-  barcode: '...',
-  price: 245.99,
-  discount_price: 199.99,
-  sku: 'SKU-001-BLK-L',
-  attributes: { color: 'black' },
-  images: [{ image_url: File, sort_order: 0, is_primary: true }],
-}
-
-// Dev-only fixtures + autofill → DevProductFormTools (isLocalEnvironment)
-// Validation → productListingSchema in validationSchemas.js
-// Stepper is clickable; intermediate steps validate before forward navigation
-// Submit FormData directly with multipart/form-data. Do not JSON.stringify it.`}
+// Validation → productListingSchema / productInfoSchema`}
             />
+          </GuideSection>
+
+          <GuideSection
+            id="edit-product"
+            icon={Layers}
+            title="Edit product"
+            description="/products/:productId/edit — split into two independent flows so vendors only change what they intend."
+          >
+            <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
+              <li>• <strong>Chooser</strong> — <code className="rounded bg-slate-100 px-1 text-xs">?section=info</code> or <code className="rounded bg-slate-100 px-1 text-xs">?section=variations</code>.</li>
+              <li>• <strong>Edit product info</strong> — 5-step wizard (Info → Images → Pricing → Shipping → Review). Saves via <code className="rounded bg-slate-100 px-1 text-xs">useUpdateProductInfoMutation</code> + <code className="rounded bg-slate-100 px-1 text-xs">buildProductInfoPayload</code> (no variations).</li>
+              <li>• <strong>Edit images (info flow)</strong> — <code className="rounded bg-slate-100 px-1 text-xs">EditProductImagesStep</code> tracks keep / remove / add / replace. Payload sends <code className="rounded bg-slate-100 px-1 text-xs">keep_image_ids</code>, <code className="rounded bg-slate-100 px-1 text-xs">removed_image_ids</code>, and new uploads.</li>
+              <li>• <strong>Edit variations</strong> — <code className="rounded bg-slate-100 px-1 text-xs">VariationsEditForm</code> manages variant CRUD via per-variant update/create/delete mutations.</li>
+              <li>• <strong>View product</strong> — <code className="rounded bg-slate-100 px-1 text-xs">/products/:id/view</code> renders <code className="rounded bg-slate-100 px-1 text-xs">ProductStorefrontPreview</code> (consumer-style layout).</li>
+              <li>• <strong>Form hydration</strong> — <code className="rounded bg-slate-100 px-1 text-xs">mapProductRecordToFormState</code> maps API images to remote preview objects.</li>
+            </ul>
+
+            <CodeBlock
+              title="Edit info payload"
+              code={`const payload = buildProductInfoPayload(formValues, mainImage, subImages, {
+  mode: 'edit',
+  descriptiveImages,
+  removedProductImageIds,
+  removedDescriptiveImageIds,
+})
+// Appends _method=PUT; refreshes detail cache via GET /api/product/:id`}
+            />
+          </GuideSection>
+
+          <GuideSection
+            id="media-upload"
+            icon={Image}
+            title="Presigned media upload"
+            description="Product and variant images can upload to S3 before the create/update API call."
+          >
+            <CodeBlock
+              title="Flow"
+              code={`// constants/productMediaUpload.js
+USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD  // default true; set env false to disable
+
+// 1. Build presign request (only pending local files)
+buildProductMediaPresignRequest({ mainImage, subImages, descriptiveImages, variations })
+
+// 2. POST /api/product/images/get-signed-urls
+
+// 3. Parallel PUT to S3 (PRODUCT_MEDIA_UPLOAD_CONCURRENCY = 4)
+useProductMediaUpload().uploadPendingMedia(mediaState)
+
+// 4. Attach upload_id to payload
+buildProductMediaSaveImagesPayload(mediaState)
+buildProductCreateJsonPayload(...)  // create
+buildProductInfoPayload(...)        // edit info (when pending uploads exist)`}
+            />
+          </GuideSection>
+
+          <GuideSection
+            id="integrations"
+            icon={Database}
+            title="API vs mock data"
+            description="Quick map of what is wired to the backend today vs local fixtures."
+          >
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Area</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  <tr><td className="px-4 py-3">Auth</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Register, login, OTP, logout</td></tr>
+                  <tr><td className="px-4 py-3">Categories</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Parent + tree queries</td></tr>
+                  <tr><td className="px-4 py-3">Brands</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Approved brands + inline create</td></tr>
+                  <tr><td className="px-4 py-3">Products</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">List, create, view, edit info, variants, delete, duplicate, toggle active</td></tr>
+                  <tr><td className="px-4 py-3">Product media</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Presigned S3 upload; edit image fields ready for backend</td></tr>
+                  <tr><td className="px-4 py-3">Orders</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/ordersData.js</td></tr>
+                  <tr><td className="px-4 py-3">Customers</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/customersData.js</td></tr>
+                  <tr><td className="px-4 py-3">Promotions</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/promotionsData.js (localStorage-backed)</td></tr>
+                  <tr><td className="px-4 py-3">Finance</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/financeData.js</td></tr>
+                  <tr><td className="px-4 py-3">Reviews</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/reviews.js</td></tr>
+                  <tr><td className="px-4 py-3">Messages</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/messages.js</td></tr>
+                  <tr><td className="px-4 py-3">Analytics</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">Empty by default; dev toggle loads sample data</td></tr>
+                  <tr><td className="px-4 py-3">Inventory</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/lowStockData.js</td></tr>
+                  <tr><td className="px-4 py-3">Sidebar badges</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">SIDEBAR_NAV_BADGES in sidebarNav.js</td></tr>
+                </tbody>
+              </table>
+            </div>
           </GuideSection>
 
           <GuideSection
             id="new-page"
             icon={Layers}
             title="How to build a new page"
-            description="Follow this flow for every new screen (shop, cart, checkout, profile, etc.)."
+            description="Follow this flow for every new screen."
           >
             <ol className="space-y-3 text-sm leading-relaxed text-slate-700">
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">1</span>
-                <span>Create a page component in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/pages/YourPage.jsx</code>.</span>
+                <span>Create a page in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/pages/</code> wrapped in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">DashboardLayout</code> for authenticated routes.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">2</span>
-                <span>Register the route in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/routes/AppRoutes.jsx</code>.</span>
+                <span>Register the route in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/routes/AppRoutes.jsx</code> and add a nav item in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">constants/sidebarNav.js</code> if needed.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">3</span>
@@ -366,61 +447,40 @@ GET_WITH_CHILDREN: '/api/category/get_with_children'`}
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">4</span>
-                <span>Fetch server data with TanStack Query hooks in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/hooks/</code> using <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">apiClient</code>.</span>
+                <span>Add TanStack Query hooks in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/hooks/</code> and API calls in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/services/</code>.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">5</span>
-                <span>Store client/session state in Redux slices under <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/store/slices/</code>.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">6</span>
-                <span>Register static images in <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">src/utils/Images.jsx</code> and use <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">notify</code> for user feedback.</span>
+                <span>Use <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">notify</code> for feedback and <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">EMPTY_STATE_PRESETS</code> for empty views.</span>
               </li>
             </ol>
-
-            <CodeBlock
-              title="Example page + route"
-              code={`// src/pages/products/Products.jsx — use DashboardLayout for authenticated pages
-import DashboardLayout from '../../components/dashboard/DashboardLayout'
-
-export default function Products() {
-  return (
-    <DashboardLayout pageTitle="All Products">
-      {/* page content */}
-    </DashboardLayout>
-  )
-}
-
-// src/routes/AppRoutes.jsx
-const protectedPage = (page) => <ProtectedRoute>{page}</ProtectedRoute>
-<Route path="/products" element={protectedPage(<Products />)} />`}
-            />
           </GuideSection>
 
           <GuideSection
             id="routing"
             icon={Route}
             title="Routing"
-            description="React Router v7 with guest-only and protected route guards. Login is the default for unauthenticated users."
+            description="React Router v7 with guest-only and protected route guards."
           >
             <CodeBlock
-              code={`// src/routes/AppRoutes.jsx
-<Route path="/" element={<LandingPage />} />
-<Route path="/login" element={guestOnly(<Login />)} />
-<Route path="/signup" element={guestOnly(<Signup />)} />
-<Route path="/verify-account" element={guestOnly(<VerifyAccount />)} />
-<Route path="/dashboard" element={protectedPage(<Dashboard />)} />
-<Route path="/products" element={protectedPage(<Products />)} />
-<Route path="/products/new" element={protectedPage(<AddProduct />)} />
-<Route path="/orders" element={protectedPage(<Orders />)} />
-<Route path="/orders/:orderId" element={protectedPage(<OrderDetails />)} />
-<Route path="/inventory" element={protectedPage(<Inventory />)} />
-<Route path="/notifications" element={protectedPage(<Notifications />)} />
-<Route path="/dev-guide" element={<DeveloperGuide />} />
+              code={`// Public / guest
+/                         LandingPage
+/login, /signup, /verify-account   GuestOnlyRoute
+/forgot-password
 
-import { Link, NavLink, useNavigate } from 'react-router'
-const navigate = useNavigate()
-navigate('/dashboard')`}
+// Protected (DashboardLayout pages)
+/dashboard
+/products, /products/new
+/products/:productId/view
+/products/:productId/edit?section=info|variations
+/orders, /orders/:orderId, /orders/:orderId/products
+/customers, /customers/:customerId
+/promotions, /promotions/new, /promotions/:promotionId, /promotions/:promotionId/edit
+/inventory, /notifications
+/finance, /analytics, /reviews, /messages
+/profile, /settings, /users, /help
+
+/dev-guide                 DeveloperGuide (public reference)`}
             />
           </GuideSection>
 
@@ -431,68 +491,22 @@ navigate('/dashboard')`}
             description="Auth session is persisted to localStorage and rehydrated on refresh via redux-persist + PersistGate in main.jsx."
           >
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-              <p className="font-medium text-slate-800">Persisted auth fields</p>
-              <ul className="mt-2 space-y-1 text-slate-600">
-                <li>• <code className="rounded bg-slate-100 px-1 text-xs">user</code> — vendor profile (business, store, email, status, …)</li>
-                <li>• <code className="rounded bg-slate-100 px-1 text-xs">accessToken</code> — JWT for <code className="rounded bg-slate-100 px-1 text-xs">Authorization</code></li>
-                <li>• <code className="rounded bg-slate-100 px-1 text-xs">applicationToken</code> — for <code className="rounded bg-slate-100 px-1 text-xs">Application-Token</code></li>
-                <li>• <code className="rounded bg-slate-100 px-1 text-xs">isAuthenticated</code> — derived on rehydrate</li>
-                <li>• <code className="rounded bg-slate-100 px-1 text-xs">pendingVerificationEmail</code> — pre-verify signup flow</li>
-              </ul>
-              <p className="mt-3 text-xs text-slate-500">
-                Storage key: <code className="rounded bg-slate-100 px-1">persist:vendor-auth</code> (v2 migration)
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
               <p className="font-medium text-slate-800">Live auth state</p>
               <p className="mt-2 text-slate-600">
                 Authenticated:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.isAuthenticated ? 'Yes' : 'No'}
-                </span>
+                <span className="font-medium text-slate-900">{auth.isAuthenticated ? 'Yes' : 'No'}</span>
               </p>
               <p className="text-slate-600">
                 User:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.user?.email ?? auth.user?.business_name ?? '—'}
-                </span>
-              </p>
-              <p className="text-slate-600">
-                Business:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.user?.business_name ?? '—'}
-                </span>
+                <span className="font-medium text-slate-900">{auth.user?.email ?? auth.user?.business_name ?? '—'}</span>
               </p>
               <p className="text-slate-600">
                 Store:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.user?.store_name ?? '—'}
-                </span>
+                <span className="font-medium text-slate-900">{auth.user?.store_name ?? '—'}</span>
               </p>
               <p className="text-slate-600">
                 Status:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.user?.status ?? '—'}
-                </span>
-              </p>
-              <p className="text-slate-600">
-                Token:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.accessToken ? 'Present' : '—'}
-                </span>
-              </p>
-              <p className="text-slate-600">
-                Application token:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.applicationToken ? 'Present' : '—'}
-                </span>
-              </p>
-              <p className="text-slate-600">
-                Pending verification:{' '}
-                <span className="font-medium text-slate-900">
-                  {auth.pendingVerificationEmail ?? '—'}
-                </span>
+                <span className="font-medium text-slate-900">{auth.user?.status ?? '—'}</span>
               </p>
             </div>
 
@@ -501,39 +515,8 @@ navigate('/dashboard')`}
               code={`import { useSelector, useDispatch } from 'react-redux'
 import { setCredentials, logout, updateUser } from '../store/slices/authSlice'
 
-const dispatch = useDispatch()
-const { user, isAuthenticated, accessToken, applicationToken } = useSelector((state) => state.auth)
-
-// After verify or login (vendor must have email_verified_at or phone_verified_at)
 dispatch(setCredentials({ user, accessToken, applicationToken }))
-
-// Update profile fields
-dispatch(updateUser({ name: 'Jane Doe' }))
-
-// Logout
 dispatch(logout())`}
-            />
-
-            <CodeBlock
-              title="Add a new slice"
-              code={`// src/store/slices/cartSlice.jsx
-import { createSlice } from '@reduxjs/toolkit'
-
-const cartSlice = createSlice({
-  name: 'cart',
-  initialState: { items: [] },
-  reducers: {
-    addItem: (state, action) => { state.items.push(action.payload) },
-    clearCart: (state) => { state.items = [] },
-  },
-})
-
-export const { addItem, clearCart } = cartSlice.actions
-export default cartSlice.reducer
-
-// src/store/store.js — auth slice persisted under key "vendor-auth"
-// Whitelist: user, accessToken, applicationToken, isAuthenticated, pendingVerificationEmail
-// Logout clears Redux then persistor.persist() flushes localStorage`}
             />
           </GuideSection>
 
@@ -541,56 +524,40 @@ export default cartSlice.reducer
             id="query"
             icon={Database}
             title="TanStack Query"
-            description="Use for server data: products, orders, inventory. Redux stays for client state only."
+            description="Server data lives in query hooks. Redux is for client/session state only."
           >
             <CodeBlock
-              title="Auth mutation pattern (already implemented)"
-              code={`// src/hooks/useAuthMutations.js
-import { useMutation } from '@tanstack/react-query'
-import { loginVendor } from '../services/authService'
-import notify from '../lib/notify'
+              title="Product queries & mutations"
+              code={`// List (paginated fetch, flattened client-side)
+const { data: products, isLoading, refetch } = useProducts()
 
-export function useLoginVendorMutation() {
-  return useMutation({
-    mutationKey: ['vendor-auth', 'login'],
-    mutationFn: loginVendor,
-    onError: (error) => notify.fromError(error, 'Invalid email or password'),
-  })
-}
+// Detail
+const { data: product } = useProduct(productId)
 
-// In a page component
-const loginMutation = useLoginVendorMutation()
-const data = await loginMutation.mutateAsync({ email, password })
-// loginMutation.isPending for loading state`}
+// Mutations — useProductMutations.js
+useCreateProductMutation()
+useUpdateProductInfoMutation()
+useUpdateProductVariantsMutation()
+useCreateProductVariantMutation()
+useDeleteProductVariantMutation()
+useDeleteProductsMutation()
+useDuplicateProductMutation()
+useUpdateProductStatusMutation()
+
+// Cache keys
+productQueryKeys.list()
+productQueryKeys.detail(productId)`}
             />
 
             <CodeBlock
-              title="Query hook pattern (categories — live API)"
-              code={`// src/hooks/useCategories.js
-import { useQuery } from '@tanstack/react-query'
-import { getParentCategories } from '../services/categoriesService'
-
-export function useParentCategories() {
-  return useQuery({
-    queryKey: ['categories', 'parents'],
-    queryFn: getParentCategories,
-    staleTime: 5 * 60 * 1000,
-  })
-}
-
-// Product catalog — replace local useState with a similar hook when API is ready
-export function useProducts() {
-  return useQuery({
-    queryKey: ['products'],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/api/vendor/products')
-      return data
-    },
-  })
-}`}
+              title="Other live queries"
+              code={`useProductCategoryOptions()   // categories
+useApprovedBrands()           // brands
+useCreateBrandMutation()`}
             />
+
             <p className="text-sm text-slate-600">
-              React Query Devtools open automatically in development (bottom-left of the screen).
+              React Query Devtools open automatically in development (bottom-left).
             </p>
           </GuideSection>
 
@@ -598,22 +565,31 @@ export function useProducts() {
             id="axios"
             icon={Server}
             title="Axios API client"
-            description="All HTTP requests go through apiClient. It attaches the auth token and handles 401 logout."
+            description="All HTTP requests go through apiClient. It attaches auth tokens and handles 401 logout."
           >
             <CodeBlock
-              title="Base URL (Config.jsx)"
-              code={`// src/utils/Config.jsx
-const config = { base_url: 'https://emall-backend-main-fnfxdk.laravel.cloud' }
-
-// src/lib/apiClient.js — uses config.base_url automatically`}
+              title="Product endpoints (constants/products.js)"
+              code={`PRODUCT_ENDPOINTS = {
+  CREATE: '/api/product',
+  LIST: '/api/product/get/vendor',
+  byId: (id) => \`/api/product/\${id}\`,
+  updateInfoById: (id) => \`/api/product/\${id}\`,
+  updateVariantById: (id) => \`/api/product/variant/\${id}\`,
+  createVariantStore: '/api/product/variant/store',
+  deleteVariantById: (id) => \`/api/product/variant/trash/\${id}\`,
+  deleteById: (id) => \`/api/product/trash/\${id}\`,
+  bulkDelete: '/api/product/multi-trash',
+  duplicateById: (id) => \`/api/product/duplicate/\${id}\`,
+  toggleActiveById: (id) => \`/api/product/set/is_active/\${id}\`,
+}`}
             />
+
             <CodeBlock
               title="Usage"
               code={`import apiClient from '../lib/apiClient'
+import { getAllProducts, createProduct } from '../services/productService'
 
-const { data } = await apiClient.post('/api/vendor/auth/login', { email, password })
-const { data: categories } = await apiClient.get('/api/category/get_parents')
-// Product create — wire AddProduct submit to your endpoint when ready`}
+// Base URL → src/utils/Config.jsx`}
             />
           </GuideSection>
 
@@ -624,46 +600,22 @@ const { data: categories } = await apiClient.get('/api/category/get_parents')
             description="Sonner toasts are globally available via the notify helper."
           >
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => notify.success('Added to cart')}
-                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
-              >
-                Success
-              </button>
-              <button
-                type="button"
-                onClick={() => notify.error('Payment failed')}
-                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
-              >
-                Error
-              </button>
-              <button
-                type="button"
-                onClick={() => notify.info('New deals available')}
-                className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700"
-              >
-                Info
-              </button>
-              <button
-                type="button"
-                onClick={() => notify.warning('Only 2 left in stock')}
-                className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600"
-              >
-                Warning
-              </button>
+              <button type="button" onClick={() => notify.success('Product saved')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">Success</button>
+              <button type="button" onClick={() => notify.error('Upload failed')} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">Error</button>
+              <button type="button" onClick={() => notify.info('New order received')} className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700">Info</button>
+              <button type="button" onClick={() => notify.warning('Low stock alert')} className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600">Warning</button>
             </div>
 
             <CodeBlock
               code={`import notify from '../lib/notify'
 
-notify.success('Order placed')
-notify.fromError(error, 'Checkout failed')
+notify.success('Product published')
+notify.fromError(error, 'Save failed')
 
-notify.promise(submitOrder(), {
-  loading: 'Placing order…',
-  success: 'Order confirmed',
-  error: 'Order failed',
+notify.promise(saveProduct(), {
+  loading: 'Saving…',
+  success: 'Saved',
+  error: 'Failed',
 })`}
             />
           </GuideSection>
@@ -672,25 +624,15 @@ notify.promise(submitOrder(), {
             id="images"
             icon={Image}
             title="Images"
-            description="Register all static images in Images.jsx. Never hardcode scattered paths across components."
+            description="Static assets vs dynamic product uploads."
           >
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
-              <img src={Images.brand.favicon} alt="Brand favicon" className="size-10" />
-              <p className="text-sm text-slate-600">
-                Example: <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Images.brand.favicon</code>
-              </p>
-            </div>
-
-            <CodeBlock
-              code={`import Images from '../utils/Images'
-
-<img src={Images.brand.favicon} alt="E-Mall" />
-
-// Static assets: place in src/assets/images/ → register in Images.jsx
-
-// Product uploads (dynamic): keep File objects in FormData
-// buildProductPayload(values, mainImage, subImages) in productPayload.js`}
-            />
+            <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
+              <li>• <strong>Static</strong> — register in <code className="rounded bg-slate-100 px-1 text-xs">utils/Images.jsx</code>; import as <code className="rounded bg-slate-100 px-1 text-xs">Images.brand.favicon</code>.</li>
+              <li>• <strong>Product uploads</strong> — <code className="rounded bg-slate-100 px-1 text-xs">File</code> objects in form state; validated in <code className="rounded bg-slate-100 px-1 text-xs">productImageUtils.js</code>.</li>
+              <li>• <strong>Presigned create</strong> — files upload to S3 first; payload references <code className="rounded bg-slate-100 px-1 text-xs">upload_id</code>.</li>
+              <li>• <strong>Edit keep/remove</strong> — remote images use <code className="rounded bg-slate-100 px-1 text-xs">isRemote</code> + <code className="rounded bg-slate-100 px-1 text-xs">remoteId</code>; payload sends keep/remove ID arrays.</li>
+              <li>• <strong>Dimension targets</strong> — primary, gallery, and descriptive sizes in <code className="rounded bg-slate-100 px-1 text-xs">constants/products.js</code>.</li>
+            </ul>
           </GuideSection>
 
           <GuideSection
@@ -700,21 +642,19 @@ notify.promise(submitOrder(), {
             description="Quick rules to keep the codebase maintainable."
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
-              <li>• <strong>Redux</strong> — auth session, pending verification email (client state).</li>
-              <li>• <strong>TanStack Query</strong> — auth mutations, category tree; product list/create hooks next.</li>
-              <li>• <strong>Formik + Yup</strong> — auth pages + add-product wizard (<code className="rounded bg-slate-100 px-1 text-xs">productListingSchema</code>).</li>
-              <li>• <strong>apiClient</strong> — single axios instance using <code className="rounded bg-slate-100 px-1 text-xs">Config.jsx</code> base URL.</li>
-              <li>• <strong>notify</strong> — user-facing success/error feedback after actions.</li>
-              <li>• <strong>Images.jsx</strong> — single source of truth for static assets; product uploads use <code className="rounded bg-slate-100 px-1 text-xs">File</code> objects in multipart <code className="rounded bg-slate-100 px-1 text-xs">FormData</code>.</li>
-              <li>• Put query/mutation hooks in <code className="rounded bg-slate-100 px-1 text-xs">src/hooks/</code>, API logic in <code className="rounded bg-slate-100 px-1 text-xs">src/services/</code>.</li>
-              <li>• Style with Tailwind utility classes; font is Instrument Sans (see index.css).</li>
-              <li>• <strong>Email vs activation</strong> — OTP verifies email only; admin sets <code className="rounded bg-slate-100 px-1 text-xs">status: active</code> after review.</li>
+              <li>• <strong>Redux</strong> — auth session + pending verification email only.</li>
+              <li>• <strong>TanStack Query</strong> — all server data (products, categories, brands, future orders).</li>
+              <li>• <strong>Formik + Yup</strong> — multi-step forms; schemas in <code className="rounded bg-slate-100 px-1 text-xs">validationSchemas.js</code>.</li>
+              <li>• <strong>Payload builders</strong> — <code className="rounded bg-slate-100 px-1 text-xs">productPayload.js</code> for create (JSON + FormData), edit info, and variant updates.</li>
+              <li>• <strong>Normalization</strong> — map API records in <code className="rounded bg-slate-100 px-1 text-xs">normalize*.js</code> / <code className="rounded bg-slate-100 px-1 text-xs">mapProductToFormValues.js</code>.</li>
+              <li>• <strong>Scroll helpers</strong> — <code className="rounded bg-slate-100 px-1 text-xs">scrollToFirstError</code>, <code className="rounded bg-slate-100 px-1 text-xs">scrollDashboardPanelToTop</code> for wizard UX.</li>
+              <li>• Style with Tailwind; brand color is <code className="rounded bg-slate-100 px-1 text-xs">brand</code> / auth primary red on consumer-facing previews.</li>
             </ul>
 
             <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-              <strong>Done:</strong> auth + landing + dashboard shell + product catalog UI + add-product form (payload builder).
+              <strong>Done:</strong> auth, landing, dashboard, product catalogue API, add/edit/view product, presigned media upload, brands + categories API, promotions UI (mock data).
               <br />
-              <strong>Next:</strong> wire product create/list APIs, order management, vendor profile, analytics.
+              <strong>Next:</strong> wire orders, customers, finance, reviews, messages, analytics, and notifications to backend; replace sidebar badge placeholders with API counts.
             </div>
           </GuideSection>
         </main>
