@@ -1199,6 +1199,14 @@ function assertProductImagesUploaded(mainImage, subImages = []) {
   })
 }
 
+function assertVariantImagesUploaded(images = []) {
+  images.forEach((image) => {
+    if (isImageUploadedToStorage(image) || isKeptRemoteProductImage(image)) return
+
+    throw new Error('Variant image upload did not finish. Please try saving again.')
+  })
+}
+
 function assertProductInfoImagesReady(mainImage, subImages = [], descriptiveImages = []) {
   assertProductImagesUploaded(mainImage, subImages)
 
@@ -1535,6 +1543,45 @@ export function buildSingleVariantUpdatePayload(variantFormValues, variantId, pr
   }
 
   return formData
+}
+
+/**
+ * JSON variant update payload.
+ * Existing images → { id, sort_order, is_primary }
+ * New uploads     → { upload_id, sort_order, is_primary }
+ * Removed images  → omitted from images[]
+ */
+export function buildSingleVariantUpdateJsonPayload(variantFormValues, productValues) {
+  assertVariantImagesPresent(
+    variantFormValues,
+    { attribute: variantFormValues.attribute ?? '' },
+    { mode: 'edit' },
+  )
+  assertVariantImagesUploaded(variantFormValues.images ?? [])
+
+  const { variationData } = buildSingleVariantFormData(variantFormValues, productValues)
+  const mediaImages = buildProductMediaSaveImagesPayload({
+    variations: [{
+      attribute: variantFormValues.attribute,
+      values: [{
+        value: variantFormValues.value,
+        images: variantFormValues.images ?? [],
+      }],
+    }],
+  })
+
+  const images = mediaImages.variations[0]?.values[0]?.images ?? []
+  const fields = { ...variationData }
+  delete fields.images
+
+  if (import.meta.env.DEV) {
+    console.log('[edit variant] JSON payload:', { ...fields, images })
+  }
+
+  return {
+    ...fields,
+    images,
+  }
 }
 
 export function buildSingleVariantCreatePayload(variantFormValues, productId, productValues) {

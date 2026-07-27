@@ -117,20 +117,36 @@ export async function updateProductInfo(productId, body) {
   return record
 }
 
-export async function updateProductVariant(productVariantId, formData) {
-  if (!formData.get('_method')) {
-    formData.append('_method', 'PUT')
-  }
-
-  formData.delete('product_id')
-
+export async function updateProductVariant(productVariantId, body) {
   const endpoint = PRODUCT_ENDPOINTS.updateVariantById(productVariantId)
 
-  if (import.meta.env.DEV) {
-    console.log('[update variant] POST', endpoint)
+  if (body instanceof FormData) {
+    if (!body.get('_method')) {
+      body.append('_method', 'PUT')
+    }
+
+    body.delete('product_id')
+
+    if (import.meta.env.DEV) {
+      console.log('[update variant] POST', endpoint)
+    }
+
+    const { data } = await apiClient.post(endpoint, body)
+    assertApiSuccess(data)
+
+    const record = extractProductRecord(data)
+    if (!record?.id) {
+      throw new Error('Product variant was updated but no product id was returned.')
+    }
+
+    return record
   }
 
-  const { data } = await apiClient.post(endpoint, formData)
+  if (import.meta.env.DEV) {
+    console.log('[update variant] PUT', endpoint, body)
+  }
+
+  const { data } = await apiClient.put(endpoint, body)
   assertApiSuccess(data)
 
   const record = extractProductRecord(data)

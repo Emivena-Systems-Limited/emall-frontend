@@ -76,9 +76,12 @@ const inputBase = 'w-full rounded-xl border bg-white px-4 py-3 text-sm text-slat
 const normalState = 'border-slate-200 focus:border-brand focus:ring-2 focus:ring-brand-light'
 const errorState = 'border-red-400 ring-2 ring-red-100'
 
-function Label({ id, label, hint, reserveHintSpace = false, optional = false }) {
+function Label({ id, label, hint, reserveHintSpace = false, optional = false, className = '' }) {
   return (
-    <label htmlFor={id} className="mb-1.5 block">
+    <label
+      htmlFor={id}
+      className={['mb-1.5 block', className].filter(Boolean).join(' ')}
+    >
       <span className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold text-slate-800">{label}</span>
         {optional ? <OptionalBadge /> : null}
@@ -98,13 +101,14 @@ export function ProductInput({
   ...props
 }) {
   return (
-    <div data-field={props.name}>
+    <div data-field={props.name} className="flex h-full flex-col">
       <Label
         id={id}
         label={label}
         hint={hint}
         reserveHintSpace={reserveHintSpace}
         optional={optional}
+        className="flex-1"
       />
       <input
         id={id}

@@ -1,5 +1,6 @@
 import { ProductInput, ProductMoneyInput } from '../products/ProductFormControls'
 import VariantImageUpload from '../products/VariantImageUpload'
+import VariantImageEditSection from './VariantImageEditSection'
 import VariantPricingSummary from '../products/VariantPricingSummary'
 import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
 import CardStepHeader from './CardStepHeader'
@@ -9,7 +10,16 @@ import { MAX_VARIANT_IMAGE_COUNT } from './variantConstants'
 import { svFieldError } from './variantFormUtils'
 
 /** Steps shared between the single-variant form and the add-variant details drawer: photo, identity/specs, pricing, stock, compatible models. */
-export default function VariantDetailFields({ formik, productValues, isCustomPrice, setIsCustomPrice, mainQty, startStep = 3 }) {
+export default function VariantDetailFields({
+  formik,
+  productValues,
+  isCustomPrice,
+  setIsCustomPrice,
+  mainQty,
+  startStep = 3,
+  imageBaseline = null,
+  showImageEditHints = false,
+}) {
   const pricing = resolveVariantPricing(formik.values, productValues)
 
   return (
@@ -23,18 +33,32 @@ export default function VariantDetailFields({ formik, productValues, isCustomPri
           required
         />
         <div data-field="images">
-          <VariantImageUpload
-            label="Variant image"
-            hint="JPG or PNG · Max 5MB"
-            images={formik.values.images}
-            maxImages={MAX_VARIANT_IMAGE_COUNT}
-            thumbnailSizeClass="size-20 sm:size-24"
-            onChange={(images) => {
-              formik.setFieldValue('images', images)
-              formik.setFieldTouched('images', true, false)
-            }}
-            error={svFieldError(formik, 'images')}
-          />
+          {showImageEditHints && imageBaseline ? (
+            <VariantImageEditSection
+              imageBaseline={imageBaseline}
+              images={formik.values.images}
+              maxImages={MAX_VARIANT_IMAGE_COUNT}
+              thumbnailSizeClass="size-20 sm:size-24"
+              onChange={(images) => {
+                formik.setFieldValue('images', images)
+                formik.setFieldTouched('images', true, false)
+              }}
+              error={svFieldError(formik, 'images')}
+            />
+          ) : (
+            <VariantImageUpload
+              label="Variant image"
+              hint="JPG or PNG · Max 5MB"
+              images={formik.values.images}
+              maxImages={MAX_VARIANT_IMAGE_COUNT}
+              thumbnailSizeClass="size-20 sm:size-24"
+              onChange={(images) => {
+                formik.setFieldValue('images', images)
+                formik.setFieldTouched('images', true, false)
+              }}
+              error={svFieldError(formik, 'images')}
+            />
+          )}
         </div>
       </div>
 
@@ -135,6 +159,7 @@ export default function VariantDetailFields({ formik, productValues, isCustomPri
                 ? `Enter up to ${mainQty} units for this variant.`
                 : 'Set main stock on the product first.'
             }
+            reserveHintSpace
             placeholder="0"
             value={formik.values.quantity}
             onChange={formik.handleChange}
@@ -147,6 +172,7 @@ export default function VariantDetailFields({ formik, productValues, isCustomPri
             type="number"
             label="Reserved quantity"
             hint="Units held for pending orders."
+            reserveHintSpace
             placeholder="0"
             optional
             value={formik.values.reserved_quantity}
@@ -160,6 +186,7 @@ export default function VariantDetailFields({ formik, productValues, isCustomPri
             type="number"
             label="Low stock alert"
             hint="Alert when stock falls to this level. Defaults to 5."
+            reserveHintSpace
             placeholder="5"
             value={formik.values.minimum_threshold}
             onChange={formik.handleChange}
