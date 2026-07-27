@@ -2,63 +2,29 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { useDispatch, useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Bell,
-  Building2,
-  Camera,
-  ChevronRight,
-  CircleHelp,
-  ClipboardCheck,
-  CreditCard,
-  Gift,
-  Heart,
-  House,
-  Landmark,
-  Loader2,
-  LogOut,
-  MapPin,
-  MessageSquareText,
-  Package,
-  RotateCcw,
-  Settings,
-  ShieldCheck,
-  ShoppingBag,
-  Store,
-  TicketPercent,
-  UserRound,
-  X,
-} from 'lucide-react'
+import { Bell, Building2, Camera, ChevronRight, CircleHelp, ClipboardCheck, CreditCard, Gift, Heart, House, Landmark, Loader2, LogOut, MapPin, MessageSquareText, Package, RotateCcw, Settings, ShieldCheck, ShoppingBag, Store, TicketPercent, UserRound, X } from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
 import AccountAddressesPanel from '../components/account/AccountAddressesPanel'
 import AccountOrdersPanel from '../components/account/AccountOrdersPanel'
 import AccountWishlistPanel from '../components/account/AccountWishlistPanel'
+import AccountCouponsPanel from '../components/account/AccountCouponsPanel'
+import AccountReviewsPanel from '../components/account/AccountReviewsPanel'
 import SearchableSelect from '../components/auth/SearchableSelect'
 import { getUserAddresses } from '../services/addressService'
-import {
-  deleteUserAvatar,
-  deleteUserProfile,
-  getUserProfile,
-  updateUserProfile,
-  uploadUserAvatar,
-} from '../services/profileService'
+import { deleteUserAvatar, deleteUserProfile, getUserProfile, updateUserProfile, uploadUserAvatar } from '../services/profileService'
 import { useLogoutMutation } from '../hooks/useAuthMutations'
 import { logout, updateUser } from '../store/slices/authSlice'
 import { persistor } from '../store/store'
 import { clearAuthOtpSession } from '../utils/authOtpSession'
 import { notify } from '../lib/notify'
 import { resolveBackendMediaUrl } from '../utils/resolveBackendMediaUrl'
-import {
-  GHANA_LOCATIONS,
-  LOCATION_OTHER_VALUE,
-  getCityLabel,
-  getCityOptionsByRegion,
-  getDistrictsByRegion,
-  getDistrictsByRegionAndCity,
-  resolveCitySelection,
-} from '../constants/ghanaLocations'
+import { GHANA_LOCATIONS, LOCATION_OTHER_VALUE, getCityLabel, getCityOptionsByRegion, getDistrictsByRegion, getDistrictsByRegionAndCity, resolveCitySelection } from '../constants/ghanaLocations'
 
-const profileRegionOptions = GHANA_LOCATIONS.map((region) => ({ value: region.id, label: region.name }))
+const profileRegionOptions = GHANA_LOCATIONS.map((region) => ({
+  value: region.id,
+  label: region.name,
+}))
 
 const navigationItems = [
   { label: 'Profile Overview', icon: House, href: '/account' },
@@ -76,10 +42,38 @@ const navigationItems = [
 ]
 
 const statistics = [
-  { label: 'Total Orders', value: '0', link: 'View all orders', href: '/account/orders', icon: ShoppingBag, tone: 'bg-red-50 text-auth-primary' },
-  { label: 'Pending Deliveries', value: '0', link: 'Track orders', href: '/account/orders', icon: Package, tone: 'bg-amber-50 text-amber-700' },
-  { label: 'Wishlist Items', value: '0', link: 'View wishlist', href: '/account/wishlist', icon: Heart, tone: 'bg-pink-50 text-pink-600' },
-  { label: 'Available Coupons', value: '0', link: 'View coupons', href: '/account/coupons', icon: Gift, tone: 'bg-emerald-50 text-emerald-700' },
+  {
+    label: 'Total Orders',
+    value: '0',
+    link: 'View all orders',
+    href: '/account/orders',
+    icon: ShoppingBag,
+    tone: 'bg-red-50 text-auth-primary',
+  },
+  {
+    label: 'Pending Deliveries',
+    value: '0',
+    link: 'Track orders',
+    href: '/account/orders',
+    icon: Package,
+    tone: 'bg-amber-50 text-amber-700',
+  },
+  {
+    label: 'Wishlist Items',
+    value: '0',
+    link: 'View wishlist',
+    href: '/account/wishlist',
+    icon: Heart,
+    tone: 'bg-pink-50 text-pink-600',
+  },
+  {
+    label: 'Available Coupons',
+    value: '0',
+    link: 'View coupons',
+    href: '/account/coupons',
+    icon: Gift,
+    tone: 'bg-emerald-50 text-emerald-700',
+  },
 ]
 
 function firstValue(...values) {
@@ -104,7 +98,11 @@ function formatJoinedDate(value) {
   if (!value) return 'Not available'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).format(date)
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
 }
 
 function getShippingAddresses(response) {
@@ -147,7 +145,12 @@ function Sidebar({ pathname, isLoggingOut, onLogout }) {
 
 function ProfileSummary({ profile, isUploading, onEdit, onUpload, onDeleteAvatar }) {
   const fileInputRef = useRef(null)
-  const initials = profile.fullName.split(/\s+/).slice(0, 2).map((name) => name[0]).join('').toUpperCase()
+  const initials = profile.fullName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((name) => name[0])
+    .join('')
+    .toUpperCase()
 
   const handlePhoto = (event) => {
     const file = event.target.files?.[0]
@@ -165,7 +168,16 @@ function ProfileSummary({ profile, isUploading, onEdit, onUpload, onDeleteAvatar
           <div className="relative">
             <div className="relative flex size-24 items-center justify-center overflow-hidden rounded-2xl border-4 border-white/25 bg-white/15 text-2xl font-bold shadow-lg sm:size-28">
               <span aria-hidden>{initials}</span>
-              {profile.photo ? <img src={profile.photo} alt={profile.fullName} onError={(event) => { event.currentTarget.style.display = 'none' }} className="absolute inset-0 size-full object-cover" /> : null}
+              {profile.photo ? (
+                <img
+                  src={profile.photo}
+                  alt={profile.fullName}
+                  onError={(event) => {
+                    event.currentTarget.style.display = 'none'
+                  }}
+                  className="absolute inset-0 size-full object-cover"
+                />
+              ) : null}
             </div>
             <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Upload profile picture" className="absolute -bottom-2 -right-2 flex size-9 items-center justify-center rounded-full border-2 border-white bg-white text-auth-primary shadow-md transition-transform hover:scale-105">
               <Camera className="size-4" />
@@ -184,9 +196,17 @@ function ProfileSummary({ profile, isUploading, onEdit, onUpload, onDeleteAvatar
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold backdrop-blur transition-colors hover:bg-white/20 disabled:opacity-60">{isUploading ? 'Uploading…' : 'Upload photo'}</button>
-          {profile.photo ? <button type="button" onClick={onDeleteAvatar} className="rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold backdrop-blur transition-colors hover:bg-white/20">Remove photo</button> : null}
-          <button type="button" onClick={onEdit} className="rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-auth-primary shadow-sm transition-transform hover:-translate-y-0.5">Edit profile</button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold backdrop-blur transition-colors hover:bg-white/20 disabled:opacity-60">
+            {isUploading ? 'Uploading…' : 'Upload photo'}
+          </button>
+          {profile.photo ? (
+            <button type="button" onClick={onDeleteAvatar} className="rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold backdrop-blur transition-colors hover:bg-white/20">
+              Remove photo
+            </button>
+          ) : null}
+          <button type="button" onClick={onEdit} className="rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-auth-primary shadow-sm transition-transform hover:-translate-y-0.5">
+            Edit profile
+          </button>
         </div>
       </div>
     </section>
@@ -201,11 +221,16 @@ function StatisticCards() {
         return (
           <article key={item.label} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-auth-primary/20 hover:shadow-[0_15px_35px_rgba(15,23,42,0.08)]">
             <div className="flex items-start justify-between gap-3">
-              <span className={`flex size-11 items-center justify-center rounded-xl ${item.tone}`}><Icon className="size-5" /></span>
+              <span className={`flex size-11 items-center justify-center rounded-xl ${item.tone}`}>
+                <Icon className="size-5" />
+              </span>
               <span className="text-3xl font-bold tracking-tight text-slate-950">{item.value}</span>
             </div>
             <h3 className="mt-4 text-sm font-semibold text-slate-600">{item.label}</h3>
-            <Link to={item.href} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-auth-primary hover:underline">{item.link}<ChevronRight className="size-3.5" /></Link>
+            <Link to={item.href} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-auth-primary hover:underline">
+              {item.link}
+              <ChevronRight className="size-3.5" />
+            </Link>
           </article>
         )
       })}
@@ -216,7 +241,8 @@ function StatisticCards() {
 function VerificationBadge({ verified }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${verified ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-      <ShieldCheck className="size-3.5" />{verified ? 'Verified' : 'Not verified'}
+      <ShieldCheck className="size-3.5" />
+      {verified ? 'Verified' : 'Not verified'}
     </span>
   )
 }
@@ -224,20 +250,41 @@ function VerificationBadge({ verified }) {
 function AccountInformation({ profile, user, onDeleteProfile }) {
   const rows = [
     { label: 'Full name', value: profile.fullName },
-    { label: 'Email address', value: profile.email, badge: <VerificationBadge verified={Boolean(user?.email_verified_at || user?.email_verified || user?.is_email_verified)} /> },
-    { label: 'Phone number', value: profile.phone, badge: <VerificationBadge verified={Boolean(user?.phone_verified_at || user?.phone_verified || user?.is_phone_verified)} /> },
+    {
+      label: 'Email address',
+      value: profile.email,
+      badge: <VerificationBadge verified={Boolean(user?.email_verified_at || user?.email_verified || user?.is_email_verified)} />,
+    },
+    {
+      label: 'Phone number',
+      value: profile.phone,
+      badge: <VerificationBadge verified={Boolean(user?.phone_verified_at || user?.phone_verified || user?.is_phone_verified)} />,
+    },
   ]
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.04)] sm:p-6">
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">Personal details</p><h2 className="mt-1 text-xl font-bold text-slate-950">Account information</h2></div>
-        <span className="flex size-11 items-center justify-center rounded-xl bg-red-50 text-auth-primary"><UserRound className="size-5" /></span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">Personal details</p>
+          <h2 className="mt-1 text-xl font-bold text-slate-950">Account information</h2>
+        </div>
+        <span className="flex size-11 items-center justify-center rounded-xl bg-red-50 text-auth-primary">
+          <UserRound className="size-5" />
+        </span>
       </div>
       <dl className="mt-2 divide-y divide-slate-100">
-        {rows.map((row) => <div key={row.label} className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4"><dt className="text-sm font-medium text-slate-500">{row.label}</dt><dd className="min-w-0 break-words text-sm font-semibold text-slate-900">{row.value}</dd>{row.badge ? <dd>{row.badge}</dd> : <span />}</div>)}
+        {rows.map((row) => (
+          <div key={row.label} className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+            <dt className="text-sm font-medium text-slate-500">{row.label}</dt>
+            <dd className="min-w-0 break-words text-sm font-semibold text-slate-900">{row.value}</dd>
+            {row.badge ? <dd>{row.badge}</dd> : <span />}
+          </div>
+        ))}
       </dl>
       <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">Email address and phone number are secured account identifiers and cannot be changed here.</p>
-      <button type="button" onClick={onDeleteProfile} className="mt-4 text-xs font-bold text-red-600 underline-offset-4 hover:underline">Delete my account</button>
+      <button type="button" onClick={onDeleteProfile} className="mt-4 text-xs font-bold text-red-600 underline-offset-4 hover:underline">
+        Delete my account
+      </button>
     </section>
   )
 }
@@ -278,16 +325,24 @@ function EditProfileModal({ initialProfile, isSaving, onClose, onSave }) {
   const cityOptions = useMemo(() => getCityOptionsByRegion(form.region), [form.region])
   const districts = useMemo(() => {
     if (!form.region) return []
-    return form.city === LOCATION_OTHER_VALUE
-      ? getDistrictsByRegion(form.region)
-      : getDistrictsByRegionAndCity(form.region, form.city)
+    return form.city === LOCATION_OTHER_VALUE ? getDistrictsByRegion(form.region) : getDistrictsByRegionAndCity(form.region, form.city)
   }, [form.region, form.city])
-  const districtOptions = districts.map((district) => ({ value: district.id, label: district.name }))
+  const districtOptions = districts.map((district) => ({
+    value: district.id,
+    label: district.name,
+  }))
 
   const updateLocation = (field, value) => {
     setForm((current) => {
       const next = { ...current, [field]: value }
-      if (field === 'region') return { ...next, city: '', cityCustom: '', district: '', districtCustom: '' }
+      if (field === 'region')
+        return {
+          ...next,
+          city: '',
+          cityCustom: '',
+          district: '',
+          districtCustom: '',
+        }
       if (field === 'city') {
         next.cityCustom = ''
         next.districtCustom = ''
@@ -306,26 +361,65 @@ function EditProfileModal({ initialProfile, isSaving, onClose, onSave }) {
     }
     const region = GHANA_LOCATIONS.find((item) => item.id === form.region)?.name ?? ''
     const city_or_town = form.city === LOCATION_OTHER_VALUE ? form.cityCustom.trim() : getCityLabel(form.region, form.city)
-    const district = form.district === LOCATION_OTHER_VALUE ? form.districtCustom.trim() : getDistrictsByRegion(form.region).find((item) => item.id === form.district)?.name ?? ''
+    const district = form.district === LOCATION_OTHER_VALUE ? form.districtCustom.trim() : (getDistrictsByRegion(form.region).find((item) => item.id === form.district)?.name ?? '')
     onSave({
-      first_name: form.first_name.trim(), last_name: form.last_name.trim(), email: form.email.trim(),
-      phone_number: form.phone_number.trim(), region, district, city_or_town,
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      email: form.email.trim(),
+      phone_number: form.phone_number.trim(),
+      region,
+      district,
+      city_or_town,
     })
   }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Edit profile">
       <form onSubmit={handleSubmit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7">
-        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">Account profile</p><h2 className="mt-1 text-2xl font-bold text-slate-950">Edit profile</h2></div><button type="button" onClick={onClose} className="flex size-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><X className="size-4" /></button></div>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">Account profile</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-950">Edit profile</h2>
+          </div>
+          <button type="button" onClick={onClose} className="flex size-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200">
+            <X className="size-4" />
+          </button>
+        </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {[
-            ['first_name', 'First name'], ['last_name', 'Last name'], ['email', 'Email address'], ['phone_number', 'Phone number'],
-          ].map(([name, label]) => <label key={name} className="grid gap-2 text-sm font-semibold text-slate-700"><span>{label}</span><input value={form[name]} onChange={(event) => setForm((current) => ({ ...current, [name]: event.target.value }))} className="h-12 rounded-xl border border-slate-300 px-4 font-normal outline-none transition-colors focus:border-auth-primary focus:ring-2 focus:ring-red-100" /></label>)}
+            ['first_name', 'First name'],
+            ['last_name', 'Last name'],
+            ['email', 'Email address'],
+            ['phone_number', 'Phone number'],
+          ].map(([name, label]) => (
+            <label key={name} className="grid gap-2 text-sm font-semibold text-slate-700">
+              <span>{label}</span>
+              <input
+                value={form[name]}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    [name]: event.target.value,
+                  }))
+                }
+                className="h-12 rounded-xl border border-slate-300 px-4 font-normal outline-none transition-colors focus:border-auth-primary focus:ring-2 focus:ring-red-100"
+              />
+            </label>
+          ))}
           <SearchableSelect id="profile-region" label="Region" icon={MapPin} value={form.region} onChange={(value) => updateLocation('region', value)} options={profileRegionOptions} placeholder="Search regions…" emptyLabel="Select region" />
           <SearchableSelect id="profile-city" label="City or town" icon={Building2} value={form.city} onChange={(value) => updateLocation('city', value)} options={cityOptions} placeholder="Search cities and towns…" emptyLabel="Select city or town" allowOther otherValue={LOCATION_OTHER_VALUE} otherLabel="Other (enter custom city)" customValue={form.cityCustom} onCustomChange={(cityCustom) => setForm((current) => ({ ...current, cityCustom }))} customInputPlaceholder="Type your city or town" disabled={!form.region} />
-          <div className="sm:col-span-2"><SearchableSelect id="profile-district" label="District" icon={Landmark} value={form.district} onChange={(value) => updateLocation('district', value)} options={districtOptions} placeholder="Search districts…" emptyLabel="Select district" allowOther otherValue={LOCATION_OTHER_VALUE} otherLabel="Other (enter custom district)" customValue={form.districtCustom} onCustomChange={(districtCustom) => setForm((current) => ({ ...current, districtCustom }))} customInputPlaceholder="Type your district name" disabled={!form.region || !form.city} /></div>
+          <div className="sm:col-span-2">
+            <SearchableSelect id="profile-district" label="District" icon={Landmark} value={form.district} onChange={(value) => updateLocation('district', value)} options={districtOptions} placeholder="Search districts…" emptyLabel="Select district" allowOther otherValue={LOCATION_OTHER_VALUE} otherLabel="Other (enter custom district)" customValue={form.districtCustom} onCustomChange={(districtCustom) => setForm((current) => ({ ...current, districtCustom }))} customInputPlaceholder="Type your district name" disabled={!form.region || !form.city} />
+          </div>
         </div>
-        <div className="mt-7 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700">Cancel</button><button type="submit" disabled={isSaving} className="rounded-xl bg-auth-primary px-6 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover disabled:opacity-60">{isSaving ? 'Saving…' : 'Save changes'}</button></div>
+        <div className="mt-7 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700">
+            Cancel
+          </button>
+          <button type="submit" disabled={isSaving} className="rounded-xl bg-auth-primary px-6 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover disabled:opacity-60">
+            {isSaving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
       </form>
     </div>
   )
@@ -335,7 +429,24 @@ function DeleteProfileModal({ isDeleting, onClose, onConfirm }) {
   const [confirmation, setConfirmation] = useState('')
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Delete profile">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="flex size-12 items-center justify-center rounded-full bg-red-50 text-red-600"><LogOut className="size-5" /></div><h2 className="mt-4 text-xl font-bold text-slate-950">Delete your account?</h2><p className="mt-2 text-sm leading-6 text-slate-600">This action is permanent. Type <strong>DELETE</strong> to confirm.</p><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} className="mt-4 h-12 w-full rounded-xl border border-slate-300 px-4 outline-none focus:border-red-500" placeholder="Type DELETE" /><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button><button type="button" onClick={onConfirm} disabled={confirmation !== 'DELETE' || isDeleting} className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{isDeleting ? 'Deleting…' : 'Delete account'}</button></div></div>
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="flex size-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+          <LogOut className="size-5" />
+        </div>
+        <h2 className="mt-4 text-xl font-bold text-slate-950">Delete your account?</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          This action is permanent. Type <strong>DELETE</strong> to confirm.
+        </p>
+        <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} className="mt-4 h-12 w-full rounded-xl border border-slate-300 px-4 outline-none focus:border-red-500" placeholder="Type DELETE" />
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} disabled={confirmation !== 'DELETE' || isDeleting} className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+            {isDeleting ? 'Deleting…' : 'Delete account'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -345,18 +456,54 @@ function DefaultAddress({ address, isLoading }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.04)] sm:p-6">
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">Saved location</p><h2 className="mt-1 text-xl font-bold text-slate-950">Default address</h2></div>
-        <span className="flex size-11 items-center justify-center rounded-xl bg-red-50 text-auth-primary"><MapPin className="size-5" /></span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">Saved location</p>
+          <h2 className="mt-1 text-xl font-bold text-slate-950">Default address</h2>
+        </div>
+        <span className="flex size-11 items-center justify-center rounded-xl bg-red-50 text-auth-primary">
+          <MapPin className="size-5" />
+        </span>
       </div>
-      {isLoading ? <div className="flex min-h-48 items-center justify-center"><Loader2 className="size-6 animate-spin text-auth-primary" /></div> : address ? (
+      {isLoading ? (
+        <div className="flex min-h-48 items-center justify-center">
+          <Loader2 className="size-6 animate-spin text-auth-primary" />
+        </div>
+      ) : address ? (
         <div className="mt-5">
-          <div className="flex items-center justify-between gap-3"><span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold capitalize text-auth-primary">{address.type || address.label || 'Home'}</span><ClipboardCheck className="size-5 text-emerald-600" /></div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold capitalize text-auth-primary">{address.type || address.label || 'Home'}</span>
+            <ClipboardCheck className="size-5 text-emerald-600" />
+          </div>
           <h3 className="mt-4 text-base font-bold text-slate-950">{recipient}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">{firstValue(address.address_line_1, address.address, address.street_address, 'Street address not provided')}</p>
-          <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-sm"><div><p className="text-xs text-slate-400">Region</p><p className="mt-1 font-semibold text-slate-800">{firstValue(address.region, '—')}</p></div><div><p className="text-xs text-slate-400">City</p><p className="mt-1 font-semibold text-slate-800">{firstValue(address.city_or_town, address.city, address.town, '—')}</p></div><div className="col-span-2"><p className="text-xs text-slate-400">District</p><p className="mt-1 font-semibold text-slate-800">{firstValue(address.district, '—')}</p></div></div>
+          <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-sm">
+            <div>
+              <p className="text-xs text-slate-400">Region</p>
+              <p className="mt-1 font-semibold text-slate-800">{firstValue(address.region, '—')}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">City</p>
+              <p className="mt-1 font-semibold text-slate-800">{firstValue(address.city_or_town, address.city, address.town, '—')}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-slate-400">District</p>
+              <p className="mt-1 font-semibold text-slate-800">{firstValue(address.district, '—')}</p>
+            </div>
+          </div>
         </div>
-      ) : <div className="flex min-h-48 flex-col items-center justify-center text-center"><span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><MapPin className="size-5" /></span><p className="mt-3 text-sm font-semibold text-slate-700">No saved address yet</p><p className="mt-1 text-xs text-slate-500">Add an address for faster checkout.</p></div>}
-      <Link to="/account/addresses" className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-auth-primary px-4 py-3 text-sm font-bold text-auth-primary transition-colors hover:bg-auth-primary hover:text-white">Manage addresses<ChevronRight className="size-4" /></Link>
+      ) : (
+        <div className="flex min-h-48 flex-col items-center justify-center text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <MapPin className="size-5" />
+          </span>
+          <p className="mt-3 text-sm font-semibold text-slate-700">No saved address yet</p>
+          <p className="mt-1 text-xs text-slate-500">Add an address for faster checkout.</p>
+        </div>
+      )}
+      <Link to="/account/addresses" className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-auth-primary px-4 py-3 text-sm font-bold text-auth-primary transition-colors hover:bg-auth-primary hover:text-white">
+        Manage addresses
+        <ChevronRight className="size-4" />
+      </Link>
     </section>
   )
 }
@@ -371,17 +518,21 @@ export default function AccountPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isDeletingProfile, setIsDeletingProfile] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState('')
-  const profileQuery = useQuery({ queryKey: ['user-profile'], queryFn: getUserProfile, staleTime: 60_000, retry: 1 })
-  const liveUser = useMemo(
-    () => profileQuery.data && typeof profileQuery.data === 'object' ? { ...user, ...profileQuery.data } : user,
-    [profileQuery.data, user],
-  )
+  const profileQuery = useQuery({
+    queryKey: ['user-profile'],
+    queryFn: getUserProfile,
+    staleTime: 60_000,
+    retry: 1,
+  })
+  const liveUser = useMemo(() => (profileQuery.data && typeof profileQuery.data === 'object' ? { ...user, ...profileQuery.data } : user), [profileQuery.data, user])
   const profile = useMemo(() => getProfile(liveUser), [liveUser])
-  const displayedProfile = useMemo(
-    () => avatarPreview ? { ...profile, photo: avatarPreview } : profile,
-    [avatarPreview, profile],
-  )
-  const addressesQuery = useQuery({ queryKey: ['user-addresses'], queryFn: getUserAddresses, staleTime: 60_000, retry: 1 })
+  const displayedProfile = useMemo(() => (avatarPreview ? { ...profile, photo: avatarPreview } : profile), [avatarPreview, profile])
+  const addressesQuery = useQuery({
+    queryKey: ['user-addresses'],
+    queryFn: getUserAddresses,
+    staleTime: 60_000,
+    retry: 1,
+  })
   const shippingAddresses = useMemo(() => getShippingAddresses(addressesQuery.data), [addressesQuery.data])
   const defaultAddress = shippingAddresses.find((item) => item?.is_default || item?.isDefault) ?? shippingAddresses[0]
 
@@ -389,9 +540,12 @@ export default function AccountPage() {
     if (profileQuery.data && typeof profileQuery.data === 'object') dispatch(updateUser(profileQuery.data))
   }, [dispatch, profileQuery.data])
 
-  useEffect(() => () => {
-    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
-  }, [avatarPreview])
+  useEffect(
+    () => () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+    },
+    [avatarPreview],
+  )
 
   const refreshProfile = async (updatedProfile, message) => {
     if (updatedProfile && typeof updatedProfile === 'object') dispatch(updateUser(updatedProfile))
@@ -399,14 +553,53 @@ export default function AccountPage() {
     notify.success(message)
   }
 
-  const updateProfileMutation = useMutation({ mutationFn: updateUserProfile, onSuccess: async (data) => { await refreshProfile(data, 'Profile updated successfully'); setIsEditingProfile(false) }, onError: (error) => notify.fromError(error, 'Unable to update profile') })
-  const uploadAvatarMutation = useMutation({ mutationFn: uploadUserAvatar, onSuccess: (data) => refreshProfile(data, 'Profile picture updated'), onError: (error) => { setAvatarPreview(''); notify.fromError(error, 'Unable to upload profile picture') } })
-  const deleteAvatarMutation = useMutation({ mutationFn: deleteUserAvatar, onSuccess: (data) => { setAvatarPreview(''); return refreshProfile(data, 'Profile picture removed') }, onError: (error) => notify.fromError(error, 'Unable to remove profile picture') })
-  const deleteProfileMutation = useMutation({ mutationFn: deleteUserProfile, onSuccess: async () => { dispatch(logout()); clearAuthOtpSession(); await persistor.persist(); notify.success('Account deleted successfully'); navigate('/') }, onError: (error) => notify.fromError(error, 'Unable to delete account') })
+  const updateProfileMutation = useMutation({
+    mutationFn: updateUserProfile,
+    onSuccess: async (data) => {
+      await refreshProfile(data, 'Profile updated successfully')
+      setIsEditingProfile(false)
+    },
+    onError: (error) => notify.fromError(error, 'Unable to update profile'),
+  })
+  const uploadAvatarMutation = useMutation({
+    mutationFn: uploadUserAvatar,
+    onSuccess: (data) => refreshProfile(data, 'Profile picture updated'),
+    onError: (error) => {
+      setAvatarPreview('')
+      notify.fromError(error, 'Unable to upload profile picture')
+    },
+  })
+  const deleteAvatarMutation = useMutation({
+    mutationFn: deleteUserAvatar,
+    onSuccess: (data) => {
+      setAvatarPreview('')
+      return refreshProfile(data, 'Profile picture removed')
+    },
+    onError: (error) => notify.fromError(error, 'Unable to remove profile picture'),
+  })
+  const deleteProfileMutation = useMutation({
+    mutationFn: deleteUserProfile,
+    onSuccess: async () => {
+      dispatch(logout())
+      clearAuthOtpSession()
+      await persistor.persist()
+      notify.success('Account deleted successfully')
+      navigate('/')
+    },
+    onError: (error) => notify.fromError(error, 'Unable to delete account'),
+  })
 
   const handleLogout = async () => {
-    try { await logoutMutation.mutateAsync({ email: user?.email }) } catch { /* Always clear the local session. */ } finally {
-      dispatch(logout()); clearAuthOtpSession(); persistor.persist(); navigate('/'); notify.success('Logged out successfully')
+    try {
+      await logoutMutation.mutateAsync({ email: user?.email })
+    } catch {
+      /* Always clear the local session. */
+    } finally {
+      dispatch(logout())
+      clearAuthOtpSession()
+      persistor.persist()
+      navigate('/')
+      notify.success('Logged out successfully')
     }
   }
 
@@ -414,7 +607,11 @@ export default function AccountPage() {
     <SiteLayout>
       <section className="min-h-[70vh] bg-[#f7f8fa] py-6 sm:py-8 lg:py-10">
         <Container>
-          <div className="mb-6"><p className="text-sm font-semibold text-auth-primary">My Account</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{location.pathname === '/account/addresses' ? 'Address management' : location.pathname.startsWith('/account/orders') ? 'Order management' : location.pathname.startsWith('/account/wishlist') ? 'Wishlist' : 'Account dashboard'}</h1><p className="mt-2 text-sm text-slate-500">Manage your profile, activity, addresses and preferences from one place.</p></div>
+          <div className="mb-6">
+            <p className="text-sm font-semibold text-auth-primary">My Account</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{location.pathname === '/account/addresses' ? 'Address management' : location.pathname.startsWith('/account/orders') ? 'Order management' : location.pathname.startsWith('/account/wishlist') ? 'Wishlist' : location.pathname.startsWith('/account/coupons') ? 'Coupons & Offers' : location.pathname.startsWith('/account/reviews') ? 'Reviews' : 'Account dashboard'}</h1>
+            <p className="mt-2 text-sm text-slate-500">Manage your profile, activity, addresses and preferences from one place.</p>
+          </div>
           <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)]">
             <Sidebar pathname={location.pathname} isLoggingOut={logoutMutation.isPending} onLogout={handleLogout} />
             <div className="min-w-0 space-y-5">
@@ -424,14 +621,27 @@ export default function AccountPage() {
                 <AccountOrdersPanel />
               ) : location.pathname.startsWith('/account/wishlist') ? (
                 <AccountWishlistPanel />
+              ) : location.pathname.startsWith('/account/coupons') ? (
+                <AccountCouponsPanel />
+              ) : location.pathname.startsWith('/account/reviews') ? (
+                <AccountReviewsPanel />
               ) : (
                 <>
-              <ProfileSummary profile={displayedProfile} isUploading={uploadAvatarMutation.isPending} onEdit={() => setIsEditingProfile(true)} onUpload={(file) => { setAvatarPreview(URL.createObjectURL(file)); uploadAvatarMutation.mutate(file) }} onDeleteAvatar={() => deleteAvatarMutation.mutate()} />
-              <StatisticCards />
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
-                <AccountInformation profile={profile} user={liveUser} onDeleteProfile={() => setIsDeletingProfile(true)} />
-                <DefaultAddress address={defaultAddress} isLoading={addressesQuery.isLoading} />
-              </div>
+                  <ProfileSummary
+                    profile={displayedProfile}
+                    isUploading={uploadAvatarMutation.isPending}
+                    onEdit={() => setIsEditingProfile(true)}
+                    onUpload={(file) => {
+                      setAvatarPreview(URL.createObjectURL(file))
+                      uploadAvatarMutation.mutate(file)
+                    }}
+                    onDeleteAvatar={() => deleteAvatarMutation.mutate()}
+                  />
+                  <StatisticCards />
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
+                    <AccountInformation profile={profile} user={liveUser} onDeleteProfile={() => setIsDeletingProfile(true)} />
+                    <DefaultAddress address={defaultAddress} isLoading={addressesQuery.isLoading} />
+                  </div>
                 </>
               )}
             </div>

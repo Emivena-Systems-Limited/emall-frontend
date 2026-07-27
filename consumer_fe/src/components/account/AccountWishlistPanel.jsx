@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import {
   ChevronDown,
@@ -100,6 +100,10 @@ export default function AccountWishlistPanel() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   const [sort, setSort] = useState('Popular')
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
   const filteredItems = useMemo(() => {
     const needle = search.trim().toLowerCase()
     const result = items.filter((item) => (category === 'All' || item.category === category) && (!needle || `${item.name} ${item.color} ${item.store}`.toLowerCase().includes(needle)))
