@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, duplicateProduct, getProductById, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
-import { buildSingleVariantCreatePayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
+import { buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
+import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../constants/productMediaUpload'
 import notify from '../lib/notify'
 import { productQueryKeys } from './useProducts'
 
@@ -93,8 +94,8 @@ export function useUpdateProductInfoMutation() {
 
   return useMutation({
     mutationKey: ['products', 'update-info'],
-    mutationFn: async ({ productId, formData }) => {
-      await updateProductInfo(productId, formData)
+    mutationFn: async ({ productId, formData, payload }) => {
+      await updateProductInfo(productId, payload ?? formData)
       return getProductById(productId)
     },
     onSuccess: (freshRecord, variables) => {
@@ -172,8 +173,13 @@ export function useUpdateSingleVariantMutation() {
   return useMutation({
     mutationKey: ['products', 'update-single-variant'],
     mutationFn: async ({ productId, variantId, variantFormValues, productValues }) => {
-      const formData = buildSingleVariantUpdatePayload(variantFormValues, variantId, productValues)
-      await updateProductVariant(variantId, formData)
+      if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
+        const payload = buildSingleVariantUpdateJsonPayload(variantFormValues, productValues)
+        await updateProductVariant(variantId, payload)
+      } else {
+        const formData = buildSingleVariantUpdatePayload(variantFormValues, variantId, productValues)
+        await updateProductVariant(variantId, formData)
+      }
       return getProductById(productId)
     },
     onSuccess: (freshRecord, variables) => {

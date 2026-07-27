@@ -346,22 +346,26 @@ export function ReviewStep({ ... })
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
               <li>• <strong>Chooser</strong> — <code className="rounded bg-slate-100 px-1 text-xs">?section=info</code> or <code className="rounded bg-slate-100 px-1 text-xs">?section=variations</code>.</li>
-              <li>• <strong>Edit product info</strong> — 5-step wizard (Info → Images → Pricing → Shipping → Review). Saves via <code className="rounded bg-slate-100 px-1 text-xs">useUpdateProductInfoMutation</code> + <code className="rounded bg-slate-100 px-1 text-xs">buildProductInfoPayload</code> (no variations).</li>
-              <li>• <strong>Edit images (info flow)</strong> — <code className="rounded bg-slate-100 px-1 text-xs">EditProductImagesStep</code> tracks keep / remove / add / replace. Payload sends <code className="rounded bg-slate-100 px-1 text-xs">keep_image_ids</code>, <code className="rounded bg-slate-100 px-1 text-xs">removed_image_ids</code>, and new uploads.</li>
+              <li>• <strong>Edit product info</strong> — 5-step wizard. Saves via <code className="rounded bg-slate-100 px-1 text-xs">buildProductInfoJsonPayload</code> + <code className="rounded bg-slate-100 px-1 text-xs">useUpdateProductInfoMutation</code>.</li>
+              <li>• <strong>Edit images</strong> — Presign new files → S3 upload → JSON update. Kept images use <code className="rounded bg-slate-100 px-1 text-xs">id</code>; new uploads use <code className="rounded bg-slate-100 px-1 text-xs">upload_id</code>. Removed images are omitted.</li>
               <li>• <strong>Edit variations</strong> — <code className="rounded bg-slate-100 px-1 text-xs">VariationsEditForm</code> manages variant CRUD via per-variant update/create/delete mutations.</li>
               <li>• <strong>View product</strong> — <code className="rounded bg-slate-100 px-1 text-xs">/products/:id/view</code> renders <code className="rounded bg-slate-100 px-1 text-xs">ProductStorefrontPreview</code> (consumer-style layout).</li>
               <li>• <strong>Form hydration</strong> — <code className="rounded bg-slate-100 px-1 text-xs">mapProductRecordToFormState</code> maps API images to remote preview objects.</li>
             </ul>
 
             <CodeBlock
-              title="Edit info payload"
-              code={`const payload = buildProductInfoPayload(formValues, mainImage, subImages, {
-  mode: 'edit',
+              title="Edit info image payload"
+              code={`// After presign + S3 upload for any new local files
+const payload = buildProductInfoJsonPayload(formValues, mainImage, subImages, {
   descriptiveImages,
-  removedProductImageIds,
-  removedDescriptiveImageIds,
 })
-// Appends _method=PUT; refreshes detail cache via GET /api/product/:id`}
+
+// product_images example sent to PUT /api/product/:id
+[
+  { id: '01K_EXISTING_IMAGE_1', sort_order: 0, is_primary: true },
+  { upload_id: '01KY54H2HGJ4SXWXY758G3583X', sort_order: 1, is_primary: false },
+]
+// Removed images are not included — backend deletes anything omitted.`}
             />
           </GuideSection>
 
@@ -387,7 +391,7 @@ useProductMediaUpload().uploadPendingMedia(mediaState)
 // 4. Attach upload_id to payload
 buildProductMediaSaveImagesPayload(mediaState)
 buildProductCreateJsonPayload(...)  // create
-buildProductInfoPayload(...)        // edit info (when pending uploads exist)`}
+buildProductInfoJsonPayload(...)      // edit info (presigned JSON update)`}
             />
           </GuideSection>
 

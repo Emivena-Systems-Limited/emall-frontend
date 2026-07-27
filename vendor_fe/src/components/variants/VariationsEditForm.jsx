@@ -5,7 +5,15 @@ import {
   useDeleteProductVariantMutation,
   useUpdateSingleVariantMutation,
 } from '../../hooks/useProductMutations'
+import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
+import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../../constants/productMediaUpload'
 import { isPersistedVariantId, iterateVariantFormEntries } from '../../utils/productPayload'
+import {
+  buildProductMediaPresignRequest,
+  hasPendingProductMediaUploads,
+} from '../../utils/productMediaUploadUtils'
+import { summarizeVariantImageChanges, captureVariantImageBaseline } from '../../utils/productImageEditUtils'
+import notify from '../../lib/notify'
 import AddVariantFlow from './AddVariantFlow'
 import VariantDetailsDrawer from './VariantDetailsDrawer'
 import VariantListView from './VariantListView'
@@ -20,6 +28,7 @@ export default function VariationsEditForm({ productId, formState, onFinished })
   const updateSingleVariantMutation = useUpdateSingleVariantMutation()
   const createVariantMutation = useCreateProductVariantMutation()
   const deleteVariantMutation = useDeleteProductVariantMutation()
+  const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
 
   const productValues = formState.formValues
   const entries = iterateVariantFormEntries(productValues.variations)
@@ -33,13 +42,68 @@ export default function VariationsEditForm({ productId, formState, onFinished })
     if (!drawerEntry) return
     const variantId = drawerEntry.variantValue.id
     if (!isPersistedVariantId(variantId)) return
-    await updateSingleVariantMutation.mutateAsync({
-      productId,
-      variantId,
-      variantFormValues,
-      productValues,
+
+    const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD
+    const imageBaseline = captureVariantImageBaseline({
+      images: drawerEntry.variantValue.images ?? [],
     })
-    setDrawerEntry(null)
+
+    let nextVariantFormValues = variantFormValues
+
+    try {
+      if (usePresignedUpload) {
+        const mediaState = {
+          mainImage: null,
+          subImages: [],
+          descriptiveImages: [],
+          variations: [{
+            attribute: drawerEntry.variation.attribute,
+            values: [{
+              value: variantFormValues.value,
+              images: variantFormValues.images ?? [],
+            }],
+          }],
+        }
+
+        const presignRequest = buildProductMediaPresignRequest(mediaState)
+
+        if (import.meta.env.DEV) {
+          console.log('[edit variant] media presign request:', presignRequest)
+        }
+
+        if (hasPendingProductMediaUploads(presignRequest)) {
+          const nextMediaState = await uploadPendingMedia(mediaState)
+          const nextImages = nextMediaState.variations?.[0]?.values?.[0]?.images
+            ?? variantFormValues.images
+
+          nextVariantFormValues = {
+            ...variantFormValues,
+            images: nextImages,
+          }
+        }
+
+        const imageChanges = summarizeVariantImageChanges(imageBaseline, {
+          images: nextVariantFormValues.images ?? [],
+        })
+
+        if (import.meta.env.DEV) {
+          console.log('[edit variant] image changes:', imageChanges)
+        }
+      }
+
+      await updateSingleVariantMutation.mutateAsync({
+        productId,
+        variantId,
+        variantFormValues: nextVariantFormValues,
+        productValues,
+      })
+
+      setDrawerEntry(null)
+    } catch (error) {
+      if (!error?.response) {
+        notify.error(error?.message || 'Failed to prepare variant images.')
+      }
+    }
   }
 
   const pageHeader = (title, subtitle) => (
@@ -105,7 +169,8 @@ export default function VariationsEditForm({ productId, formState, onFinished })
         productValues={productValues}
         onClose={() => setDrawerEntry(null)}
         onSave={handleSaveFromDrawer}
-        isSaving={updateSingleVariantMutation.isPending}
+        isSaving={updateSingleVariantMutation.isPending || isUploadingMedia}
+        showImageEditHints
       />
     </>
   )

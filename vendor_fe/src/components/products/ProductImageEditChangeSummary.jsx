@@ -30,18 +30,18 @@ export default function ProductImageEditChangeSummary({ summary }) {
           <ImageIcon className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">Pending photo changes</p>
+          <p className="text-sm font-semibold text-slate-900">Unsaved photo changes</p>
           <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
-            These updates will be sent when you save product info. Existing photos you keep stay linked by ID; removed photos are dropped; new uploads replace or add gallery slots.
+            These updates will appear in your catalogue after you save.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <ChangeStat label="product kept" value={product.kept} tone="slate" />
-            <ChangeStat label="product removed" value={product.removedOnly} tone="rose" />
-            <ChangeStat label="product added" value={product.added} tone="emerald" />
-            <ChangeStat label="main replaced" value={product.replaced} tone="amber" />
-            <ChangeStat label="detail kept" value={descriptive.kept} tone="slate" />
+            <ChangeStat label="unchanged" value={product.kept} tone="slate" />
+            <ChangeStat label="removed" value={product.removedOnly} tone="rose" />
+            <ChangeStat label="new" value={product.added} tone="emerald" />
+            <ChangeStat label="main photo replaced" value={product.replaced} tone="amber" />
+            <ChangeStat label="detail unchanged" value={descriptive.kept} tone="slate" />
             <ChangeStat label="detail removed" value={descriptive.removed} tone="rose" />
-            <ChangeStat label="detail added" value={descriptive.added} tone="emerald" />
+            <ChangeStat label="detail new" value={descriptive.added} tone="emerald" />
           </div>
         </div>
       </div>

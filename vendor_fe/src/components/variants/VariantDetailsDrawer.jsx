@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Form, Formik } from 'formik'
 import { ArrowRight, CheckCircle2, Loader2, X } from 'lucide-react'
@@ -12,6 +12,7 @@ import { scrollToFirstError, touchFieldsWithErrors } from '../../utils/scrollToF
 import AttributeIcon from './AttributeIcon'
 import VariantDetailFields from './VariantDetailFields'
 import { normalizeVariantOptionalFields } from './variantFormUtils'
+import { captureVariantImageBaseline } from '../../utils/productImageEditUtils'
 
 function VariantDrawerHeader({ attribute, value, formik, productValues, onClose }) {
   const pricing = resolveVariantPricing(formik.values, productValues)
@@ -65,9 +66,13 @@ function VariantDrawerHeader({ attribute, value, formik, productValues, onClose 
   )
 }
 
-function VariantDetailsForm({ attribute, value, initialValues, productValues, onClose, onSave, isSaving }) {
+function VariantDetailsForm({ attribute, value, initialValues, productValues, onClose, onSave, isSaving, showImageEditHints = false }) {
   const mainQty = getMainProductStockQuantity(productValues)
   const scrollContainerRef = useRef(null)
+  const imageBaseline = useMemo(
+    () => captureVariantImageBaseline({ images: initialValues.images ?? [] }),
+    [initialValues.images],
+  )
   const [isCustomPrice, setIsCustomPrice] = useState(() =>
     initialValues.price !== '' && initialValues.price != null,
   )
@@ -138,6 +143,8 @@ function VariantDetailsForm({ attribute, value, initialValues, productValues, on
               setIsCustomPrice={setIsCustomPrice}
               mainQty={mainQty}
               startStep={1}
+              imageBaseline={imageBaseline}
+              showImageEditHints={showImageEditHints}
             />
           </div>
 
@@ -170,7 +177,17 @@ function VariantDetailsForm({ attribute, value, initialValues, productValues, on
 }
 
 /** Right-side panel used to fill in photo, pricing, and stock for a single variant value. */
-export default function VariantDetailsDrawer({ open, attribute, value, initialValues, productValues, onClose, onSave, isSaving }) {
+export default function VariantDetailsDrawer({
+  open,
+  attribute,
+  value,
+  initialValues,
+  productValues,
+  onClose,
+  onSave,
+  isSaving,
+  showImageEditHints = false,
+}) {
   useEffect(() => {
     if (!open) return undefined
     const previousOverflow = document.body.style.overflow
@@ -206,6 +223,7 @@ export default function VariantDetailsDrawer({ open, attribute, value, initialVa
             onClose={onClose}
             onSave={onSave}
             isSaving={isSaving}
+            showImageEditHints={showImageEditHints}
           />
         )}
       </div>

@@ -114,3 +114,39 @@ export function summarizeProductImageChanges(
     removedDescriptiveImageIds,
   }
 }
+
+/**
+ * Snapshot of remote variant image IDs when the edit drawer opens.
+ */
+export function captureVariantImageBaseline({ images = [] } = {}) {
+  return {
+    imageRemoteIds: collectRemoteImageIds(images),
+  }
+}
+
+/**
+ * Summarize pending variant image edits for UI and dev logging.
+ */
+export function summarizeVariantImageChanges(baseline, { images = [] } = {}) {
+  const currentIds = collectRemoteImageIds(images)
+  const baselineIds = baseline?.imageRemoteIds ?? []
+  const removedImageIds = baselineIds.filter((id) => !currentIds.includes(id))
+
+  const kept = currentIds.length
+  const added = countNewProductImages(images)
+
+  const replaced = baselineIds.length > 0 && removedImageIds.length > 0 && added > 0 ? 1 : 0
+  const removedOnly = Math.max(0, removedImageIds.length - replaced)
+
+  const hasChanges = removedImageIds.length > 0 || added > 0
+
+  return {
+    hasChanges,
+    kept,
+    removed: removedImageIds.length,
+    removedOnly,
+    added,
+    replaced,
+    removedImageIds,
+  }
+}

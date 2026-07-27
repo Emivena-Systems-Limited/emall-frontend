@@ -28,7 +28,6 @@ import { mapProductRecordToFormState } from '../../utils/mapProductToFormValues'
 import { captureProductImageBaseline, summarizeProductImageChanges } from '../../utils/productImageEditUtils'
 import {
   buildProductMediaPresignRequest,
-  buildProductMediaSaveImagesPayload,
   hasPendingProductMediaUploads,
 } from '../../utils/productMediaUploadUtils'
 import { productInfoSchema } from '../../utils/validationSchemas'
@@ -40,7 +39,7 @@ import {
   validateGalleryImagesRequired,
   validatePrimaryImageDimensions,
 } from '../../utils/productImageUtils'
-import { buildProductInfoPayload, formatProductPayloadSample } from '../../utils/productPayload'
+import { buildProductInfoPayload, buildProductInfoJsonPayload, formatProductPayloadSample } from '../../utils/productPayload'
 import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirstError'
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
 import { findCategoryById } from '../../utils/normalizeCategories'
@@ -536,39 +535,22 @@ function ProductInfoEditForm({
               variations: [],
             }
 
+            const presignRequest = buildProductMediaPresignRequest(mediaState)
+
             if (import.meta.env.DEV) {
-              console.log('[edit product info] media presign request:', buildProductMediaPresignRequest(mediaState))
+              console.log('[edit product info] media presign request:', presignRequest)
             }
 
             let nextMediaState = mediaState
 
-            if (usePresignedUpload && hasPendingProductMediaUploads(buildProductMediaPresignRequest(mediaState))) {
+            if (usePresignedUpload && hasPendingProductMediaUploads(presignRequest)) {
               nextMediaState = await uploadPendingMedia(mediaState)
               setMainImage(nextMediaState.mainImage)
               setSubImages(nextMediaState.subImages)
               setDescriptiveImages(nextMediaState.descriptiveImages ?? [])
-
-              if (import.meta.env.DEV) {
-                console.log(
-                  '[edit product info] media save payload:',
-                  buildProductMediaSaveImagesPayload(nextMediaState),
-                )
-              }
             }
 
             const nextImageChanges = summarizeProductImageChanges(imageBaseline, nextMediaState)
-
-            const payload = buildProductInfoPayload(formValues, nextMediaState.mainImage, nextMediaState.subImages, {
-              mode: 'edit',
-              descriptiveImages: nextMediaState.descriptiveImages,
-              removedProductImageIds: nextImageChanges.removedProductImageIds,
-              removedDescriptiveImageIds: nextImageChanges.removedDescriptiveImageIds,
-            })
-
-            if (import.meta.env.DEV) {
-              console.log('[edit product info] image changes:', nextImageChanges)
-              console.log('[edit product info] FormData payload:', formatProductPayloadSample(payload))
-            }
 
             const context = buildProductMutationContext(formValues, {
               parentCategories,
@@ -576,14 +558,49 @@ function ProductInfoEditForm({
               approvedBrands,
             })
 
-            const refreshedProduct = await updateProductInfoMutation.mutateAsync({
-              productId,
-              formData: payload,
-              context,
-            })
+            if (usePresignedUpload) {
+              const payload = buildProductInfoJsonPayload(
+                formValues,
+                nextMediaState.mainImage,
+                nextMediaState.subImages,
+                { descriptiveImages: nextMediaState.descriptiveImages ?? [] },
+              )
+
+              if (import.meta.env.DEV) {
+                console.log('[edit product info] image changes:', nextImageChanges)
+                console.log('[edit product info] JSON payload:', payload)
+              }
+
+              await updateProductInfoMutation.mutateAsync({
+                productId,
+                payload,
+                context,
+              })
+            } else {
+              const formData = buildProductInfoPayload(
+                formValues,
+                nextMediaState.mainImage,
+                nextMediaState.subImages,
+                {
+                  mode: 'edit',
+                  descriptiveImages: nextMediaState.descriptiveImages,
+                },
+              )
+
+              if (import.meta.env.DEV) {
+                console.log('[edit product info] image changes:', nextImageChanges)
+                console.log('[edit product info] FormData payload:', formatProductPayloadSample(formData))
+              }
+
+              await updateProductInfoMutation.mutateAsync({
+                productId,
+                formData,
+                context,
+              })
+            }
 
             if (import.meta.env.DEV) {
-              console.log('[edit product info] Refreshed from GET /api/product/:id:', refreshedProduct)
+              console.log('[edit product info] Saved successfully')
             }
 
             onSaved(EDIT_SECTIONS.INFO)
