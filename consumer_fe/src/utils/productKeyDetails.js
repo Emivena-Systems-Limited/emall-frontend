@@ -43,3 +43,22 @@ export function mapKeyDetailsToObject(record) {
   })
   return result
 }
+
+/** Ordered, deduped [key, value] pairs for non-reserved key details (custom backend fields). */
+export function mapKeyDetailsEntries(record) {
+  const seen = new Set()
+  const entries = []
+
+  mapKeyDetailsFromRecord(record).forEach((item) => {
+    const key = item?.key?.trim()
+    const value = String(item?.value ?? '').trim()
+    if (!key || !value || isReservedKeyDetailKey(key)) return
+
+    const dedupeKey = key.toLowerCase()
+    if (seen.has(dedupeKey)) return
+    seen.add(dedupeKey)
+    entries.push([key, value])
+  })
+
+  return entries
+}

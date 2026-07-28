@@ -17,7 +17,7 @@ import {
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import ProductImageGallery from '../components/product/ProductImageGallery'
-import ImageLightbox, { clampZoom, ZOOM_STEP } from '../components/shared/ImageLightbox'
+import ImageLightbox from '../components/shared/ImageLightbox'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
@@ -32,7 +32,7 @@ import {
   sortKeyDetailEntries,
 } from '../utils/keyDetailsOrder'
 import { normalizeProductDescription } from '../utils/productDescriptionHtml'
-import { mapKeyDetailsToObject } from '../utils/productKeyDetails'
+import { mapKeyDetailsEntries, mapKeyDetailsToObject } from '../utils/productKeyDetails'
 import { calculateDisplayDiscountPercent } from '../utils/productPricing'
 import {
   getVariantAttributeValue,
@@ -45,6 +45,28 @@ import {
 } from '../utils/productVariantFields'
 
 const SHOW_PRODUCT_VARIANTS = true
+const KEY_DETAILS_EXPANDED_SECTION_ID = 'product-key-details-expanded'
+const KEY_DETAILS_CUSTOM_VISIBLE_COUNT = 2
+const KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD = 3
+
+function scrollToExpandedKeyDetails() {
+  const target = document.getElementById(KEY_DETAILS_EXPANDED_SECTION_ID)
+  if (!target) return
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+/** Standard fields (Category, SKU, Barcode, Condition, Brand, ...) always show in full.
+ *  Custom backend key_details beyond the threshold get truncated with a link to the rest. */
+function splitCustomKeyDetails(customEntries) {
+  const entries = Array.isArray(customEntries) ? customEntries : []
+  if (entries.length <= KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD) {
+    return { visible: entries, overflow: [] }
+  }
+  return {
+    visible: entries.slice(0, KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
+    overflow: entries.slice(KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
+  }
+}
 
 const STAR_FILL = '#F59E0B'
 const STAR_EMPTY_FILL = '#E2E8F0'
@@ -287,7 +309,82 @@ async function shareProduct(product) {
   }
 }
 
-const SIDEBAR_REVIEW_LIMIT = 5
+const SIDEBAR_REVIEW_LIMIT_MAX = 5
+const SIDEBAR_REVIEW_CARD_ESTIMATE_PX = 92
+
+function useDynamicReviewListLimit(listRef, enabled, totalReviews) {
+  const maxReviews = Math.min(totalReviews, SIDEBAR_REVIEW_LIMIT_MAX)
+  const [limit, setLimit] = useState(() => Math.min(2, maxReviews))
+
+  const syncLimit = useCallback(() => {
+    const listEl = listRef.current
+    if (!listEl || !enabled || maxReviews === 0) return
+
+    const availableHeight = listEl.clientHeight
+    if (availableHeight <= 0) return
+
+    const cards = listEl.querySelectorAll('[data-review-card]')
+    const cardStride = cards.length > 0
+      ? cards[0].offsetHeight + 12
+      : SIDEBAR_REVIEW_CARD_ESTIMATE_PX
+
+    let nextLimit = Math.max(
+      1,
+      Math.min(maxReviews, Math.floor(availableHeight / cardStride)),
+    )
+
+    if (cards.length > 0) {
+      let usedHeight = 0
+      let fitCount = 0
+
+      cards.forEach((card, index) => {
+        const blockHeight = card.offsetHeight + (index > 0 ? 12 : 0)
+        if (usedHeight + blockHeight <= availableHeight + 1) {
+          usedHeight += blockHeight
+          fitCount += 1
+        }
+      })
+
+      if (fitCount < cards.length) {
+        nextLimit = Math.max(1, fitCount)
+      }
+    }
+
+    setLimit((current) => (current === nextLimit ? current : nextLimit))
+  }, [enabled, listRef, maxReviews])
+
+  useLayoutEffect(() => {
+    if (!enabled) return undefined
+
+    let frameId = 0
+    const scheduleSync = () => {
+      cancelAnimationFrame(frameId)
+      frameId = requestAnimationFrame(syncLimit)
+    }
+
+    scheduleSync()
+
+    const listEl = listRef.current
+    if (!listEl) {
+      return () => cancelAnimationFrame(frameId)
+    }
+
+    const observer = new ResizeObserver(scheduleSync)
+    observer.observe(listEl)
+
+    const sidebar = listEl.closest('[data-product-sidebar]')
+    if (sidebar) observer.observe(sidebar)
+
+    window.addEventListener('resize', scheduleSync)
+    return () => {
+      cancelAnimationFrame(frameId)
+      observer.disconnect()
+      window.removeEventListener('resize', scheduleSync)
+    }
+  }, [enabled, limit, maxReviews, syncLimit, listRef])
+
+  return enabled ? limit : maxReviews
+}
 
 const fallbackReviewCards = [
   {
@@ -306,24 +403,24 @@ const fallbackReviewCards = [
   },
   {
     id: 'review-3',
-    name: 'Kwame Asante',
+    name: 'Kwame Boateng',
     rating: 4,
-    date: 'Jan 22, 2026',
-    text: 'Looks nice and fits well. Packaging was clean.',
+    date: 'Dec 2025',
+    text: 'Arrived quickly and matches the description.',
   },
   {
     id: 'review-4',
-    name: 'Efua Boateng',
+    name: 'Ama Osei',
     rating: 5,
-    date: 'Jan 15, 2026',
-    text: 'Fast delivery and exactly as described. Very happy with this purchase.',
+    date: 'Nov 2025',
+    text: 'Exactly what I needed. Would buy again.',
   },
   {
     id: 'review-5',
-    name: 'Daniel Osei',
+    name: 'Kofi Adom',
     rating: 4,
-    date: 'Dec 2025',
-    text: 'Solid quality for the price. Would recommend to anyone looking for value.',
+    date: 'Oct 2025',
+    text: 'Solid build and great value for the price.',
   },
 ]
 
@@ -341,6 +438,7 @@ function ProductInfoPanel({
   setSelectedSize,
   selectedCompatibleModel,
   setSelectedCompatibleModel,
+  compatibleModelOptions = [],
   activeImage,
   activeVariant,
   activeSku,
@@ -363,16 +461,12 @@ function ProductInfoPanel({
     ? toNumber(activeVariant.quantity, 0) <= 0
     : !product.inStock
   const colorValueSet = new Set((product.colors ?? []).map((value) => String(value).toLowerCase()))
-  const compatibleModelValues = (product.compatibleModels?.length
-    ? product.compatibleModels
-    : activeVariant
-      ? getVariantCompatibleModels(activeVariant)
-      : [])
+  const compatibleModelValues = compatibleModelOptions
   const sizeValues = product.sizes ?? []
   const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
     && colorValueSet.size > 0
     && compatibleModelValues.every((value) => colorValueSet.has(String(value).toLowerCase()))
-  const isColorVariantGroup = String(product.sizeGroupLabel ?? '').toLowerCase().includes('color')
+  const isColorVariantGroup = /color|colour/i.test(String(product.sizeGroupLabel ?? ''))
   const hasDuplicateSizeValues = sizeValues.length > 0
     && colorValueSet.size > 0
     && sizeValues.every((value) => colorValueSet.has(String(value).toLowerCase()))
@@ -627,7 +721,12 @@ function KeyDetails({ product, activeSku }) {
   delete detailsList['Status']
   delete detailsList['status']
 
+  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(product.customKeyDetailEntries)
+  const overflowKeys = new Set(overflowCustomEntries.map(([key]) => key))
+  const hasOverflow = overflowCustomEntries.length > 0
+
   const sortedEntries = sortKeyDetailEntries(Object.entries(detailsList))
+    .filter(([key]) => !overflowKeys.has(key))
 
   return (
     <section className="relative min-w-0 h-full bg-white p-4 sm:p-6">
@@ -647,43 +746,34 @@ function KeyDetails({ product, activeSku }) {
             <dd className="wrap-break-word">{value}</dd>
           </div>
         ))}
+        {hasOverflow && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={scrollToExpandedKeyDetails}
+              className="text-left text-sm font-semibold text-auth-primary underline-offset-2 transition-colors hover:text-auth-primary-hover hover:underline"
+            >
+              Click to see more details
+            </button>
+          </div>
+        )}
       </dl>
     </section>
   )
 }
 
-const fallbackAboutItems = [
-  'Thoughtfully designed with easy to use details throughout.',
-  'Premium feel and practical protection for everyday use.',
-  'Smooth finish with dependable grip for secure everyday handling.',
-  'Shaped for comfortable handling with a clean, modern look.',
-  'Available from EZ-Stores Marketplace with fast, reliable delivery.',
-]
-
-function AboutThisItem({ product }) {
-  const items = product.about?.length ? product.about : fallbackAboutItems
-
-  return (
-    <section className="min-w-0 bg-white p-4 sm:p-6">
-      <h2 className="text-base font-bold text-slate-950">About this item</h2>
-      <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-5 text-slate-700">
-        {items.map((item, index) => (
-          <li key={`${item}-${index}`} className="wrap-break-word">{item}</li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
 function ReviewSummary({ product, fillHeight = false }) {
-  const visibleReviews = product.reviews.slice(0, SIDEBAR_REVIEW_LIMIT)
+  const reviewListRef = useRef(null)
+  const totalReviews = product.reviews?.length ?? 0
+  const reviewLimit = useDynamicReviewListLimit(reviewListRef, fillHeight, totalReviews)
+  const visibleReviews = product.reviews.slice(0, reviewLimit)
 
   return (
     <section
       id="reviews"
       className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-70 flex-1 flex-col' : ''}`}
     >
-      <div className="shrink-0">
+      <div className="shrink-0" data-review-header>
         <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
         <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
         <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
@@ -726,9 +816,13 @@ function ReviewSummary({ product, fillHeight = false }) {
         </div>
       </div>
 
-      <div className={`space-y-3 ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}>
+      <div
+        ref={reviewListRef}
+        data-review-list
+        className={`space-y-3 overflow-hidden ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}
+      >
         {visibleReviews.map((review) => (
-          <article key={review.id} className="border-t border-slate-200 pt-3">
+          <article key={review.id} data-review-card className="border-t border-slate-200 pt-3">
             <div className="flex items-start gap-2">
               <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-pink-600 text-xs font-bold text-white">
                 {review.name.charAt(0)}
@@ -746,7 +840,10 @@ function ReviewSummary({ product, fillHeight = false }) {
         ))}
       </div>
 
-      <div className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}>
+      <div
+        data-review-footer
+        className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}
+      >
         <button type="button" className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800">
           See All Reviews
         </button>
@@ -1035,27 +1132,6 @@ function DescriptiveImagesGrid({ product }) {
     setLightboxIndex(index)
   }
 
-  useEffect(() => {
-    if (lightboxIndex === null) return undefined
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') closeLightbox()
-      if (event.key === 'ArrowLeft') goPrev()
-      if (event.key === 'ArrowRight') goNext()
-      if (event.key === '+' || event.key === '=') setZoom((value) => clampZoom(value + ZOOM_STEP))
-      if (event.key === '-') setZoom((value) => clampZoom(value - ZOOM_STEP))
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [lightboxIndex, closeLightbox, goPrev, goNext])
-
   const lightboxImage = lightboxIndex === null ? null : viewableImages[lightboxIndex]
 
   return (
@@ -1107,6 +1183,8 @@ function DescriptiveImagesGrid({ product }) {
           onPrev={goPrev}
           onNext={goNext}
           hasMultiple={viewableImages.length > 1}
+          currentIndex={lightboxIndex ?? 0}
+          imageCount={viewableImages.length}
         />
       )}
     </>
@@ -1147,22 +1225,66 @@ function StoreInfo({ product }) {
   )
 }
 
+/** Matches the product description row layout: topic on the left, tabular
+ *  key/value rows on the right (no card edges). */
+function ExpandedKeyDetailsPanel({ entries }) {
+  if (!entries?.length) return null
+
+  return (
+    <div
+      id={KEY_DETAILS_EXPANDED_SECTION_ID}
+      className="scroll-mt-24 grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]"
+    >
+      <dt className="shrink-0 font-bold whitespace-nowrap text-slate-950">Additional details</dt>
+      <dd className="min-w-0 text-slate-700">
+        <dl className="divide-y divide-slate-200">
+          {entries.map(([key, value]) => (
+            <div
+              key={key}
+              className="flex min-w-0 items-start gap-x-4 py-3 first:pt-0 last:pb-0"
+            >
+              <dt className="w-56 shrink-0 font-bold text-slate-950">{key}</dt>
+              <dd className="min-w-0 flex-1 wrap-break-word">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </dd>
+    </div>
+  )
+}
+
 function ProductDescription({ product }) {
   const detailsList = { ...product.details }
   delete detailsList['SKU']
   delete detailsList['sku']
   delete detailsList['Sku']
 
+  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(product.customKeyDetailEntries)
+  const hasOverflow = overflowCustomEntries.length > 0
+  const detailRows = Object.entries(detailsList)
+  const hasCategoryRow = detailRows.some(([key]) => key === 'Category')
+
   return (
     <section className="min-w-0 bg-white p-3 sm:p-5">
       <h2 className="text-base font-bold text-slate-950">Product description</h2>
       <div className="mt-5 divide-y divide-slate-300 border-y border-slate-300">
-        {Object.entries(detailsList).map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
-            <dt className="font-bold text-slate-950">{key}</dt>
-            <dd className="wrap-break-word text-slate-700">{value}</dd>
-          </div>
-        ))}
+        {detailRows.flatMap(([key, value]) => {
+          const row = (
+            <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
+              <dt className="font-bold text-slate-950">{key}</dt>
+              <dd className="wrap-break-word text-slate-700">{value}</dd>
+            </div>
+          )
+
+          if (key === 'Category' && hasOverflow) {
+            return [row, <ExpandedKeyDetailsPanel key="expanded-key-details" entries={overflowCustomEntries} />]
+          }
+
+          return [row]
+        })}
+        {hasOverflow && !hasCategoryRow && (
+          <ExpandedKeyDetailsPanel entries={overflowCustomEntries} />
+        )}
         <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
           <dt className="font-bold text-slate-950">Description</dt>
           <dd className="min-w-0 text-slate-700">
@@ -1283,7 +1405,7 @@ function normalizeApiProductDetails(apiProduct) {
     const normalizedKey = String(attributeKey ?? '').trim().toLowerCase()
     const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
 
-    if (normalizedKey === 'color' && valueText) {
+    if ((normalizedKey === 'color' || normalizedKey === 'colour') && valueText) {
       if (!colors.includes(valueText)) colors.push(valueText)
       const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
       if (varImage) colorImages[valueText] = varImage
@@ -1298,6 +1420,7 @@ function normalizeApiProductDetails(apiProduct) {
     }
 
     const legacyColor = getVariantAttributeValue(variant, 'color')
+      || (variant?.color ? String(variant.color).trim() : '')
     if (legacyColor) {
       if (!colors.includes(legacyColor)) colors.push(legacyColor)
       const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
@@ -1305,6 +1428,7 @@ function normalizeApiProductDetails(apiProduct) {
     }
 
     const legacySize = getVariantAttributeValue(variant, 'size')
+      || (variant?.size ? String(variant.size).trim() : '')
     if (legacySize) {
       if (!otherVariantGroups.size) otherVariantGroups.size = new Set()
       otherVariantGroups.size.add(legacySize)
@@ -1312,12 +1436,14 @@ function normalizeApiProductDetails(apiProduct) {
   })
 
   const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, valSet]) => ({
+    key,
     label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
     values: [...valSet],
   }))
 
   const uniqueColors = colors
   const uniqueSizes = extraVariantGroups[0]?.values ?? []
+  const sizeGroupKey = extraVariantGroups[0]?.key ?? 'size'
   const sizeGroupLabel = extraVariantGroups[0]?.label ?? 'Size'
 
   const compatibleModels = [
@@ -1339,6 +1465,7 @@ function normalizeApiProductDetails(apiProduct) {
   const condition = formatProductCondition(apiProduct.condition ?? getMetadataValue(metadata, 'condition'))
   const brandName = resolveBrandName(apiProduct) || null
   const customKeyDetails = mapKeyDetailsToObject(apiProduct)
+  const customKeyDetailEntries = mapKeyDetailsEntries(apiProduct)
   const packageDimensions = formatPackageDimensions(metadata)
   const itemWeight = formatItemWeight(metadata, null)
 
@@ -1361,11 +1488,11 @@ function normalizeApiProductDetails(apiProduct) {
     gallery: uniqueGallery,
     colors: uniqueColors,
     sizes: uniqueSizes,
+    sizeGroupKey,
     sizeGroupLabel,
     compatibleModels,
     extraVariantGroups,
     colorImages,
-    about: fallbackAboutItems,
     keyDetails: {
       Category: categoryName,
       'Model/SKU': sku,
@@ -1376,6 +1503,7 @@ function normalizeApiProductDetails(apiProduct) {
       ...(itemWeight ? { 'Item Weight': itemWeight } : {}),
       ...customKeyDetails,
     },
+    customKeyDetailEntries,
     descriptiveImages: collectDescriptiveImageUrls(apiProduct),
     descriptionHtml,
     description,
@@ -1435,9 +1563,21 @@ export default function ProductDetailsPage() {
     return getProductBySlug(slug)
   }, [apiProduct, landingProduct, slug])
 
+  const productViewKey = useMemo(() => {
+    if (!product) return slug
+    return [
+      product.slug ?? slug,
+      product.backendId ?? product.id ?? 'local',
+      product.variants?.length ?? 0,
+      product.colors?.length ?? 0,
+      product.sizes?.length ?? 0,
+      product.compatibleModels?.length ?? 0,
+    ].join('::')
+  }, [product, slug])
+
   return (
     <ProductDetailsView
-      key={product.slug ?? slug}
+      key={productViewKey}
       product={product}
       apiProduct={apiProduct}
       landingData={landingData}
@@ -1445,44 +1585,163 @@ export default function ProductDetailsPage() {
   )
 }
 
-function resolveInitialVariantSelections(product) {
-  const firstVariant = product.variants?.[0] ?? null
+function resolveColorImage(product, color) {
+  if (!color) return null
+  if (product.colorImages?.[color]) return product.colorImages[color]
 
-  if (!firstVariant) {
-    return {
-      color: product.colors?.[0] ?? '',
-      size: product.sizes?.[0] ?? '',
-      compatibleModel: product.compatibleModels?.[0] ?? '',
+  const match = Object.entries(product.colorImages ?? {}).find(
+    ([key]) => isSameVariantOption(key, color),
+  )
+  return match?.[1] ?? null
+}
+
+function resolveProductSizeAttribute(product) {
+  return product.sizeGroupKey ?? product.sizeGroupLabel ?? 'size'
+}
+
+function getVariantColorValue(variant) {
+  return getVariantAttributeValue(variant, 'color')
+    || getVariantAttributeValue(variant, 'colour')
+    || (variant?.color ? String(variant.color).trim() : '')
+    || (variant?.variant_name ? String(variant.variant_name).trim() : '')
+}
+
+function getVariantSizeValue(variant, product) {
+  const sizeAttribute = resolveProductSizeAttribute(product)
+  return getVariantAttributeValue(variant, sizeAttribute)
+    || (variant?.size ? String(variant.size).trim() : '')
+}
+
+function filterVariantsBySelection(product, { color = '', size = '', compatibleModel = '' } = {}) {
+  return (product?.variants ?? []).filter((variant) => {
+    const vColor = getVariantColorValue(variant)
+    const vSize = getVariantSizeValue(variant, product)
+    const matchColor = !color || isSameVariantOption(color, vColor)
+    const matchSize = !size || isSameVariantOption(size, vSize)
+    const matchModel = !compatibleModel || variantHasCompatibleModel(variant, compatibleModel)
+    return matchColor && matchSize && matchModel
+  })
+}
+
+function resolveCompatibleModelOptions(product, { color = '', size = '' } = {}) {
+  const matchingVariants = filterVariantsBySelection(product, { color, size })
+  if (!matchingVariants.length) {
+    return product?.compatibleModels ?? []
+  }
+
+  const models = []
+  const seen = new Set()
+  let foundVariantScopedModels = false
+
+  for (const variant of matchingVariants) {
+    const variantModels = getVariantCompatibleModels(variant)
+    if (variantModels.length > 0) {
+      foundVariantScopedModels = true
+    }
+    variantModels.forEach((model) => {
+      const key = String(model).trim().toLowerCase()
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      models.push(model)
+    })
+  }
+
+  return foundVariantScopedModels ? models : (product?.compatibleModels ?? [])
+}
+
+function pickDefaultCompatibleModel(product, options = []) {
+  if (!options.length) return ''
+  return resolveCanonicalVariantOption(options[0], product.compatibleModels) || options[0]
+}
+
+/**
+ * Defaults to the first available option on every axis, driven by the first
+ * variant record so its own (independent) compatible models come along with it.
+ * Falls back to the first entries of the aggregated product.colors/sizes lists
+ * when there is no variant data to anchor the selection to.
+ */
+function resolveInitialVariantSelections(product) {
+  const variants = product.variants ?? []
+  const firstVariant = variants[0] ?? null
+
+  let color = ''
+  let size = ''
+  let compatibleModel = ''
+
+  if (firstVariant) {
+    const rawColor = getVariantColorValue(firstVariant)
+    const rawSize = getVariantSizeValue(firstVariant, product)
+
+    if (rawColor) {
+      color = resolveCanonicalVariantOption(rawColor, product.colors) || rawColor
+    }
+    if (rawSize) {
+      size = resolveCanonicalVariantOption(rawSize, product.sizes) || rawSize
+    }
+
+    const variantModels = getVariantCompatibleModels(firstVariant)
+    if (variantModels.length > 0) {
+      compatibleModel = resolveCanonicalVariantOption(variantModels[0], product.compatibleModels)
+        || variantModels[0]
     }
   }
 
-  const rawColor = getVariantAttributeValue(firstVariant, 'color') || firstVariant.variant_name || ''
-  const rawSize = getVariantAttributeValue(firstVariant, product.sizeGroupLabel ?? 'size')
-  const variantModels = getVariantCompatibleModels(firstVariant)
-
-  return {
-    color: resolveCanonicalVariantOption(rawColor, product.colors) || product.colors?.[0] || '',
-    size: resolveCanonicalVariantOption(rawSize, product.sizes) || product.sizes?.[0] || '',
-    compatibleModel: resolveCanonicalVariantOption(variantModels[0], product.compatibleModels)
-      || product.compatibleModels?.[0]
-      || variantModels[0]
-      || '',
+  if (!color && (product.colors?.length ?? 0) > 0) {
+    color = product.colors[0]
   }
+  if (!size && (product.sizes?.length ?? 0) > 0) {
+    size = product.sizes[0]
+  }
+
+  if (!compatibleModel) {
+    const scopedModels = resolveCompatibleModelOptions(product, { color, size })
+    if (scopedModels.length > 0) {
+      compatibleModel = pickDefaultCompatibleModel(product, scopedModels)
+    }
+  }
+
+  return { color, size, compatibleModel }
 }
 
 function ProductDetailsView({ product, apiProduct, landingData }) {
   const initialSelections = useMemo(() => resolveInitialVariantSelections(product), [product])
-  const [activeImage, setActiveImage] = useState(product.gallery?.[0] ?? null)
+  const [activeImage, setActiveImage] = useState(null)
   const [selectedColor, setSelectedColor] = useState(initialSelections.color)
   const [selectedSize, setSelectedSize] = useState(initialSelections.size)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
+
+  const compatibleModelOptions = useMemo(
+    () => resolveCompatibleModelOptions(product, {
+      color: selectedColor,
+      size: selectedSize,
+    }),
+    [product, selectedColor, selectedSize],
+  )
+
+  const effectiveCompatibleModel = useMemo(() => {
+    if (!compatibleModelOptions.length) return ''
+    if (
+      selectedCompatibleModel
+      && compatibleModelOptions.some((model) => isSameVariantOption(model, selectedCompatibleModel))
+    ) {
+      return selectedCompatibleModel
+    }
+    return pickDefaultCompatibleModel(product, compatibleModelOptions)
+  }, [compatibleModelOptions, selectedCompatibleModel, product])
+
+  const displayActiveImage = useMemo(() => {
+    if (activeImage != null) return activeImage
+    const colorImage = resolveColorImage(product, selectedColor)
+    if (colorImage) return colorImage
+    return product.gallery?.[0] ?? null
+  }, [activeImage, selectedColor, product])
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
 
     let matchingVariant = product?.variants?.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-      const vSize = getVariantAttributeValue(variant, product.sizeGroupLabel ?? 'size')
+      const vColor = getVariantColorValue(variant)
+      const vSize = getVariantSizeValue(variant, product)
       const matchColor = String(vColor).toLowerCase() === String(newColor).toLowerCase()
       const matchModel = !selectedCompatibleModel
         || variantHasCompatibleModel(variant, selectedCompatibleModel)
@@ -1493,21 +1752,24 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
     if (!matchingVariant) {
       matchingVariant = product?.variants?.find((variant) => {
-        const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+        const vColor = getVariantColorValue(variant)
         return String(vColor).toLowerCase() === String(newColor).toLowerCase()
       })
     }
 
     if (matchingVariant) {
-      const models = getVariantCompatibleModels(matchingVariant)
-      const nextModel = resolveCanonicalVariantOption(models[0], product.compatibleModels) || models[0] || ''
-      setSelectedCompatibleModel(nextModel)
-      const vSize = getVariantAttributeValue(matchingVariant, product.sizeGroupLabel ?? 'size')
+      const vSize = getVariantSizeValue(matchingVariant, product)
       const nextSize = resolveCanonicalVariantOption(vSize, product.sizes)
       if (nextSize) setSelectedSize(nextSize)
     }
 
-    const varImage = product.colorImages?.[newColor]
+    const availableModels = resolveCompatibleModelOptions(product, {
+      color: newColor,
+      size: matchingVariant ? getVariantSizeValue(matchingVariant, product) : selectedSize,
+    })
+    setSelectedCompatibleModel(pickDefaultCompatibleModel(product, availableModels))
+
+    const varImage = resolveColorImage(product, newColor)
     if (varImage) setActiveImage(varImage)
   }
 
@@ -1515,8 +1777,8 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     setSelectedCompatibleModel(newModel)
 
     let matchingVariant = product?.variants?.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-      const vSize = getVariantAttributeValue(variant, product.sizeGroupLabel ?? 'size')
+      const vColor = getVariantColorValue(variant)
+      const vSize = getVariantSizeValue(variant, product)
       const matchModel = variantHasCompatibleModel(variant, newModel)
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
@@ -1529,12 +1791,12 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     }
 
     if (matchingVariant) {
-      const vColor = getVariantAttributeValue(matchingVariant, 'color')
-      const vSize = getVariantAttributeValue(matchingVariant, product.sizeGroupLabel ?? 'size')
+      const vColor = getVariantColorValue(matchingVariant)
+      const vSize = getVariantSizeValue(matchingVariant, product)
       const nextColor = resolveCanonicalVariantOption(vColor, product.colors)
       if (nextColor) {
         setSelectedColor(nextColor)
-        const varImage = product.colorImages?.[nextColor]
+        const varImage = resolveColorImage(product, nextColor)
         if (varImage) setActiveImage(varImage)
       }
       const nextSize = resolveCanonicalVariantOption(vSize, product.sizes)
@@ -1544,57 +1806,58 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
   const handleSizeSelect = (newSize) => {
     setSelectedSize(newSize)
-    const sizeAttribute = product.sizeGroupLabel ?? 'size'
 
     let matchingVariant = product?.variants?.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-      const vSize = getVariantAttributeValue(variant, sizeAttribute)
+      const vColor = getVariantColorValue(variant)
+      const vSize = getVariantSizeValue(variant, product)
       const matchSize = String(vSize).toLowerCase() === String(newSize).toLowerCase()
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-      const matchModel = !selectedCompatibleModel
-        || variantHasCompatibleModel(variant, selectedCompatibleModel)
+      const matchModel = !effectiveCompatibleModel
+        || variantHasCompatibleModel(variant, effectiveCompatibleModel)
 
       return matchColor && matchSize && matchModel
     })
 
     if (!matchingVariant) {
       matchingVariant = product?.variants?.find((variant) => {
-        const vSize = getVariantAttributeValue(variant, sizeAttribute)
+        const vSize = getVariantSizeValue(variant, product)
         return String(vSize).toLowerCase() === String(newSize).toLowerCase()
       })
     }
 
     if (matchingVariant) {
-      const vColor = getVariantAttributeValue(matchingVariant, 'color')
-      const models = getVariantCompatibleModels(matchingVariant)
+      const vColor = getVariantColorValue(matchingVariant)
       const nextColor = resolveCanonicalVariantOption(vColor, product.colors)
       if (nextColor) {
         setSelectedColor(nextColor)
-        const varImage = product.colorImages?.[nextColor]
+        const varImage = resolveColorImage(product, nextColor)
         if (varImage) setActiveImage(varImage)
       }
-      const nextModel = resolveCanonicalVariantOption(models[0], product.compatibleModels) || models[0] || ''
-      setSelectedCompatibleModel(nextModel)
     }
+
+    const availableModels = resolveCompatibleModelOptions(product, {
+      color: matchingVariant ? getVariantColorValue(matchingVariant) : selectedColor,
+      size: newSize,
+    })
+    setSelectedCompatibleModel(pickDefaultCompatibleModel(product, availableModels))
   }
 
   const activeVariant = useMemo(() => {
     if (!product?.variants?.length) return null
-    const sizeAttribute = product.sizeGroupLabel ?? 'size'
 
     return product.variants.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
+      const vColor = getVariantColorValue(variant)
       const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
 
-      const vSize = getVariantAttributeValue(variant, sizeAttribute)
+      const vSize = getVariantSizeValue(variant, product)
       const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
 
-      const matchModel = !selectedCompatibleModel
-        || variantHasCompatibleModel(variant, selectedCompatibleModel)
+      const matchModel = !effectiveCompatibleModel
+        || variantHasCompatibleModel(variant, effectiveCompatibleModel)
 
       return matchColor && matchSize && matchModel
     }) ?? product.variants[0]
-  }, [product, selectedColor, selectedSize, selectedCompatibleModel])
+  }, [product, selectedColor, selectedSize, effectiveCompatibleModel])
 
   const activeSku = useMemo(() => {
     return activeVariant?.sku || product?.sku || product?.keyDetails?.['Model/SKU'] || 'N/A'
@@ -1694,37 +1957,35 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
         <Container className="space-y-3 sm:space-y-4">
           <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
             <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-              <ProductGallery product={product} activeImage={activeImage} setActiveImage={setActiveImage} />
+              <ProductGallery product={product} activeImage={displayActiveImage} setActiveImage={setActiveImage} />
             </div>
 
             <div className="order-3 flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-2 lg:h-full">
               <div className="min-w-0 lg:flex-1">
                 <KeyDetails product={product} activeSku={activeSku} />
               </div>
-              <div className="min-w-0">
-                <AboutThisItem product={product} />
-              </div>
               <div className="mt-auto min-w-0">
                 <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
               </div>
             </div>
 
-            <div className="order-2 flex min-w-0 flex-col gap-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-full">
+            <div className="order-2 flex min-w-0 flex-col gap-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-full" data-product-sidebar>
               <ProductInfoPanel
                 product={product}
                 selectedColor={selectedColor}
                 setSelectedColor={handleColorSelect}
                 selectedSize={selectedSize}
                 setSelectedSize={handleSizeSelect}
-                selectedCompatibleModel={selectedCompatibleModel}
+                selectedCompatibleModel={effectiveCompatibleModel}
                 setSelectedCompatibleModel={handleCompatibleModelSelect}
-                activeImage={activeImage}
+                compatibleModelOptions={compatibleModelOptions}
+                activeImage={displayActiveImage}
                 activeVariant={activeVariant}
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
               />
-              <div className="mt-auto min-w-0">
-                <ReviewSummary product={product} />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <ReviewSummary product={product} fillHeight />
               </div>
             </div>
           </section>

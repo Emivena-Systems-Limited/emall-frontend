@@ -65,6 +65,12 @@ export function getVariantAttributeValue(variant, attributeName) {
   if (normalized === 'color' && variant.color != null && variant.color !== '') {
     return String(variant.color).trim()
   }
+  if (normalized === 'colour' && variant.colour != null && variant.colour !== '') {
+    return String(variant.colour).trim()
+  }
+  if (normalized === 'colour' && variant.color != null && variant.color !== '') {
+    return String(variant.color).trim()
+  }
   if (normalized === 'size' && variant.size != null && variant.size !== '') {
     return String(variant.size).trim()
   }
@@ -73,7 +79,8 @@ export function getVariantAttributeValue(variant, attributeName) {
 }
 
 export function getVariantCompatibleModels(variant) {
-  if (!variant?.has_compatible_models) return []
+  if (!variant || typeof variant !== 'object') return []
+  if (variant.has_compatible_models === false) return []
   if (!Array.isArray(variant.compatible_models)) return []
   return variant.compatible_models
     .map((model) => (typeof model === 'string' ? model : model?.name ?? '').trim())

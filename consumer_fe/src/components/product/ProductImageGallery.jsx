@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react'
-import ImageLightbox, { clampZoom, ZOOM_STEP } from '../shared/ImageLightbox'
+import ImageLightbox from '../shared/ImageLightbox'
 
 const SWIPE_THRESHOLD = 48
 
@@ -47,27 +47,6 @@ export default function ProductImageGallery({
     setZoom(1)
   }
 
-  useEffect(() => {
-    if (!lightboxOpen) return undefined
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') closeLightbox()
-      if (event.key === 'ArrowLeft') goPrev()
-      if (event.key === 'ArrowRight') goNext()
-      if (event.key === '+' || event.key === '=') setZoom((value) => clampZoom(value + ZOOM_STEP))
-      if (event.key === '-') setZoom((value) => clampZoom(value - ZOOM_STEP))
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [lightboxOpen, goPrev, goNext])
-
   const handleTouchStart = (event) => {
     didSwipeRef.current = false
     touchStartRef.current = {
@@ -103,7 +82,7 @@ export default function ProductImageGallery({
 
   if (!gallery.length || !currentImage) {
     return (
-      <div className="flex aspect-square w-full items-center justify-center rounded-2xl bg-white text-slate-300 sm:aspect-[1.45]">
+      <div className="flex aspect-square w-full min-h-72 items-center justify-center rounded-2xl bg-white text-slate-300 sm:min-h-84 sm:aspect-[1.15]">
         No image
       </div>
     )
@@ -116,13 +95,13 @@ export default function ProductImageGallery({
     <>
       <div className="space-y-3">
         <div
-          className="group relative aspect-square w-full overflow-hidden rounded-2xl bg-white sm:aspect-[1.45]"
+          className="group relative aspect-square w-full min-h-72 overflow-hidden rounded-2xl bg-white sm:min-h-84 sm:aspect-[1.15]"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <button
             type="button"
-            className="relative z-0 flex size-full cursor-zoom-in items-center justify-center p-1"
+            className="relative z-0 flex size-full cursor-zoom-in items-center justify-center p-3 sm:p-4"
             onClick={handleMainImageClick}
             aria-label="View larger image"
           >
@@ -130,7 +109,7 @@ export default function ProductImageGallery({
               src={currentImage}
               alt={title}
               draggable={false}
-              className="max-h-full max-w-full select-none object-contain motion-safe:scale-[1.03]"
+              className="max-h-full max-w-full select-none object-contain"
             />
           </button>
 
@@ -189,7 +168,7 @@ export default function ProductImageGallery({
                   }}
                   aria-label={`View image ${index + 1}`}
                   aria-current={isActive ? 'true' : undefined}
-                  className={`size-14 shrink-0 overflow-hidden rounded-xl bg-white p-1 transition-all sm:size-16 ${
+                  className={`size-14 shrink-0 overflow-hidden rounded-xl bg-white p-1.5 transition-all sm:size-16 ${
                     isActive
                       ? 'shadow-[0_4px_16px_rgba(15,23,42,0.22)] ring-2 ring-white'
                       : 'opacity-75 hover:opacity-100'
@@ -198,7 +177,7 @@ export default function ProductImageGallery({
                   <img
                     src={image}
                     alt=""
-                    className="size-full rounded-lg object-cover"
+                    className="size-full rounded-lg object-contain"
                   />
                 </button>
               )
@@ -217,6 +196,8 @@ export default function ProductImageGallery({
           onPrev={goPrev}
           onNext={goNext}
           hasMultiple={gallery.length > 1}
+          currentIndex={currentIndex}
+          imageCount={gallery.length}
         />
       )}
     </>
