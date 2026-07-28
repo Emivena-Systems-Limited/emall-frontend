@@ -432,9 +432,20 @@ export function createProductImageFromRemote(image) {
   }
 }
 
+function hasRemoteProductImageUrl(image) {
+  const url = String(
+    image.preview ?? image.image_url ?? image.url ?? image.image_path ?? '',
+  ).trim()
+
+  return url.length > 0 && !url.startsWith('blob:')
+}
+
 export function isKeptRemoteProductImage(image) {
   if (!image || isFileValue(image.file)) return false
-  return resolveRemoteProductImageId(image) != null
+  if (resolveRemoteProductImageId(image) != null) return true
+  if (image.isRemote && hasRemoteProductImageUrl(image)) return true
+  // API records loaded with URL only — no backend id, no local file.
+  return hasRemoteProductImageUrl(image)
 }
 
 export function isUsableProductImage(image) {

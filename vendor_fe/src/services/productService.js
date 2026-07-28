@@ -157,10 +157,35 @@ export async function updateProductVariant(productVariantId, body) {
   return record
 }
 
-export async function createProductVariant(productId, formData) {
-  formData.set('product_id', String(productId))
+export async function createProductVariant(productId, body) {
+  if (body instanceof FormData) {
+    body.set('product_id', String(productId))
 
-  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.createVariantStore, formData)
+    if (import.meta.env.DEV) {
+      console.log('[create variant] POST', PRODUCT_ENDPOINTS.createVariantStore)
+    }
+
+    const { data } = await apiClient.post(PRODUCT_ENDPOINTS.createVariantStore, body)
+    assertApiSuccess(data)
+
+    const record = extractProductRecord(data)
+    if (!record?.id) {
+      throw new Error('Variant was created but no product id was returned.')
+    }
+
+    return record
+  }
+
+  const payload = {
+    ...body,
+    product_id: body.product_id ?? productId,
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('[create variant] POST', PRODUCT_ENDPOINTS.createVariantStore, payload)
+  }
+
+  const { data } = await apiClient.post(PRODUCT_ENDPOINTS.createVariantStore, payload)
   assertApiSuccess(data)
 
   const record = extractProductRecord(data)

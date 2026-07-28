@@ -1193,8 +1193,8 @@ function assertProductImagesUploaded(mainImage, subImages = []) {
 
     throw new Error(
       index === 0
-        ? 'Main product image upload did not finish. Please try publishing again.'
-        : `Gallery image ${index} upload did not finish. Please try publishing again.`,
+        ? 'Main product image upload did not finish. Please try saving again.'
+        : `Gallery image ${index} upload did not finish. Please try saving again.`,
     )
   })
 }
@@ -1582,6 +1582,46 @@ export function buildSingleVariantUpdateJsonPayload(variantFormValues, productVa
     ...fields,
     images,
   }
+}
+
+/**
+ * JSON variant create payload.
+ * New uploads → { upload_id, sort_order, is_primary }
+ */
+export function buildSingleVariantCreateJsonPayload(variantFormValues, productId, productValues) {
+  assertVariantImagesPresent(
+    variantFormValues,
+    { attribute: variantFormValues.attribute ?? '' },
+    { mode: 'create' },
+  )
+  assertVariantImagesUploaded(variantFormValues.images ?? [])
+
+  const { variationData } = buildSingleVariantFormData(variantFormValues, productValues)
+  const mediaImages = buildProductMediaSaveImagesPayload({
+    variations: [{
+      attribute: variantFormValues.attribute,
+      values: [{
+        value: variantFormValues.value,
+        images: variantFormValues.images ?? [],
+      }],
+    }],
+  })
+
+  const images = mediaImages.variations[0]?.values[0]?.images ?? []
+  const fields = { ...variationData }
+  delete fields.images
+
+  const payload = {
+    product_id: productId,
+    ...fields,
+    images,
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('[create variant] JSON payload:', payload)
+  }
+
+  return payload
 }
 
 export function buildSingleVariantCreatePayload(variantFormValues, productId, productValues) {

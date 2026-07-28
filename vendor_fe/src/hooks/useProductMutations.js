@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, duplicateProduct, getProductById, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
-import { buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
+import { buildSingleVariantCreateJsonPayload, buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
 import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../constants/productMediaUpload'
 import notify from '../lib/notify'
 import { productQueryKeys } from './useProducts'
@@ -200,8 +200,13 @@ export function useCreateProductVariantMutation() {
   return useMutation({
     mutationKey: ['products', 'create-variant'],
     mutationFn: async ({ productId, variantFormValues, productValues }) => {
-      const formData = buildSingleVariantCreatePayload(variantFormValues, productId, productValues)
-      await createProductVariant(productId, formData)
+      if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
+        const payload = buildSingleVariantCreateJsonPayload(variantFormValues, productId, productValues)
+        await createProductVariant(productId, payload)
+      } else {
+        const formData = buildSingleVariantCreatePayload(variantFormValues, productId, productValues)
+        await createProductVariant(productId, formData)
+      }
       return getProductById(productId)
     },
     onSuccess: (freshRecord, variables) => {

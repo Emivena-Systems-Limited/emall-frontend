@@ -4,7 +4,7 @@ import OrderPagination from '../../components/orders/OrderPagination'
 import InviteUserModal from '../../components/users/InviteUserModal'
 import UsersPageHeader from '../../components/users/UsersPageHeader'
 import UsersSummaryCards from '../../components/users/UsersSummaryCards'
-import UsersTable, { RolePermissionsPanel } from '../../components/users/UsersTable'
+import UsersTable from '../../components/users/UsersTable'
 import { SORT_DIRECTIONS, SORT_FIELDS, USERS_PAGE_SIZE } from '../../constants/usersPermissions'
 import { DEV_TEAM_MEMBERS, MOCK_TEAM_MEMBERS } from '../../constants/usersPermissionsData'
 import notify from '../../lib/notify'
@@ -30,6 +30,8 @@ export default function UsersPermissions() {
 
   const summary = useMemo(() => computeTeamSummary(members), [members])
   const hasMembers = members.length > 0
+
+  const hasActiveFilters = search.trim() !== '' || roleFilter !== 'all' || statusFilter !== 'all'
 
   const filtered = useMemo(
     () => filterTeamMembers(members, { search, roleFilter, statusFilter }),
@@ -94,6 +96,7 @@ export default function UsersPermissions() {
         <UsersTable
           members={pagination.items}
           hasMembers={hasMembers}
+          hasActiveFilters={hasActiveFilters}
           search={search}
           onSearchChange={setSearch}
           roleFilter={roleFilter}
@@ -117,7 +120,6 @@ export default function UsersPermissions() {
           />
         )}
 
-        <RolePermissionsPanel />
       </div>
 
       <InviteUserModal

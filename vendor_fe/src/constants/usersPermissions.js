@@ -2,29 +2,45 @@ export const USER_ROLES = {
   owner: {
     label: 'Owner',
     description: 'Full access to all store features and billing',
-    tone: 'brand',
+    className: 'bg-brand-light text-brand ring-brand-muted',
+    avatarClass: 'bg-brand-light text-brand ring-brand-muted',
   },
   manager: {
     label: 'Manager',
     description: 'Manage products, orders, and team members',
-    tone: 'violet',
+    className: 'bg-violet-50 text-violet-800 ring-violet-200/80',
+    avatarClass: 'bg-violet-50 text-violet-700 ring-violet-100',
   },
   staff: {
     label: 'Staff',
     description: 'Process orders and respond to customers',
-    tone: 'sky',
+    className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
+    avatarClass: 'bg-sky-50 text-sky-700 ring-sky-100',
   },
   viewer: {
     label: 'Viewer',
     description: 'Read-only access to dashboard and reports',
-    tone: 'slate',
+    className: 'bg-slate-100 text-slate-700 ring-slate-200/80',
+    avatarClass: 'bg-slate-100 text-slate-600 ring-slate-200',
   },
 }
 
 export const USER_STATUS = {
-  active: { label: 'Active', tone: 'emerald' },
-  pending: { label: 'Invite pending', tone: 'amber' },
-  suspended: { label: 'Suspended', tone: 'rose' },
+  active: {
+    label: 'Active',
+    className: 'bg-emerald-50 text-emerald-800 ring-emerald-200/80',
+    dot: 'bg-emerald-500',
+  },
+  pending: {
+    label: 'Invite pending',
+    className: 'bg-amber-50 text-amber-800 ring-amber-200/80',
+    dot: 'bg-amber-500',
+  },
+  suspended: {
+    label: 'Suspended',
+    className: 'bg-rose-50 text-rose-800 ring-rose-200/80',
+    dot: 'bg-rose-500',
+  },
 }
 
 export const PERMISSION_GROUPS = [

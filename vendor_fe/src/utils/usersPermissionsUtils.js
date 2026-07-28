@@ -20,6 +20,15 @@ export function formatLastActive(iso) {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
+export function formatInvitedAt(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
 export function computeTeamSummary(members) {
   const total = members.length
   const active = members.filter((m) => m.status === 'active').length

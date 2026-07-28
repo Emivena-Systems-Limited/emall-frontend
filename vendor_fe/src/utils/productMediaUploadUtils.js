@@ -624,10 +624,13 @@ function resolveImageUploadId(image) {
 function resolveImageUrl(image) {
   if (!image || typeof image !== 'object') return null
 
-  const url = image.image_url ?? image.s3Path ?? image.storagePath ?? null
+  const url = image.image_url ?? image.url ?? image.preview ?? image.s3Path ?? image.storagePath ?? null
   if (url == null || url === '') return null
 
-  return String(url)
+  const normalized = String(url)
+  if (normalized.startsWith('blob:')) return null
+
+  return normalized
 }
 
 function toSavedProductImage(image, index) {

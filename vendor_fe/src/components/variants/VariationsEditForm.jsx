@@ -6,13 +6,9 @@ import {
   useUpdateSingleVariantMutation,
 } from '../../hooks/useProductMutations'
 import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
-import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../../constants/productMediaUpload'
 import { isPersistedVariantId, iterateVariantFormEntries } from '../../utils/productPayload'
-import {
-  buildProductMediaPresignRequest,
-  hasPendingProductMediaUploads,
-} from '../../utils/productMediaUploadUtils'
-import { summarizeVariantImageChanges, captureVariantImageBaseline } from '../../utils/productImageEditUtils'
+import { captureVariantImageBaseline, summarizeVariantImageChanges } from '../../utils/productImageEditUtils'
+import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
 import notify from '../../lib/notify'
 import AddVariantFlow from './AddVariantFlow'
 import VariantDetailsDrawer from './VariantDetailsDrawer'
@@ -43,52 +39,21 @@ export default function VariationsEditForm({ productId, formState, onFinished })
     const variantId = drawerEntry.variantValue.id
     if (!isPersistedVariantId(variantId)) return
 
-    const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD
     const imageBaseline = captureVariantImageBaseline({
       images: drawerEntry.variantValue.images ?? [],
     })
 
-    let nextVariantFormValues = variantFormValues
-
     try {
-      if (usePresignedUpload) {
-        const mediaState = {
-          mainImage: null,
-          subImages: [],
-          descriptiveImages: [],
-          variations: [{
-            attribute: drawerEntry.variation.attribute,
-            values: [{
-              value: variantFormValues.value,
-              images: variantFormValues.images ?? [],
-            }],
-          }],
-        }
+      const nextVariantFormValues = await prepareVariantFormValuesForSave({
+        variantFormValues,
+        attribute: drawerEntry.variation.attribute,
+        uploadPendingMedia,
+      })
 
-        const presignRequest = buildProductMediaPresignRequest(mediaState)
-
-        if (import.meta.env.DEV) {
-          console.log('[edit variant] media presign request:', presignRequest)
-        }
-
-        if (hasPendingProductMediaUploads(presignRequest)) {
-          const nextMediaState = await uploadPendingMedia(mediaState)
-          const nextImages = nextMediaState.variations?.[0]?.values?.[0]?.images
-            ?? variantFormValues.images
-
-          nextVariantFormValues = {
-            ...variantFormValues,
-            images: nextImages,
-          }
-        }
-
-        const imageChanges = summarizeVariantImageChanges(imageBaseline, {
+      if (import.meta.env.DEV) {
+        console.log('[edit variant] image changes:', summarizeVariantImageChanges(imageBaseline, {
           images: nextVariantFormValues.images ?? [],
-        })
-
-        if (import.meta.env.DEV) {
-          console.log('[edit variant] image changes:', imageChanges)
-        }
+        }))
       }
 
       await updateSingleVariantMutation.mutateAsync({

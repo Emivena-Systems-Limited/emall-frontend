@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react'
 import { Layers3, Plus } from 'lucide-react'
 import ConfirmModal from '../common/ConfirmModal'
+import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
 import { isPersistedVariantId } from '../../utils/productPayload'
+import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
+import notify from '../../lib/notify'
 import AttributeIcon from './AttributeIcon'
 import AttributeTypePicker from './AttributeTypePicker'
 import CardStepHeader from './CardStepHeader'
@@ -55,6 +58,7 @@ export default function AddVariantFlow({
   const [editingTarget, setEditingTarget] = useState(null) // { attribute, value }
   const [removeTarget, setRemoveTarget] = useState(null)
   const savedValuesRef = useRef(null)
+  const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
 
   const scrollToSavedValues = () => {
     requestAnimationFrame(() => {
@@ -168,17 +172,39 @@ export default function AddVariantFlow({
     if (!editingTarget) return
     const { attribute, value } = editingTarget
     const persisted = findPersistedEntry(attribute, value)
-    if (persisted && isPersistedVariantId(persisted.variantValue.id)) {
-      await updateSingleVariantMutation.mutateAsync({
-        productId,
-        variantId: persisted.variantValue.id,
+
+    try {
+      const nextVariantFormValues = await prepareVariantFormValuesForSave({
         variantFormValues,
-        productValues,
+        attribute,
+        uploadPendingMedia,
       })
-    } else {
-      await createVariantMutation.mutateAsync({ productId, variantFormValues, productValues })
+
+      if (import.meta.env.DEV) {
+        console.log('[variant save] prepared images:', nextVariantFormValues.images)
+      }
+
+      if (persisted && isPersistedVariantId(persisted.variantValue.id)) {
+        await updateSingleVariantMutation.mutateAsync({
+          productId,
+          variantId: persisted.variantValue.id,
+          variantFormValues: nextVariantFormValues,
+          productValues,
+        })
+      } else {
+        await createVariantMutation.mutateAsync({
+          productId,
+          variantFormValues: nextVariantFormValues,
+          productValues,
+        })
+      }
+
+      setEditingTarget(null)
+    } catch (error) {
+      if (!error?.response) {
+        notify.error(error?.message || 'Failed to prepare variant images.')
+      }
     }
-    setEditingTarget(null)
   }
 
   const editingPersisted = editingTarget
@@ -379,7 +405,11 @@ export default function AddVariantFlow({
         productValues={productValues}
         onClose={() => setEditingTarget(null)}
         onSave={handleDrawerSave}
-        isSaving={createVariantMutation.isPending || updateSingleVariantMutation.isPending}
+        isSaving={
+          createVariantMutation.isPending
+          || updateSingleVariantMutation.isPending
+          || isUploadingMedia
+        }
       />
 
       <ConfirmModal
