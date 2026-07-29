@@ -74,7 +74,7 @@ function Filters({ search, setSearch, category, setCategory, onClear }) {
 
 function EmptyWishlist() {
   return (
-    <div className="flex min-h-[28rem] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-5 text-center">
+    <div className="flex min-h-112 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-5 text-center">
       <span className="relative flex size-24 items-center justify-center rounded-full bg-red-50 text-auth-primary"><Heart className="size-10" /><span className="absolute right-2 top-1 flex size-7 items-center justify-center rounded-full bg-white shadow"><Plus className="size-4" /></span></span>
       <h3 className="mt-5 text-xl font-bold text-slate-950">Your wishlist is empty</h3><p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">Save items you love and find them here anytime.</p>
       <Link to="/products" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-auth-primary px-5 py-3 text-sm font-bold text-white hover:bg-auth-primary-hover">Continue Shopping<ChevronRight className="size-4" /></Link>

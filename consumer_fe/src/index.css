@@ -1,9 +1,85 @@
 @import "tailwindcss";
 
+/* --- Previous font setup (Inter) — kept commented so it can be restored quickly --- */
+/*
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
+*/
+
+/* --- Onest (local font files, see src/assets/fonts) --- */
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-Thin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-ExtraLight.ttf") format("truetype");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Onest";
+  src: url("./assets/fonts/Onest-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 @theme {
   --color-auth-primary: #c73b2d;
@@ -11,7 +87,8 @@
   --color-auth-accent: #c9a227;
   --color-auth-muted: #8a8a8a;
 
-  --font-sans: "Amazon Ember", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* --font-sans: "Amazon Ember", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; -- previous setting, kept for easy revert */
+  --font-sans: "Onest", "Amazon Ember", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 html {

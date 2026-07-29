@@ -45,4 +45,15 @@ export function formatProductListPrice(value) {
   }).format(num).replace(/\s/g, '')
 }
 
+export function formatCediPriceParts(value) {
+  const num = Number(value)
+  if (Number.isNaN(num)) {
+    return { currency: '₵', whole: '0', fraction: '00' }
+  }
+
+  const whole = new Intl.NumberFormat('en-GH').format(Math.round(num))
+
+  return { currency: '₵', whole, fraction: '00' }
+}
+
 export default formatCedi
