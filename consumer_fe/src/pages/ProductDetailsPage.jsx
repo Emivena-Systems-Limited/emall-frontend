@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
-  ImageIcon,
   Loader2,
   Minus,
   Plus,
@@ -1053,53 +1052,69 @@ function collectDescriptiveImageUrls(apiProduct) {
 }
 
 const DESCRIPTIVE_GRID_SIZE = 4
+const MAX_DESCRIPTIVE_LANDSCAPE_IMAGE_COUNT = 3
+/** Ratio (width ÷ height) at or above which a descriptive image is treated as a wide
+ *  landscape banner (one per row) instead of the legacy 2-per-row grid tile. */
+const DESCRIPTIVE_IMAGE_LANDSCAPE_RATIO_THRESHOLD = 2
 
-function buildDescriptiveGridImages(product) {
-  const descriptive = (product.descriptiveImages ?? []).filter(Boolean)
-  const gallery = (product.gallery ?? []).filter(Boolean)
-  const used = new Set(descriptive)
-  const fillerPool = gallery.filter((url) => !used.has(url))
-
-  const seed = String(product.slug ?? product.id ?? '')
-  const shuffledFillers = [...fillerPool].sort((a, b) => {
-    const score = (value) => {
-      let hash = 0
-      const key = `${seed}:${value}`
-      for (let i = 0; i < key.length; i += 1) {
-        hash = (hash * 31 + key.charCodeAt(i)) | 0
-      }
-      return hash
+function readImageUrlDimensions(url) {
+  return new Promise((resolve, reject) => {
+    if (!url) {
+      reject(new Error('Missing image URL'))
+      return
     }
-    return score(a) - score(b)
+
+    const image = new Image()
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
+    image.onerror = () => reject(new Error('Could not read image dimensions'))
+    image.src = url
   })
-
-  const combined = [...descriptive]
-  shuffledFillers.forEach((url) => {
-    if (combined.length < DESCRIPTIVE_GRID_SIZE) combined.push(url)
-  })
-
-  if (combined.length < DESCRIPTIVE_GRID_SIZE && gallery.length > 0) {
-    let index = 0
-    while (combined.length < DESCRIPTIVE_GRID_SIZE) {
-      combined.push(gallery[index % gallery.length])
-      index += 1
-    }
-  }
-
-  return Array.from({ length: DESCRIPTIVE_GRID_SIZE }, (_, index) => combined[index] ?? null)
 }
 
-function DescriptiveImagePlaceholder() {
-  return <ImageIcon className="size-7 text-slate-300 sm:size-8" strokeWidth={1.5} />
+/**
+ * Backend has no flag for "wide banner" vs legacy "square tile" descriptive images, so we
+ * measure each image's rendered aspect ratio client-side. A set only switches to the new
+ * one-per-row banner layout once every image in it is confirmed landscape — this keeps older
+ * products (uploaded before the wide-banner format existed) safely on the legacy 2×2 grid.
+ */
+function useDescriptiveImagesLandscapeLayout(imageUrls) {
+  const [isLandscapeLayout, setIsLandscapeLayout] = useState(false)
+
+  useEffect(() => {
+    if (imageUrls.length === 0) {
+      setIsLandscapeLayout(false)
+      return undefined
+    }
+
+    let cancelled = false
+
+    Promise.all(imageUrls.map((url) => readImageUrlDimensions(url).catch(() => null)))
+      .then((results) => {
+        if (cancelled) return
+        const allLandscape = results.every((result) => (
+          result?.width > 0
+          && result?.height > 0
+          && result.width / result.height >= DESCRIPTIVE_IMAGE_LANDSCAPE_RATIO_THRESHOLD
+        ))
+        setIsLandscapeLayout(allLandscape)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [imageUrls])
+
+  return isLandscapeLayout
 }
 
 function DescriptiveImagesGrid({ product }) {
-  const gridImages = buildDescriptiveGridImages(product)
-  const hasDescriptive = (product.descriptiveImages ?? []).length > 0
-  const viewableImages = useMemo(
-    () => [...new Set(buildDescriptiveGridImages(product).filter(Boolean))],
+  const descriptiveImages = useMemo(
+    () => (product.descriptiveImages ?? []).filter(Boolean),
     [product],
   )
+  const hasDescriptive = descriptiveImages.length > 0
+  const isLandscapeLayout = useDescriptiveImagesLandscapeLayout(descriptiveImages)
+  const viewableImages = useMemo(() => [...new Set(descriptiveImages)], [descriptiveImages])
 
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [zoom, setZoom] = useState(1)
@@ -1132,43 +1147,43 @@ function DescriptiveImagesGrid({ product }) {
     setLightboxIndex(index)
   }
 
+  // Descriptive images are optional — render nothing rather than padding with product/gallery images.
+  if (!hasDescriptive) return null
+
   const lightboxImage = lightboxIndex === null ? null : viewableImages[lightboxIndex]
+  const visibleImages = isLandscapeLayout
+    ? descriptiveImages.slice(0, MAX_DESCRIPTIVE_LANDSCAPE_IMAGE_COUNT)
+    : descriptiveImages.slice(0, DESCRIPTIVE_GRID_SIZE)
 
   return (
     <>
-      <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
-        <h3 className="font-bold text-slate-950">Product Images</h3>
-        <div className="grid w-full grid-cols-2 gap-2 sm:gap-3">
-          {gridImages.map((src, index) => (
-            src
-              ? (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => openLightbox(src)}
-                  aria-label={
-                    hasDescriptive
-                      ? `View product detail ${index + 1} full size`
-                      : `View product image ${index + 1} full size`
-                  }
-                  className="group cursor-zoom-in overflow-hidden rounded-sm bg-slate-100 text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40"
-                >
-                  <img
-                    src={src}
-                    alt=""
-                    className="block h-auto w-full max-w-full transition-transform duration-200 group-hover:scale-[1.01]"
-                    loading="lazy"
-                  />
-                </button>
-              )
-              : (
-                <div
-                  key={index}
-                  className="flex aspect-970/600 w-full items-center justify-center rounded-sm bg-slate-100"
-                >
-                  <DescriptiveImagePlaceholder />
-                </div>
-              )
+      <div className="mt-6 w-full min-w-0">
+        <div
+          className={
+            isLandscapeLayout
+              ? 'flex w-full flex-col'
+              : 'grid w-full grid-cols-2 gap-2 sm:gap-3'
+          }
+        >
+          {visibleImages.map((src, index) => (
+            <button
+              key={src}
+              type="button"
+              onClick={() => openLightbox(src)}
+              aria-label={`View product detail ${index + 1} full size`}
+              className={
+                isLandscapeLayout
+                  ? 'group cursor-zoom-in overflow-hidden bg-slate-100 text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40'
+                  : 'group cursor-zoom-in overflow-hidden rounded-sm bg-slate-100 text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40'
+              }
+            >
+              <img
+                src={src}
+                alt=""
+                className="block h-auto w-full max-w-full transition-transform duration-200 group-hover:scale-[1.01]"
+                loading="lazy"
+              />
+            </button>
           ))}
         </div>
       </div>

@@ -32,9 +32,10 @@ function DescriptiveImageGuidance() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-slate-900">Recommended size for descriptive images</p>
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            These photos appear in a 2×2 grid on your product page. Upload wide landscape images close to{' '}
+            These photos appear as wide banners, one per row, on your product page — the same
+            landscape style used on Amazon-style detail pages. Upload wide images close to{' '}
             <span className="font-semibold text-slate-800">{DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL}</span>
-            {' '}so they fill each slot without awkward cropping.
+            {' '}so they fill the row without awkward cropping.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-sky-100">
@@ -285,7 +286,7 @@ export default function DescriptiveImageUploader({
       </div>
 
       {images.length > 0 && (
-        <div className="flex flex-wrap gap-2.5">
+        <div className="space-y-3">
           {images.map((img, index) => (
             <div
               key={img.id}
@@ -294,11 +295,11 @@ export default function DescriptiveImageUploader({
               onDragOver={(event) => { event.preventDefault(); setOverIndex(index) }}
               onDrop={(event) => handleItemDrop(event, index)}
               onDragEnd={() => { setDraggingIndex(null); setOverIndex(null) }}
-              className={`group relative aspect-[970/600] w-40 min-h-0 shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:w-48 ${
+              className={`group relative aspect-12/5 w-full overflow-hidden rounded-xl bg-slate-100 transition-transform ${
                 draggingIndex === index
                   ? 'cursor-grabbing opacity-40 ring-2 ring-slate-300'
                   : overIndex === index && draggingIndex !== index
-                    ? 'scale-105 cursor-grab ring-2 ring-brand'
+                    ? 'scale-[1.01] cursor-grab ring-2 ring-brand'
                     : 'cursor-grab ring-1 ring-slate-200 hover:ring-slate-300 active:cursor-grabbing'
               }`}
             >
@@ -308,20 +309,23 @@ export default function DescriptiveImageUploader({
                 draggable={false}
                 className="pointer-events-none size-full object-contain object-center select-none"
               />
+              <span className="absolute left-2 top-2 flex size-6 items-center justify-center rounded-full bg-white/90 text-[0.6875rem] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200">
+                {index + 1}
+              </span>
               <DimensionBadge image={img} />
               <div className="absolute inset-0 flex cursor-grab items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing">
                 <button
                   type="button"
                   onClick={(event) => { event.stopPropagation(); removeImage(img.id) }}
-                  className="cursor-pointer rounded-md bg-white p-1 text-red-600 shadow-sm transition-colors hover:bg-red-50"
+                  className="cursor-pointer rounded-md bg-white p-1.5 text-red-600 shadow-sm transition-colors hover:bg-red-50"
                   aria-label={`Remove descriptive image ${index + 1}`}
                 >
-                  <Trash2 className="size-3.5" />
+                  <Trash2 className="size-4" />
                 </button>
               </div>
-              <div className="pointer-events-none absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <span className="flex size-5 cursor-grab items-center justify-center rounded bg-black/60 text-white">
-                  <GripVertical className="size-3" />
+              <div className="pointer-events-none absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="flex size-6 cursor-grab items-center justify-center rounded bg-black/60 text-white">
+                  <GripVertical className="size-3.5" />
                 </span>
               </div>
             </div>

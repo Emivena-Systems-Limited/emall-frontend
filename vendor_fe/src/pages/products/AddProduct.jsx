@@ -54,6 +54,7 @@ import {
 import {
   DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL,
   FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+  MAX_DESCRIPTIVE_IMAGE_COUNT,
   PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL,
   PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
   PRODUCT_CONDITION_OPTIONS,
@@ -541,7 +542,7 @@ export function ImagesStep({
         <OptionalSectionHeader
           eyebrow="Descriptive photos"
           title="Detail images"
-          description={`Optional lifestyle or detail shots shown in a 2×2 grid on your product page. Upload wide images near ${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} for the best fit.`}
+          description={`Optional wide lifestyle or detail banners shown one per row on your product page — the same landscape style used on Amazon-style listings. Upload up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} images near ${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} for the best fit.`}
         />
         <DescriptiveImageUploader
           images={descriptiveImages}

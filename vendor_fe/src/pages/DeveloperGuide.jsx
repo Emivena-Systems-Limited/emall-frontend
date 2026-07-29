@@ -298,7 +298,7 @@ src/utils/normalizeProducts.js        // API record → catalogue row`}
           >
             <ol className="space-y-2 text-sm leading-relaxed text-slate-700">
               <li><strong>1. Product Info</strong> — Name, SKU, rich-text description, category + subcategory, brand (<code className="rounded bg-slate-100 px-1 text-xs">SearchableSelect</code> + inline brand create), condition, tags, key details.</li>
-              <li><strong>2. Images</strong> — Required main photo + gallery + optional descriptive (2×2 grid) images with dimension validation.</li>
+              <li><strong>2. Images</strong> — Required main photo + gallery + optional descriptive (wide banner, one per row) images with dimension validation.</li>
               <li><strong>3. Pricing</strong> — List price, discount (amount or %), quantity, low stock, barcode.</li>
               <li><strong>4. Variations</strong> — Optional attribute groups with per-value SKU, pricing, stock, compatible models, variant images.</li>
               <li><strong>5. Shipping</strong> — Weight and dimensions.</li>

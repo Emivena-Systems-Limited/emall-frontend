@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
   ChevronDown,
@@ -22,9 +22,11 @@ import {
 } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import notify from '../../lib/notify'
-import { formatItemWeight, formatPackageDimensions, getMetadataValue, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsFromRecord, sortKeyDetailEntries } from '../../utils/productMetadata'
+import { formatItemWeight, formatPackageDimensions, getMetadataValue, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsEntries, mapKeyDetailsFromRecord, sortKeyDetailEntries } from '../../utils/productMetadata'
 import { normalizeProductDescription } from '../../utils/productDescriptionHtml'
 import { calculateDisplayDiscountPercent } from '../../utils/productPricing'
+import { readImageUrlDimensions } from '../../utils/productImageUtils'
+import { DESCRIPTIVE_IMAGE_LANDSCAPE_RATIO_THRESHOLD, MAX_DESCRIPTIVE_IMAGE_COUNT } from '../../constants/products'
 import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
@@ -38,6 +40,29 @@ const cediFormatter = new Intl.NumberFormat('en-GH', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 })
+
+const KEY_DETAILS_EXPANDED_SECTION_ID = 'product-key-details-expanded'
+const KEY_DETAILS_CUSTOM_VISIBLE_COUNT = 2
+const KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD = 3
+
+function scrollToExpandedKeyDetails() {
+  const target = document.getElementById(KEY_DETAILS_EXPANDED_SECTION_ID)
+  if (!target) return
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+/** Standard fields (Category, SKU, Barcode, Condition, Brand, ...) always show in full.
+ *  Custom backend key_details beyond the threshold get truncated with a link to the rest. */
+function splitCustomKeyDetails(customEntries) {
+  const entries = Array.isArray(customEntries) ? customEntries : []
+  if (entries.length <= KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD) {
+    return { visible: entries, overflow: [] }
+  }
+  return {
+    visible: entries.slice(0, KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
+    overflow: entries.slice(KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
+  }
+}
 
 function formatCedi(value) {
   return cediFormatter.format(Number(value) || 0)
@@ -179,6 +204,7 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
   const barcode = productBarcode || variants.find((variant) => variant?.barcode)?.barcode || null
   const tags = Array.isArray(rawRecord?.tags) ? rawRecord.tags : []
   const descriptiveImages = mapDescriptiveImageUrls(rawRecord?.descriptive_images)
+  const customKeyDetailEntries = mapKeyDetailsEntries(rawRecord)
 
   return {
     id: product?.id,
@@ -204,6 +230,7 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     extraVariantGroups,
     colorImages,
     keyDetails,
+    customKeyDetailEntries,
     description,
     descriptionHtml,
     descriptiveImages,
@@ -629,26 +656,33 @@ function PreviewActionsMenu({
   )
 }
 
-function KeyDetailsBlock({ tags, keyDetails, activeSku, activeBarcode, onShare }) {
+function KeyDetailsBlock({ tags, keyDetails, customKeyDetailEntries = [], activeSku, activeBarcode, onShare }) {
   const detailsList = { ...keyDetails }
   if (activeSku) detailsList['Model/SKU'] = activeSku
   if (activeBarcode) detailsList.Barcode = activeBarcode
+  delete detailsList['Fulfillment']
+  delete detailsList['fulfillment']
+  delete detailsList['Status']
+  delete detailsList['status']
+
+  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(customKeyDetailEntries)
+  const overflowKeys = new Set(overflowCustomEntries.map(([key]) => key))
+  const hasOverflow = overflowCustomEntries.length > 0
 
   const sortedEntries = sortKeyDetailEntries(Object.entries(detailsList))
+    .filter(([key]) => !overflowKeys.has(key))
 
   return (
-    <section className="min-w-0 h-full bg-white p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-950">Key Details</h2>
-        <button
-          type="button"
-          onClick={onShare}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"
-        >
-          <Share2 className="size-3.5" strokeWidth={2.4} />
-          Share
-        </button>
-      </div>
+    <section className="relative min-w-0 h-full bg-white p-4 sm:p-6">
+      <button
+        type="button"
+        onClick={onShare}
+        className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 sm:right-4 sm:top-4"
+      >
+        <Share2 className="size-3.5" strokeWidth={2.2} />
+        Share
+      </button>
+      <h2 className="pr-24 text-base font-bold text-slate-950">Key Details</h2>
 
       {tags.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -663,13 +697,24 @@ function KeyDetailsBlock({ tags, keyDetails, activeSku, activeBarcode, onShare }
         </div>
       )}
 
-      <dl className={`grid gap-3 text-sm leading-6 text-slate-700 ${tags.length > 0 ? 'mt-5' : 'mt-4'}`}>
+      <dl className={`grid gap-2.5 text-sm leading-5 text-slate-700 ${tags.length > 0 ? 'mt-5' : 'mt-3'}`}>
         {sortedEntries.map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-1.5 py-1 sm:grid-cols-[11rem_1fr] sm:gap-3">
+          <div key={key} className="grid min-w-0 gap-1 py-0.5 sm:grid-cols-[11rem_1fr] sm:gap-3">
             <dt className="font-bold text-slate-900">{key}:</dt>
             <dd className="wrap-break-word">{value}</dd>
           </div>
         ))}
+        {hasOverflow && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={scrollToExpandedKeyDetails}
+              className="text-left text-sm font-semibold text-brand underline-offset-2 transition-colors hover:text-brand-hover hover:underline"
+            >
+              Click to see more details
+            </button>
+          </div>
+        )}
       </dl>
     </section>
   )
@@ -754,24 +799,102 @@ function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews }
   )
 }
 
-function DescriptionBlock({ details, description, descriptionHtml, gallery, descriptiveImages = [] }) {
+/**
+ * Backend has no flag for "wide banner" vs legacy "square tile" descriptive images, so we
+ * measure each image's rendered aspect ratio client-side. A set only switches to the new
+ * one-per-row banner layout once every image in it is confirmed landscape — this keeps older
+ * products (uploaded before the wide-banner format existed) safely on the legacy 2×2 grid.
+ */
+function useDescriptiveImagesLandscapeLayout(imageUrls) {
+  const [isLandscapeLayout, setIsLandscapeLayout] = useState(false)
+
+  useEffect(() => {
+    if (imageUrls.length === 0) {
+      setIsLandscapeLayout(false)
+      return undefined
+    }
+
+    let cancelled = false
+
+    Promise.all(imageUrls.map((url) => readImageUrlDimensions(url).catch(() => null)))
+      .then((results) => {
+        if (cancelled) return
+        const allLandscape = results.every((result) => (
+          result?.width > 0
+          && result?.height > 0
+          && result.width / result.height >= DESCRIPTIVE_IMAGE_LANDSCAPE_RATIO_THRESHOLD
+        ))
+        setIsLandscapeLayout(allLandscape)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [imageUrls])
+
+  return isLandscapeLayout
+}
+
+function ExpandedKeyDetailsPanel({ entries }) {
+  if (!entries?.length) return null
+
+  return (
+    <div
+      id={KEY_DETAILS_EXPANDED_SECTION_ID}
+      className="scroll-mt-24 grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]"
+    >
+      <dt className="shrink-0 font-bold whitespace-nowrap text-slate-950">Additional details</dt>
+      <dd className="min-w-0 text-slate-700">
+        <dl className="divide-y divide-slate-200">
+          {entries.map(([key, value]) => (
+            <div
+              key={key}
+              className="flex min-w-0 items-start gap-x-4 py-3 first:pt-0 last:pb-0"
+            >
+              <dt className="w-56 shrink-0 font-bold text-slate-950">{key}</dt>
+              <dd className="min-w-0 flex-1 wrap-break-word">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </dd>
+    </div>
+  )
+}
+
+function DescriptionBlock({ details, description, descriptionHtml, descriptiveImages = [], customKeyDetailEntries = [] }) {
   const detailsList = { ...details }
   delete detailsList.SKU
   delete detailsList.sku
   delete detailsList.Sku
+
+  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(customKeyDetailEntries)
+  const hasOverflow = overflowCustomEntries.length > 0
+  const detailRows = Object.entries(detailsList)
+  const hasCategoryRow = detailRows.some(([key]) => key === 'Category')
   const hasDescriptiveImages = descriptiveImages.length > 0
-  const showGalleryFallback = !hasDescriptiveImages && gallery.length > 1
+  const isLandscapeLayout = useDescriptiveImagesLandscapeLayout(descriptiveImages)
 
   return (
     <section className="min-w-0 bg-white p-3 sm:p-5">
       <h2 className="text-base font-bold text-slate-950">Product description</h2>
       <div className="mt-5 divide-y divide-slate-300 border-y border-slate-300">
-        {Object.entries(detailsList).map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
-            <dt className="font-bold text-slate-950">{key}</dt>
-            <dd className="wrap-break-word text-slate-700">{value}</dd>
-          </div>
-        ))}
+        {detailRows.flatMap(([key, value]) => {
+          const row = (
+            <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
+              <dt className="font-bold text-slate-950">{key}</dt>
+              <dd className="wrap-break-word text-slate-700">{value}</dd>
+            </div>
+          )
+
+          if (key === 'Category' && hasOverflow) {
+            return [row, <ExpandedKeyDetailsPanel key="expanded-key-details" entries={overflowCustomEntries} />]
+          }
+
+          return [row]
+        })}
+        {hasOverflow && !hasCategoryRow && (
+          <ExpandedKeyDetailsPanel entries={overflowCustomEntries} />
+        )}
         <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
           <dt className="font-bold text-slate-950">Description</dt>
           <dd className="min-w-0 wrap-break-word text-slate-700">
@@ -788,34 +911,30 @@ function DescriptionBlock({ details, description, descriptionHtml, gallery, desc
       </div>
 
       {hasDescriptiveImages && (
-        <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
-          <h3 className="font-bold text-slate-950">Product Images</h3>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {descriptiveImages.slice(0, 4).map((image, index) => (
-              <img
-                key={`${image}-descriptive-${index}`}
-                src={image}
-                alt={`Product detail ${index + 1}`}
-                className="block h-auto w-full max-w-full rounded-sm bg-slate-100"
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showGalleryFallback && (
-        <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-[12rem_1fr]">
-          <h3 className="font-bold text-slate-950">Product Images</h3>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {gallery.slice(1, 5).map((image, index) => (
-              <img
-                key={`${image}-description-${index}`}
-                src={image}
-                alt={`Product image ${index + 1}`}
-                className="block h-auto w-full max-w-full rounded-sm bg-slate-100"
-              />
-            ))}
-          </div>
+        <div className="mt-6 w-full min-w-0">
+          {isLandscapeLayout ? (
+            <div className="flex w-full flex-col">
+              {descriptiveImages.slice(0, MAX_DESCRIPTIVE_IMAGE_COUNT).map((image, index) => (
+                <img
+                  key={`${image}-descriptive-${index}`}
+                  src={image}
+                  alt={`Product detail ${index + 1}`}
+                  className="block h-auto w-full max-w-full bg-slate-100"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              {descriptiveImages.slice(0, 4).map((image, index) => (
+                <img
+                  key={`${image}-descriptive-${index}`}
+                  src={image}
+                  alt={`Product detail ${index + 1}`}
+                  className="block h-auto w-full max-w-full rounded-sm bg-slate-100"
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -1098,6 +1217,7 @@ export default function ProductStorefrontPreview({
                 <KeyDetailsBlock
                   tags={preview.tags}
                   keyDetails={preview.keyDetails}
+                  customKeyDetailEntries={preview.customKeyDetailEntries}
                   activeSku={activeSku}
                   activeBarcode={activeBarcode}
                   onShare={handleShare}
@@ -1140,8 +1260,8 @@ export default function ProductStorefrontPreview({
             details={preview.details}
             description={preview.description}
             descriptionHtml={preview.descriptionHtml}
-            gallery={preview.gallery}
             descriptiveImages={preview.descriptiveImages}
+            customKeyDetailEntries={preview.customKeyDetailEntries}
           />
 
           <SkeletonRail
