@@ -30,5 +30,9 @@ export async function placeCheckoutOrder(payload) {
     skipAuthLogout: true,
   })
   assertApiSuccess(data)
-  return data?.data ?? data ?? {}
+  const order = data?.data ?? data ?? {}
+
+  // `point_in_time` lives alongside `data`, not inside it — carry it over
+  // so the success screen can show when the order was placed.
+  return order.point_in_time ? order : { ...order, point_in_time: data?.point_in_time ?? null }
 }

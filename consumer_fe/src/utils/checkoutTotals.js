@@ -56,15 +56,61 @@ export function normalizeCartSummary(summary) {
 
 export function normalizePreviewTotals(preview) {
   const source = preview?.summary ?? preview?.totals ?? preview?.order_total ?? preview ?? {}
+
+  const listSubtotal = toAmount(
+    source.items_total
+    ?? source.list_subtotal
+    ?? source.subtotal
+    ?? source.sub_total,
+  )
+  const payableTotal = toAmount(
+    source.payable_subtotal
+    ?? source.payable_total
+    ?? source.grand_total,
+  )
+  const discountField = toAmount(source.discount ?? source.discount_amount)
+  const savingsTotal = toAmount(
+    source.total_savings
+    ?? source.savings
+    ?? source.discount_total,
+  )
+
+  // Backend may expose payable total in `discount` (same quirk as cart summary).
+  let resolvedPayable = payableTotal
+  let resolvedDiscount = savingsTotal
+
+  if (resolvedPayable == null && discountField != null && listSubtotal != null && discountField > 0) {
+    if (discountField < listSubtotal) {
+      resolvedPayable = discountField
+      resolvedDiscount = listSubtotal - discountField
+    } else {
+      resolvedDiscount = discountField
+      resolvedPayable = Math.max(0, listSubtotal - discountField)
+    }
+  }
+
+  if (resolvedPayable == null && listSubtotal != null && resolvedDiscount != null) {
+    resolvedPayable = Math.max(0, listSubtotal - resolvedDiscount)
+  }
+
+  if (resolvedDiscount == null && listSubtotal != null && resolvedPayable != null && resolvedPayable > 0) {
+    resolvedDiscount = Math.max(0, listSubtotal - resolvedPayable)
+  }
+
+  resolvedDiscount = resolvedDiscount != null && resolvedDiscount > 0 ? resolvedDiscount : 0
+  resolvedPayable = resolvedPayable ?? listSubtotal
+
   return {
     itemCount: toCount(source.items_count ?? source.item_count ?? source.selected_items_count),
-    subtotal: toAmount(source.subtotal ?? source.sub_total),
-    discount: toAmount(source.discount ?? source.discount_amount) ?? 0,
-    total: toAmount(source.total ?? source.grand_total),
+    listSubtotal,
+    subtotal: listSubtotal ?? resolvedPayable,
+    payableTotal: resolvedPayable,
+    discount: resolvedDiscount,
+    total: resolvedPayable,
     currency: source.currency ?? 'GHS',
-    tax: 0,
-    deliveryFee: 0,
-    freeDelivery: 0,
+    tax: toAmount(source.tax ?? source.tax_amount) ?? 0,
+    deliveryFee: toAmount(source.delivery_fee ?? source.deliveryFee) ?? 0,
+    freeDelivery: toAmount(source.free_delivery ?? source.freeDelivery) ?? 0,
     couponDiscount: toAmount(source.coupon_discount ?? source.couponDiscount) ?? 0,
   }
 }
@@ -75,9 +121,18 @@ export function computeCartOrderTotals(items = []) {
   return selectedItems.reduce(
     (totals, item) => {
       const quantity = Math.max(1, Number(item.quantity) || 1)
-      const listUnitPrice = Number(item.compareAt ?? item.price ?? 0)
-      const hasSaleDiscount = item.compareAt != null && Number(item.compareAt) > Number(item.price)
-      const payableUnitPrice = hasSaleDiscount ? Number(item.price) : listUnitPrice
+      const salePrice = Number(item.price ?? 0)
+      const originalPrice = item.compareAt != null && item.compareAt !== ''
+        ? Number(item.compareAt)
+        : null
+      const hasSaleDiscount = (
+        originalPrice != null
+        && originalPrice > 0
+        && salePrice > 0
+        && originalPrice > salePrice
+      )
+      const listUnitPrice = hasSaleDiscount ? originalPrice : salePrice
+      const payableUnitPrice = hasSaleDiscount ? salePrice : listUnitPrice
       const listLineTotal = listUnitPrice * quantity
       const payableLineTotal = item.displaySubtotal ?? payableUnitPrice * quantity
 

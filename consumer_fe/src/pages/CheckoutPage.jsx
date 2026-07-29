@@ -6,12 +6,14 @@ import {
   Building2,
   Calendar,
   Check,
+  CheckCircle2,
   CreditCard,
   Home,
   Loader2,
   Lock,
   MapPin,
   Minus,
+  PackageCheck,
   Pencil,
   Phone,
   Plus,
@@ -34,7 +36,7 @@ import {
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
 import { formatCartItemOptions, enrichCartItemsForDisplay, extractCheckoutPreviewItems, resolveCartItemDisplayImage } from '../utils/normalizeCart'
-import { normalizePreviewTotals } from '../utils/checkoutTotals'
+import { normalizePreviewTotals, computeCartOrderTotals, calculateOrderTotal } from '../utils/checkoutTotals'
 import {
   GHANA_LOCATIONS,
   LOCATION_OTHER_VALUE,
@@ -258,20 +260,6 @@ function normalizeAddress(address) {
   }
 }
 
-function buildCheckoutAddress(address) {
-  const firstName = String(address.firstName ?? '').trim()
-  const lastName = String(address.lastName ?? '').trim()
-  const name = [firstName, lastName].filter(Boolean).join(' ')
-
-  return {
-    name,
-    phone: String(address.phone ?? '').trim(),
-    address: String(address.address ?? '').trim(),
-    city: getTownLabel(address.region, address.town, address.townCustom),
-    country: 'Ghana',
-  }
-}
-
 function buildDeliveryPrefill(user) {
   return {
     ...initialAddress,
@@ -373,6 +361,12 @@ function resolveActiveDeliveryAddress({
     }
   }
 
+  if (savedAddresses.length === 0 && authenticatedUser) {
+    const base = buildDeliveryPrefill(authenticatedUser)
+    if (!hasAddressContent(address)) return base
+    return { ...base, ...address }
+  }
+
   if (!hasAddressContent(address) && authenticatedUser) {
     return buildDeliveryPrefill(authenticatedUser)
   }
@@ -420,108 +414,80 @@ function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, 
   const fullName = [normalized.firstName, normalized.lastName].filter(Boolean).join(' ')
   const location = formatAddressCardLocation(normalized)
   const isDefault = savedAddress?.is_default === true || savedAddress?.isDefault === true
+  const metaLine = [location, normalized.phone].filter(Boolean).join(' · ')
 
   return (
-    <div className="relative min-w-0">
+    <div
+      className={`relative min-w-0 rounded-xl border transition-colors ${
+        selected
+          ? 'border-auth-primary bg-red-50/50 ring-1 ring-auth-primary/25'
+          : 'border-slate-200 bg-white hover:border-slate-300'
+      } ${isDeleting ? 'opacity-70' : ''}`}
+    >
       <button
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
         disabled={isDeleting}
-        className={`group relative w-full overflow-hidden rounded-2xl border p-4 pb-16 text-left transition-all duration-200 disabled:cursor-wait disabled:opacity-70 sm:p-5 sm:pb-16 ${
-        selected
-          ? 'border-auth-primary bg-linear-to-br from-red-50/80 via-white to-white shadow-md shadow-auth-primary/10 ring-2 ring-auth-primary/25'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-      }`}
+        className="flex w-full items-start gap-2.5 p-3 pr-16 text-left disabled:cursor-wait"
       >
-      <div
-        className={`pointer-events-none absolute -right-8 -top-8 size-24 rounded-full blur-2xl transition-opacity ${
-          selected ? 'bg-auth-primary/15 opacity-100' : 'bg-slate-200/40 opacity-0 group-hover:opacity-60'
-        }`}
-        aria-hidden
-      />
-
-      <div className="relative flex items-start gap-3">
         <span
-          className={`flex size-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
-            selected
-              ? 'bg-auth-primary text-white shadow-sm shadow-auth-primary/25'
-              : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80'
-          }`}
-        >
-          <MapPin className="size-5" strokeWidth={1.9} aria-hidden />
-        </span>
-
-        <div className="min-w-0 flex-1 space-y-3 overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 wrap-break-word font-semibold tracking-tight text-slate-950">{fullName || 'Saved address'}</span>
-            {isDefault ? (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-                Default
-              </span>
-            ) : null}
-            {selected ? (
-              <span className="rounded-full bg-auth-primary/10 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-auth-primary">
-                Selected
-              </span>
-            ) : null}
-          </div>
-
-          {normalized.address ? (
-            <p className="wrap-break-word text-sm leading-relaxed text-slate-600">{normalized.address}</p>
-          ) : null}
-
-          {(location || normalized.phone) ? (
-            <div className="flex flex-col gap-2">
-              {location ? (
-                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                  <Building2 className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
-                  {location}
-                </p>
-              ) : null}
-
-              {normalized.phone ? (
-                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
-                  <Phone className="size-3.5 shrink-0 text-auth-primary" strokeWidth={2} aria-hidden />
-                  {normalized.phone}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
-        <span
-          className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-all ${
+          className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
             selected
               ? 'border-auth-primary bg-auth-primary text-white'
-              : 'border-slate-300 bg-white text-transparent group-hover:border-slate-400'
+              : 'border-slate-300 bg-white text-transparent'
           }`}
           aria-hidden
         >
-          <Check className="size-3.5" strokeWidth={3} />
+          <Check className="size-2.5" strokeWidth={3} />
         </span>
-      </div>
+
+        <span className="min-w-0 flex-1 space-y-1">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-slate-950">
+              {fullName || 'Saved address'}
+            </span>
+            {isDefault ? (
+              <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-px text-[0.625rem] font-semibold uppercase tracking-wide text-emerald-700">
+                Default
+              </span>
+            ) : null}
+          </span>
+
+          {normalized.address ? (
+            <span className="line-clamp-2 block text-xs leading-snug text-slate-600">
+              {normalized.address}
+            </span>
+          ) : null}
+
+          {metaLine ? (
+            <span className="block truncate text-xs text-slate-500">{metaLine}</span>
+          ) : null}
+        </span>
       </button>
-      <div className="absolute bottom-3 right-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-2 sm:bottom-4 sm:right-4">
+
+      <div className="absolute right-2 top-2 flex gap-0.5">
         <button
           type="button"
           onClick={onEdit}
           disabled={isDeleting}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-auth-primary/40 hover:text-auth-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/30 disabled:opacity-50"
+          className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-auth-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/30 disabled:opacity-50"
           aria-label={`Edit ${fullName || 'saved address'}`}
         >
           <Pencil className="size-3.5" aria-hidden />
-          Edit
         </button>
         <button
           type="button"
           onClick={onDelete}
           disabled={isDeleting}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-wait disabled:opacity-60"
+          className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-wait disabled:opacity-60"
           aria-label={`Delete ${fullName || 'saved address'}`}
         >
-          {isDeleting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
-          {isDeleting ? 'Deleting…' : 'Delete'}
+          {isDeleting ? (
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Trash2 className="size-3.5" aria-hidden />
+          )}
         </button>
       </div>
     </div>
@@ -529,19 +495,9 @@ function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, 
 }
 
 function buildCheckoutPayload(shippingAddress, billingAddress) {
-  if (shippingAddress.id && billingAddress.id) {
-    return {
-      shipping_address_id: shippingAddress.id,
-      billing_address_id: billingAddress.id,
-    }
-  }
-
-  const checkoutShippingAddress = buildCheckoutAddress(shippingAddress)
-  const checkoutBillingAddress = buildCheckoutAddress(billingAddress)
-
   return {
-    shipping_address: checkoutShippingAddress,
-    billing_address: checkoutBillingAddress,
+    shipping_address_id: shippingAddress.id,
+    billing_address_id: billingAddress.id,
   }
 }
 
@@ -731,7 +687,11 @@ function DeliveryInformation({
       </div>
 
       {savedAddresses.length > 0 && !isAddingAddress && (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-5">
+        <div
+          className={`mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 ${
+            savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
+          }`}
+        >
           {savedAddresses.map((savedAddress, index) => {
             const normalized = normalizeAddress(savedAddress)
             const selected = normalized.id
@@ -907,8 +867,11 @@ function BillingInformation({
             <CreditCard className="size-5" strokeWidth={1.9} aria-hidden />
           </span>
           <div className="min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Billing Information</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Used for receipts and payment records</p>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Billing Information
+              <span className="ml-1 text-auth-primary">*</span>
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-500">Required for receipts and payment records</p>
           </div>
         </div>
         {!isAddingAddress && (
@@ -920,11 +883,17 @@ function BillingInformation({
       </div>
 
       {savedAddresses.length === 0 && !isAddingAddress && (
-        <p className="mt-3 text-sm text-amber-800">Add a billing address before placing the order.</p>
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900" role="alert">
+          A billing address is required. Add one before placing your order.
+        </p>
       )}
 
       {savedAddresses.length > 0 && !isAddingAddress && (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-5">
+        <div
+          className={`mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 ${
+            savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
+          }`}
+        >
           {savedAddresses.map((savedAddress, index) => {
             const normalized = normalizeAddress(savedAddress)
             const selected = normalized.id === address.id
@@ -1207,11 +1176,7 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
   )
 }
 
-function OrderTotal({ itemCount, subtotal, totals }) {
-  const calculatedTotal = subtotal + totals.tax + totals.deliveryFee - totals.freeDelivery - totals.couponDiscount
-  const total = totals.total == null
-    ? calculatedTotal
-    : Math.max(0, Number(totals.total) - Number(totals.couponDiscount))
+function OrderTotal({ itemCount, listSubtotal, discountTotal, totals, total }) {
   const netDelivery = Math.max(0, Number(totals.deliveryFee) - Number(totals.freeDelivery))
   const isFreeDelivery = netDelivery === 0
 
@@ -1225,12 +1190,12 @@ function OrderTotal({ itemCount, subtotal, totals }) {
         </div>
         <div className="flex items-center justify-between gap-4">
           <dt className="text-slate-700">Subtotal</dt>
-          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(subtotal)}</dd>
+          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(listSubtotal)}</dd>
         </div>
-        {totals.discount > 0 && (
+        {discountTotal > 0 && (
           <div className="flex items-center justify-between gap-4 text-auth-primary">
             <dt>Discount</dt>
-            <dd className="font-semibold">-{formatCheckoutAmount(totals.discount)}</dd>
+            <dd className="font-semibold">-{formatCheckoutAmount(discountTotal)}</dd>
           </div>
         )}
         <div className="flex items-center justify-between gap-4">
@@ -1297,12 +1262,189 @@ function PromoCode({ coupon, onCouponChange, onApplyCoupon, couponMessage }) {
   )
 }
 
+function PaymentProcessingOverlay() {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm"
+      role="alert"
+      aria-busy="true"
+      aria-live="assertive"
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white px-6 py-10 text-center shadow-2xl">
+        <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-auth-primary/10">
+          <Loader2 className="size-8 animate-spin text-auth-primary" strokeWidth={2} aria-hidden />
+        </div>
+        <h2 className="mt-5 text-lg font-bold text-slate-950">Processing your payment…</h2>
+        <p className="mt-2 text-sm text-slate-500">Please don't close or refresh this page.</p>
+      </div>
+    </div>
+  )
+}
+
+function resolveOrderNumber(order) {
+  return order?.order_number ?? order?.orderNumber ?? order?.reference ?? order?.id ?? null
+}
+
+function formatOrderDate(value) {
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) return null
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatOrderAddress(address) {
+  if (!address) return null
+
+  return {
+    name: [address.first_name, address.last_name].filter(Boolean).join(' '),
+    line1: address.address_line_1 ?? '',
+    location: [address.city_or_town, address.region].filter(Boolean).join(', '),
+    phone: address.phone_number ?? '',
+  }
+}
+
+function OrderAddressCard({ title, address }) {
+  if (!address) return null
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+      <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{title}</h3>
+      <p className="mt-2 text-sm font-semibold text-slate-900">{address.name || '—'}</p>
+      {address.line1 ? <p className="mt-1 text-xs text-slate-600">{address.line1}</p> : null}
+      {address.location ? <p className="text-xs text-slate-600">{address.location}</p> : null}
+      {address.phone ? <p className="mt-1 text-xs text-slate-600">{address.phone}</p> : null}
+    </div>
+  )
+}
+
+function OrderSuccessScreen({ order }) {
+  const orderNumber = resolveOrderNumber(order)
+  const orderedAt = formatOrderDate(order?.point_in_time ?? order?.created_at)
+  const items = Array.isArray(order?.items) ? order.items : []
+  const shippingAddress = formatOrderAddress(order?.shipping_address)
+  const billingAddress = formatOrderAddress(order?.billing_address)
+
+  const subtotal = Number(order?.subtotal ?? 0)
+  const discountTotal = Number(order?.discount_total ?? order?.discount ?? 0)
+  const deliveryFee = Number(order?.delivery_fee ?? 0)
+  const taxTotal = Number(order?.tax_total ?? order?.tax ?? 0)
+  const grandTotal = Number(order?.grand_total ?? order?.total ?? 0)
+
+  return (
+    <section className="mx-auto max-w-2xl space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center sm:px-10 sm:py-12">
+        <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-50">
+          <CheckCircle2 className="size-9 text-emerald-600" strokeWidth={1.8} aria-hidden />
+        </div>
+        <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-950">Payment Successful</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+          Thank you{shippingAddress?.name ? `, ${shippingAddress.name.split(' ')[0]}` : ''}! Your order has been
+          placed successfully. We'll notify you once it's on its way.
+        </p>
+
+        <div className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-3">
+          {orderNumber ? (
+            <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-sm">
+              <PackageCheck className="size-4 text-auth-primary" aria-hidden />
+              <span className="text-slate-600">Order</span>
+              <span className="font-bold text-slate-950">#{orderNumber}</span>
+            </div>
+          ) : null}
+          {orderedAt ? (
+            <div className="inline-flex items-center rounded-xl bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+              {orderedAt}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white px-5 py-5 sm:px-6">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Order Items</h2>
+          <div className="mt-3 divide-y divide-slate-100">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">{item.product_name}</p>
+                  <p className="text-xs text-slate-500">
+                    Qty {item.quantity} · {formatCheckoutAmount(item.unit_price)} each
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-bold text-slate-950">
+                  {formatCheckoutAmount(item.total_price)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <dl className="mt-3 space-y-2 border-t border-slate-200 pt-4 text-sm">
+            <div className="flex items-center justify-between">
+              <dt className="text-slate-600">Subtotal</dt>
+              <dd className="font-semibold text-slate-900">{formatCheckoutAmount(subtotal)}</dd>
+            </div>
+            {discountTotal > 0 && (
+              <div className="flex items-center justify-between text-auth-primary">
+                <dt>Discount</dt>
+                <dd className="font-semibold">-{formatCheckoutAmount(discountTotal)}</dd>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <dt className="text-slate-600">Delivery</dt>
+              <dd className="font-semibold text-slate-900">
+                {deliveryFee > 0 ? formatCheckoutAmount(deliveryFee) : 'Free'}
+              </dd>
+            </div>
+            {taxTotal > 0 && (
+              <div className="flex items-center justify-between">
+                <dt className="text-slate-600">Tax</dt>
+                <dd className="font-semibold text-slate-900">{formatCheckoutAmount(taxTotal)}</dd>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
+              <dt className="font-bold text-slate-950">Total Paid</dt>
+              <dd className="font-extrabold text-slate-950">{formatCheckoutAmount(grandTotal)}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
+
+      {(shippingAddress || billingAddress) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <OrderAddressCard title="Delivery Address" address={shippingAddress} />
+          <OrderAddressCard title="Billing Address" address={billingAddress} />
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:justify-center">
+        <Link
+          to="/account/orders"
+          className="inline-flex items-center justify-center rounded-lg bg-auth-primary px-6 py-3 text-sm font-bold text-white"
+        >
+          View My Orders
+        </Link>
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-bold text-slate-800"
+        >
+          Continue Shopping
+        </Link>
+      </div>
+    </section>
+  )
+}
+
 export default function CheckoutPage() {
   const queryClient = useQueryClient()
   const items = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const authenticatedUser = useSelector((state) => state.auth.user)
-  const { updateQuantity, deleteItem } = useCartActions()
+  const { updateQuantity, deleteItem, clearAll } = useCartActions()
   const [address, setAddress] = useState(initialAddress)
   const [addressErrors, setAddressErrors] = useState({})
   const [billingAddressId, setBillingAddressId] = useState(null)
@@ -1320,8 +1462,8 @@ export default function CheckoutPage() {
   const [coupon, setCoupon] = useState('')
   const [couponDiscount, setCouponDiscount] = useState(0)
   const [couponMessage, setCouponMessage] = useState('')
-
-  const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items])
+  const [orderStatus, setOrderStatus] = useState('idle')
+  const [placedOrder, setPlacedOrder] = useState(null)
 
   const previewQuery = useQuery({
     queryKey: ['checkout-preview'],
@@ -1464,6 +1606,15 @@ export default function CheckoutPage() {
     }
   }, [addressesQuery.error, addressesQuery.isError])
 
+  useEffect(() => {
+    if (savedAddresses.length > 0 || isAddingAddress) return
+    if (!authenticatedUser) return
+
+    setAddress((current) => (
+      hasAddressContent(current) ? current : buildDeliveryPrefill(authenticatedUser)
+    ))
+  }, [savedAddresses.length, authenticatedUser, isAddingAddress])
+
   const defaultAddress = savedAddresses.find((item) => item?.is_default === true || item?.isDefault === true)
   const preferredSavedAddress = defaultAddress ?? savedAddresses[0]
   const preferredBillingAddress = billingAddresses.find(
@@ -1500,7 +1651,6 @@ export default function CheckoutPage() {
     [billingAddresses, effectiveBillingAddressId, preferredBillingAddress],
   )
 
-  const previewTotals = normalizePreviewTotals(previewQuery.data)
   const previewItems = useMemo(
     () => extractCheckoutPreviewItems(previewQuery.data),
     [previewQuery.data],
@@ -1509,12 +1659,24 @@ export default function CheckoutPage() {
     () => enrichCartItemsForDisplay(items, previewItems),
     [items, previewItems],
   )
-  const totals = {
-    ...previewTotals,
+
+  const orderAmounts = useMemo(
+    () => computeCartOrderTotals(displayItems.length ? displayItems : items),
+    [displayItems, items],
+  )
+
+  const previewTotals = normalizePreviewTotals(previewQuery.data)
+  const feeTotals = {
+    tax: previewTotals.tax ?? 0,
+    deliveryFee: previewTotals.deliveryFee ?? 0,
+    freeDelivery: previewTotals.freeDelivery ?? 0,
     couponDiscount,
   }
-  const orderItemCount = previewTotals.itemCount ?? items.length
-  const orderSubtotal = previewTotals.subtotal ?? subtotal
+  const orderItemCount = previewTotals.itemCount ?? orderAmounts.itemCount ?? items.length
+  const orderListSubtotal = orderAmounts.listSubtotal || previewTotals.listSubtotal || previewTotals.subtotal || 0
+  const orderDiscountTotal = orderAmounts.discountTotal || previewTotals.discount || 0
+  const orderPayableTotal = orderAmounts.payableTotal || previewTotals.payableTotal || Math.max(0, orderListSubtotal - orderDiscountTotal)
+  const orderTotal = calculateOrderTotal(orderPayableTotal, feeTotals)
 
   const hasAddress = [
     activeAddress.firstName,
@@ -1527,12 +1689,20 @@ export default function CheckoutPage() {
     activeAddress.phone,
   ]
     .every((value) => String(value ?? '').trim())
-  const hasCheckoutAddress = !isAuthenticated || Boolean(activeAddress.id && activeBillingAddress.id)
+  const hasSavedDeliveryAddress = !isAuthenticated || Boolean(activeAddress.id)
+  const hasSavedBillingAddress = !isAuthenticated || Boolean(activeBillingAddress.id)
   const isCardPaymentValid = useMemo(() => {
     if (selectedPayment !== 'card') return true
     return Object.keys(validateCardFields(cardDetails)).length === 0
   }, [selectedPayment, cardDetails])
-  const canPlaceOrder = items.length > 0 && selectedPayment && hasAddress && hasCheckoutAddress && isCardPaymentValid
+  const canPlaceOrder = (
+    items.length > 0
+    && selectedPayment
+    && hasAddress
+    && hasSavedDeliveryAddress
+    && hasSavedBillingAddress
+    && isCardPaymentValid
+  )
 
   const handleAddressChange = (event) => {
     const { name, value } = event.target
@@ -1810,12 +1980,41 @@ export default function CheckoutPage() {
       }
     }
 
+    const deliveryErrors = validateAddressFields(activeAddress)
+    if (Object.keys(deliveryErrors).length > 0) {
+      setAddressErrors(deliveryErrors)
+      notify.error('Please complete your delivery address')
+      return
+    }
+
+    if (isAuthenticated && !activeAddress.id) {
+      notify.error('Please save your delivery address before placing the order')
+      return
+    }
+
+    if (isAuthenticated && !activeBillingAddress.id) {
+      notify.error('Please add and save a billing address before placing the order')
+      return
+    }
+
     if (!canPlaceOrder) return
 
+    setOrderStatus('processing')
+
     try {
-      await placeCheckoutOrder(buildCheckoutPayload(activeAddress, activeBillingAddress))
-      notify.success('Order placed successfully')
+      // No real payment gateway yet — simulate processing time so the
+      // overlay doesn't just flash if the API responds instantly.
+      const minProcessingDelay = new Promise((resolve) => setTimeout(resolve, 1800))
+      const [response] = await Promise.all([
+        placeCheckoutOrder(buildCheckoutPayload(activeAddress, activeBillingAddress)),
+        minProcessingDelay,
+      ])
+
+      setPlacedOrder(response)
+      setOrderStatus('success')
+      await clearAll()
     } catch (error) {
+      setOrderStatus('idle')
       notify.fromError(error, 'Unable to place order')
     }
   }
@@ -1824,7 +2023,9 @@ export default function CheckoutPage() {
     <SiteLayout>
       <main className="bg-white py-7 sm:py-8">
         <Container>
-          {items.length === 0 ? (
+          {orderStatus === 'success' ? (
+            <OrderSuccessScreen order={placedOrder} />
+          ) : items.length === 0 ? (
             <section className="rounded-xl border border-slate-200 bg-white px-5 py-14 text-center">
               <h1 className="text-2xl font-semibold text-slate-950">Checkout</h1>
               <p className="mt-2 text-sm text-slate-600">Your cart is empty.</p>
@@ -1837,7 +2038,7 @@ export default function CheckoutPage() {
               <div className="space-y-6">
                 <CheckoutIntro />
                 <DeliveryInformation
-                  address={activeAddress}
+                  address={address}
                   errors={addressErrors}
                   savedAddresses={savedAddresses}
                   isAddingAddress={isAddingAddress}
@@ -1918,7 +2119,13 @@ export default function CheckoutPage() {
               </div>
               <aside className="space-y-5">
                 <OrderSummary items={displayItems} onQuantityChange={updateQuantity} onDelete={deleteItem} />
-                <OrderTotal itemCount={orderItemCount} subtotal={orderSubtotal} totals={totals} />
+                <OrderTotal
+                  itemCount={orderItemCount}
+                  listSubtotal={orderListSubtotal}
+                  discountTotal={orderDiscountTotal}
+                  totals={feeTotals}
+                  total={orderTotal}
+                />
                 <DeliveryDate />
                 <PromoCode
                   coupon={coupon}
@@ -1930,10 +2137,18 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     onClick={handlePlaceOrder}
-                    disabled={!canPlaceOrder}
-                    className="w-full rounded-lg bg-auth-primary px-5 py-4 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!canPlaceOrder || orderStatus === 'processing'}
+                    aria-busy={orderStatus === 'processing'}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-auth-primary px-5 py-4 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Place Order
+                    {orderStatus === 'processing' ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        Processing…
+                      </>
+                    ) : (
+                      'Place Order'
+                    )}
                   </button>
                   <Link
                     to="/cart"
@@ -1947,6 +2162,7 @@ export default function CheckoutPage() {
           )}
         </Container>
       </main>
+      {orderStatus === 'processing' && <PaymentProcessingOverlay />}
     </SiteLayout>
   )
 }
