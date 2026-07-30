@@ -1,9 +1,11 @@
+import { useLayoutEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useDispatch, useSelector } from 'react-redux'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
 import AccountSidebar from '../components/account/AccountSidebar'
 import AccountSectionContent from '../components/account/AccountSectionContent'
+import { isAccountSectionEnabled, resolveAccountSectionId } from '../components/account/accountNavigation'
 import { useLogoutMutation } from '../hooks/useAuthMutations'
 import { logout } from '../store/slices/authSlice'
 import { persistor } from '../store/store'
@@ -16,6 +18,17 @@ export default function AccountPage() {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
   const logoutMutation = useLogoutMutation()
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
+  useLayoutEffect(() => {
+    const sectionId = resolveAccountSectionId(location.pathname)
+    if (!isAccountSectionEnabled(sectionId)) {
+      navigate('/account', { replace: true })
+    }
+  }, [location.pathname, navigate])
 
   const handleLogout = async () => {
     try {

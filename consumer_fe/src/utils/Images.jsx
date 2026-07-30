@@ -30,6 +30,7 @@ import home_and_kitchenImage from '../assets/images/categories/home_and_kitchen.
 import mtn_momo from "../assets/images/networks/mtn_mobile_money.png";
 import telecel_cash from "../assets/images/networks/telecel_cash.png";
 import at_cash from "../assets/images/networks/at_cash.png";
+import empty_wishlist_icon from "../assets/images/empty_wishlist.png";
 
 import {
   CATEGORY_BANNER_ASSETS,
@@ -75,6 +76,7 @@ const common = {
   paypal,
   playstore,
   appstore,
+  wishlist_empty: empty_wishlist_icon,
 }
 
 /** Spotlight banners used on Categories page header */

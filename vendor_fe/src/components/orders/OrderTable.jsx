@@ -2,6 +2,7 @@ import { Package } from 'lucide-react'
 import OrderActionsMenu from './OrderActionsMenu'
 import OrderStatusBadge from './OrderStatusBadge'
 import PaymentStatusBadge from './PaymentStatusBadge'
+import DeliveryStatusBadge from './DeliveryStatusBadge'
 
 const TABLE_HEAD_CLASS =
   'whitespace-nowrap px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400'
@@ -20,7 +21,7 @@ function formatMoney(amount) {
   return `GH₵ ${Number(amount).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`
 }
 
-function OrderMobileCard({ order, onPrint, onUpdateStatus }) {
+function OrderMobileCard({ order, onUpdateStatus }) {
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -30,7 +31,6 @@ function OrderMobileCard({ order, onPrint, onUpdateStatus }) {
         </div>
         <OrderActionsMenu
           order={order}
-          onPrint={onPrint}
           onUpdateStatus={onUpdateStatus}
         />
       </div>
@@ -45,6 +45,7 @@ function OrderMobileCard({ order, onPrint, onUpdateStatus }) {
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           <OrderStatusBadge status={order.orderStatus} />
+          <DeliveryStatusBadge status={order.deliveryStatus} />
           <PaymentStatusBadge status={order.paymentStatus} />
         </div>
         <p className="whitespace-nowrap text-sm font-bold text-slate-900">{formatMoney(order.totalAmount)}</p>
@@ -53,7 +54,7 @@ function OrderMobileCard({ order, onPrint, onUpdateStatus }) {
   )
 }
 
-export default function OrderTable({ orders, onPrint, onUpdateStatus }) {
+export default function OrderTable({ orders, onUpdateStatus }) {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -75,7 +76,6 @@ export default function OrderTable({ orders, onPrint, onUpdateStatus }) {
           <OrderMobileCard
             key={order.id}
             order={order}
-            onPrint={onPrint}
             onUpdateStatus={onUpdateStatus}
           />
         ))}
@@ -92,6 +92,7 @@ export default function OrderTable({ orders, onPrint, onUpdateStatus }) {
               <th className={TABLE_HEAD_CLASS}>Total Amount</th>
               <th className={TABLE_HEAD_CLASS}>Payment Status</th>
               <th className={TABLE_HEAD_CLASS}>Order Status</th>
+              <th className={TABLE_HEAD_CLASS}>Delivery Status</th>
               <th className={TABLE_HEAD_CLASS}>Delivery Method</th>
               <th className={TABLE_HEAD_CLASS}>Actions</th>
             </tr>
@@ -119,13 +120,15 @@ export default function OrderTable({ orders, onPrint, onUpdateStatus }) {
                 <td className="whitespace-nowrap px-5 py-4">
                   <OrderStatusBadge status={order.orderStatus} />
                 </td>
+                <td className="whitespace-nowrap px-5 py-4">
+                  <DeliveryStatusBadge status={order.deliveryStatus} />
+                </td>
                 <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-600">
                   {order.deliveryMethod}
                 </td>
                 <td className="whitespace-nowrap px-5 py-4">
                   <OrderActionsMenu
                     order={order}
-                    onPrint={onPrint}
                     onUpdateStatus={onUpdateStatus}
                   />
                 </td>

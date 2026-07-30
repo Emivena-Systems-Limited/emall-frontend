@@ -33,7 +33,6 @@ function OrderMenuAction({ icon: Icon, tone, label, helper, onClick }) {
 
 export default function OrderActionsMenu({
   order,
-  onPrint,
   onUpdateStatus,
   align = 'end',
   hideViewDetails = false,
@@ -125,8 +124,8 @@ export default function OrderActionsMenu({
             icon={Printer}
             tone="bg-slate-100 text-slate-700 ring-slate-200"
             label="Print Receipt"
-            helper="Open a printable receipt you can save or send to the customer."
-            onClick={() => run(() => onPrint(order))}
+            helper="Open the receipt page to preview, download as PDF, or print."
+            onClick={() => run(() => navigate(`/orders/${order.id}/receipt`))}
           />
 
           <OrderMenuAction

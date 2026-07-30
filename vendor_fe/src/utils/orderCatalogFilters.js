@@ -9,6 +9,10 @@ function matchesStatusFilter(order, statusFilter) {
     return true
   }
 
+  if (statusFilter === SUMMARY_FILTERS.PENDING || statusFilter === 'pending') {
+    return order.orderStatus === 'ordered' || order.orderStatus === 'pending'
+  }
+
   return order.orderStatus === statusFilter
 }
 
@@ -38,7 +42,7 @@ export function filterOrderCatalog(orders, { search = '', statusFilter = STATUS_
 export function getOrderCatalogSummary(orders) {
   return {
     total: orders.length,
-    pending: orders.filter((order) => order.orderStatus === 'pending').length,
+    pending: orders.filter((order) => order.orderStatus === 'ordered' || order.orderStatus === 'pending').length,
     processing: orders.filter((order) => order.orderStatus === 'processing').length,
     shipped: orders.filter((order) => order.orderStatus === 'shipped').length,
     delivered: orders.filter((order) => order.orderStatus === 'delivered').length,
@@ -64,6 +68,8 @@ export function paginateOrders(orders, { page = 1, pageSize = 10 } = {}) {
 
 export function getActiveSummaryFilter(statusFilter) {
   if (statusFilter === SUMMARY_FILTERS.PENDING) return SUMMARY_FILTERS.PENDING
+  if (statusFilter === STATUS_FILTERS.ORDERED) return STATUS_FILTERS.ORDERED
+  if (statusFilter === STATUS_FILTERS.CONFIRMED) return STATUS_FILTERS.CONFIRMED
   if (statusFilter === SUMMARY_FILTERS.PROCESSING) return SUMMARY_FILTERS.PROCESSING
   if (statusFilter === SUMMARY_FILTERS.SHIPPED) return SUMMARY_FILTERS.SHIPPED
   if (statusFilter === SUMMARY_FILTERS.DELIVERED) return SUMMARY_FILTERS.DELIVERED

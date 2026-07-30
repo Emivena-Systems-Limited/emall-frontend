@@ -22,13 +22,27 @@ import {
 import CancelOrderModal from './CancelOrderModal'
 import OrderDetailsView from './OrderDetailsView'
 
-const orderStatusFilters = ['All Orders', 'Processing', 'Delivered', 'Cancelled']
+const orderStatusFilters = ['All Orders', 'Ordered', 'Order Confirmed', 'Processing', 'Delivered', 'Cancelled']
 
 const statusStyles = {
+  Ordered: 'bg-amber-50 text-amber-700',
+  'Order Confirmed': 'bg-sky-50 text-sky-700',
   Processing: 'bg-blue-50 text-blue-700',
   Delivered: 'bg-emerald-50 text-emerald-700',
   Cancelled: 'bg-red-50 text-red-600',
+  Shipped: 'bg-violet-50 text-violet-700',
   'Out for Delivery': 'bg-amber-50 text-amber-700',
+  Refunded: 'bg-slate-100 text-slate-700',
+  Pending: 'bg-amber-50 text-amber-700',
+}
+
+const deliveryStatusStyles = {
+  'Pending Delivery': 'bg-amber-50 text-amber-700',
+  'Being prepared': 'bg-sky-50 text-sky-700',
+  Shipped: 'bg-violet-50 text-violet-700',
+  'Out for delivery': 'bg-amber-50 text-amber-700',
+  Delivered: 'bg-emerald-50 text-emerald-700',
+  Cancelled: 'bg-red-50 text-red-600',
 }
 
 const currency = new Intl.NumberFormat('en-GH', {
@@ -67,8 +81,25 @@ function ProductStack({ images = [], remaining = 0, compact = false }) {
   )
 }
 
+function OrderStatusBadges({ order }) {
+  const orderStyle = statusStyles[order.status] ?? 'bg-slate-100 text-slate-700'
+  const deliveryStyle = deliveryStatusStyles[order.deliveryStatus] ?? 'bg-slate-100 text-slate-600'
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${orderStyle}`}>{order.status}</span>
+      {order.deliveryStatus ? (
+        <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${deliveryStyle}`}>{order.deliveryStatus}</span>
+      ) : null}
+    </div>
+  )
+}
+
 function OrderActions({ order, onOpen, onTrack, onCancel, viewMode }) {
-  const canTrack = viewMode === 'cards' ? order.status === 'Processing' || order.status === 'Cancelled' : order.status === 'Processing' || order.status === 'Delivered'
+  const inProgressStatuses = ['Ordered', 'Order Confirmed', 'Processing']
+  const canTrack = viewMode === 'cards'
+    ? inProgressStatuses.includes(order.status) || order.status === 'Cancelled'
+    : inProgressStatuses.includes(order.status) || order.status === 'Delivered'
   const showInfo = viewMode === 'list' && order.status === 'Cancelled'
   const cancellable = viewMode === 'list' && canCancelOrder(order.raw)
   const isCompact = viewMode === 'cards'
@@ -121,7 +152,7 @@ function OrderCard({ order, onOpen, onTrack, onCancel }) {
             <h3 className="text-sm font-bold text-slate-950">
               Order <span className="tabular-nums">{orderNumber}</span>
             </h3>
-            <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${statusStyles[order.status]}`}>{order.status}</span>
+            <OrderStatusBadges order={order} />
           </div>
           <p className="mt-1 text-xs text-slate-500">{order.date}</p>
         </div>
@@ -156,7 +187,7 @@ function OrderListRow({ order, onOpen, onTrack, onCancel }) {
           <h3 className="text-sm font-bold text-slate-950">
             Order <span className="tabular-nums">{orderNumber}</span>
           </h3>
-          <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${statusStyles[order.status]}`}>{order.status}</span>
+          <OrderStatusBadges order={order} />
         </div>
         <p className="mt-1.5 text-xs text-slate-500">{order.date}</p>
         <div className="mt-4 grid min-w-0 gap-5 border-t border-slate-100 pt-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:grid-cols-[minmax(16rem,1.25fr)_minmax(9rem,0.6fr)_auto]">
@@ -273,7 +304,7 @@ function OrdersToolbar({ filter, onFilterChange, viewMode, onViewModeChange }) {
     <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 sm:mt-6 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div
-          className="-mx-1 flex min-w-0 flex-1 gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden"
+          className="hidden min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] scrollbar-none sm:flex [&::-webkit-scrollbar]:hidden"
           role="tablist"
           aria-label="Filter orders by status"
         >
@@ -299,16 +330,36 @@ function OrdersToolbar({ filter, onFilterChange, viewMode, onViewModeChange }) {
           })}
         </div>
 
+        <label className="flex w-full min-w-0 items-center gap-2 sm:hidden">
+          <span className="shrink-0 text-xs font-bold text-slate-600">Status:</span>
+          <select
+            value={filter}
+            onChange={(event) => onFilterChange(event.target.value)}
+            className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none focus:border-auth-primary"
+            aria-label="Filter orders by status"
+          >
+            {orderStatusFilters.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
-          <label className="flex items-center gap-2">
-            <span className="shrink-0 text-xs font-bold text-slate-600">Sort by:</span>
+          <label className="hidden items-center gap-2 sm:flex">
+            <span className="shrink-0 text-xs font-bold text-slate-600">Status:</span>
             <select
-              className="h-9 min-w-36 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none focus:border-auth-primary"
-              defaultValue="All"
+              value={filter}
+              onChange={(event) => onFilterChange(event.target.value)}
+              className="h-9 min-w-40 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none focus:border-auth-primary"
+              aria-label="Filter orders by status"
             >
-              <option>All</option>
-              <option>Newest first</option>
-              <option>Highest amount</option>
+              {orderStatusFilters.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
           </label>
 

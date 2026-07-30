@@ -18,9 +18,13 @@ export default function AccountStatisticCards() {
         }
 
         if (item.label === 'Pending Deliveries') {
-          const pending = orders.filter((order) =>
-            ['Processing', 'Out for Delivery'].includes(order.status),
-          ).length
+          const pending = orders.filter((order) => {
+            const deliveryStatus = String(order.deliveryStatus ?? '').toLowerCase()
+            return deliveryStatus === 'pending delivery'
+              || deliveryStatus === 'being prepared'
+              || deliveryStatus === 'shipped'
+              || deliveryStatus === 'out for delivery'
+          }).length
           return { ...item, value: String(pending) }
         }
 

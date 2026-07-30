@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, LayoutGrid, Loader2, LogOut, X } from 'lucide-react'
-import { accountNavigationItems, isAccountNavItemActive } from './accountNavigation'
+import { accountNavigationItems, isAccountNavItemActive, isAccountNavItemEnabled } from './accountNavigation'
 
 const panelEase = [0.16, 1, 0.3, 1]
 
@@ -12,6 +12,24 @@ function AccountNavList({ pathname, onNavigate, itemClassName }) {
       {accountNavigationItems.map((item) => {
         const Icon = item.icon
         const active = isAccountNavItemActive(pathname, item.href)
+        const enabled = isAccountNavItemEnabled(item)
+
+        if (!enabled) {
+          return (
+            <span
+              key={item.id}
+              aria-disabled="true"
+              title="Coming soon"
+              className={`flex cursor-not-allowed items-center gap-2 rounded-lg text-slate-400 ${itemClassName}`}
+            >
+              <Icon className="size-4 shrink-0 opacity-50" strokeWidth={2} />
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-px text-[0.625rem] font-bold uppercase tracking-wide text-slate-500">
+                Soon
+              </span>
+            </span>
+          )
+        }
 
         return (
           <Link

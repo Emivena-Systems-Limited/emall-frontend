@@ -1,4 +1,9 @@
 export const ORDER_STATUSES = {
+  ordered: {
+    label: 'Ordered',
+    className: 'bg-amber-50 text-amber-800 ring-amber-200/80',
+    dot: 'bg-amber-500',
+  },
   pending: {
     label: 'Pending',
     className: 'bg-amber-50 text-amber-800 ring-amber-200/80',
@@ -6,6 +11,11 @@ export const ORDER_STATUSES = {
   },
   processing: {
     label: 'Processing',
+    className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
+    dot: 'bg-sky-500',
+  },
+  confirmed: {
+    label: 'Order Confirmed',
     className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
     dot: 'bg-sky-500',
   },
@@ -54,8 +64,48 @@ export const PAYMENT_STATUSES = {
   },
 }
 
+export const DELIVERY_STATUSES = {
+  pending: {
+    label: 'Pending Delivery',
+    className: 'bg-amber-50 text-amber-800 ring-amber-200/80',
+    dot: 'bg-amber-500',
+  },
+  processing: {
+    label: 'Being Prepared',
+    className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
+    dot: 'bg-sky-500',
+  },
+  ready_for_shipment: {
+    label: 'Ready for Shipment',
+    className: 'bg-indigo-50 text-indigo-800 ring-indigo-200/80',
+    dot: 'bg-indigo-500',
+  },
+  shipped: {
+    label: 'Shipped',
+    className: 'bg-violet-50 text-violet-800 ring-violet-200/80',
+    dot: 'bg-violet-500',
+  },
+  out_for_delivery: {
+    label: 'Out for Delivery',
+    className: 'bg-violet-50 text-violet-800 ring-violet-200/80',
+    dot: 'bg-violet-500',
+  },
+  delivered: {
+    label: 'Delivered',
+    className: 'bg-emerald-50 text-emerald-800 ring-emerald-200/80',
+    dot: 'bg-emerald-500',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    className: 'bg-rose-50 text-rose-800 ring-rose-200/80',
+    dot: 'bg-rose-500',
+  },
+}
+
 export const STATUS_FILTERS = {
   ALL: 'all',
+  ORDERED: 'ordered',
+  CONFIRMED: 'confirmed',
   PROCESSING: 'processing',
   READY_FOR_SHIPMENT: 'ready_for_shipment',
   SHIPPED: 'shipped',
@@ -73,6 +123,8 @@ export const SUMMARY_FILTERS = {
 
 export const STATUS_FILTER_TABS = [
   { key: STATUS_FILTERS.ALL, label: 'All Orders' },
+  { key: STATUS_FILTERS.ORDERED, label: 'Ordered' },
+  { key: STATUS_FILTERS.CONFIRMED, label: 'Order Confirmed' },
   { key: STATUS_FILTERS.PROCESSING, label: 'Processing' },
   { key: STATUS_FILTERS.READY_FOR_SHIPMENT, label: 'Ready for Shipment' },
   { key: STATUS_FILTERS.SHIPPED, label: 'Shipped' },
@@ -89,3 +141,8 @@ export const VENDOR_UPDATABLE_STATUSES = [
 ]
 
 export const ORDERS_PAGE_SIZE = 10
+
+export const ORDER_ENDPOINTS = {
+  VENDOR_LIST: '/api/orders/vendor',
+  byId: (orderId) => `/api/orders/vendor/get/${orderId}`,
+}

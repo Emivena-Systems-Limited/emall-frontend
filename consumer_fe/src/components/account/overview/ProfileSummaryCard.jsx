@@ -25,7 +25,7 @@ export default function ProfileSummaryCard({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#b92f23] via-auth-primary to-[#df5a43] p-5 text-white shadow-[0_18px_50px_rgba(199,59,45,0.2)] sm:p-7">
+    <section className="relative overflow-hidden rounded-2xl bg-linear-to-br from-[#b92f23] via-auth-primary to-[#df5a43] p-5 text-white shadow-[0_18px_50px_rgba(199,59,45,0.2)] sm:p-7">
       <div className="absolute -right-16 -top-20 size-64 rounded-full border-[2rem] border-white/5" />
       <div className="absolute -bottom-24 right-24 size-52 rounded-full bg-white/5" />
 

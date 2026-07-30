@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router'
 import { useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -26,7 +26,7 @@ import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import SearchableSelect from '../components/auth/SearchableSelect'
 import { notify } from '../lib/notify'
-import { getCheckoutPreview, placeCheckoutOrder } from '../services/checkoutService'
+import { getCheckoutPreview, placeBuyNowOrder, placeCheckoutOrder } from '../services/checkoutService'
 import {
   createUserAddress,
   deleteUserAddress,
@@ -47,6 +47,8 @@ import {
   validateGhanaPhone,
   validatePersonName,
 } from '../utils/validateGhanaPhone'
+import { clearBuyNowItem, readBuyNowItem, saveBuyNowItem } from '../utils/buyNowItem'
+import { getAddressList } from '../utils/userAddressHelpers'
 import Images from '../utils/Images'
 
 const regionOptions = GHANA_LOCATIONS.map((region) => ({
@@ -175,21 +177,6 @@ function validateCardField(name, value) {
     default:
       return { valid: true }
   }
-}
-
-function getAddressList(response, type = 'shipping') {
-  const candidates = [response, response?.data, response?.result, response?.payload]
-
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate
-    if (Array.isArray(candidate?.[type])) return candidate[type]
-    if (Array.isArray(candidate?.addresses)) return candidate.addresses
-    if (Array.isArray(candidate?.data)) return candidate.data
-    if (Array.isArray(candidate?.data?.[type])) return candidate.data[type]
-    if (Array.isArray(candidate?.data?.addresses)) return candidate.data.addresses
-  }
-
-  return []
 }
 
 function resolveRegionId(regionValue) {
@@ -342,6 +329,10 @@ function resolveActiveDeliveryAddress({
 }) {
   if (isAddingAddress) return address
 
+  if (savedAddresses.length > 0 && !address.id) {
+    return normalizeAddress(savedAddresses[0])
+  }
+
   if (savedAddresses.length === 1) {
     return normalizeAddress(savedAddresses[0])
   }
@@ -383,7 +374,7 @@ function resolveEffectiveBillingAddressId({
   if (billingAddressId) return billingAddressId
   if (isAddingBillingAddress) return null
 
-  if (billingAddresses.length === 1) {
+  if (billingAddresses.length > 0) {
     return normalizeAddress(billingAddresses[0]).id ?? null
   }
 
@@ -496,6 +487,18 @@ function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, 
 
 function buildCheckoutPayload(shippingAddress, billingAddress) {
   return {
+    shipping_address_id: shippingAddress.id,
+    billing_address_id: billingAddress.id,
+  }
+}
+
+// "Buy Now" has no backend cart to key off of, so the single item's
+// product/variant/quantity is sent alongside the addresses.
+function buildBuyNowCheckoutPayload(item, shippingAddress, billingAddress) {
+  return {
+    product_id: item.productId,
+    product_variant_id: item.variantId ?? null,
+    quantity: Math.max(1, Number(item.quantity) || 1),
     shipping_address_id: shippingAddress.id,
     billing_address_id: billingAddress.id,
   }
@@ -634,6 +637,75 @@ function CheckoutIntro() {
       <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Checkout</h1>
       <p className="mt-2 text-sm text-slate-800">Save your information for faster checkout</p>
     </section>
+  )
+}
+
+function CheckoutSkeletonBlock({ lines = 3, className = '' }) {
+  return (
+    <section className={`rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6 ${className}`}>
+      <div className="flex items-center gap-3">
+        <div className="size-10 shrink-0 animate-pulse rounded-xl bg-slate-100" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="h-6 w-48 max-w-full animate-pulse rounded-lg bg-slate-100" />
+          <div className="h-4 w-64 max-w-full animate-pulse rounded bg-slate-100" />
+        </div>
+      </div>
+      <div className="mt-5 space-y-3">
+        {Array.from({ length: lines }, (_, index) => (
+          <div
+            key={index}
+            className={`h-12 animate-pulse rounded-2xl bg-slate-100 ${index % 2 === 0 ? 'w-full' : 'w-11/12'}`}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CheckoutPageSkeleton() {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]" aria-busy="true" aria-label="Loading checkout">
+      <div className="space-y-6">
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
+          <div className="h-8 w-36 animate-pulse rounded-lg bg-slate-100" />
+          <div className="mt-3 h-4 w-72 max-w-full animate-pulse rounded bg-slate-100" />
+        </section>
+        <CheckoutSkeletonBlock lines={4} />
+        <CheckoutSkeletonBlock lines={3} />
+        <CheckoutSkeletonBlock lines={2} />
+      </div>
+      <aside className="space-y-5">
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
+          <div className="h-7 w-40 animate-pulse rounded-lg bg-slate-100" />
+          <div className="mt-4 space-y-4">
+            {Array.from({ length: 3 }, (_, index) => (
+              <div key={index} className="flex gap-3">
+                <div className="size-21 shrink-0 animate-pulse rounded-lg bg-slate-100 sm:size-27" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+                  <div className="h-8 w-24 animate-pulse rounded-full bg-slate-100" />
+                </div>
+                <div className="h-5 w-14 animate-pulse rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
+          <div className="h-6 w-32 animate-pulse rounded-lg bg-slate-100" />
+          <div className="mt-4 space-y-3 border-t border-slate-200 pt-5">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div key={index} className="flex justify-between gap-4">
+                <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+                <div className="h-4 w-16 animate-pulse rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        </section>
+        <div className="h-14 animate-pulse rounded-lg bg-slate-100" />
+        <div className="h-14 animate-pulse rounded-lg bg-slate-100" />
+      </aside>
+    </div>
   )
 }
 
@@ -1441,10 +1513,17 @@ function OrderSuccessScreen({ order }) {
 
 export default function CheckoutPage() {
   const queryClient = useQueryClient()
-  const items = useSelector(selectCartItems)
+  const navigate = useNavigate()
+  const { mode } = useParams()
+  const isBuyNowMode = mode === 'buy-now'
+  const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const authenticatedUser = useSelector((state) => state.auth.user)
   const { updateQuantity, deleteItem, clearAll } = useCartActions()
+  const [buyNowItem, setBuyNowItem] = useState(() => (isBuyNowMode ? readBuyNowItem() : null))
+  const [buyNowModeActive, setBuyNowModeActive] = useState(isBuyNowMode)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const items = isBuyNowMode ? (buyNowItem ? [buyNowItem] : []) : cartItems
   const [address, setAddress] = useState(initialAddress)
   const [addressErrors, setAddressErrors] = useState({})
   const [billingAddressId, setBillingAddressId] = useState(null)
@@ -1464,11 +1543,19 @@ export default function CheckoutPage() {
   const [couponMessage, setCouponMessage] = useState('')
   const [orderStatus, setOrderStatus] = useState('idle')
   const [placedOrder, setPlacedOrder] = useState(null)
+  const hasInitializedDeliveryAddress = useRef(false)
+  const [isDeliveryAddressReady, setIsDeliveryAddressReady] = useState(false)
+  const [isBillingAddressReady, setIsBillingAddressReady] = useState(false)
+
+  if (buyNowModeActive !== isBuyNowMode) {
+    setBuyNowModeActive(isBuyNowMode)
+    setBuyNowItem(isBuyNowMode ? readBuyNowItem() : null)
+  }
 
   const previewQuery = useQuery({
     queryKey: ['checkout-preview'],
     queryFn: getCheckoutPreview,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !isBuyNowMode,
     staleTime: 60_000,
     retry: 1,
   })
@@ -1606,20 +1693,60 @@ export default function CheckoutPage() {
     }
   }, [addressesQuery.error, addressesQuery.isError])
 
+  const isCheckoutDataLoading = isAuthenticated && (
+    previewQuery.isLoading || addressesQuery.isLoading
+  )
+
+  // One-time delivery address init once saved addresses have loaded. Done
+  // during render (not inside an Effect) so setting it doesn't trigger an
+  // extra post-commit re-render — React just re-runs this render immediately.
+  if (
+    isAuthenticated
+    && !addressesQuery.isLoading
+    && !isAddingAddress
+    && !isDeliveryAddressReady
+    && (savedAddresses.length > 0 || addressesQuery.isSuccess)
+  ) {
+    setIsDeliveryAddressReady(true)
+    if (savedAddresses.length > 0) {
+      setAddress(normalizeAddress(savedAddresses[0]))
+    }
+  }
+
+  // Ref writes must happen in an effect, not during render — this just keeps
+  // the ref (read by the effect below) in sync with the state above.
+  useEffect(() => {
+    if (isDeliveryAddressReady) {
+      hasInitializedDeliveryAddress.current = true
+    }
+  }, [isDeliveryAddressReady])
+
+  // One-time billing address init once saved billing addresses have loaded.
+  if (
+    isAuthenticated
+    && !addressesQuery.isLoading
+    && !isAddingBillingAddress
+    && !isBillingAddressReady
+    && (billingAddresses.length > 0 || addressesQuery.isSuccess)
+  ) {
+    setIsBillingAddressReady(true)
+    if (billingAddresses.length > 0) {
+      setBillingAddressId(normalizeAddress(billingAddresses[0]).id)
+    }
+  }
+
   useEffect(() => {
     if (savedAddresses.length > 0 || isAddingAddress) return
     if (!authenticatedUser) return
+    if (!hasInitializedDeliveryAddress.current) return
 
     setAddress((current) => (
       hasAddressContent(current) ? current : buildDeliveryPrefill(authenticatedUser)
     ))
   }, [savedAddresses.length, authenticatedUser, isAddingAddress])
 
-  const defaultAddress = savedAddresses.find((item) => item?.is_default === true || item?.isDefault === true)
-  const preferredSavedAddress = defaultAddress ?? savedAddresses[0]
-  const preferredBillingAddress = billingAddresses.find(
-    (item) => item?.is_default === true || item?.isDefault === true,
-  ) ?? billingAddresses[0]
+  const preferredSavedAddress = savedAddresses[0]
+  const preferredBillingAddress = billingAddresses[0]
 
   const activeAddress = useMemo(
     () => resolveActiveDeliveryAddress({
@@ -1703,6 +1830,22 @@ export default function CheckoutPage() {
     && hasSavedBillingAddress
     && isCardPaymentValid
   )
+
+  // Buy Now has no cart line to update on the backend — quantity edits just
+  // rewrite the locally held item (and its sessionStorage copy).
+  const handleBuyNowQuantityChange = (_itemId, quantity) => {
+    setBuyNowItem((current) => {
+      if (!current) return current
+      const next = { ...current, quantity: Math.max(1, Number(quantity) || 1) }
+      saveBuyNowItem(next)
+      return next
+    })
+  }
+
+  const handleBuyNowDelete = () => {
+    clearBuyNowItem()
+    navigate(buyNowItem?.href || '/', { replace: true })
+  }
 
   const handleAddressChange = (event) => {
     const { name, value } = event.target
@@ -1969,6 +2112,11 @@ export default function CheckoutPage() {
     setCouponMessage('Invalid promo code')
   }
 
+  useLayoutEffect(() => {
+    if (orderStatus !== 'success') return
+    window.scrollTo(0, 0)
+  }, [orderStatus])
+
   const handlePlaceOrder = async () => {
     if (selectedPayment === 'card') {
       const errors = validateCardFields(cardDetails)
@@ -2005,14 +2153,18 @@ export default function CheckoutPage() {
       // No real payment gateway yet — simulate processing time so the
       // overlay doesn't just flash if the API responds instantly.
       const minProcessingDelay = new Promise((resolve) => setTimeout(resolve, 1800))
-      const [response] = await Promise.all([
-        placeCheckoutOrder(buildCheckoutPayload(activeAddress, activeBillingAddress)),
-        minProcessingDelay,
-      ])
+      const orderPromise = isBuyNowMode
+        ? placeBuyNowOrder(buildBuyNowCheckoutPayload(items[0], activeAddress, activeBillingAddress))
+        : placeCheckoutOrder(buildCheckoutPayload(activeAddress, activeBillingAddress))
+      const [response] = await Promise.all([orderPromise, minProcessingDelay])
 
       setPlacedOrder(response)
       setOrderStatus('success')
-      await clearAll()
+      if (isBuyNowMode) {
+        clearBuyNowItem()
+      } else {
+        await clearAll()
+      }
     } catch (error) {
       setOrderStatus('idle')
       notify.fromError(error, 'Unable to place order')
@@ -2025,14 +2177,20 @@ export default function CheckoutPage() {
         <Container>
           {orderStatus === 'success' ? (
             <OrderSuccessScreen order={placedOrder} />
-          ) : items.length === 0 ? (
+          ) : items.length === 0 && !isCheckoutDataLoading ? (
             <section className="rounded-xl border border-slate-200 bg-white px-5 py-14 text-center">
               <h1 className="text-2xl font-semibold text-slate-950">Checkout</h1>
-              <p className="mt-2 text-sm text-slate-600">Your cart is empty.</p>
+              <p className="mt-2 text-sm text-slate-600">
+                {isBuyNowMode
+                  ? 'This item is no longer available. Please go back and select it again.'
+                  : 'Your cart is empty.'}
+              </p>
               <Link to="/" className="mt-6 inline-flex rounded-lg bg-auth-primary px-6 py-3 text-sm font-bold text-white">
                 Continue Shopping
               </Link>
             </section>
+          ) : isCheckoutDataLoading ? (
+            <CheckoutPageSkeleton />
           ) : (
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
               <div className="space-y-6">
@@ -2118,7 +2276,11 @@ export default function CheckoutPage() {
                 />
               </div>
               <aside className="space-y-5">
-                <OrderSummary items={displayItems} onQuantityChange={updateQuantity} onDelete={deleteItem} />
+                <OrderSummary
+                  items={displayItems}
+                  onQuantityChange={isBuyNowMode ? handleBuyNowQuantityChange : updateQuantity}
+                  onDelete={isBuyNowMode ? handleBuyNowDelete : deleteItem}
+                />
                 <OrderTotal
                   itemCount={orderItemCount}
                   listSubtotal={orderListSubtotal}

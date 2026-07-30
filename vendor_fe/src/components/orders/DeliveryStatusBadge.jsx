@@ -1,7 +1,7 @@
-import { ORDER_STATUSES } from '../../constants/orders'
+import { DELIVERY_STATUSES } from '../../constants/orders'
 
-export default function OrderStatusBadge({ status }) {
-  const config = ORDER_STATUSES[status] ?? ORDER_STATUSES.ordered
+export default function DeliveryStatusBadge({ status }) {
+  const config = DELIVERY_STATUSES[status] ?? DELIVERY_STATUSES.pending
 
   return (
     <span

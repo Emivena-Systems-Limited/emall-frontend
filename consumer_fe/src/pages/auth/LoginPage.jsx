@@ -242,6 +242,7 @@ export default function LoginPage() {
           Don&apos;t have an account?{' '}
           <Link
             to="/register"
+            state={redirectTo ? { from: redirectTo } : undefined}
             className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
           >
             Register

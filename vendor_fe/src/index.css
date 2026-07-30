@@ -487,3 +487,44 @@ body,
   background: #f8fafc;
   font-weight: 600;
 }
+
+/* ── Order receipt print ─────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  aside,
+  nav,
+  .receipt-toolbar,
+  [data-logout-overlay] {
+    display: none !important;
+  }
+
+  [data-dashboard-scroll-panel] {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  [data-dashboard-scroll-panel] > div {
+    padding: 0 !important;
+  }
+
+  .receipt-preview-shell {
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .receipt-sheet {
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    max-height: none !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+}

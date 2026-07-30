@@ -29,15 +29,4 @@ export function formatJoinedDate(value) {
   }).format(date)
 }
 
-export function getShippingAddresses(response) {
-  if (Array.isArray(response?.shipping)) return response.shipping
-  if (Array.isArray(response?.data?.shipping)) return response.data.shipping
-  if (Array.isArray(response?.addresses)) return response.addresses.filter((item) => item?.type !== 'billing')
-  if (Array.isArray(response)) return response.filter((item) => item?.type !== 'billing')
-  return []
-}
-
-export function getDefaultShippingAddress(response) {
-  const shippingAddresses = getShippingAddresses(response)
-  return shippingAddresses.find((item) => item?.is_default || item?.isDefault) ?? shippingAddresses[0] ?? null
-}
+export { getDefaultShippingAddress, getShippingAddresses } from './userAddressHelpers'

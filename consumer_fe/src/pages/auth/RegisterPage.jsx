@@ -480,6 +480,7 @@ export default function RegisterPage() {
           Already have an account?{' '}
           <Link
             to="/login"
+            state={redirectTo ? { from: redirectTo } : undefined}
             className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
           >
             Login

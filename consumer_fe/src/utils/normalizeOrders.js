@@ -48,7 +48,8 @@ export function formatDeliveryStatus(status) {
   if (!raw) return ''
 
   const labels = {
-    pending: 'Awaiting dispatch',
+    pending: 'Pending Delivery',
+    'pending delivery': 'Pending Delivery',
     processing: 'Being prepared',
     shipped: 'Shipped',
     'out for delivery': 'Out for delivery',
@@ -61,27 +62,23 @@ export function formatDeliveryStatus(status) {
 }
 
 function formatOrderStatus(record) {
-  const deliveryStatus = String(record?.delivery_status ?? '').trim().replace(/_/g, ' ').toLowerCase()
-  if (deliveryStatus === 'delivered') return 'Delivered'
-  if (deliveryStatus === 'cancelled' || deliveryStatus === 'canceled') return 'Cancelled'
-  if (deliveryStatus === 'out for delivery') return 'Out for Delivery'
-  if (deliveryStatus === 'shipped') return 'Out for Delivery'
-
   const raw = String(record?.status ?? '').trim()
-  if (!raw) return 'Processing'
+  if (!raw) return 'Ordered'
 
   const normalized = raw.replace(/_/g, ' ').toLowerCase()
   const labels = {
-    ordered: 'Processing',
+    ordered: 'Ordered',
+    confirmed: 'Order Confirmed',
     processing: 'Processing',
-    confirmed: 'Processing',
     preparing: 'Processing',
-    shipped: 'Out for Delivery',
+    pending: 'Pending',
+    'pending payment': 'Pending',
+    shipped: 'Shipped',
     'out for delivery': 'Out for Delivery',
     delivered: 'Delivered',
     cancelled: 'Cancelled',
     canceled: 'Cancelled',
-    refunded: 'Cancelled',
+    refunded: 'Refunded',
   }
 
   if (labels[normalized]) return labels[normalized]
@@ -143,7 +140,6 @@ function resolveDeliveryLabel(record) {
     record.delivery_method,
     shipping?.delivery_note,
     record.delivery_note,
-    formatDeliveryStatus(record.delivery_status),
     location,
     'Standard delivery',
   )
@@ -196,6 +192,7 @@ export function normalizeOrderRecord(record) {
   return {
     id: firstValue(record.order_number, record.id, record.order_id),
     status: formatOrderStatus(record),
+    deliveryStatus: formatDeliveryStatus(record.delivery_status),
     date: formatOrderDate(record.created_at ?? record.updated_at ?? record.ordered_at ?? record.date),
     title: buildOrderTitle(items, record),
     delivery: resolveDeliveryLabel(record),
@@ -392,7 +389,8 @@ export function canCancelOrder(record) {
   if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) return false
   if (orderStatus.includes('ready') && orderStatus.includes('ship')) return false
 
-  return formatOrderStatus(record) === 'Processing'
+  const cancellableOrderStatuses = new Set(['ordered', 'processing', 'confirmed', 'preparing'])
+  return cancellableOrderStatuses.has(orderStatus)
 }
 
 export function getOrderCancellationBlockReason(record) {
@@ -402,16 +400,18 @@ export function getOrderCancellationBlockReason(record) {
     return ''
   }
 
-  const uiStatus = formatOrderStatus(record)
-  if (uiStatus === 'Cancelled') {
+  const orderUiStatus = formatOrderStatus(record)
+  const deliveryUiStatus = formatDeliveryStatus(record.delivery_status)
+
+  if (orderUiStatus === 'Cancelled' || deliveryUiStatus === 'Cancelled') {
     return 'This order has already been cancelled.'
   }
 
-  if (uiStatus === 'Delivered') {
+  if (deliveryUiStatus === 'Delivered' || orderUiStatus === 'Delivered') {
     return 'Delivered orders cannot be cancelled online.'
   }
 
-  if (uiStatus === 'Out for Delivery') {
+  if (deliveryUiStatus === 'Out for delivery' || orderUiStatus === 'Out for Delivery') {
     return 'This order is already on its way and can no longer be cancelled.'
   }
 

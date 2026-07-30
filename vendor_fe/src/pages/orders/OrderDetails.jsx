@@ -1,23 +1,33 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
+  AlertTriangle,
   ArrowLeft,
+  ChevronRight,
   CreditCard,
+  Loader2,
   MapPin,
   Package,
+  RefreshCw,
   UserRound,
 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import OrderLineItems from '../../components/orders/OrderLineItems'
+import OrderCustomerDeliveryDrawer from '../../components/orders/OrderCustomerDeliveryDrawer'
 import OrderActionsMenu from '../../components/orders/OrderActionsMenu'
 import OrderStatusBadge from '../../components/orders/OrderStatusBadge'
 import PaymentStatusBadge from '../../components/orders/PaymentStatusBadge'
+import DeliveryStatusBadge from '../../components/orders/DeliveryStatusBadge'
 import UpdateOrderStatusModal from '../../components/orders/UpdateOrderStatusModal'
-import { getOrderById } from '../../constants/ordersData'
+import { useVendorOrder } from '../../hooks/useVendorOrders'
 import notify from '../../lib/notify'
-import { printOrderReceipt } from '../../utils/printOrder'
 
 function formatOrderDateTime(value) {
-  return new Date(value).toLocaleString('en-GB', {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return date.toLocaleString('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -61,46 +71,64 @@ function DetailRow({ label, value, singleLine = false }) {
   )
 }
 
-function LineItemRow({ item }) {
-  return (
-    <div className="flex flex-col gap-3 border-b border-slate-100 py-4 last:border-b-0 sm:flex-row sm:items-center">
-      {item.image ? (
-        <img
-          src={item.image}
-          alt={item.productName}
-          className="size-16 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-        />
-      ) : (
-        <span className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200">
-          <Package className="size-6" strokeWidth={1.5} />
-        </span>
-      )}
-
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-slate-900">{item.productName}</p>
-        <p className="mt-1 text-xs text-slate-500">SKU: {item.sku}</p>
-        <p className="mt-1 text-xs text-slate-500">Qty: {item.quantity}</p>
-      </div>
-
-      <div className="text-left sm:text-right">
-        <p className="text-xs text-slate-500">Unit: {formatMoney(item.unitPrice)}</p>
-        <p className="mt-1 text-sm font-bold text-slate-900">{formatMoney(item.totalPrice)}</p>
-      </div>
-    </div>
-  )
-}
-
 export default function OrderDetails() {
   const { orderId } = useParams()
-  const initialOrder = useMemo(() => getOrderById(orderId), [orderId])
-  const [order, setOrder] = useState(initialOrder)
+  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId)
+  const [localOrder, setLocalOrder] = useState(null)
   const [statusUpdateRequest, setStatusUpdateRequest] = useState(null)
+  const [customerDrawerOpen, setCustomerDrawerOpen] = useState(false)
 
   useEffect(() => {
-    setOrder(getOrderById(orderId))
-  }, [orderId])
+    if (order) setLocalOrder(order)
+  }, [order])
 
-  if (!order) {
+  if (isLoading) {
+    return (
+      <DashboardLayout pageTitle="Order details">
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-24 text-sm font-semibold text-slate-500">
+          <Loader2 className="size-4 animate-spin text-brand" />
+          Loading order…
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (isError) {
+    return (
+      <DashboardLayout pageTitle="Order details">
+        <div className="page-enter mx-auto max-w-md space-y-5 rounded-2xl border border-slate-200 bg-white py-16 text-center">
+          <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
+            <AlertTriangle className="size-6" />
+          </span>
+          <div>
+            <h1 className="text-xl font-bold text-slate-950">Unable to load order</h1>
+            <p className="mt-2 text-sm text-slate-500">
+              {error?.message ?? 'Something went wrong while fetching this order.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} />
+              Retry
+            </button>
+            <Link
+              to="/orders"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
+            >
+              <ArrowLeft className="size-4" />
+              Back to orders
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!localOrder) {
     return (
       <DashboardLayout pageTitle="Order details">
         <div className="page-enter rounded-2xl border border-slate-200 bg-white p-6 text-center">
@@ -113,23 +141,18 @@ export default function OrderDetails() {
     )
   }
 
-  const handlePrint = (targetOrder) => {
-    const didPrint = printOrderReceipt(targetOrder)
-    if (!didPrint) {
-      notify.error('Unable to open the print window. Check your browser popup settings.')
-    }
-  }
-
   const handleStatusChange = (targetOrder, nextStatus) => {
     if (targetOrder.orderStatus === nextStatus) {
       setStatusUpdateRequest(null)
       return
     }
 
-    setOrder((current) => ({ ...current, orderStatus: nextStatus }))
+    setLocalOrder((current) => ({ ...current, orderStatus: nextStatus }))
     setStatusUpdateRequest(null)
     notify.success(`Order ${targetOrder.orderNumber} updated to ${nextStatus.replaceAll('_', ' ')}.`)
   }
+
+  const deliveryPreview = [localOrder.delivery.city, localOrder.delivery.region].filter(Boolean).join(', ')
 
   return (
     <DashboardLayout pageTitle="Order details">
@@ -144,8 +167,7 @@ export default function OrderDetails() {
           </Link>
 
           <OrderActionsMenu
-            order={order}
-            onPrint={handlePrint}
+            order={localOrder}
             onUpdateStatus={setStatusUpdateRequest}
             align="start"
             hideViewDetails
@@ -156,67 +178,102 @@ export default function OrderDetails() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Order</p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-950">{order.orderNumber}</h1>
-              <p className="mt-2 text-sm text-slate-500">{formatOrderDateTime(order.orderDate)}</p>
+              <h1 className="mt-1 text-2xl font-bold text-slate-950">{localOrder.orderNumber}</h1>
+              <p className="mt-2 text-sm text-slate-500">{formatOrderDateTime(localOrder.orderDate)}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <OrderStatusBadge status={order.orderStatus} />
-              <PaymentStatusBadge status={order.paymentStatus} />
+            <div className="flex flex-wrap items-center gap-2">
+              <OrderStatusBadge status={localOrder.orderStatus} />
+              <DeliveryStatusBadge status={localOrder.deliveryStatus} />
+              <PaymentStatusBadge status={localOrder.paymentStatus} />
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setCustomerDrawerOpen(true)}
+            className="group mt-5 flex w-full cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-left transition-all hover:border-brand/25 hover:bg-brand-light/30 print:hidden"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand ring-1 ring-brand/15">
+                <UserRound className="size-4" strokeWidth={2} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900">{localOrder.customer.name}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                  {localOrder.customer.phone ? (
+                    <span>{localOrder.customer.phone}</span>
+                  ) : null}
+                  {deliveryPreview ? (
+                    <>
+                      {localOrder.customer.phone ? <span aria-hidden>·</span> : null}
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="size-3 shrink-0" />
+                        {deliveryPreview}
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-brand transition group-hover:gap-1.5">
+              View details
+              <ChevronRight className="size-4" />
+            </span>
+          </button>
         </section>
+
+        <SectionCard icon={Package} title={`Ordered Products (${localOrder.items.length})`}>
+          <OrderLineItems items={localOrder.items} orderId={localOrder.id} />
+        </SectionCard>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <SectionCard icon={CreditCard} title="Order Information">
             <dl>
-              <DetailRow label="Order Number" value={order.orderNumber} />
-              <DetailRow label="Order Date" value={formatOrderDateTime(order.orderDate)} />
-              <DetailRow label="Payment Method" value={order.paymentMethod} singleLine />
-              <DetailRow label="Payment Status" value={<PaymentStatusBadge status={order.paymentStatus} />} />
-              <DetailRow label="Transaction Reference" value={order.transactionReference} singleLine />
-            </dl>
-          </SectionCard>
-
-          <SectionCard icon={UserRound} title="Customer Information">
-            <dl>
-              <DetailRow label="Customer Name" value={order.customer.name} />
-              <DetailRow label="Email Address" value={order.customer.email} />
-              <DetailRow label="Phone Number" value={order.customer.phone} singleLine />
-            </dl>
-          </SectionCard>
-
-          <SectionCard icon={MapPin} title="Delivery Information">
-            <dl>
-              <DetailRow label="Delivery Address" value={order.delivery.address} />
-              <DetailRow label="Region" value={order.delivery.region} singleLine />
-              <DetailRow label="City" value={order.delivery.city} singleLine />
-              <DetailRow label="Delivery Method" value={order.deliveryMethod} singleLine />
-              <DetailRow label="Delivery Notes" value={order.delivery.notes || '—'} />
+              <DetailRow label="Order Number" value={localOrder.orderNumber} />
+              <DetailRow label="Order Date" value={formatOrderDateTime(localOrder.orderDate)} />
+              <DetailRow label="Payment Method" value={localOrder.paymentMethod} singleLine />
+              <DetailRow label="Payment Status" value={<PaymentStatusBadge status={localOrder.paymentStatus} />} />
+              <DetailRow label="Transaction Reference" value={localOrder.transactionReference} singleLine />
             </dl>
           </SectionCard>
 
           <SectionCard icon={Package} title="Order Summary">
             <dl>
-              <DetailRow label="Subtotal" value={formatMoney(order.subtotal)} singleLine />
-              <DetailRow label="Delivery Fee" value={formatMoney(order.deliveryFee)} singleLine />
-              <DetailRow label="Discount" value={formatMoney(order.discount)} singleLine />
-              <DetailRow label="Total Amount" value={formatMoney(order.totalAmount)} singleLine />
+              <DetailRow label="Subtotal" value={formatMoney(localOrder.subtotal)} singleLine />
+              {localOrder.discount > 0 ? (
+                <DetailRow
+                  label="Discount"
+                  value={
+                    <span className="font-semibold text-emerald-700">−{formatMoney(localOrder.discount)}</span>
+                  }
+                  singleLine
+                />
+              ) : (
+                <DetailRow label="Discount" value={formatMoney(localOrder.discount)} singleLine />
+              )}
+              <DetailRow label="Delivery Fee" value={formatMoney(localOrder.deliveryFee)} singleLine />
+              {localOrder.taxTotal > 0 ? (
+                <DetailRow label="Tax" value={formatMoney(localOrder.taxTotal)} singleLine />
+              ) : null}
+              <DetailRow
+                label="Total Amount"
+                value={<span className="text-base font-bold text-slate-950">{formatMoney(localOrder.totalAmount)}</span>}
+                singleLine
+              />
             </dl>
           </SectionCard>
         </div>
-
-        <SectionCard icon={Package} title="Ordered Products">
-          <div>
-            {order.items.map((item) => (
-              <LineItemRow key={item.id} item={item} />
-            ))}
-          </div>
-        </SectionCard>
       </div>
+
+      <OrderCustomerDeliveryDrawer
+        open={customerDrawerOpen}
+        order={localOrder}
+        onClose={() => setCustomerDrawerOpen(false)}
+      />
 
       <UpdateOrderStatusModal
         open={Boolean(statusUpdateRequest)}
-        order={statusUpdateRequest ?? order}
+        order={statusUpdateRequest ?? localOrder}
         onClose={() => setStatusUpdateRequest(null)}
         onConfirm={handleStatusChange}
       />

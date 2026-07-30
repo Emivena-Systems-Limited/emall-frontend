@@ -8,6 +8,7 @@ import EditProduct from '../pages/products/EditProduct'
 import ViewProduct from '../pages/products/ViewProduct'
 import Orders from '../pages/orders/Orders'
 import OrderDetails from '../pages/orders/OrderDetails'
+import OrderReceipt from '../pages/orders/OrderReceipt'
 import OrderProducts from '../pages/orders/OrderProducts'
 import Customers from '../pages/customers/Customers'
 import CustomerDetails from '../pages/customers/CustomerDetails'
@@ -52,6 +53,7 @@ export default function AppRoutes() {
       <Route path="/products/:productId/edit" element={protectedPage(<EditProduct />)} />
       <Route path="/products/:productId/view" element={protectedPage(<ViewProduct />)} />
       <Route path="/orders" element={protectedPage(<Orders />)} />
+      <Route path="/orders/:orderId/receipt" element={protectedPage(<OrderReceipt />)} />
       <Route path="/orders/:orderId/products" element={protectedPage(<OrderProducts />)} />
       <Route path="/orders/:orderId" element={protectedPage(<OrderDetails />)} />
       <Route path="/customers" element={protectedPage(<Customers />)} />

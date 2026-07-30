@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import {
@@ -25,7 +25,8 @@ import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLand
 import { notify } from '../lib/notify'
 import { useCartActions } from '../hooks/useCartActions'
 import { useOptionalMiniCart } from '../context/MiniCartContext'
-import { selectCartItems } from '../store/slices/cartSlice'
+import { buildCartItem, selectCartItems } from '../store/slices/cartSlice'
+import { saveBuyNowItem } from '../utils/buyNowItem'
 import {
   formatProductCondition,
   sortKeyDetailEntries,
@@ -447,7 +448,9 @@ function ProductInfoPanel({
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [trustInfoOpen, setTrustInfoOpen] = useState(null)
   const trustInfoRef = useRef(null)
+  const navigate = useNavigate()
   const cartItems = useSelector(selectCartItems)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const { addToCart } = useCartActions()
   const miniCart = useOptionalMiniCart()
   const stockAvailability = formatStockAvailability(
@@ -512,6 +515,32 @@ function ProductInfoPanel({
     String(item.sku ?? '') === String(activeSku ?? '')
   ))
 
+  const hasSelectableVariants = Array.isArray(product.variants) && product.variants.length > 0
+
+  const buildCartArgs = () => ({
+    product: {
+      ...product,
+      productId: product.backendId ?? product.id,
+      product_id: product.backendId ?? product.id,
+    },
+    options: {
+      silentSuccess: true,
+      productId: product.backendId ?? product.id,
+      syncable: Boolean(product.backendId ?? product.id),
+      quantity,
+      price: displayPriceInfo.price,
+      compareAt: displayPriceInfo.compareAt,
+      variantId: activeVariant?.id ?? null,
+      product_variant_id: activeVariant?.id ?? null,
+      sku: activeSku,
+      variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
+      size: selectedSize || selectedCompatibleModel || activeSku,
+      image: activeImage || product.colorImages?.[selectedColor] || product.gallery?.[0] || product.image,
+      variantImage: activeImage || product.colorImages?.[selectedColor] || null,
+      variantRecord: activeVariant ?? null,
+    },
+  })
+
   const handleAddToCart = async () => {
     if (isInCart) {
       miniCart?.openMiniCart()
@@ -520,37 +549,15 @@ function ProductInfoPanel({
 
     if (isAddingToCart) return
 
-    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0
-    if (hasVariants && !activeVariant?.id) {
+    if (hasSelectableVariants && !activeVariant?.id) {
       notify.error('Please select a product option before adding to cart.')
       return
     }
 
     setIsAddingToCart(true)
     try {
-      const item = await addToCart(
-        {
-          ...product,
-          productId: product.backendId ?? product.id,
-          product_id: product.backendId ?? product.id,
-        },
-        {
-          silentSuccess: true,
-          productId: product.backendId ?? product.id,
-          syncable: Boolean(product.backendId ?? product.id),
-          quantity,
-          price: displayPriceInfo.price,
-          compareAt: displayPriceInfo.compareAt,
-          variantId: activeVariant?.id ?? null,
-          product_variant_id: activeVariant?.id ?? null,
-          sku: activeSku,
-          variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
-          size: selectedSize || selectedCompatibleModel || activeSku,
-          image: activeImage || product.colorImages?.[selectedColor] || product.gallery?.[0] || product.image,
-          variantImage: activeImage || product.colorImages?.[selectedColor] || null,
-          variantRecord: activeVariant ?? null,
-        },
-      )
+      const { product: cartProduct, options: cartOptions } = buildCartArgs()
+      const item = await addToCart(cartProduct, cartOptions)
 
       if (item) {
         miniCart?.openMiniCart()
@@ -558,6 +565,27 @@ function ProductInfoPanel({
     } finally {
       setIsAddingToCart(false)
     }
+  }
+
+  const handleBuyNow = () => {
+    if (hasSelectableVariants && !activeVariant?.id) {
+      notify.error('Please select a product option before continuing.')
+      return
+    }
+
+    // Buy Now skips the cart entirely — the item is held client-side and
+    // handed straight to the (single-item) checkout flow once the shopper is
+    // authenticated, rather than going through addToCart/the cart API.
+    const { product: cartProduct, options: cartOptions } = buildCartArgs()
+    const buyNowItem = buildCartItem(cartProduct, cartOptions)
+    saveBuyNowItem(buyNowItem)
+
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: '/checkout/buy-now' } })
+      return
+    }
+
+    navigate('/checkout/buy-now')
   }
 
   return (
@@ -664,6 +692,7 @@ function ProductInfoPanel({
         <button
           type="button"
           disabled={outOfStock}
+          onClick={handleBuyNow}
           className="rounded-full bg-auth-primary px-6 py-3 text-xs font-bold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           Buy Now

@@ -122,7 +122,7 @@ export default function EditProfileModal({ initialProfile, isSaving, onClose, on
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Edit profile"

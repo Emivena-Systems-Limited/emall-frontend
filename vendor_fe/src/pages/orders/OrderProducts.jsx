@@ -1,13 +1,47 @@
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, ChevronRight, Package } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronRight, Loader2, Package, RefreshCw } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
-import { getOrderById } from '../../constants/ordersData'
+import { useVendorOrder } from '../../hooks/useVendorOrders'
 import { buildViewProductPath, getUniqueOrderProducts } from '../../utils/orderProductNavigation'
 
 export default function OrderProducts() {
   const { orderId } = useParams()
-  const order = getOrderById(orderId)
+  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId)
   const products = order ? getUniqueOrderProducts(order) : []
+
+  if (isLoading) {
+    return (
+      <DashboardLayout pageTitle="Order products">
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-24 text-sm font-semibold text-slate-500">
+          <Loader2 className="size-4 animate-spin text-brand" />
+          Loading order…
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (isError) {
+    return (
+      <DashboardLayout pageTitle="Order products">
+        <div className="page-enter mx-auto max-w-md space-y-5 rounded-2xl border border-slate-200 bg-white py-16 text-center">
+          <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
+            <AlertTriangle className="size-6" />
+          </span>
+          <p className="text-sm text-slate-500">
+            {error?.message ?? 'Something went wrong while fetching this order.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+          >
+            <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   if (!order) {
     return (
@@ -62,6 +96,9 @@ export default function OrderProducts() {
 
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-slate-900">{item.productName}</p>
+                    {item.variantLabel || item.variantName ? (
+                      <p className="mt-1 text-xs text-slate-500">{item.variantLabel ?? item.variantName}</p>
+                    ) : null}
                     <p className="mt-1 text-xs text-slate-500">SKU: {item.sku}</p>
                     <p className="mt-1 text-xs text-slate-500">Qty ordered: {item.quantity}</p>
                   </div>
