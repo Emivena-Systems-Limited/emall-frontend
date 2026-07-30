@@ -56,3 +56,28 @@ export async function getVendorOrderById(orderId) {
 
   return record
 }
+
+export async function updateVendorOrderItemStatus(orderItemId, status) {
+  const id = String(orderItemId ?? '').trim()
+  const nextStatus = String(status ?? '').trim()
+
+  if (!id) {
+    throw new Error('Order item id is required.')
+  }
+
+  if (!nextStatus) {
+    throw new Error('Status is required.')
+  }
+
+  const { data } = await apiClient.post(ORDER_ENDPOINTS.updateItemStatus, {
+    order_item_id: id,
+    status: nextStatus,
+  })
+
+  if (import.meta.env.DEV) {
+    console.info('[orders] POST', ORDER_ENDPOINTS.updateItemStatus, { order_item_id: id, status: nextStatus }, data)
+  }
+
+  assertApiSuccess(data)
+  return data
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -20,6 +20,8 @@ import PaymentStatusBadge from '../../components/orders/PaymentStatusBadge'
 import DeliveryStatusBadge from '../../components/orders/DeliveryStatusBadge'
 import UpdateOrderStatusModal from '../../components/orders/UpdateOrderStatusModal'
 import { useVendorOrder } from '../../hooks/useVendorOrders'
+import { useUpdateOrderItemStatusMutation } from '../../hooks/useVendorOrderMutations'
+import { deriveOrderStatusFromItems } from '../../utils/normalizeVendorOrders'
 import notify from '../../lib/notify'
 
 function formatOrderDateTime(value) {
@@ -73,9 +75,12 @@ function DetailRow({ label, value, singleLine = false }) {
 
 export default function OrderDetails() {
   const { orderId } = useParams()
-  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId)
+  const location = useLocation()
+  const listPayment = location.state?.listPayment ?? null
+  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId, { listPayment })
+  const updateItemStatus = useUpdateOrderItemStatusMutation()
   const [localOrder, setLocalOrder] = useState(null)
-  const [statusUpdateRequest, setStatusUpdateRequest] = useState(null)
+  const [statusUpdateItem, setStatusUpdateItem] = useState(null)
   const [customerDrawerOpen, setCustomerDrawerOpen] = useState(false)
 
   useEffect(() => {
@@ -141,15 +146,32 @@ export default function OrderDetails() {
     )
   }
 
-  const handleStatusChange = (targetOrder, nextStatus) => {
-    if (targetOrder.orderStatus === nextStatus) {
-      setStatusUpdateRequest(null)
+  const handleItemStatusChange = async (item, nextStatus) => {
+    if (item.orderStatus === nextStatus) {
+      setStatusUpdateItem(null)
       return
     }
 
-    setLocalOrder((current) => ({ ...current, orderStatus: nextStatus }))
-    setStatusUpdateRequest(null)
-    notify.success(`Order ${targetOrder.orderNumber} updated to ${nextStatus.replaceAll('_', ' ')}.`)
+    try {
+      await updateItemStatus.mutateAsync({ orderItemId: item.id, status: nextStatus })
+
+      setLocalOrder((current) => {
+        const nextItems = current.items.map((line) =>
+          line.id === item.id ? { ...line, orderStatus: nextStatus } : line,
+        )
+
+        return {
+          ...current,
+          items: nextItems,
+          orderStatus: deriveOrderStatusFromItems(nextItems, current.orderStatus),
+        }
+      })
+
+      setStatusUpdateItem(null)
+      notify.success(`${item.productName} updated to ${nextStatus.replaceAll('_', ' ')}.`)
+    } catch {
+      // Error toast handled by mutation hook.
+    }
   }
 
   const deliveryPreview = [localOrder.delivery.city, localOrder.delivery.region].filter(Boolean).join(', ')
@@ -168,7 +190,6 @@ export default function OrderDetails() {
 
           <OrderActionsMenu
             order={localOrder}
-            onUpdateStatus={setStatusUpdateRequest}
             align="start"
             hideViewDetails
           />
@@ -223,7 +244,11 @@ export default function OrderDetails() {
         </section>
 
         <SectionCard icon={Package} title={`Ordered Products (${localOrder.items.length})`}>
-          <OrderLineItems items={localOrder.items} orderId={localOrder.id} />
+          <OrderLineItems
+            items={localOrder.items}
+            orderId={localOrder.id}
+            onUpdateItemStatus={setStatusUpdateItem}
+          />
         </SectionCard>
 
         <div className="grid gap-5 lg:grid-cols-2">
@@ -231,7 +256,6 @@ export default function OrderDetails() {
             <dl>
               <DetailRow label="Order Number" value={localOrder.orderNumber} />
               <DetailRow label="Order Date" value={formatOrderDateTime(localOrder.orderDate)} />
-              <DetailRow label="Payment Method" value={localOrder.paymentMethod} singleLine />
               <DetailRow label="Payment Status" value={<PaymentStatusBadge status={localOrder.paymentStatus} />} />
               <DetailRow label="Transaction Reference" value={localOrder.transactionReference} singleLine />
             </dl>
@@ -272,10 +296,12 @@ export default function OrderDetails() {
       />
 
       <UpdateOrderStatusModal
-        open={Boolean(statusUpdateRequest)}
-        order={statusUpdateRequest ?? localOrder}
-        onClose={() => setStatusUpdateRequest(null)}
-        onConfirm={handleStatusChange}
+        open={Boolean(statusUpdateItem)}
+        item={statusUpdateItem}
+        orderNumber={localOrder.orderNumber}
+        onClose={() => setStatusUpdateItem(null)}
+        onConfirm={handleItemStatusChange}
+        isLoading={updateItemStatus.isPending}
       />
     </DashboardLayout>
   )

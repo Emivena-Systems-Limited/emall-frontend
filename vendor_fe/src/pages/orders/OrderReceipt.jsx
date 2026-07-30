@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 import { useSelector } from 'react-redux'
 import {
   AlertTriangle,
@@ -17,12 +17,14 @@ import { buildReceiptFilename, downloadReceiptPdf } from '../../utils/downloadRe
 
 export default function OrderReceipt() {
   const { orderId } = useParams()
+  const location = useLocation()
+  const listPayment = location.state?.listPayment ?? null
   const receiptRef = useRef(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const authUser = useSelector((state) => state.auth.user)
   const storeName = authUser?.store_name ?? authUser?.trading_name ?? authUser?.business_name ?? 'Your Store'
 
-  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId)
+  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId, { listPayment })
 
   const handleDownloadPdf = async () => {
     if (!receiptRef.current || !order) return

@@ -14,18 +14,19 @@ function getStatusOptions(currentStatus) {
 
 export default function UpdateOrderStatusModal({
   open,
-  order,
+  item,
+  orderNumber,
   onClose,
   onConfirm,
   isLoading = false,
 }) {
-  const [selectedStatus, setSelectedStatus] = useState(order?.orderStatus ?? '')
+  const [selectedStatus, setSelectedStatus] = useState(item?.orderStatus ?? '')
 
   useEffect(() => {
-    if (open && order) {
-      setSelectedStatus(order.orderStatus)
+    if (open && item) {
+      setSelectedStatus(item.orderStatus)
     }
-  }, [open, order])
+  }, [open, item])
 
   useEffect(() => {
     if (!open) return undefined
@@ -44,10 +45,10 @@ export default function UpdateOrderStatusModal({
     }
   }, [open, isLoading, onClose])
 
-  if (!open || !order) return null
+  if (!open || !item) return null
 
-  const statusOptions = getStatusOptions(order.orderStatus)
-  const hasChange = selectedStatus !== order.orderStatus
+  const statusOptions = getStatusOptions(item.orderStatus)
+  const hasChange = selectedStatus !== item.orderStatus
 
   return createPortal(
     <div
@@ -67,15 +68,24 @@ export default function UpdateOrderStatusModal({
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_32px_80px_rgba(15,23,42,0.28)]">
         <div className="px-5 py-5 sm:px-6 sm:py-6">
           <h2 id="update-order-status-title" className="text-lg font-bold text-slate-950">
-            Update order status
+            Update item status
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Choose a new status for order <span className="font-semibold text-slate-700">{order.orderNumber}</span>.
+            Choose a new fulfilment status for{' '}
+            <span className="font-semibold text-slate-700">{item.productName}</span>
+            {orderNumber ? (
+              <>
+                {' '}
+                in order <span className="font-semibold text-slate-700">{orderNumber}</span>.
+              </>
+            ) : (
+              '.'
+            )}
           </p>
 
           <div className="mt-4 flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current</span>
-            <OrderStatusBadge status={order.orderStatus} />
+            <OrderStatusBadge status={item.orderStatus} />
           </div>
 
           <label className="mt-5 block">
@@ -108,7 +118,7 @@ export default function UpdateOrderStatusModal({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(order, selectedStatus)}
+            onClick={() => onConfirm(item, selectedStatus)}
             disabled={isLoading || !hasChange}
             className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
           >

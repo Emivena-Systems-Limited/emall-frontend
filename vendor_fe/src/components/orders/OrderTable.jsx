@@ -21,7 +21,7 @@ function formatMoney(amount) {
   return `GH₵ ${Number(amount).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`
 }
 
-function OrderMobileCard({ order, onUpdateStatus }) {
+function OrderMobileCard({ order }) {
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -29,10 +29,7 @@ function OrderMobileCard({ order, onUpdateStatus }) {
           <p className="text-sm font-bold text-slate-900">{order.orderNumber}</p>
           <p className="mt-1 text-xs text-slate-500">{formatOrderDate(order.orderDate)}</p>
         </div>
-        <OrderActionsMenu
-          order={order}
-          onUpdateStatus={onUpdateStatus}
-        />
+        <OrderActionsMenu order={order} />
       </div>
 
       <div className="mt-3 space-y-1 text-sm">
@@ -54,7 +51,7 @@ function OrderMobileCard({ order, onUpdateStatus }) {
   )
 }
 
-export default function OrderTable({ orders, onUpdateStatus }) {
+export default function OrderTable({ orders }) {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -73,11 +70,7 @@ export default function OrderTable({ orders, onUpdateStatus }) {
     <>
       <div className="space-y-3 p-4 lg:hidden">
         {orders.map((order) => (
-          <OrderMobileCard
-            key={order.id}
-            order={order}
-            onUpdateStatus={onUpdateStatus}
-          />
+          <OrderMobileCard key={order.id} order={order} />
         ))}
       </div>
 
@@ -127,10 +120,7 @@ export default function OrderTable({ orders, onUpdateStatus }) {
                   {order.deliveryMethod}
                 </td>
                 <td className="whitespace-nowrap px-5 py-4">
-                  <OrderActionsMenu
-                    order={order}
-                    onUpdateStatus={onUpdateStatus}
-                  />
+                  <OrderActionsMenu order={order} />
                 </td>
               </tr>
             ))}

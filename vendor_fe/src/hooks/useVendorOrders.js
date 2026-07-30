@@ -12,7 +12,7 @@ const STALE_TIME = 60 * 1000
 export const orderQueryKeys = {
   all: ['vendor-orders'],
   list: () => [...orderQueryKeys.all, 'list'],
-  detail: (orderId) => [...orderQueryKeys.all, 'detail', orderId],
+  detail: (orderId, paymentKey = null) => [...orderQueryKeys.all, 'detail', orderId, paymentKey],
 }
 
 export function useVendorOrders() {
@@ -23,18 +23,19 @@ export function useVendorOrders() {
   })
 }
 
-export function useVendorOrder(orderId) {
+export function useVendorOrder(orderId, { listPayment = null } = {}) {
   const queryClient = useQueryClient()
+  const paymentKey = listPayment?.id ?? listPayment?.reference ?? null
 
   const selectOrder = (rawDetail) => {
     const detailOrder = normalizeVendorOrderRecord(rawDetail)
     const listRaw = queryClient.getQueryData(orderQueryKeys.list())
     const listOrder = findVendorOrderById(normalizeVendorOrdersList(listRaw ?? []), orderId)
-    return mergeVendorOrderPaymentDetails(detailOrder, listOrder)
+    return mergeVendorOrderPaymentDetails(detailOrder, listOrder, listPayment)
   }
 
   return useQuery({
-    queryKey: orderQueryKeys.detail(orderId),
+    queryKey: orderQueryKeys.detail(orderId, paymentKey),
     queryFn: () => getVendorOrderById(orderId),
     enabled: Boolean(orderId),
     staleTime: STALE_TIME,

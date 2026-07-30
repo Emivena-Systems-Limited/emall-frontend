@@ -48,35 +48,107 @@ function normalizeDeliveryStatus(record) {
   return deliveryStatus
 }
 
-function normalizePaymentStatus(record) {
-  // Nested payment record is authoritative when present (root payment_status can lag).
-  const raw = normalizeToken(
-    record?.payment?.payment_status
-    ?? record?.payment_status
-    ?? record?.payment?.status,
-  )
-
+function mapPaymentStatusToken(raw) {
   if (raw === 'paid' || raw === 'successful' || raw === 'success') return 'paid'
   if (raw === 'failed' || raw === 'declined') return 'failed'
   if (raw === 'refunded') return 'refunded'
   if (raw === 'pending' || raw === 'pending_payment') return 'pending'
-
   return raw || 'pending'
 }
 
-function normalizePaymentMethod(record) {
-  const provider = firstValue(
-    record?.payment?.service_provider,
-    record?.payment?.provider,
-    record?.payment?.payment_method,
-    record?.payment_method,
-    record?.payment?.method,
-    record?.payment?.channel,
-  )
-  const token = normalizeToken(provider)
+export function resolvePaymentRecord(record) {
+  if (!record || typeof record !== 'object') return null
 
+  const payment = record.payment
+  if (payment && typeof payment === 'object' && !Array.isArray(payment)) {
+    return payment
+  }
+
+  const payments = record.payments
+  if (Array.isArray(payments) && payments.length > 0) {
+    return payments[0]
+  }
+
+  return null
+}
+
+function normalizePaymentStatus(record) {
+  const payment = resolvePaymentRecord(record)
+
+  if (payment) {
+    const raw = normalizeToken(
+      payment.payment_status ?? payment.status ?? payment.state,
+    )
+    return mapPaymentStatusToken(raw)
+  }
+
+  return mapPaymentStatusToken(normalizeToken(record?.payment_status))
+}
+
+function normalizePaymentMethod(record) {
+  const payment = resolvePaymentRecord(record)
+
+  if (payment) {
+    const provider = firstValue(
+      payment.service_provider,
+      payment.provider,
+      payment.payment_method,
+      payment.method,
+      payment.channel,
+    )
+    const token = normalizeToken(provider)
+    if (!token || token === 'none' || token === 'null') return '—'
+    return provider
+  }
+
+  const provider = firstValue(record?.payment_method)
+  const token = normalizeToken(provider)
   if (!token || token === 'none' || token === 'null') return '—'
   return provider
+}
+
+function resolveTransactionReference(record) {
+  const payment = resolvePaymentRecord(record)
+
+  if (payment) {
+    return firstValue(
+      payment.reference,
+      payment.transaction_reference,
+      payment.payment_reference,
+    )
+  }
+
+  return firstValue(
+    record?.transaction_reference,
+    record?.payment_reference,
+    record?.reference,
+  )
+}
+
+export function resolvePaymentFieldsFromPayment(payment) {
+  if (!payment || typeof payment !== 'object') return null
+
+  const statusRaw = normalizeToken(
+    payment.payment_status ?? payment.status ?? payment.state,
+  )
+  const provider = firstValue(
+    payment.service_provider,
+    payment.provider,
+    payment.payment_method,
+    payment.method,
+    payment.channel,
+  )
+  const providerToken = normalizeToken(provider)
+
+  return {
+    paymentStatus: mapPaymentStatusToken(statusRaw),
+    paymentMethod: !providerToken || providerToken === 'none' || providerToken === 'null' ? '—' : provider,
+    transactionReference: firstValue(
+      payment.reference,
+      payment.transaction_reference,
+      payment.payment_reference,
+    ),
+  }
 }
 
 function resolvePrimaryImage(images = []) {
@@ -138,7 +210,7 @@ function resolveComparePrice(item, unitPrice) {
   return null
 }
 
-function normalizeOrderItem(item, index) {
+function normalizeOrderItem(item, index, orderRecord = null) {
   const quantity = Math.max(1, Number(item?.quantity) || 1)
   const unitPrice = Number(item?.unit_price ?? item?.price ?? item?.sale_price ?? 0)
   const totalPrice = Number(item?.total_price ?? unitPrice * quantity)
@@ -163,7 +235,39 @@ function normalizeOrderItem(item, index) {
     categoryName: firstValue(product?.category?.category_name, product?.category?.name),
     fulfillmentChannel: firstValue(product?.fulfillment_channel),
     productSlug: firstValue(product?.slug),
+    orderStatus: normalizeOrderStatus({
+      status: item?.status ?? item?.order_status ?? item?.item_status ?? orderRecord?.status,
+    }),
+    deliveryStatus: normalizeDeliveryStatus({
+      delivery_status: item?.delivery_status ?? orderRecord?.delivery_status,
+    }),
   }
+}
+
+const ORDER_STATUS_ROLLUP = [
+  'ordered',
+  'pending',
+  'confirmed',
+  'processing',
+  'ready_for_shipment',
+  'shipped',
+  'delivered',
+  'refunded',
+]
+
+export function deriveOrderStatusFromItems(items, fallback = 'ordered') {
+  if (!items?.length) return fallback
+
+  const statuses = items.map((item) => item.orderStatus).filter(Boolean)
+  if (!statuses.length) return fallback
+  if (statuses.every((status) => status === statuses[0])) return statuses[0]
+
+  const ranks = statuses
+    .map((status) => ORDER_STATUS_ROLLUP.indexOf(status))
+    .filter((rank) => rank >= 0)
+
+  if (!ranks.length) return fallback
+  return ORDER_STATUS_ROLLUP[Math.min(...ranks)]
 }
 
 function normalizeCustomer(record) {
@@ -221,7 +325,9 @@ function resolveDeliveryMethod(record) {
 export function normalizeVendorOrderRecord(record) {
   if (!record || typeof record !== 'object') return null
 
-  const items = toArray(record?.items ?? record?.order_items ?? record?.line_items).map(normalizeOrderItem)
+  const items = toArray(record?.items ?? record?.order_items ?? record?.line_items).map(
+    (item, index) => normalizeOrderItem(item, index, record),
+  )
   const apiId = firstValue(record?.id, record?.order_id)
   const orderNumber = formatOrderNumber(firstValue(record?.order_number, record?.reference, apiId))
 
@@ -245,12 +351,8 @@ export function normalizeVendorOrderRecord(record) {
     totalAmount: Number(record?.grand_total ?? record?.total ?? record?.total_amount ?? 0),
     paymentStatus: normalizePaymentStatus(record),
     paymentMethod: normalizePaymentMethod(record),
-    transactionReference: firstValue(
-      record?.payment?.reference,
-      record?.transaction_reference,
-      record?.payment_reference,
-      record?.reference,
-    ),
+    transactionReference: resolveTransactionReference(record),
+    payment: resolvePaymentRecord(record),
     orderStatus: normalizeOrderStatus(record),
     deliveryStatus: normalizeDeliveryStatus(record),
     deliveryMethod: resolveDeliveryMethod(record),
@@ -334,36 +436,27 @@ export function findVendorOrderById(orders, orderId) {
   }) ?? null
 }
 
-function isMissingDetailValue(value) {
-  if (value === undefined || value === null) return true
-  const text = String(value).trim()
-  return text === '' || text === '—'
-}
-
 /**
- * Detail responses may omit nested payment fields that exist on the list payload.
- * Prefer detail values, then fall back to the matching cached list order.
+ * Order detail payloads expose a stale root payment_status.
+ * Use the nested payment object from the cached list order only.
  */
-export function mergeVendorOrderPaymentDetails(detailOrder, listOrder) {
+export function mergeVendorOrderPaymentDetails(detailOrder, listOrder, listPaymentOverride = null) {
   if (!detailOrder) return null
-  if (!listOrder) return detailOrder
 
-  const pick = (detailValue, listValue) => (
-    isMissingDetailValue(detailValue) ? (listValue ?? detailValue) : detailValue
-  )
+  const listPayment = listPaymentOverride
+    ?? listOrder?.payment
+    ?? resolvePaymentRecord(listOrder?.raw)
+
+  const fromPayment = resolvePaymentFieldsFromPayment(listPayment)
+  if (!fromPayment) return detailOrder
 
   return {
     ...detailOrder,
-    paymentStatus: pick(detailOrder.paymentStatus, listOrder.paymentStatus),
-    paymentMethod: pick(detailOrder.paymentMethod, listOrder.paymentMethod),
-    transactionReference: pick(detailOrder.transactionReference, listOrder.transactionReference),
+    ...fromPayment,
+    payment: listPayment,
     raw: {
-      ...listOrder.raw,
       ...detailOrder.raw,
-      payment: detailOrder.raw?.payment ?? listOrder.raw?.payment,
-      payment_status: detailOrder.raw?.payment_status ?? listOrder.raw?.payment_status,
-      payment_reference: detailOrder.raw?.payment_reference ?? listOrder.raw?.payment_reference,
-      transaction_reference: detailOrder.raw?.transaction_reference ?? listOrder.raw?.transaction_reference,
+      payment: listPayment,
     },
   }
 }

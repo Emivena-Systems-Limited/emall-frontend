@@ -6,7 +6,6 @@ import OrderCatalogToolbar from '../../components/orders/OrderCatalogToolbar'
 import OrderPagination from '../../components/orders/OrderPagination'
 import OrderSummaryCards from '../../components/orders/OrderSummaryCards'
 import OrderTable from '../../components/orders/OrderTable'
-import UpdateOrderStatusModal from '../../components/orders/UpdateOrderStatusModal'
 import { ORDERS_PAGE_SIZE, STATUS_FILTERS, SUMMARY_FILTERS } from '../../constants/orders'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import { useVendorOrders } from '../../hooks/useVendorOrders'
@@ -21,20 +20,11 @@ import { normalizeVendorOrdersList } from '../../utils/normalizeVendorOrders'
 
 export default function Orders() {
   const { data, isLoading, isError, error, refetch, isFetching } = useVendorOrders()
-  const [statusPatches, setStatusPatches] = useState({})
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(STATUS_FILTERS.ALL)
   const [page, setPage] = useState(1)
-  const [statusUpdateRequest, setStatusUpdateRequest] = useState(null)
 
-  const orders = useMemo(() => {
-    const normalized = normalizeVendorOrdersList(data)
-    return normalized.map((order) => (
-      statusPatches[order.id]
-        ? { ...order, orderStatus: statusPatches[order.id] }
-        : order
-    ))
-  }, [data, statusPatches])
+  const orders = useMemo(() => normalizeVendorOrdersList(data), [data])
 
   const summary = useMemo(() => getOrderCatalogSummary(orders), [orders])
 
@@ -68,20 +58,6 @@ export default function Orders() {
 
   const handleStatusFilterChange = (nextFilter) => {
     setStatusFilter(nextFilter)
-  }
-
-  const handleStatusChange = (order, nextStatus) => {
-    if (order.orderStatus === nextStatus) {
-      setStatusUpdateRequest(null)
-      return
-    }
-
-    setStatusPatches((current) => ({
-      ...current,
-      [order.id]: nextStatus,
-    }))
-    setStatusUpdateRequest(null)
-    notify.success(`Order ${order.orderNumber} updated to ${nextStatus.replaceAll('_', ' ')}.`)
   }
 
   return (
@@ -145,10 +121,7 @@ export default function Orders() {
                 />
               ) : (
                 <>
-                  <OrderTable
-                    orders={pagination.items}
-                    onUpdateStatus={setStatusUpdateRequest}
-                  />
+                  <OrderTable orders={pagination.items} />
                   <OrderPagination
                     page={pagination.page}
                     pageCount={pagination.pageCount}
@@ -163,13 +136,6 @@ export default function Orders() {
           </>
         )}
       </div>
-
-      <UpdateOrderStatusModal
-        open={Boolean(statusUpdateRequest)}
-        order={statusUpdateRequest}
-        onClose={() => setStatusUpdateRequest(null)}
-        onConfirm={handleStatusChange}
-      />
     </DashboardLayout>
   )
 }

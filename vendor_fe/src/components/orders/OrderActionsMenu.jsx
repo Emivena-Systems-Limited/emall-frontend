@@ -1,14 +1,23 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Eye, MoreHorizontal, Package, Printer, RefreshCw } from 'lucide-react'
+import { Eye, MoreHorizontal, Package, Printer } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
-import { ORDER_STATUSES } from '../../constants/orders'
 import notify from '../../lib/notify'
 import {
   buildViewProductPath,
   getUniqueOrderProducts,
   getViewProductTarget,
 } from '../../utils/orderProductNavigation'
+import { resolvePaymentRecord } from '../../utils/normalizeVendorOrders'
+
+function resolveListPayment(order) {
+  return order?.payment ?? resolvePaymentRecord(order?.raw)
+}
+
+function navigateWithListPayment(navigate, path, order) {
+  const listPayment = resolveListPayment(order)
+  navigate(path, listPayment ? { state: { listPayment } } : undefined)
+}
 
 function OrderMenuAction({ icon: Icon, tone, label, helper, onClick }) {
   return (
@@ -33,7 +42,6 @@ function OrderMenuAction({ icon: Icon, tone, label, helper, onClick }) {
 
 export default function OrderActionsMenu({
   order,
-  onUpdateStatus,
   align = 'end',
   hideViewDetails = false,
 }) {
@@ -42,7 +50,6 @@ export default function OrderActionsMenu({
   const triggerRef = useRef(null)
   const orderProducts = getUniqueOrderProducts(order)
   const hasLinkedProducts = orderProducts.length > 0
-  const currentStatusLabel = ORDER_STATUSES[order.orderStatus]?.label ?? order.orderStatus
 
   const viewProductHelper = useMemo(() => {
     if (orderProducts.length === 1) {
@@ -116,7 +123,7 @@ export default function OrderActionsMenu({
               tone="bg-cyan-50 text-cyan-700 ring-cyan-100"
               label="View Details"
               helper="See customer info, delivery address, and ordered items."
-              onClick={() => run(() => navigate(`/orders/${order.id}`))}
+              onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}`, order))}
             />
           )}
 
@@ -125,15 +132,7 @@ export default function OrderActionsMenu({
             tone="bg-slate-100 text-slate-700 ring-slate-200"
             label="Print Receipt"
             helper="Open the receipt page to preview, download as PDF, or print."
-            onClick={() => run(() => navigate(`/orders/${order.id}/receipt`))}
-          />
-
-          <OrderMenuAction
-            icon={RefreshCw}
-            tone="bg-amber-50 text-amber-700 ring-amber-100"
-            label="Update Status"
-            helper={`Currently “${currentStatusLabel}”. Move this order to the next fulfilment step.`}
-            onClick={() => run(() => onUpdateStatus(order))}
+            onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}/receipt`, order))}
           />
 
           {hasLinkedProducts && (
