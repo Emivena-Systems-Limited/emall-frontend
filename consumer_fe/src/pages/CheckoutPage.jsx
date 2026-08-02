@@ -633,7 +633,7 @@ function Field({
 
 function CheckoutIntro() {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
       <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Checkout</h1>
       <p className="mt-2 text-sm text-slate-800">Save your information for faster checkout</p>
     </section>
@@ -736,13 +736,13 @@ function DeliveryInformation({
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-auth-primary/10 text-auth-primary">
             <Truck className="size-5" strokeWidth={1.9} aria-hidden />
           </span>
           <div className="min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Information</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Address</h2>
             <p className="mt-0.5 text-sm text-slate-500">Where should we deliver your order?</p>
           </div>
         </div>
@@ -753,14 +753,14 @@ function DeliveryInformation({
             className="inline-flex items-center gap-2 text-sm font-semibold text-auth-primary"
           >
             <Plus className="size-4" />
-            Add another address
+            Add another delivery address
           </button>
         )}
       </div>
 
       {savedAddresses.length > 0 && !isAddingAddress && (
         <div
-          className={`mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 ${
+          className={`mt-4 grid gap-2.5 ${
             savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
           }`}
         >
@@ -933,7 +933,7 @@ function BillingInformation({
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-auth-primary/10 text-auth-primary">
             <CreditCard className="size-5" strokeWidth={1.9} aria-hidden />
@@ -962,7 +962,7 @@ function BillingInformation({
 
       {savedAddresses.length > 0 && !isAddingAddress && (
         <div
-          className={`mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 ${
+          className={`mt-4 grid gap-2.5 ${
             savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
           }`}
         >
@@ -1090,7 +1090,7 @@ function PaymentDetails({
   const isCard = selectedPayment === 'card'
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Payment Details</h2>
       <div className="mt-4 space-y-3">
         {paymentOptions.map((option) => {
@@ -1100,13 +1100,13 @@ function PaymentDetails({
               type="button"
               key={option.id}
               onClick={() => onSelectPayment(option.id)}
-              className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border px-3 text-left transition-colors ${
+              className={`flex min-h-14 min-w-0 w-full items-center gap-3 rounded-2xl border px-3 text-left transition-colors ${
                 selected ? 'border-auth-primary ring-1 ring-auth-primary' : 'border-slate-300'
               }`}
             >
               <span className={`size-5 rounded-full border ${selected ? 'border-auth-primary bg-auth-primary' : 'border-slate-300'}`} />
               <PaymentBadge type={option.type} image={option.image} label={option.label} />
-              <span className="text-sm font-semibold text-slate-800">{option.label}</span>
+              <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{option.label}</span>
             </button>
           )
         })}
@@ -1206,7 +1206,7 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Order Summary</h2>
-      <div className={`mt-4 divide-y divide-slate-300 ${items.length > 4 ? 'max-h-124 overflow-y-auto pr-1' : ''}`}>
+      <div className="mt-4 divide-y divide-slate-300">
         {items.map((item) => {
           const optionLabel = formatCartItemOptions(item)
           const displayImage = resolveCartItemDisplayImage(item)
@@ -1291,25 +1291,6 @@ function OrderTotal({ itemCount, listSubtotal, discountTotal, totals, total }) {
           <dd className="font-extrabold text-slate-950">{formatCheckoutAmount(total)}</dd>
         </div>
       </dl>
-    </section>
-  )
-}
-
-function DeliveryDate() {
-  return (
-    <section className="px-2 py-3">
-      <div className="grid gap-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-        <div>
-          <h2 className="font-semibold text-slate-900">Estimated Delivery Date</h2>
-          <p className="mt-1 text-xs text-slate-500">Estimated day product is expected to be delivered</p>
-        </div>
-        <p className="font-semibold text-slate-900 sm:text-right">1 - 2 days (23-25 June)</p>
-      </div>
-      <div className="mt-8 text-right">
-        <button type="button" className="text-xs font-semibold text-auth-primary underline">
-          View Delivery Information
-        </button>
-      </div>
     </section>
   )
 }
@@ -2192,10 +2173,12 @@ export default function CheckoutPage() {
           ) : isCheckoutDataLoading ? (
             <CheckoutPageSkeleton />
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
-              <div className="space-y-6">
-                <CheckoutIntro />
-                <DeliveryInformation
+            <div className="space-y-6">
+              <CheckoutIntro />
+
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] xl:items-start">
+                <div className={`grid gap-6 ${isAuthenticated ? 'lg:grid-cols-2' : ''}`}>
+                  <DeliveryInformation
                   address={address}
                   errors={addressErrors}
                   savedAddresses={savedAddresses}
@@ -2214,9 +2197,9 @@ export default function CheckoutPage() {
                   deletingAddressId={deletingAddressId}
                   onAddAddress={handleAddAddress}
                   onSaveAddress={handleSaveAddress}
-                />
-                {isAuthenticated && (
-                  <BillingInformation
+                  />
+                  {isAuthenticated && (
+                    <BillingInformation
                     address={activeBillingAddress}
                     draftAddress={billingAddressDraft}
                     errors={billingAddressErrors}
@@ -2264,8 +2247,26 @@ export default function CheckoutPage() {
                       setIsAddingBillingAddress(false)
                     }}
                     onSaveAddress={handleSaveBillingAddress}
-                  />
-                )}
+                    />
+                  )}
+                </div>
+
+                <OrderTotal
+                  itemCount={orderItemCount}
+                  listSubtotal={orderListSubtotal}
+                  discountTotal={orderDiscountTotal}
+                  totals={feeTotals}
+                  total={orderTotal}
+                />
+              </div>
+
+              <OrderSummary
+                items={displayItems}
+                onQuantityChange={isBuyNowMode ? handleBuyNowQuantityChange : updateQuantity}
+                onDelete={isBuyNowMode ? handleBuyNowDelete : deleteItem}
+              />
+
+              <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
                 <PaymentDetails
                   selectedPayment={selectedPayment}
                   onSelectPayment={handleSelectPayment}
@@ -2274,52 +2275,40 @@ export default function CheckoutPage() {
                   onCardChange={handleCardChange}
                   onCardBlur={handleCardBlur}
                 />
-              </div>
-              <aside className="space-y-5">
-                <OrderSummary
-                  items={displayItems}
-                  onQuantityChange={isBuyNowMode ? handleBuyNowQuantityChange : updateQuantity}
-                  onDelete={isBuyNowMode ? handleBuyNowDelete : deleteItem}
-                />
-                <OrderTotal
-                  itemCount={orderItemCount}
-                  listSubtotal={orderListSubtotal}
-                  discountTotal={orderDiscountTotal}
-                  totals={feeTotals}
-                  total={orderTotal}
-                />
-                <DeliveryDate />
-                <PromoCode
-                  coupon={coupon}
-                  onCouponChange={setCoupon}
-                  onApplyCoupon={handleApplyCoupon}
-                  couponMessage={couponMessage}
-                />
-                <div className="space-y-4">
-                  <button
+
+                <aside className="min-w-0 space-y-5">
+                  <PromoCode
+                    coupon={coupon}
+                    onCouponChange={setCoupon}
+                    onApplyCoupon={handleApplyCoupon}
+                    couponMessage={couponMessage}
+                  />
+                  <div className="space-y-4">
+                    <button
                     type="button"
                     onClick={handlePlaceOrder}
                     disabled={!canPlaceOrder || orderStatus === 'processing'}
                     aria-busy={orderStatus === 'processing'}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-auth-primary px-5 py-4 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {orderStatus === 'processing' ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" aria-hidden />
-                        Processing…
-                      </>
-                    ) : (
-                      'Place Order'
-                    )}
-                  </button>
-                  <Link
-                    to="/cart"
-                    className="flex w-full items-center justify-center rounded-lg border border-slate-400 px-5 py-4 text-base font-bold text-slate-800"
-                  >
-                    Continue Shopping
-                  </Link>
-                </div>
-              </aside>
+                    >
+                      {orderStatus === 'processing' ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" aria-hidden />
+                          Processing…
+                        </>
+                      ) : (
+                        'Place Order'
+                      )}
+                    </button>
+                    <Link
+                      to="/cart"
+                      className="flex w-full items-center justify-center rounded-lg border border-slate-400 px-5 py-4 text-base font-bold text-slate-800"
+                    >
+                      Continue Shopping
+                    </Link>
+                  </div>
+                </aside>
+              </div>
             </div>
           )}
         </Container>
