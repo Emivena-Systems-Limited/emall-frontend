@@ -46,7 +46,6 @@ function MiniQuantityStepper({ value, onChange, disabled = false }) {
 
 function MiniCartItem({ item, onQuantityChange, onRemove, onNavigate }) {
   const productHref = item.href?.replace(/^\/products\//, '/') ?? '/'
-  const lineTotal = item.displaySubtotal ?? (Number(item.price) || 0) * (Number(item.quantity) || 0)
   const displayImage = resolveCartItemDisplayImage(item)
 
   return (
@@ -84,19 +83,14 @@ function MiniCartItem({ item, onQuantityChange, onRemove, onNavigate }) {
           value={item.quantity}
           onChange={(quantity) => onQuantityChange(item.id, quantity)}
         />
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold tabular-nums text-slate-700">
-            {formatCedi(lineTotal)}
-          </span>
-          <button
-            type="button"
-            onClick={() => onRemove(item.id)}
-            aria-label={`Remove ${item.name}`}
-            className="flex size-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary"
-          >
-            <X className="size-3.5" strokeWidth={2.25} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => onRemove(item.id)}
+          aria-label={`Remove ${item.name}`}
+          className="flex size-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary"
+        >
+          <X className="size-3.5" strokeWidth={2.25} />
+        </button>
       </div>
     </article>
   )

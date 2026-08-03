@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router'
 import Container from '../layout/Container'
+import { landingProductGridClass, landingSectionPanelClass } from '../../constants/landingLayout'
 import ProductCard from '../shared/ProductCard'
 import NationwideDeliveryBanner from './NationwideDeliveryBanner'
 import { exploreInterestsGrid } from '../../constants/exploreInterestsProducts'
@@ -34,7 +35,7 @@ export default function ExploreInterestsSection({ products = [] }) {
       <Container>
         <NationwideDeliveryBanner embedded />
 
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-5 sm:mt-6 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+        <div className={`mt-5 sm:mt-6 ${landingSectionPanelClass}`}>
           <div className="mb-5 flex items-center justify-between gap-4 sm:mb-6">
             <h2
               id="other-essentials-heading"
@@ -56,7 +57,7 @@ export default function ExploreInterestsSection({ products = [] }) {
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: '-60px' }}
-            className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5"
+            className={landingProductGridClass}
           >
             {displayProducts.map((product, index) => (
               <motion.div key={`${product.id}-${index}`} variants={itemVariants}>

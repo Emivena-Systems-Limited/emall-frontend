@@ -14,13 +14,6 @@ export default function CartSavedItemsEmptyState() {
       </div>
 
       <div className="overflow-hidden rounded-xl bg-white">
-        <div className="hidden bg-auth-primary px-4 py-3 text-sm font-bold text-white lg:grid lg:grid-cols-[minmax(0,1fr)_120px_140px_110px] lg:gap-4 lg:px-5">
-          <span>Product</span>
-          <span>Price</span>
-          <span>Quantity</span>
-          <span>Subtotal</span>
-        </div>
-
         <CartSectionEmptyState
           icon={Bookmark}
           eyebrow="Nothing saved"

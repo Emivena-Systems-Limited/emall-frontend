@@ -301,7 +301,13 @@ export function useCartActions() {
   }, [dispatch])
 
   const restoreSavedItem = useCallback((itemId) => {
+    const item = store.getState().cart.savedItems.find(
+      (current) => current.id === itemId || current.key === itemId,
+    )
+    if (!item) return
+
     dispatch(moveSavedToCart(itemId))
+    notify.success(`${item.name} added to cart`)
   }, [dispatch])
 
   const deleteSaved = useCallback((itemId) => {

@@ -4,20 +4,21 @@ import { Link } from 'react-router'
 import { formatCedi } from '../../utils/formatCurrency'
 import { useCartActions } from '../../hooks/useCartActions'
 import { useOptionalMiniCart } from '../../context/MiniCartContext'
+import { STAR_EMPTY_FILL, STAR_FILL } from '../../constants/landingLayout'
 
 function PriceDisplay({ price, compareAt }) {
   const [integer, decimal] = formatCedi(price).split('.')
 
   return (
     <div className="min-w-0 flex-1">
-      <p className="truncate text-base font-bold leading-tight text-slate-900 tabular-nums">
+      <p className="truncate text-[1.125em] font-bold leading-tight text-slate-900 tabular-nums">
         {integer}
         {decimal && (
-          <sup className="text-[0.6rem] font-bold">.{decimal}</sup>
+          <sup className="text-[0.65em] font-bold">.{decimal}</sup>
         )}
       </p>
       {compareAt && (
-        <p className="mt-0.5 truncate text-sm leading-tight text-slate-400 line-through tabular-nums">
+        <p className="mt-0.5 truncate text-[0.9375em] leading-tight text-slate-400 line-through tabular-nums">
           {formatCedi(compareAt)}
         </p>
       )}
@@ -28,39 +29,31 @@ function PriceDisplay({ price, compareAt }) {
 function StarRating({ rating, count }) {
   if (!count || count <= 0) return null
 
-  const full = Math.floor(rating)
-  const hasHalf = rating % 1 >= 0.5
+  const normalizedRating = Math.max(0, Math.min(5, Number(rating) || 0))
 
   return (
-    <div className="flex items-center gap-1">
-      <div className="flex items-center gap-[1px]">
-        {Array.from({ length: 5 }, (_, i) => {
-          const filled = i < full
-          const half = !filled && i === full && hasHalf
+    <div className="flex items-center gap-[0.25em]">
+      <span className="inline-flex items-center gap-px" aria-hidden="true">
+        {Array.from({ length: 5 }, (_, index) => {
+          const fill = Math.max(0, Math.min(1, normalizedRating - index))
+          const fillWidth = `${fill * 100}%`
+
           return (
-            <span key={i} className="relative inline-flex size-3.5 sm:size-[0.9375rem]">
-              <Star
-                className="size-full text-slate-200"
-                fill="currentColor"
-                strokeWidth={0}
-              />
-              {(filled || half) && (
+            <span key={index} className="relative inline-flex size-[0.875em]">
+              <Star className="size-full" fill={STAR_EMPTY_FILL} strokeWidth={0} />
+              {fill > 0 && (
                 <span
-                  className="absolute inset-0 overflow-hidden"
-                  style={{ width: half ? '50%' : '100%' }}
+                  className="absolute inset-y-0 left-0 overflow-hidden"
+                  style={{ width: fillWidth }}
                 >
-                  <Star
-                    className="size-full text-[#f59e0b]"
-                    fill="currentColor"
-                    strokeWidth={0}
-                  />
+                  <Star className="size-full" fill={STAR_FILL} strokeWidth={0} />
                 </span>
               )}
             </span>
           )
         })}
-      </div>
-      <span className="text-xs font-medium text-slate-500 sm:text-sm">
+      </span>
+      <span className="text-[0.875em] font-medium text-slate-500">
         ({count})
       </span>
     </div>
@@ -102,51 +95,51 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
   }
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition-shadow duration-300 hover:shadow-[0_8px_30px_-6px_rgba(15,23,42,0.15)]">
+    <article className="@container group relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-[clamp(0.6875rem,2.75cqi,1rem)] transition-shadow duration-300 hover:shadow-[0_8px_30px_-6px_rgba(15,23,42,0.15)]">
       <Link
         to={productHref}
-        className="relative block aspect-square w-full overflow-hidden bg-white"
+        className="relative block aspect-square w-full min-w-0 overflow-hidden bg-white"
         tabIndex={-1}
         aria-hidden="true"
       >
         <img
           src={product.image}
           alt=""
-          className="size-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
+          className="size-full min-h-0 min-w-0 max-h-full max-w-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
           loading="lazy"
         />
-        <div className="absolute left-2 top-2 flex flex-col gap-1">
+        <div className="absolute left-[0.5em] top-[0.5em] flex flex-col gap-[0.25em]">
           {product.discountPercent != null && (
-            <span className="rounded px-2 py-0.5 text-xs font-bold tracking-wide text-slate-900 bg-[#f5d020]">
+            <span className="rounded px-[0.5em] py-[0.125em] text-[0.75em] font-bold tracking-wide text-slate-900 bg-[#f5d020]">
               {product.discountPercent}% OFF
             </span>
           )}
           {product.isHot && (
-            <span className="rounded px-2 py-0.5 text-xs font-bold tracking-wide text-white bg-auth-primary">
+            <span className="rounded px-[0.5em] py-[0.125em] text-[0.75em] font-bold tracking-wide text-white bg-auth-primary">
               HOT
             </span>
           )}
           {product.compareAt && product.discountPercent == null && !product.isHot && (
-            <span className="rounded-full bg-auth-primary px-2 py-0.5 text-xs font-bold tracking-wide text-white">
+            <span className="rounded-full bg-auth-primary px-[0.5em] py-[0.125em] text-[0.75em] font-bold tracking-wide text-white">
               SALE
             </span>
           )}
         </div>
       </Link>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-3 sm:p-3.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-[0.375em] p-[0.75em]">
         <Link to={productHref} className="block min-w-0">
-          <h3 className="truncate text-sm font-semibold leading-snug text-slate-900 transition-colors group-hover:text-auth-primary sm:text-base">
+          <h3 className="truncate text-[1.05em] font-semibold leading-snug text-slate-900 transition-colors group-hover:text-auth-primary">
             {product.name}
           </h3>
-          <p className="mt-0.5 truncate text-xs text-slate-500 sm:text-sm">
+          <p className="mt-[0.125em] truncate text-[0.875em] text-slate-500">
             {product.variant}
           </p>
         </Link>
 
         <StarRating rating={product.rating} count={product.reviewCount} />
 
-        <div className="mt-auto flex min-w-0 items-end justify-between gap-2 pt-1">
+        <div className="mt-auto flex min-w-0 items-end justify-between gap-[0.5em] pt-[0.25em]">
           <PriceDisplay price={product.price} compareAt={product.compareAt} />
 
           <button
@@ -159,16 +152,16 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
             }
             disabled={isAdding}
             onClick={handleAddToCart}
-            className={`flex size-8 shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed sm:size-9 ${
+            className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed ${
               isAdding
                 ? 'border-auth-primary bg-auth-primary text-white'
                 : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'
             }`}
           >
             {isAdding ? (
-              <Loader2 className="size-3.5 animate-spin sm:size-4" aria-hidden="true" />
+              <Loader2 className="size-[1em] animate-spin" aria-hidden="true" />
             ) : (
-              <ShoppingCart className="size-3.5 sm:size-4" strokeWidth={2} />
+              <ShoppingCart className="size-[1em]" strokeWidth={2} />
             )}
           </button>
         </div>

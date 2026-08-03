@@ -6,15 +6,15 @@ import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import { formatCedi } from '../utils/formatCurrency'
 import { calculateOrderTotal, computeCartOrderTotals } from '../utils/checkoutTotals'
-import { selectCartItems, selectSavedCartItems, selectCartSyncStatus, selectGuestCartId } from '../store/slices/cartSlice'
+import { selectCartItems, selectCartSyncStatus, selectGuestCartId } from '../store/slices/cartSlice'
 import { useCartActions } from '../hooks/useCartActions'
 import { useAuthenticatedCart } from '../hooks/useAuthenticatedCart'
 import { useGuestCart } from '../hooks/useGuestCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
 import { formatCartItemOptions, resolveCartItemDisplayImage } from '../utils/normalizeCart'
-import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
+import { SavedItemsTrigger } from '../components/cart/SavedItemsDrawer'
 
 const clampQuantity = (value) => Math.max(1, value)
 
@@ -79,7 +79,7 @@ function QuantityStepper({ value, onChange }) {
 
 function ItemActions({ saved = false, showSaveForLater = true, onDelete, onSave, onShare }) {
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.625rem] font-semibold">
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold">
       <button type="button" onClick={onDelete} className="underline hover:text-auth-primary">
         Delete
       </button>
@@ -106,13 +106,12 @@ function CartItemRow({
   showSaveForLater = true,
   readOnlyQuantity = false,
 }) {
-  const subtotal = item.displaySubtotal ?? item.price * item.quantity
   const optionLabel = formatCartItemOptions(item)
   const displayImage = resolveCartItemDisplayImage(item)
   const productHref = resolveProductHref(item)
 
   return (
-    <article className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-4 last:border-b-0 sm:px-4 lg:grid lg:grid-cols-[minmax(0,1fr)_120px_140px_110px] lg:items-center lg:gap-4 lg:px-5 lg:py-5">
+    <article className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-4 last:border-b-0 sm:px-4 lg:px-5 lg:py-5">
       <div className="flex min-w-0 items-start gap-3 sm:items-center">
         <input
           type="checkbox"
@@ -125,7 +124,7 @@ function CartItemRow({
           <img
             src={displayImage}
             alt={item.name}
-            className="size-16 rounded-md border border-red-100 object-cover sm:size-20"
+            className="size-16 rounded-md border border-slate-200 object-cover sm:size-20"
           />
         </Link>
         <div className="min-w-0 flex-1 overflow-hidden">
@@ -150,6 +149,23 @@ function CartItemRow({
               Sold by <span className="font-semibold text-slate-700">{item.seller}</span>
             </p>
           )}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="min-w-0">
+              <p className="text-sm font-extrabold text-slate-900">{formatCedi(item.price)}</p>
+              {item.compareAt && item.compareAt > item.price && (
+                <p className="mt-1 text-[0.5625rem] font-semibold text-slate-400 line-through">
+                  {formatCedi(item.compareAt)}
+                </p>
+              )}
+            </div>
+            <div className="min-w-0">
+              {readOnlyQuantity ? (
+                <p className="text-sm font-bold text-slate-900">Qty: {item.quantity}</p>
+              ) : (
+                <QuantityStepper value={item.quantity} onChange={onQuantityChange} />
+              )}
+            </div>
+          </div>
           <ItemActions
             saved={saved}
             showSaveForLater={showSaveForLater}
@@ -159,32 +175,6 @@ function CartItemRow({
           />
         </div>
       </div>
-
-      <div className="mt-3 grid min-w-0 grid-cols-3 gap-2 border-t border-slate-100 pt-3 sm:gap-3 lg:mt-0 lg:contents lg:border-0 lg:pt-0">
-      <div className="min-w-0">
-        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 lg:hidden">Price</p>
-        <p className="text-sm font-extrabold text-slate-900">{formatCedi(item.price)}</p>
-        {item.compareAt && item.compareAt > item.price && (
-          <p className="mt-1 text-[0.5625rem] font-semibold text-slate-400 line-through">
-            {formatCedi(item.compareAt)}
-          </p>
-        )}
-      </div>
-
-      <div className="min-w-0">
-        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 lg:hidden">Quantity</p>
-        {readOnlyQuantity ? (
-          <p className="text-sm font-bold text-slate-900">{item.quantity}</p>
-        ) : (
-          <QuantityStepper value={item.quantity} onChange={onQuantityChange} />
-        )}
-      </div>
-
-      <div className="min-w-0 text-right lg:text-left">
-        <p className="mb-1 text-[0.625rem] font-bold uppercase text-slate-400 lg:hidden">Subtotal</p>
-        <p className="text-sm font-extrabold text-slate-900">{formatCedi(subtotal)}</p>
-      </div>
-      </div>
     </article>
   )
 }
@@ -192,6 +182,7 @@ function CartItemRow({
 function ItemTable({
   title,
   subtitle,
+  headerAction,
   items,
   selectedIds,
   onSelect,
@@ -206,20 +197,17 @@ function ItemTable({
 }) {
   return (
     <section className="min-w-0" aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}>
-      <div className="mb-4">
-        <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-lg font-bold text-slate-950 sm:text-xl">
-          {title}
-        </h2>
-        <p className="mt-2 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-lg font-bold text-slate-950 sm:text-xl">
+            {title}
+          </h2>
+          <p className="mt-2 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
+        </div>
+        {headerAction}
       </div>
 
       <div className="overflow-hidden rounded-xl bg-white">
-        <div className="hidden bg-auth-primary px-4 py-3 text-sm font-bold text-white lg:grid lg:grid-cols-[minmax(0,1fr)_120px_140px_110px] lg:gap-4 lg:px-5">
-          <span>Product</span>
-          <span>Price</span>
-          <span>Quantity</span>
-          <span>Subtotal</span>
-        </div>
         {items.map((item) => (
           <CartItemRow
             key={item.key ?? item.id}
@@ -451,7 +439,6 @@ function DeliveryModal({ open, onClose, onProceedCheckout }) {
 export default function CartPage() {
   const navigate = useNavigate()
   const items = useSelector(selectCartItems)
-  const savedItems = useSelector(selectSavedCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const guestCartId = useSelector(selectGuestCartId)
   const syncStatus = useSelector(selectCartSyncStatus)
@@ -479,11 +466,7 @@ export default function CartPage() {
     deleteItem,
     selectItem,
     saveItem,
-    restoreSavedItem,
-    deleteSaved,
-    clearSaved,
   } = useCartActions()
-  const [savedSelectedIds, setSavedSelectedIds] = useState(() => new Set())
   const [deliveryOpen, setDeliveryOpen] = useState(false)
 
   const selectedItems = useMemo(
@@ -513,31 +496,7 @@ export default function CartPage() {
     navigate('/checkout')
   }
 
-  const savedItemsSection = isAuthenticated && savedItems.length > 0 ? (
-    <ItemTable
-      title="Saved items"
-      subtitle="View your shopping cart online and checkout"
-      items={savedItems}
-      selectedIds={savedSelectedIds}
-      onSelect={(itemId, checked) => {
-        setSavedSelectedIds((current) => {
-          const next = new Set(current)
-          if (checked) next.add(itemId)
-          else next.delete(itemId)
-          return next
-        })
-      }}
-      onQuantityChange={() => {}}
-      onDelete={deleteSaved}
-      onSave={restoreSavedItem}
-      saved
-      readOnlyQuantity
-      clearLabel="Clear Saved Items"
-      onClear={clearSaved}
-    />
-  ) : (
-    <CartSavedItemsEmptyState />
-  )
+  const savedItemsTrigger = <SavedItemsTrigger />
 
   return (
     <SiteLayout>
@@ -545,16 +504,26 @@ export default function CartPage() {
         <Container className="min-w-0 space-y-6 sm:space-y-8">
           {items.length === 0 ? (
             <div className="min-w-0 space-y-6 sm:space-y-8">
-              <EmptyCartState />
-              {savedItemsSection}
+              <section className="min-w-0">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-bold text-slate-950 sm:text-xl">Shopping Cart</h2>
+                    <p className="mt-2 text-xs text-slate-500 sm:text-sm">
+                      View your shopping cart and proceed to checkout
+                    </p>
+                  </div>
+                  {savedItemsTrigger}
+                </div>
+                <EmptyCartState />
+              </section>
             </div>
           ) : (
-            /* Sticky scope: Order Total sticks only while cart + saved items are in view */
             <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8">
-              <div className="min-w-0 space-y-6 sm:space-y-8">
+              <div className="min-w-0">
                 <ItemTable
                   title="Shopping Cart"
                   subtitle="View your shopping cart and proceed to checkout"
+                  headerAction={savedItemsTrigger}
                   items={items}
                   showSaveForLater={isAuthenticated}
                   selectedIds={new Set(items.filter((item) => item.selected).map((item) => item.id))}
@@ -563,7 +532,6 @@ export default function CartPage() {
                   onDelete={deleteItem}
                   onSave={saveItem}
                 />
-                {savedItemsSection}
               </div>
 
               <CartSummary

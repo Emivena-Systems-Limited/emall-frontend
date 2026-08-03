@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router'
 import Container from '../layout/Container'
+import { landingProductGridClass, landingSectionPanelClass } from '../../constants/landingLayout'
 import ProductCard from '../shared/ProductCard'
 
 const ease = [0.16, 1, 0.3, 1]
@@ -23,7 +24,7 @@ export default function RecommendedSection({ products = [] }) {
   return (
     <section aria-labelledby="recommended-heading" className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
       <Container>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+        <div className={landingSectionPanelClass}>
 
           <div className="mb-5 flex items-center justify-between gap-4 sm:mb-6">
             <h2
@@ -46,7 +47,7 @@ export default function RecommendedSection({ products = [] }) {
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: '-60px' }}
-            className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1800px]:grid-cols-7 min-[2200px]:grid-cols-8"
+            className={landingProductGridClass}
           >
             {products.map((product) => (
               <motion.div key={product.id} variants={itemVariants}>

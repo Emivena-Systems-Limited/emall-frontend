@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router'
 import TopCategoryItem from './TopCategoryItem'
+import { landingSectionPanelClass } from '../../constants/landingLayout'
 
 function NavButton({ direction, disabled, onClick, label }) {
   const Icon = direction === 'left' ? ChevronLeft : ChevronRight
@@ -75,7 +76,7 @@ export default function TopCategoriesCarousel({ categories }) {
   const showViewAll = categories.length > 0
 
   return (
-    <div className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+    <div className={`w-full ${landingSectionPanelClass}`}>
       <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6 sm:gap-4">
         <h2
           id="top-categories-heading"
@@ -121,7 +122,7 @@ export default function TopCategoriesCarousel({ categories }) {
           role="list"
           aria-labelledby="top-categories-heading"
           onKeyDown={handleKeyDown}
-          className="flex w-full snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 outline-none scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/30 focus-visible:ring-offset-2 sm:gap-2.5 lg:gap-3 [&::-webkit-scrollbar]:hidden"
+          className="flex w-full snap-x snap-mandatory gap-1.5 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 outline-none scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/30 focus-visible:ring-offset-2 sm:gap-2 lg:gap-2.5 [&::-webkit-scrollbar]:hidden"
         >
           {categories.map((category) => (
             <div

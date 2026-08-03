@@ -223,9 +223,18 @@ const cartSlice = createSlice({
       const item = state.savedItems.find((current) => current.id === action.payload || current.key === action.payload)
       if (!item) return
       state.savedItems = state.savedItems.filter((current) => current.id !== action.payload && current.key !== action.payload)
-      if (!state.items.some((current) => current.key === item.key)) {
-        state.items.push({ ...item, selected: true })
+
+      const existing = state.items.find((current) => current.key === item.key)
+      if (existing) {
+        existing.quantity += item.quantity
+        existing.selected = true
+        if (Number.isFinite(existing.price)) {
+          existing.displaySubtotal = existing.price * existing.quantity
+        }
+        return
       }
+
+      state.items.push({ ...item, selected: true })
     },
     removeSavedItem(state, action) {
       state.savedItems = state.savedItems.filter((item) => item.id !== action.payload && item.key !== action.payload)

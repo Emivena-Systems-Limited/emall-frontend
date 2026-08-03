@@ -5,9 +5,6 @@ import HeroBannerCard from './HeroBannerCard'
 
 const ease = [0.16, 1, 0.3, 1]
 const AUTOPLAY_MS = 5000
-const MIN_SLIDE_WIDTH = 280
-const MAX_SLIDES_PER_VIEW = 4
-
 function useSlidesPerView(containerRef) {
   const [slidesPerView, setSlidesPerView] = useState(1)
 
@@ -25,9 +22,12 @@ function useSlidesPerView(containerRef) {
         return
       }
 
-      const gap = 12
-      const fitCount = Math.floor((width + gap) / (MIN_SLIDE_WIDTH + gap))
-      setSlidesPerView(Math.max(2, Math.min(MAX_SLIDES_PER_VIEW, fitCount)))
+      if (width < 1280) {
+        setSlidesPerView(3)
+        return
+      }
+
+      setSlidesPerView(4)
     }
 
     update()
@@ -121,7 +121,7 @@ export default function HeroBannerCarousel({ banners }) {
           {pages.map((page, pageIndex) => (
             <div
               key={`page-${pageIndex}`}
-              className="flex w-full shrink-0 gap-2 sm:gap-2.5 lg:gap-3"
+              className="flex w-full shrink-0 gap-1.5 sm:gap-2 lg:gap-2.5"
             >
               {page.map((banner, index) => (
                 <div key={`${banner.id}-${pageIndex}-${index}`} className="min-w-0 flex-1">

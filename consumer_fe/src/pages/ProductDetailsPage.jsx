@@ -9,13 +9,15 @@ import {
   Loader2,
   Minus,
   Plus,
-  Share2,
   ShoppingCart,
   Star,
 } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import ProductImageGallery from '../components/product/ProductImageGallery'
+import AddedToCartFlyout from '../components/product/AddedToCartFlyout'
+import KeyDetailsModal from '../components/product/KeyDetailsModal'
+import ProductDetailsSkeleton from '../components/product/ProductDetailsSkeleton'
 import ImageLightbox from '../components/shared/ImageLightbox'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
@@ -45,28 +47,10 @@ import {
 } from '../utils/productVariantFields'
 
 const SHOW_PRODUCT_VARIANTS = true
-const KEY_DETAILS_EXPANDED_SECTION_ID = 'product-key-details-expanded'
-const KEY_DETAILS_CUSTOM_VISIBLE_COUNT = 2
-const KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD = 3
-
-function scrollToExpandedKeyDetails() {
-  const target = document.getElementById(KEY_DETAILS_EXPANDED_SECTION_ID)
-  if (!target) return
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
-/** Standard fields (Category, SKU, Barcode, Condition, Brand, ...) always show in full.
- *  Custom backend key_details beyond the threshold get truncated with a link to the rest. */
-function splitCustomKeyDetails(customEntries) {
-  const entries = Array.isArray(customEntries) ? customEntries : []
-  if (entries.length <= KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD) {
-    return { visible: entries, overflow: [] }
-  }
-  return {
-    visible: entries.slice(0, KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
-    overflow: entries.slice(KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
-  }
-}
+const KEY_DETAILS_VISIBLE_COUNT = 5
+const DESCRIPTION_LONG_TEXT_THRESHOLD = 480
+const DESCRIPTION_LONG_HTML_THRESHOLD = 700
+const MAX_GALLERY_IMAGES = 10
 
 const STAR_FILL = '#F59E0B'
 const STAR_EMPTY_FILL = '#E2E8F0'
@@ -190,13 +174,16 @@ function formatStockAvailability(stockCount, lowStockThreshold = 10) {
   }
 }
 
-function ProductGallery({ product, activeImage, setActiveImage }) {
+function ProductGallery({ product, activeImage, setActiveImage, onShare, onWishlist, isWishlisted }) {
   return (
     <ProductImageGallery
       images={product.gallery}
       title={product.title}
       activeImage={activeImage}
       onActiveImageChange={setActiveImage}
+      onShare={onShare}
+      onWishlist={onWishlist}
+      isWishlisted={isWishlisted}
     />
   )
 }
@@ -446,6 +433,8 @@ function ProductInfoPanel({
 }) {
   const [quantity, setQuantity] = useState(1)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const [addedToCartOpen, setAddedToCartOpen] = useState(false)
+  const [addedToCartSnapshot, setAddedToCartSnapshot] = useState(null)
   const [trustInfoOpen, setTrustInfoOpen] = useState(null)
   const trustInfoRef = useRef(null)
   const navigate = useNavigate()
@@ -557,10 +546,18 @@ function ProductInfoPanel({
     setIsAddingToCart(true)
     try {
       const { product: cartProduct, options: cartOptions } = buildCartArgs()
-      const item = await addToCart(cartProduct, cartOptions)
+      const item = await addToCart(cartProduct, {
+        ...cartOptions,
+        silentSuccess: true,
+      })
 
       if (item) {
-        miniCart?.openMiniCart()
+        setAddedToCartSnapshot({
+          image: cartOptions.image || product.image,
+          quantity: cartOptions.quantity ?? quantity,
+          variantLabel: cartOptions.variant || cartOptions.size || activeSku || '',
+        })
+        setAddedToCartOpen(true)
       }
     } finally {
       setIsAddingToCart(false)
@@ -590,6 +587,18 @@ function ProductInfoPanel({
 
   return (
     <aside className="min-w-0 bg-white p-3 sm:p-4">
+      <AddedToCartFlyout
+        open={addedToCartOpen}
+        product={product}
+        image={addedToCartSnapshot?.image}
+        quantity={addedToCartSnapshot?.quantity ?? quantity}
+        variantLabel={addedToCartSnapshot?.variantLabel}
+        onClose={() => setAddedToCartOpen(false)}
+        onViewCart={() => {
+          setAddedToCartOpen(false)
+          navigate('/cart')
+        }}
+      />
       <div className="border-b border-slate-200 pb-4">
         <h1 className="wrap-break-word text-lg font-bold capitalize leading-snug tracking-tight text-slate-950 sm:text-xl">
           {product.title}
@@ -693,7 +702,7 @@ function ProductInfoPanel({
           type="button"
           disabled={outOfStock}
           onClick={handleBuyNow}
-          className="rounded-full bg-auth-primary px-6 py-3 text-xs font-bold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Buy Now
         </button>
@@ -702,7 +711,7 @@ function ProductInfoPanel({
           disabled={outOfStock || isAddingToCart}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
-          className="inline-flex items-center justify-center gap-2 rounded-full border border-auth-primary px-6 py-3 text-xs font-bold text-auth-primary transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isAddingToCart ? (
             <>
@@ -740,6 +749,7 @@ function ProductInfoPanel({
 }
 
 function KeyDetails({ product, activeSku }) {
+  const [modalOpen, setModalOpen] = useState(false)
   const detailsList = { ...product.keyDetails }
   if (activeSku) {
     detailsList['Model/SKU'] = activeSku
@@ -749,44 +759,41 @@ function KeyDetails({ product, activeSku }) {
   delete detailsList['Status']
   delete detailsList['status']
 
-  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(product.customKeyDetailEntries)
-  const overflowKeys = new Set(overflowCustomEntries.map(([key]) => key))
-  const hasOverflow = overflowCustomEntries.length > 0
-
-  const sortedEntries = sortKeyDetailEntries(Object.entries(detailsList))
-    .filter(([key]) => !overflowKeys.has(key))
+  const customEntries = Array.isArray(product.customKeyDetailEntries) ? product.customKeyDetailEntries : []
+  const sortedStandardEntries = sortKeyDetailEntries(Object.entries(detailsList))
+  const allEntries = [...sortedStandardEntries, ...customEntries]
+  const visibleEntries = allEntries.slice(0, KEY_DETAILS_VISIBLE_COUNT)
+  const hasMore = allEntries.length > KEY_DETAILS_VISIBLE_COUNT
 
   return (
-    <section className="relative min-w-0 h-full bg-white p-4 sm:p-6">
-      <button
-        type="button"
-        onClick={() => shareProduct(product)}
-        className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 sm:right-4 sm:top-4"
-      >
-        <Share2 className="size-3.5" strokeWidth={2.2} />
-        Share
-      </button>
-      <h2 className="pr-24 text-base font-bold text-slate-950">Key Details</h2>
-      <dl className="mt-3 grid gap-2.5 text-sm leading-5 text-slate-700">
-        {sortedEntries.map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-1 py-0.5 sm:grid-cols-[11rem_1fr] sm:gap-3">
-            <dt className="font-bold text-slate-900">{key}:</dt>
-            <dd className="wrap-break-word">{value}</dd>
-          </div>
-        ))}
-        {hasOverflow && (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={scrollToExpandedKeyDetails}
-              className="text-left text-sm font-semibold text-auth-primary underline-offset-2 transition-colors hover:text-auth-primary-hover hover:underline"
-            >
-              Click to see more details
-            </button>
-          </div>
+    <>
+      <section className="relative min-w-0 h-full bg-white p-4 sm:p-6">
+        <h2 className="text-base font-bold text-slate-950">Key Details</h2>
+        <dl className="mt-3 space-y-2.5 text-sm leading-5 text-slate-700">
+          {visibleEntries.map(([key, value]) => (
+            <div key={key} className="grid min-w-0 grid-cols-[minmax(0,7.5rem)_1fr] items-start gap-x-3 gap-y-0">
+              <dt className="font-bold text-slate-900">{key}:</dt>
+              <dd className="wrap-break-word">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="mt-3 text-left text-sm font-semibold text-auth-primary underline-offset-2 transition-colors hover:text-auth-primary-hover hover:underline"
+          >
+            See all details
+          </button>
         )}
-      </dl>
-    </section>
+      </section>
+
+      <KeyDetailsModal
+        open={modalOpen}
+        entries={allEntries}
+        onClose={() => setModalOpen(false)}
+      />
+    </>
   )
 }
 
@@ -1269,76 +1276,68 @@ function StoreInfo({ product }) {
   )
 }
 
-/** Matches the product description row layout: topic on the left, tabular
- *  key/value rows on the right (no card edges). */
-function ExpandedKeyDetailsPanel({ entries }) {
-  if (!entries?.length) return null
-
-  return (
-    <div
-      id={KEY_DETAILS_EXPANDED_SECTION_ID}
-      className="scroll-mt-24 grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]"
-    >
-      <dt className="shrink-0 font-bold whitespace-nowrap text-slate-950">Additional details</dt>
-      <dd className="min-w-0 text-slate-700">
-        <dl className="divide-y divide-slate-200">
-          {entries.map(([key, value]) => (
-            <div
-              key={key}
-              className="flex min-w-0 items-start gap-x-4 py-3 first:pt-0 last:pb-0"
-            >
-              <dt className="w-56 shrink-0 font-bold text-slate-950">{key}</dt>
-              <dd className="min-w-0 flex-1 wrap-break-word">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </dd>
-    </div>
-  )
-}
-
 function ProductDescription({ product }) {
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false)
   const detailsList = { ...product.details }
   delete detailsList['SKU']
   delete detailsList['sku']
   delete detailsList['Sku']
 
-  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(product.customKeyDetailEntries)
-  const hasOverflow = overflowCustomEntries.length > 0
   const detailRows = Object.entries(detailsList)
-  const hasCategoryRow = detailRows.some(([key]) => key === 'Category')
+
+  const hasHtmlDescription = Boolean(product.descriptionHtml)
+  const descriptionLength = hasHtmlDescription
+    ? String(product.descriptionHtml).length
+    : String(product.description ?? '').length
+  const isLongDescription = hasHtmlDescription
+    ? descriptionLength > DESCRIPTION_LONG_HTML_THRESHOLD
+    : descriptionLength > DESCRIPTION_LONG_TEXT_THRESHOLD
 
   return (
     <section className="min-w-0 bg-white p-3 sm:p-5">
       <h2 className="text-base font-bold text-slate-950">Product description</h2>
       <div className="mt-5 divide-y divide-slate-300 border-y border-slate-300">
-        {detailRows.flatMap(([key, value]) => {
-          const row = (
-            <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
-              <dt className="font-bold text-slate-950">{key}</dt>
-              <dd className="wrap-break-word text-slate-700">{value}</dd>
-            </div>
-          )
-
-          if (key === 'Category' && hasOverflow) {
-            return [row, <ExpandedKeyDetailsPanel key="expanded-key-details" entries={overflowCustomEntries} />]
-          }
-
-          return [row]
-        })}
-        {hasOverflow && !hasCategoryRow && (
-          <ExpandedKeyDetailsPanel entries={overflowCustomEntries} />
-        )}
-        <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
+        {detailRows.map(([key, value]) => (
+          <div key={key} className="grid min-w-0 gap-1.5 py-4 text-sm">
+            <dt className="font-bold text-slate-950">{key}</dt>
+            <dd className="wrap-break-word text-slate-700">{value}</dd>
+          </div>
+        ))}
+        <div className="grid min-w-0 gap-1.5 py-4 text-sm">
           <dt className="font-bold text-slate-950">Description</dt>
-          <dd className="min-w-0 text-slate-700">
-            {product.descriptionHtml ? (
+          <dd className="relative min-w-0 text-slate-700">
+            {hasHtmlDescription ? (
               <div
-                className="product-description text-sm leading-relaxed text-slate-700"
+                className={`product-description text-sm leading-relaxed text-slate-700 ${
+                  !descriptionExpanded && isLongDescription ? 'max-h-56 overflow-hidden' : ''
+                }`}
                 dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
               />
             ) : (
-              <p className="wrap-break-word text-sm leading-relaxed">{product.description}</p>
+              <p
+                className={`wrap-break-word text-sm leading-relaxed ${
+                  !descriptionExpanded && isLongDescription ? 'line-clamp-6' : ''
+                }`}
+              >
+                {product.description}
+              </p>
+            )}
+
+            {!descriptionExpanded && isLongDescription && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-8 h-16 bg-linear-to-t from-white to-transparent"
+              />
+            )}
+
+            {isLongDescription && (
+              <button
+                type="button"
+                onClick={() => setDescriptionExpanded((current) => !current)}
+                className="relative z-10 mt-3 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline"
+              >
+                {descriptionExpanded ? 'Show less' : 'Read more'}
+              </button>
             )}
           </dd>
         </div>
@@ -1428,17 +1427,19 @@ function normalizeApiProductDetails(apiProduct) {
   const lowStockThreshold = toNumber(getMetadataValue(metadata, 'low_stock_threshold'), 10)
   const inStock = quantity > 0
 
-  // Build gallery from product images only (variant images shown in swatches)
+  // Build gallery from non-descriptive product images only (up to 10).
   const gallery = []
   if (Array.isArray(apiProduct.images)) {
     apiProduct.images.forEach((img) => {
-      if (img?.image_url) gallery.push(img.image_url)
+      if (isDescriptiveImageRecord(img)) return
+      const url = String(img?.image_url ?? img?.url ?? img?.preview ?? '').trim()
+      if (url) gallery.push(url)
     })
   }
   if (gallery.length === 0) {
     gallery.push(core.image)
   }
-  const uniqueGallery = [...new Set(gallery)]
+  const uniqueGallery = [...new Set(gallery)].slice(0, MAX_GALLERY_IMAGES)
 
   const colorImages = {}
   const colors = []
@@ -1569,7 +1570,11 @@ function normalizeApiProductDetails(apiProduct) {
 
 export default function ProductDetailsPage() {
   const { slug } = useParams()
-  const { data: landingData } = useLandingPageData()
+  const {
+    data: landingData,
+    isPending: isLandingPending,
+    isFetching: isLandingFetching,
+  } = useLandingPageData()
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0)
@@ -1590,25 +1595,41 @@ export default function ProductDetailsPage() {
 
   const apiProductId = landingProduct?.id ?? null
 
-  const { data: apiProduct } = useQuery({
+  const {
+    data: apiProduct,
+    isPending: isProductPending,
+    isFetching: isProductFetching,
+    isError: isProductError,
+  } = useQuery({
     queryKey: ['product-details', apiProductId],
     queryFn: () => getProductById(apiProductId),
     enabled: Boolean(apiProductId),
     staleTime: 5 * 60 * 1000,
   })
 
+  const isWaitingForLanding = !landingData && (isLandingPending || isLandingFetching)
+  const isWaitingForProductDetails = Boolean(apiProductId)
+    && !apiProduct
+    && !isProductError
+    && (isProductPending || isProductFetching)
+
+  const showSkeleton = isWaitingForLanding || isWaitingForProductDetails
+
   const product = useMemo(() => {
     if (apiProduct && isProductActive(apiProduct)) {
       return normalizeApiProductDetails(apiProduct)
+    }
+    if (showSkeleton) {
+      return null
     }
     if (landingProduct) {
       return normalizeApiProductDetails(landingProduct)
     }
     return getProductBySlug(slug)
-  }, [apiProduct, landingProduct, slug])
+  }, [apiProduct, landingProduct, showSkeleton, slug])
 
   const productViewKey = useMemo(() => {
-    if (!product) return slug
+    if (!product) return `loading::${slug}`
     return [
       product.slug ?? slug,
       product.backendId ?? product.id ?? 'local',
@@ -1618,6 +1639,18 @@ export default function ProductDetailsPage() {
       product.compatibleModels?.length ?? 0,
     ].join('::')
   }, [product, slug])
+
+  if (showSkeleton || !product) {
+    return (
+      <SiteLayout>
+        <main className="bg-[#f2f2f2] py-3 sm:py-4">
+          <Container>
+            <ProductDetailsSkeleton />
+          </Container>
+        </main>
+      </SiteLayout>
+    )
+  }
 
   return (
     <ProductDetailsView
@@ -1753,6 +1786,15 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const [selectedColor, setSelectedColor] = useState(initialSelections.color)
   const [selectedSize, setSelectedSize] = useState(initialSelections.size)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
+  const [isWishlisted, setIsWishlisted] = useState(false)
+
+  const handleWishlistToggle = () => {
+    setIsWishlisted((current) => {
+      const next = !current
+      notify.success(next ? 'Added to wishlist' : 'Removed from wishlist')
+      return next
+    })
+  }
 
   const compatibleModelOptions = useMemo(
     () => resolveCompatibleModelOptions(product, {
@@ -2001,7 +2043,14 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
         <Container className="space-y-3 sm:space-y-4">
           <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
             <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-              <ProductGallery product={product} activeImage={displayActiveImage} setActiveImage={setActiveImage} />
+              <ProductGallery
+                product={product}
+                activeImage={displayActiveImage}
+                setActiveImage={setActiveImage}
+                onShare={() => shareProduct(product)}
+                onWishlist={handleWishlistToggle}
+                isWishlisted={isWishlisted}
+              />
             </div>
 
             <div className="order-3 flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-2 lg:h-full">
