@@ -31,6 +31,7 @@ import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
   resolveVariantAttributeFields,
+  resolveVariantImageUrl,
   variantHasCompatibleModel,
 } from '../../utils/productPayload'
 
@@ -113,6 +114,17 @@ const FALLBACK_RATING_DISTRIBUTION = [
 
 // ─── Data shaping ───────────────────────────────────────────────────────────
 
+function formatVariantGroupLabel(key) {
+  return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')
+}
+
+function ensureVariantGroupStore(store, groupKey) {
+  if (!store[groupKey]) {
+    store[groupKey] = { values: new Set(), images: {} }
+  }
+  return store[groupKey]
+}
+
 function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) {
   const variants = Array.isArray(rawRecord?.variants) ? rawRecord.variants : []
   const metadata = Array.isArray(rawRecord?.metadata) ? rawRecord.metadata : []
@@ -126,7 +138,6 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     (a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0),
   )
   sortedImages.forEach((img) => { if (img?.image_url) galleryUrls.push(img.image_url) })
-  const gallery = [...new Set(galleryUrls)]
 
   const colorImages = {}
   const colors = []
@@ -136,38 +147,47 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
     const normalizedKey = String(attributeKey ?? '').trim().toLowerCase()
     const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
+    const varImage = resolveVariantImageUrl(variant)
 
-    if (normalizedKey === 'color' && valueText) {
+    if ((normalizedKey === 'color' || normalizedKey === 'colour') && valueText) {
       if (!colors.includes(valueText)) colors.push(valueText)
-      const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
       if (varImage) colorImages[valueText] = varImage
       return
     }
 
     if (attributeKey && valueText) {
       const groupKey = String(attributeKey).trim()
-      if (!otherVariantGroups[groupKey]) otherVariantGroups[groupKey] = new Set()
-      otherVariantGroups[groupKey].add(valueText)
+      const group = ensureVariantGroupStore(otherVariantGroups, groupKey)
+      group.values.add(valueText)
+      if (varImage) group.images[valueText] = varImage
       return
     }
 
     const legacyColor = getVariantAttributeValue(variant, 'color')
     if (legacyColor) {
       if (!colors.includes(legacyColor)) colors.push(legacyColor)
-      const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
       if (varImage) colorImages[legacyColor] = varImage
     }
 
     const legacySize = getVariantAttributeValue(variant, 'size')
     if (legacySize) {
-      if (!otherVariantGroups.size) otherVariantGroups.size = new Set()
-      otherVariantGroups.size.add(legacySize)
+      const group = ensureVariantGroupStore(otherVariantGroups, 'size')
+      group.values.add(legacySize)
+      if (varImage) group.images[legacySize] = varImage
     }
   })
 
-  const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, valueSet]) => ({
-    label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
-    values: [...valueSet],
+  variants.forEach((variant) => {
+    const url = resolveVariantImageUrl(variant)
+    if (url) galleryUrls.push(url)
+  })
+  const gallery = [...new Set(galleryUrls)]
+
+  const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, group]) => ({
+    key,
+    label: formatVariantGroupLabel(key),
+    values: [...group.values],
+    images: group.images,
   }))
 
   const sizes = extraVariantGroups[0]?.values ?? []
@@ -346,6 +366,37 @@ function VariantGroup({ label, values, selected, onSelect }) {
   )
 }
 
+function VariantImageGroup({ label, values, images = {}, selected, onSelect, fallbackGallery = [] }) {
+  if (!values.length) return null
+
+  return (
+    <div className="pt-3">
+      <p className="text-xs font-semibold text-slate-950">
+        {label}{selected ? `: ${selected}` : ''}
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
+        {values.map((value, index) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onSelect(value)}
+            className={`border bg-white p-1 text-center transition-colors ${
+              selected === value ? 'border-brand' : 'border-slate-200'
+            }`}
+          >
+            <img
+              src={images[value] ?? fallbackGallery[(index + 1) % fallbackGallery.length]}
+              alt=""
+              className="aspect-square w-full bg-slate-100 object-cover"
+            />
+            <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{value}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function QuantitySelector({ value, onChange, disabled }) {
   return (
     <div className="inline-flex h-10 min-w-30 items-center justify-between rounded-full bg-slate-50 px-2">
@@ -402,6 +453,9 @@ function InfoPanel({
     ? getVariantCompatibleModels(activeVariant)
     : (preview.compatibleModels ?? [])
   const sizeValues = preview.sizes ?? []
+  const primaryVariantGroup = preview.extraVariantGroups?.[0]
+  const primaryVariantImages = primaryVariantGroup?.images ?? {}
+  const hasPrimaryVariantImages = Object.keys(primaryVariantImages).length > 0
   const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
     && colorValueSet.size > 0
     && compatibleModelValues.every((value) => colorValueSet.has(String(value).toLowerCase()))
@@ -411,6 +465,7 @@ function InfoPanel({
     && sizeValues.every((value) => colorValueSet.has(String(value).toLowerCase()))
   const showCompatibleModels = compatibleModelValues.length > 0 && !hasDuplicateCompatibleModels
   const showSizeVariants = sizeValues.length > 0 && !isColorVariantGroup && !hasDuplicateSizeValues
+  const showVariantImagePicker = showSizeVariants && hasPrimaryVariantImages
   const isLowStock = !outOfStock && stockCount <= lowStockThreshold
 
   return (
@@ -512,14 +567,23 @@ function InfoPanel({
         />
       )}
 
-      {showSizeVariants && (
+      {showVariantImagePicker ? (
+        <VariantImageGroup
+          label={preview.sizeGroupLabel ?? 'Option'}
+          values={sizeValues}
+          images={primaryVariantImages}
+          selected={selectedSize}
+          onSelect={setSelectedSize}
+          fallbackGallery={preview.gallery}
+        />
+      ) : showSizeVariants ? (
         <VariantGroup
           label={preview.sizeGroupLabel ?? 'Size'}
           values={sizeValues}
           selected={selectedSize}
           onSelect={setSelectedSize}
         />
-      )}
+      ) : null}
 
       <div className="mt-4 border-t border-slate-200 pt-4">
         <p className="text-xs font-bold text-slate-950">Quantity</p>
@@ -1078,6 +1142,8 @@ export default function ProductStorefrontPreview({
   const handleSizeSelect = (newSize) => {
     setSelectedSize(newSize)
     const sizeAttribute = preview.sizeGroupLabel ?? 'size'
+    const variantImage = preview.extraVariantGroups?.[0]?.images?.[newSize]
+    if (variantImage) setActiveImage(variantImage)
 
     let matchingVariant = preview.variants.find((variant) => {
       const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''

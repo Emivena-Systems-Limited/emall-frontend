@@ -1,4 +1,5 @@
 import { getSubcategoriesForParentId } from './normalizeCategories'
+import { isGenericBrand } from './normalizeBrands'
 
 const DEV_DESCRIPTION =
   '<p>Premium wireless earbuds with active noise cancellation, 30-hour battery life, and IPX4 water resistance. Includes charging case and USB-C cable.</p>'
@@ -7,9 +8,10 @@ const PREFERRED_PARENT_CATEGORY_PATTERN = /electronic|audio|phone|computer|acces
 const PREFERRED_BRAND_PATTERN = /audio|sony|samsung|apple|jbl|anker|bose|beats/i
 
 function pickDevBrandId(approvedBrands = []) {
-  if (!approvedBrands.length) return ''
-  const preferred = approvedBrands.find((brand) => PREFERRED_BRAND_PATTERN.test(brand.name))
-  return (preferred ?? approvedBrands[0])?.id ?? ''
+  const selectable = approvedBrands.filter((brand) => !isGenericBrand(brand))
+  if (!selectable.length) return ''
+  const preferred = selectable.find((brand) => PREFERRED_BRAND_PATTERN.test(brand.name))
+  return (preferred ?? selectable[0])?.id ?? ''
 }
 
 function pickDevCategoryIds(categoryTree = [], parentCategories = []) {

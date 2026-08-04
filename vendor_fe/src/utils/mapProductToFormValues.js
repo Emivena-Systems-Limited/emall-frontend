@@ -4,9 +4,11 @@ import { fromVariantOptionalField } from '../components/variants/variantFormUtil
 import {
   mapApiProductStatus,
   resolveBrandId,
+  resolveNestedBrand,
   resolveSubcategoryRecord,
   isProductActive,
 } from './normalizeProducts'
+import { isGenericBrand } from './normalizeBrands'
 import { createProductImageFromRemote, isGalleryProductImage, isPrimaryProductImage } from './productImageUtils'
 import { isDescriptiveProductImage, getMetadataValue, mapKeyDetailsFromRecord } from './productMetadata'
 
@@ -240,7 +242,13 @@ export function mapProductRecordToFormValues(record) {
     description: record.description ?? '',
     category_id,
     subcategory_id,
-    brand_id: resolveBrandId(record),
+    brand_id: (() => {
+      const brandId = resolveBrandId(record)
+      const nestedBrand = resolveNestedBrand(record)
+      if (isGenericBrand(nestedBrand)) return ''
+      if (isGenericBrand(brandId)) return ''
+      return brandId ? String(brandId) : ''
+    })(),
     condition: record.condition ?? metadataMap.condition ?? '',
     tags: normalizeTags(record.tags),
     key_details: mapKeyDetailsFromRecord(record),

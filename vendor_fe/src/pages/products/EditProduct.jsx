@@ -43,7 +43,7 @@ import { buildProductInfoPayload, buildProductInfoJsonPayload, formatProductPayl
 import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirstError'
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
 import { findCategoryById } from '../../utils/normalizeCategories'
-import { findBrandById, getBrandDisplayLabel } from '../../utils/normalizeBrands'
+import { findBrandById, getBrandDisplayLabel, withResolvedBrandId } from '../../utils/normalizeBrands'
 import { getDiscountSummary } from '../../utils/productPricing'
 import notify from '../../lib/notify'
 
@@ -61,7 +61,7 @@ const productInfoSteps = [
 ]
 
 const productInfoStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'brand_id', 'condition', 'key_details'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['shipping_weight', 'shipping_length', 'shipping_width', 'shipping_height'],
@@ -558,9 +558,11 @@ function ProductInfoEditForm({
               approvedBrands,
             })
 
+            const payloadValues = withResolvedBrandId(formValues, approvedBrands)
+
             if (usePresignedUpload) {
               const payload = buildProductInfoJsonPayload(
-                formValues,
+                payloadValues,
                 nextMediaState.mainImage,
                 nextMediaState.subImages,
                 { descriptiveImages: nextMediaState.descriptiveImages ?? [] },
@@ -578,7 +580,7 @@ function ProductInfoEditForm({
               })
             } else {
               const formData = buildProductInfoPayload(
-                formValues,
+                payloadValues,
                 nextMediaState.mainImage,
                 nextMediaState.subImages,
                 {

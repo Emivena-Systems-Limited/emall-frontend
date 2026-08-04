@@ -1,3 +1,4 @@
+import { GENERIC_BRAND_NAME, GENERIC_BRAND_SLUG } from '../constants/brands'
 import { unwrapApiEnvelope } from './parseApiError'
 
 export function normalizeBrandRecord(record) {
@@ -5,11 +6,12 @@ export function normalizeBrandRecord(record) {
 
   const name = record.brand_name ?? record.name ?? ''
   const slug = record.slug ?? record.brand_slug ?? ''
+  const id = record.id ?? record.brand_id ?? null
 
-  if (!name || !record.id) return null
+  if (!name || id == null || id === '') return null
 
   return {
-    id: record.id,
+    id: String(id),
     slug: slug || name.trim().toLowerCase().replace(/\s+/g, '-'),
     name,
     isActive: record.is_active ?? record.isActive ?? true,
@@ -26,11 +28,53 @@ export function capitalizeBrandName(name) {
     .join(' ')
 }
 
+export function isGenericBrand(brandOrValue) {
+  if (brandOrValue == null || brandOrValue === '') return false
+
+  if (typeof brandOrValue === 'object') {
+    const slug = String(brandOrValue.slug ?? brandOrValue.brand_slug ?? '').trim().toLowerCase()
+    const name = String(
+      brandOrValue.name ?? brandOrValue.brand_name ?? '',
+    ).trim().toLowerCase()
+    return slug === GENERIC_BRAND_SLUG || name === GENERIC_BRAND_NAME.toLowerCase()
+  }
+
+  const normalized = String(brandOrValue).trim().toLowerCase()
+  return normalized === GENERIC_BRAND_SLUG || normalized === GENERIC_BRAND_NAME.toLowerCase()
+}
+
+export function findGenericBrand(brands = []) {
+  return brands.find((brand) => isGenericBrand(brand)) ?? null
+}
+
 export function extractCreatedBrand(body) {
   const envelope = unwrapApiEnvelope(body)
   const record = envelope?.data ?? body
+
   if (Array.isArray(record)) return normalizeBrandRecord(record[0])
-  return normalizeBrandRecord(record)
+
+  const direct = normalizeBrandRecord(record)
+  if (direct) return direct
+
+  const nestedCandidates = [
+    record?.brand,
+    record?.data,
+    record?.result,
+    record?.item,
+  ]
+
+  for (const candidate of nestedCandidates) {
+    if (!candidate) continue
+    if (Array.isArray(candidate)) {
+      const nested = normalizeBrandRecord(candidate[0])
+      if (nested) return nested
+      continue
+    }
+    const nested = normalizeBrandRecord(candidate)
+    if (nested) return nested
+  }
+
+  return null
 }
 
 export function extractBrandRecords(body) {
@@ -75,15 +119,18 @@ export function sortBrandsAlphabetically(brands) {
 }
 
 export function toBrandSelectOptions(brands) {
-  return sortBrandsAlphabetically(brands).map((brand) => ({
-    value: brand.id,
-    label: brand.name,
-  }))
+  return sortBrandsAlphabetically(brands)
+    .filter((brand) => !isGenericBrand(brand))
+    .map((brand) => ({
+      value: String(brand.id),
+      label: brand.name,
+    }))
 }
 
 export function findBrandBySlug(brands, slug) {
   if (!slug) return null
-  return brands.find((brand) => brand.slug === slug) ?? null
+  const normalized = String(slug).trim().toLowerCase()
+  return brands.find((brand) => brand.slug === normalized) ?? null
 }
 
 export function findBrandById(brands, id) {
@@ -95,5 +142,44 @@ export function findBrandById(brands, id) {
 export function getBrandDisplayLabel(brandId, brands) {
   if (!brandId) return null
   const match = findBrandById(brands, brandId)
-  return match?.name ?? brandId
+  if (!match || isGenericBrand(match)) return null
+  return match.name
+}
+
+/** Form shows empty when product uses the hidden Generic brand. */
+export function normalizeBrandIdForForm(brandId, brands = [], brandMeta = null) {
+  if (!brandId) return ''
+  if (isGenericBrand(brandMeta)) return ''
+  const match = findBrandById(brands, brandId)
+  if (match && isGenericBrand(match)) return ''
+  return String(brandId)
+}
+
+/**
+ * Vendors may leave Brand empty; API still needs an id — use Generic behind the scenes.
+ */
+export function resolveBrandIdForSubmit(brandId, brands = []) {
+  const trimmed = String(brandId ?? '').trim()
+  if (trimmed) {
+    const selected = findBrandById(brands, trimmed)
+    if (selected && isGenericBrand(selected)) {
+      return selected.id
+    }
+    return trimmed
+  }
+
+  const generic = findGenericBrand(brands)
+  if (!generic?.id) {
+    throw new Error(
+      'Could not apply the default brand. Refresh the page and try again.',
+    )
+  }
+  return generic.id
+}
+
+export function withResolvedBrandId(values, brands = []) {
+  return {
+    ...values,
+    brand_id: resolveBrandIdForSubmit(values?.brand_id, brands),
+  }
 }

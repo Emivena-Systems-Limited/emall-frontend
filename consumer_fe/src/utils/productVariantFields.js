@@ -78,6 +78,22 @@ export function getVariantAttributeValue(variant, attributeName) {
   return ''
 }
 
+/** Primary image URL from API variant record (`images[]`, flat `image_url`, or legacy `image`). */
+export function resolveVariantImageUrl(variant) {
+  if (!variant || typeof variant !== 'object') return null
+
+  const firstImage = Array.isArray(variant.images) ? variant.images[0] : null
+  const url = firstImage?.image_url
+    ?? firstImage?.url
+    ?? firstImage?.preview
+    ?? variant.image_url
+    ?? variant.image
+    ?? null
+
+  const normalized = String(url ?? '').trim()
+  return normalized || null
+}
+
 export function getVariantCompatibleModels(variant) {
   if (!variant || typeof variant !== 'object') return []
   if (variant.has_compatible_models === false) return []

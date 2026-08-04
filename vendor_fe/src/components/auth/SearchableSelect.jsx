@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Loader2, PenLine, Search, X } from 'lucide-react'
 import FieldError from './FieldError'
-import { FormFieldHint } from '../products/ProductFormControls'
+import { FormFieldHint, OptionalBadge } from '../products/ProductFormControls'
+
+function optionMatchesValue(optionValue, value) {
+  if (value == null || value === '') return false
+  return String(optionValue) === String(value)
+}
 
 export default function SearchableSelect({
   id,
@@ -21,6 +26,7 @@ export default function SearchableSelect({
   customSubmitLabel = 'Add brand',
   hint,
   reserveHintSpace = false,
+  optional = false,
   onCustomModeStart,
   onCustomSubmit,
   isCustomSubmitting = false,
@@ -29,7 +35,7 @@ export default function SearchableSelect({
   const [search, setSearch] = useState('')
   const [customDraft, setCustomDraft] = useState('')
   const [isCustom, setIsCustom] = useState(() => (
-    Boolean(value && !options.find((o) => o.value === value) && !onCustomSubmit)
+    Boolean(value && !options.find((o) => optionMatchesValue(o.value, value)) && !onCustomSubmit)
   ))
   const containerRef = useRef(null)
   const searchRef = useRef(null)
@@ -40,19 +46,22 @@ export default function SearchableSelect({
   }, [open])
 
   useEffect(() => {
+    // When using onCustomSubmit, custom mode is toggled by enableCustom /
+    // clearCustom / successful submit. Do not force it off just because value
+    // is still empty (that is the normal state when typing a new brand).
+    if (onCustomSubmit) {
+      if (value && options.some((o) => optionMatchesValue(o.value, value))) {
+        setIsCustom(false)
+      }
+      return
+    }
+
     if (!value) {
       setIsCustom(false)
       return
     }
-    if (onCustomSubmit) {
-      setIsCustom(false)
-      return
-    }
-    if (!options.find((o) => o.value === value)) {
-      setIsCustom(true)
-    } else {
-      setIsCustom(false)
-    }
+
+    setIsCustom(!options.some((o) => optionMatchesValue(o.value, value)))
   }, [value, options, onCustomSubmit])
 
   useEffect(() => {
@@ -104,6 +113,18 @@ export default function SearchableSelect({
     setTimeout(() => triggerRef.current?.focus(), 0)
   }
 
+  const clearSelection = () => {
+    emitChange('')
+    setIsCustom(false)
+    setCustomDraft('')
+    setOpen(false)
+    setSearch('')
+    setTimeout(() => {
+      emitBlur()
+      triggerRef.current?.focus()
+    }, 0)
+  }
+
   const applyCustomValue = async (customValue) => {
     const nextValue = customValue.trim()
     if (!nextValue || isCustomSubmitting) return
@@ -136,15 +157,16 @@ export default function SearchableSelect({
     o.label.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? ''
+  const selectedLabel = options.find((o) => optionMatchesValue(o.value, value))?.label ?? ''
   const trimmedSearch = search.trim()
   const hasExactOptionMatch = options.some(
     (option) =>
-      option.value === trimmedSearch
+      optionMatchesValue(option.value, trimmedSearch)
       || option.label.toLowerCase() === trimmedSearch.toLowerCase(),
   )
   const showAddFromSearch = allowCustom && trimmedSearch && !hasExactOptionMatch
   const triggerLabel = selectedLabel || (value && !selectedLabel ? value : '') || placeholder
+  const canClearSelection = optional && Boolean(value) && !isCustom && !disabled
 
   const ring     = 'focus:ring-2 focus:ring-brand-light'
   const bdNormal = `border-slate-200 hover:border-slate-300 focus:border-brand ${ring}`
@@ -154,9 +176,10 @@ export default function SearchableSelect({
   return (
     <div ref={containerRef} data-field={name} className="relative">
       <label htmlFor={id} className="mb-1.5 block">
-        <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+        <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">
           {Icon && <Icon className="size-4 shrink-0 text-slate-400" strokeWidth={1.75} />}
           {label}
+          {optional ? <OptionalBadge /> : null}
         </span>
         <FormFieldHint hint={hint} reserveHintSpace={reserveHintSpace} />
       </label>
@@ -227,13 +250,28 @@ export default function SearchableSelect({
             onBlur={handleBlur}
             className={`flex w-full items-center justify-between rounded-xl border bg-white px-4 py-3 text-sm outline-none transition-all ${
               value ? 'text-slate-900' : 'text-slate-400'
-            } ${error ? bdError : bdNormal} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+            } ${error ? bdError : bdNormal} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${canClearSelection ? 'pr-16' : ''}`}
           >
             <span className="truncate">{triggerLabel}</span>
             <ChevronDown
               className={`ml-2 size-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
             />
           </button>
+
+          {canClearSelection && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                clearSelection()
+              }}
+              title="Clear brand"
+              aria-label="Clear brand"
+              className="absolute top-1/2 right-9 z-10 -translate-y-1/2 cursor-pointer rounded p-0.5 text-slate-400 transition-colors hover:text-brand"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
 
           {open && (
             <div className="fade-in absolute top-full left-0 z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
@@ -288,13 +326,13 @@ export default function SearchableSelect({
                   )
                 ) : (
                   filtered.map((opt) => (
-                    <li key={opt.value}>
+                    <li key={String(opt.value)}>
                       <button
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => handleSelect(opt.value)}
                         className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-brand-light hover:text-brand ${
-                          value === opt.value
+                          optionMatchesValue(opt.value, value)
                             ? 'bg-brand-light font-semibold text-brand'
                             : 'text-slate-800'
                         }`}

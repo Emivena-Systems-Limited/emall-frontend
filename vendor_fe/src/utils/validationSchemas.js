@@ -408,7 +408,7 @@ export const productListingSchemaBase = Yup.object({
     }),
   category_id: Yup.string().required('Category is required'),
   subcategory_id: Yup.string().required('Subcategory is required'),
-  brand_id: Yup.string().required('Brand is required'),
+  brand_id: Yup.string().trim().nullable(),
   condition: Yup.string()
     .oneOf(productConditionValues, 'Select a valid product condition')
     .required('Product condition is required'),
@@ -456,10 +456,10 @@ export const productListingSchemaBase = Yup.object({
     .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
 
+  // Optional — when empty at publish, we auto-create one inferred variation from listing details.
   variations: Yup.array()
     .of(productVariationSchema)
-    .min(1, 'Add at least one product variation')
-    .required('Product variations are required'),
+    .default([]),
 
   shipping_weight: nullableNumber.min(0, 'Cannot be negative'),
   shipping_length: nullableNumber.min(0, 'Cannot be negative'),

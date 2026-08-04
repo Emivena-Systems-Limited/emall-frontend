@@ -43,6 +43,7 @@ import {
   resolveBrandName,
   resolveCanonicalVariantOption,
   resolveVariantAttributeFields,
+  resolveVariantImageUrl,
   variantHasCompatibleModel,
 } from '../utils/productVariantFields'
 
@@ -236,6 +237,39 @@ function VariantGroup({ label, values, selected, onSelect }) {
             }`}
           >
             {value}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function VariantImageGroup({ label, values, images = {}, selected, onSelect, fallbackGallery = [] }) {
+  if (!values.length) return null
+
+  return (
+    <div className="pt-3">
+      <p className="text-xs font-semibold text-slate-950">
+        {label}{selected ? `: ${selected}` : ''}
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
+        {values.map((value, index) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onSelect(value)}
+            className={`border bg-white p-1 text-center transition-colors ${
+              isSameVariantOption(selected, value)
+                ? 'border-auth-primary ring-1 ring-auth-primary'
+                : 'border-slate-200'
+            }`}
+          >
+            <img
+              src={images[value] ?? fallbackGallery[(index + 1) % fallbackGallery.length]}
+              alt=""
+              className="aspect-square w-full object-cover"
+            />
+            <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{value}</span>
           </button>
         ))}
       </div>
@@ -468,6 +502,10 @@ function ProductInfoPanel({
     && sizeValues.length > 0
     && !isColorVariantGroup
     && !hasDuplicateSizeValues
+  const primaryVariantGroup = product.extraVariantGroups?.[0]
+  const primaryVariantImages = primaryVariantGroup?.images ?? {}
+  const hasPrimaryVariantImages = Object.keys(primaryVariantImages).length > 0
+  const showVariantImagePicker = showSizeVariants && hasPrimaryVariantImages
 
   useEffect(() => {
     if (!trustInfoOpen) return undefined
@@ -524,8 +562,15 @@ function ProductInfoPanel({
       sku: activeSku,
       variant: selectedColor || selectedCompatibleModel || selectedSize || product.variant,
       size: selectedSize || selectedCompatibleModel || activeSku,
-      image: activeImage || product.colorImages?.[selectedColor] || product.gallery?.[0] || product.image,
-      variantImage: activeImage || product.colorImages?.[selectedColor] || null,
+      image: activeImage
+        || product.colorImages?.[selectedColor]
+        || resolveVariantGroupImage(product, selectedSize)
+        || product.gallery?.[0]
+        || product.image,
+      variantImage: activeImage
+        || product.colorImages?.[selectedColor]
+        || resolveVariantGroupImage(product, selectedSize)
+        || null,
       variantRecord: activeVariant ?? null,
     },
   })
@@ -667,14 +712,23 @@ function ProductInfoPanel({
         />
       )}
 
-      {showSizeVariants && (
+      {showVariantImagePicker ? (
+        <VariantImageGroup
+          label={product.sizeGroupLabel ?? 'Option'}
+          values={sizeValues}
+          images={primaryVariantImages}
+          selected={selectedSize}
+          onSelect={setSelectedSize}
+          fallbackGallery={product.gallery}
+        />
+      ) : showSizeVariants ? (
         <VariantGroup
           label={product.sizeGroupLabel ?? 'Size'}
           values={sizeValues}
           selected={selectedSize}
           onSelect={setSelectedSize}
         />
-      )}
+      ) : null}
 
       <div className="mt-4 border-t border-slate-200 pt-4">
         <p className="text-xs font-bold text-slate-950">Quantity</p>
@@ -1415,6 +1469,17 @@ function formatReviewDate(dateValue, fallback = 'Recent') {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(date)
 }
 
+function formatVariantGroupLabel(key) {
+  return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')
+}
+
+function ensureVariantGroupStore(store, groupKey) {
+  if (!store[groupKey]) {
+    store[groupKey] = { values: new Set(), images: {} }
+  }
+  return store[groupKey]
+}
+
 function normalizeApiProductDetails(apiProduct) {
   const core = normalizeLandingProduct(apiProduct)
   if (!core) return null
@@ -1428,18 +1493,17 @@ function normalizeApiProductDetails(apiProduct) {
   const inStock = quantity > 0
 
   // Build gallery from non-descriptive product images only (up to 10).
-  const gallery = []
+  const galleryUrls = []
   if (Array.isArray(apiProduct.images)) {
     apiProduct.images.forEach((img) => {
       if (isDescriptiveImageRecord(img)) return
       const url = String(img?.image_url ?? img?.url ?? img?.preview ?? '').trim()
-      if (url) gallery.push(url)
+      if (url) galleryUrls.push(url)
     })
   }
-  if (gallery.length === 0) {
-    gallery.push(core.image)
+  if (galleryUrls.length === 0) {
+    galleryUrls.push(core.image)
   }
-  const uniqueGallery = [...new Set(gallery)].slice(0, MAX_GALLERY_IMAGES)
 
   const colorImages = {}
   const colors = []
@@ -1449,18 +1513,19 @@ function normalizeApiProductDetails(apiProduct) {
     const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
     const normalizedKey = String(attributeKey ?? '').trim().toLowerCase()
     const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
+    const varImage = resolveVariantImageUrl(variant)
 
     if ((normalizedKey === 'color' || normalizedKey === 'colour') && valueText) {
       if (!colors.includes(valueText)) colors.push(valueText)
-      const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
       if (varImage) colorImages[valueText] = varImage
       return
     }
 
     if (attributeKey && valueText) {
       const groupKey = String(attributeKey).trim()
-      if (!otherVariantGroups[groupKey]) otherVariantGroups[groupKey] = new Set()
-      otherVariantGroups[groupKey].add(valueText)
+      const group = ensureVariantGroupStore(otherVariantGroups, groupKey)
+      group.values.add(valueText)
+      if (varImage) group.images[valueText] = varImage
       return
     }
 
@@ -1468,22 +1533,29 @@ function normalizeApiProductDetails(apiProduct) {
       || (variant?.color ? String(variant.color).trim() : '')
     if (legacyColor) {
       if (!colors.includes(legacyColor)) colors.push(legacyColor)
-      const varImage = variant.images?.[0]?.image_url || variant.image_url || variant.image
       if (varImage) colorImages[legacyColor] = varImage
     }
 
     const legacySize = getVariantAttributeValue(variant, 'size')
       || (variant?.size ? String(variant.size).trim() : '')
     if (legacySize) {
-      if (!otherVariantGroups.size) otherVariantGroups.size = new Set()
-      otherVariantGroups.size.add(legacySize)
+      const group = ensureVariantGroupStore(otherVariantGroups, 'size')
+      group.values.add(legacySize)
+      if (varImage) group.images[legacySize] = varImage
     }
   })
 
-  const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, valSet]) => ({
+  variants.forEach((variant) => {
+    const url = resolveVariantImageUrl(variant)
+    if (url) galleryUrls.push(url)
+  })
+  const uniqueGallery = [...new Set(galleryUrls)].slice(0, MAX_GALLERY_IMAGES)
+
+  const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, group]) => ({
     key,
-    label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
-    values: [...valSet],
+    label: formatVariantGroupLabel(key),
+    values: [...group.values],
+    images: group.images,
   }))
 
   const uniqueColors = colors
@@ -1672,6 +1744,18 @@ function resolveColorImage(product, color) {
   return match?.[1] ?? null
 }
 
+function resolveVariantGroupImage(product, value, groupIndex = 0) {
+  if (!value) return null
+
+  const images = product.extraVariantGroups?.[groupIndex]?.images ?? {}
+  if (images[value]) return images[value]
+
+  const match = Object.entries(images).find(
+    ([key]) => isSameVariantOption(key, value),
+  )
+  return match?.[1] ?? null
+}
+
 function resolveProductSizeAttribute(product) {
   return product.sizeGroupKey ?? product.sizeGroupLabel ?? 'size'
 }
@@ -1819,8 +1903,10 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     if (activeImage != null) return activeImage
     const colorImage = resolveColorImage(product, selectedColor)
     if (colorImage) return colorImage
+    const groupImage = resolveVariantGroupImage(product, selectedSize)
+    if (groupImage) return groupImage
     return product.gallery?.[0] ?? null
-  }, [activeImage, selectedColor, product])
+  }, [activeImage, selectedColor, selectedSize, product])
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
@@ -1893,6 +1979,9 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const handleSizeSelect = (newSize) => {
     setSelectedSize(newSize)
 
+    const variantImage = resolveVariantGroupImage(product, newSize)
+    if (variantImage) setActiveImage(variantImage)
+
     let matchingVariant = product?.variants?.find((variant) => {
       const vColor = getVariantColorValue(variant)
       const vSize = getVariantSizeValue(variant, product)
@@ -1916,8 +2005,11 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
       const nextColor = resolveCanonicalVariantOption(vColor, product.colors)
       if (nextColor) {
         setSelectedColor(nextColor)
-        const varImage = resolveColorImage(product, nextColor)
-        if (varImage) setActiveImage(varImage)
+        const colorImage = resolveColorImage(product, nextColor)
+        if (colorImage) setActiveImage(colorImage)
+      } else if (!variantImage) {
+        const matchedImage = resolveVariantImageUrl(matchingVariant)
+        if (matchedImage) setActiveImage(matchedImage)
       }
     }
 

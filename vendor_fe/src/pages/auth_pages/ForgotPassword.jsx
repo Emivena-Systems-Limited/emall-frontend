@@ -22,6 +22,7 @@ import PasswordStrengthBar from '../../components/auth/PasswordStrengthBar'
 import ResendTimer from '../../components/auth/ResendTimer'
 import notify from '../../lib/notify'
 import { OTP_LENGTH, OTP_EXPIRY_MINUTES, OTP_RESEND_SECONDS } from '../../constants/auth'
+import { OTP_RESEND_STORAGE_KEYS } from '../../utils/otpResendCooldown'
 import {
   useRequestPasswordResetOtpMutation,
   useResendPasswordResetOtpMutation,
@@ -111,10 +112,14 @@ export default function ForgotPassword() {
   }
 
   const handleResend = async () => {
-    await resendMutation.mutateAsync({ email })
-    notify.success('A new reset code has been sent')
-    setOtp('')
-    setOtpError(false)
+    try {
+      await resendMutation.mutateAsync({ email })
+      notify.success('A new reset code has been sent')
+      setOtp('')
+      setOtpError(false)
+    } catch {
+      // mutation onError already toasted; keep resend available
+    }
   }
 
   const handleChangeEmail = () => {
@@ -232,7 +237,7 @@ export default function ForgotPassword() {
               <ResendTimer
                 onResend={handleResend}
                 disabled={resendMutation.isPending || resetMutation.isPending}
-                persistCooldown
+                cooldownKey={OTP_RESEND_STORAGE_KEYS.FORGOT_PASSWORD}
               />
             </div>
           </div>

@@ -4,22 +4,51 @@ import {
   capitalizeBrandName,
   extractBrandRecords,
   extractCreatedBrand,
+  getBrandPaginationMeta,
   sortBrandsAlphabetically,
 } from '../utils/normalizeBrands'
 import { assertApiSuccess } from './authService'
 
-// One request for the brand dropdown — no client-side pagination fan-out.
+// Backend currently caps page size (~20); we still request a large page and fan out.
 const BRANDS_DROPDOWN_PAGE_SIZE = 500
 
 let approvedBrandsInflight = null
 
-async function fetchApprovedBrandsOnce() {
+async function fetchApprovedBrandsPage(page) {
   const { data } = await apiClient.get(BRAND_ENDPOINTS.GET_APPROVED, {
-    params: { page: 1, per_page: BRANDS_DROPDOWN_PAGE_SIZE },
+    params: { page, per_page: BRANDS_DROPDOWN_PAGE_SIZE },
   })
   assertApiSuccess(data)
+  return data
+}
 
-  return sortBrandsAlphabetically(extractBrandRecords(data))
+function dedupeBrands(brands) {
+  const byId = new Map()
+  for (const brand of brands) {
+    if (!brand?.id) continue
+    byId.set(String(brand.id), brand)
+  }
+  return [...byId.values()]
+}
+
+async function fetchApprovedBrandsOnce() {
+  const firstResponse = await fetchApprovedBrandsPage(1)
+  const firstPage = extractBrandRecords(firstResponse)
+  const { lastPage } = getBrandPaginationMeta(firstResponse)
+
+  if (lastPage <= 1) {
+    return sortBrandsAlphabetically(dedupeBrands(firstPage))
+  }
+
+  const restResponses = await Promise.all(
+    Array.from({ length: lastPage - 1 }, (_, index) => fetchApprovedBrandsPage(index + 2)),
+  )
+  const allBrands = [
+    ...firstPage,
+    ...restResponses.flatMap((response) => extractBrandRecords(response)),
+  ]
+
+  return sortBrandsAlphabetically(dedupeBrands(allBrands))
 }
 
 export async function getApprovedBrands() {

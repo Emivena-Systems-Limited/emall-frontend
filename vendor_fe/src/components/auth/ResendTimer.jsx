@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
 import { OTP_RESEND_SECONDS } from '../../constants/auth'
 import {
-  getForgotPasswordResendSecondsLeft,
-  markForgotPasswordResendCooldown,
-} from '../../utils/forgotPasswordSession'
+  getOtpResendSecondsLeft,
+  markOtpResendCooldown,
+} from '../../utils/otpResendCooldown'
 
 export default function ResendTimer({
   onResend,
   disabled = false,
-  persistCooldown = false,
+  /** When set, countdown survives refresh via sessionStorage */
+  cooldownKey = null,
 }) {
+  const persistCooldown = Boolean(cooldownKey)
+
   const readSecondsLeft = () => (
     persistCooldown
-      ? getForgotPasswordResendSecondsLeft(OTP_RESEND_SECONDS)
+      ? getOtpResendSecondsLeft(cooldownKey, OTP_RESEND_SECONDS)
       : OTP_RESEND_SECONDS
   )
 
@@ -22,24 +25,27 @@ export default function ResendTimer({
   useEffect(() => {
     if (!persistCooldown) return undefined
 
-    if (getForgotPasswordResendSecondsLeft(OTP_RESEND_SECONDS) === OTP_RESEND_SECONDS) {
-      markForgotPasswordResendCooldown(OTP_RESEND_SECONDS)
+    // Seed cooldown on first visit so refresh keeps the same window
+    if (!sessionStorage.getItem(cooldownKey)) {
+      markOtpResendCooldown(cooldownKey, OTP_RESEND_SECONDS)
+      setSecondsLeft(OTP_RESEND_SECONDS)
     }
-  }, [persistCooldown])
+  }, [persistCooldown, cooldownKey])
 
   useEffect(() => {
     if (secondsLeft <= 0) return undefined
 
     const timer = setInterval(() => {
-      setSecondsLeft(
-        persistCooldown
-          ? getForgotPasswordResendSecondsLeft(OTP_RESEND_SECONDS)
-          : (prev) => Math.max(prev - 1, 0),
-      )
+      if (persistCooldown) {
+        setSecondsLeft(getOtpResendSecondsLeft(cooldownKey, OTP_RESEND_SECONDS))
+        return
+      }
+
+      setSecondsLeft((prev) => Math.max(prev - 1, 0))
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [secondsLeft, persistCooldown])
+  }, [secondsLeft, persistCooldown, cooldownKey])
 
   const handleResend = async () => {
     if (secondsLeft > 0 || isResending || disabled) return
@@ -48,9 +54,11 @@ export default function ResendTimer({
     try {
       await onResend()
       if (persistCooldown) {
-        markForgotPasswordResendCooldown(OTP_RESEND_SECONDS)
+        markOtpResendCooldown(cooldownKey, OTP_RESEND_SECONDS)
       }
       setSecondsLeft(OTP_RESEND_SECONDS)
+    } catch {
+      // Keep resend available; caller/mutation already showed the error
     } finally {
       setIsResending(false)
     }

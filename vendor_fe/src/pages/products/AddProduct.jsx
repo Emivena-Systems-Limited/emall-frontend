@@ -64,7 +64,7 @@ import {
   getSubcategoriesForParentId,
   toSelectOptions,
 } from '../../utils/normalizeCategories'
-import { findBrandById, getBrandDisplayLabel, toBrandSelectOptions } from '../../utils/normalizeBrands'
+import { findBrandById, getBrandDisplayLabel, toBrandSelectOptions, withResolvedBrandId } from '../../utils/normalizeBrands'
 import { useApprovedBrands } from '../../hooks/useBrands'
 import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
 import { useProductCategoryOptions } from '../../hooks/useCategories'
@@ -74,6 +74,13 @@ import {
   buildProductCreateJsonPayload,
   formatProductPayloadSample,
 } from '../../utils/productPayload'
+import {
+  buildVariationCatalogContext,
+  formatDefaultVariationLabel,
+  resolveDefaultVariationIdentity,
+  ensureDefaultProductVariations,
+  hasAnyProductVariationValues,
+} from '../../utils/defaultProductVariation'
 import {
   buildProductMediaPresignRequest,
   buildProductMediaSaveImagesPayload,
@@ -109,13 +116,13 @@ const productListingSteps = [
   { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
   { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
   { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
-  { id: 'variations', title: 'Variations',    caption: 'Required — add at least one'     },
+  { id: 'variations', title: 'Variations',    caption: 'Optional — colors, sizes & more' },
   { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
   { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
 ]
 
 const productListingStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'brand_id', 'condition', 'key_details'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['variations'],
@@ -279,15 +286,6 @@ function getFieldError(formik, name) {
   return touched && typeof error === 'string' ? error : undefined
 }
 
-function getBrandFieldError(formik) {
-  const value = formik.values.brand_id
-  if (value?.trim()) {
-    const error = getIn(formik.errors, 'brand_id')
-    if (error === 'Brand is required') return undefined
-  }
-  return getFieldError(formik, 'brand_id')
-}
-
 // ─── Step 1: Product Info ────────────────────────────────────────────────────
 
 export function InfoStep({
@@ -301,8 +299,14 @@ export function InfoStep({
   brandsError,
   createBrandMutation,
 }) {
+  const [createdBrands, setCreatedBrands] = useState([])
   const categoryOptions = toSelectOptions(parentCategories)
-  const brandOptions = toBrandSelectOptions(approvedBrands)
+  const brandOptions = toBrandSelectOptions([
+    ...approvedBrands,
+    ...createdBrands.filter(
+      (brand) => !approvedBrands.some((item) => String(item.id) === String(brand.id)),
+    ),
+  ])
   const selectedCategory =
     findCategoryById(categoryTree, formik.values.category_id)
     ?? parentCategories.find((category) => category.id === formik.values.category_id)
@@ -311,7 +315,13 @@ export function InfoStep({
 
   const handleCustomBrandSubmit = async (brandName) => {
     const brand = await createBrandMutation.mutateAsync({ brand_name: brandName })
-    await formik.setFieldValue('brand_id', brand.id, false)
+    setCreatedBrands((current) => (
+      current.some((item) => String(item.id) === String(brand.id))
+        ? current
+        : [...current, brand]
+    ))
+    const brandId = String(brand.id)
+    await formik.setFieldValue('brand_id', brandId, false)
     formik.setFieldTouched('brand_id', true, false)
     formik.setFieldError('brand_id', undefined)
   }
@@ -357,8 +367,9 @@ export function InfoStep({
           name="brand_id"
           label="Brand"
           icon={Store}
-          hint="Search for a brand or add a new one if it is not listed."
+          hint="Optional. Search an existing brand or add a new one if it is not listed."
           reserveHintSpace
+          optional
           placeholder={brandsLoading ? 'Loading brands…' : 'Search brands…'}
           options={brandOptions}
           value={formik.values.brand_id}
@@ -381,7 +392,7 @@ export function InfoStep({
             formik.setFieldError('brand_id', undefined)
           }}
           onBlur={formik.handleBlur}
-          error={getBrandFieldError(formik)}
+          error={getFieldError(formik, 'brand_id')}
         />
         {brandsError && (
           <p className="mt-1 text-xs text-red-600">
@@ -791,8 +802,15 @@ function scrollToSavedVariationValues(target) {
 /** Add-variations step for the create/edit product wizard: build option types (Color, Size…) with values,
  *  then fill in photo, price & stock for each value via the same drawer used on the product's variants page.
  *  Nothing is saved to the server here — everything lives in the product form until the whole listing is submitted. */
-export function VariationsStep({ formik }) {
+export function VariationsStep({ formik, parentCategories, categoryTree }) {
   const groups = formik.values.variations
+  const catalogContext = buildVariationCatalogContext({
+    parentCategories,
+    categoryTree,
+    formValues: formik.values,
+  })
+  const defaultVariationPreview = resolveDefaultVariationIdentity(formik.values, catalogContext)
+  const defaultVariationLabel = formatDefaultVariationLabel(defaultVariationPreview)
   const [buildingAttribute, setBuildingAttribute] = useState('')
   const [showCustomAttribute, setShowCustomAttribute] = useState(false)
   const [attributeError, setAttributeError] = useState('')
@@ -913,11 +931,13 @@ export function VariationsStep({ formik }) {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Required</p>
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Optional</p>
         <h3 className="text-lg font-bold text-slate-900">Product variations</h3>
         <p className="text-sm text-slate-500">
-          Every product needs at least one variation (for example Color or Size), each with a photo, price, and stock.
-          Add option types like Color, Size, or your own (Material, Capacity, etc.), then fill in details for each value.
+          Add option types like Color, Size, or your own (Material, Capacity, etc.), then fill in photo, price, and stock
+          for each value. If you skip this step, we publish one{' '}
+          <span className="font-semibold text-slate-700">{defaultVariationLabel}</span>{' '}
+          variation inferred from your category, product name, and listing details.
         </p>
         {stepError && (
           <p className="text-xs font-semibold text-red-600" role="alert">{stepError}</p>
@@ -1070,14 +1090,15 @@ export function VariationsStep({ formik }) {
             })}
           </div>
         ) : (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 px-6 py-10 text-center">
-            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+          <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-b from-slate-50/80 to-white px-6 py-10 text-center">
+            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-brand-light text-brand ring-1 ring-brand/15">
               <Box className="size-7" strokeWidth={1.5} />
             </span>
-            <p className="text-sm font-semibold text-slate-700">No options added yet</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Pick a type above, add values, then click <strong>Add Attribute</strong>. Repeat for Color, Size,
-              Material, and more — or skip this step if this product has no variants.
+            <p className="text-sm font-semibold text-slate-700">No custom options yet</p>
+            <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-500">
+              Pick a type above, add values, then click <strong>Add Attribute</strong>. Or skip this step —
+              we&apos;ll auto-create <strong>{defaultVariationLabel}</strong> from your listing details
+              and main photo.
             </p>
           </div>
         )}
@@ -1210,6 +1231,13 @@ export function ReviewStep({
     (count, variation) => count + variation.values.length,
     0,
   )
+  const catalogContext = buildVariationCatalogContext({
+    parentCategories,
+    categoryTree,
+    formValues: formik.values,
+  })
+  const defaultVariationPreview = resolveDefaultVariationIdentity(formik.values, catalogContext)
+  const defaultVariationLabel = formatDefaultVariationLabel(defaultVariationPreview)
 
   const summaryRows = [
     {
@@ -1421,9 +1449,63 @@ export function ReviewStep({
               ))}
             </div>
           ) : (
-            <p className="text-sm font-semibold text-red-600">
-              Add at least one variation with photo, price, and stock before publishing.
-            </p>
+            <div className="overflow-hidden rounded-xl border border-dashed border-brand/25 bg-gradient-to-br from-brand-light/40 via-white to-slate-50">
+              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+                {mainImage?.preview ? (
+                  <img
+                    src={mainImage.preview}
+                    alt=""
+                    className="size-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 sm:size-24"
+                  />
+                ) : (
+                  <div className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200 sm:size-24">
+                    <ImagePlus className="size-7" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+                    Auto-created on publish
+                  </p>
+                  <p className="text-sm font-bold text-slate-900">{defaultVariationLabel}</p>
+                  <p className="text-xs leading-relaxed text-slate-500">
+                    No custom options added. We&apos;ll publish one{' '}
+                    <span className="font-semibold text-slate-700">{defaultVariationPreview.attribute}</span>{' '}
+                    option named{' '}
+                    <span className="font-semibold text-slate-700">{defaultVariationPreview.variant_name}</span>
+                    {defaultVariationPreview.sku ? (
+                      <>
+                        {' '}
+                        with SKU{' '}
+                        <span className="font-semibold text-slate-700">{defaultVariationPreview.sku}</span>
+                      </>
+                    ) : null}
+                    , using your pricing, stock, shipping details, and main photo.
+                  </p>
+                  <dl className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-slate-500">
+                    {price > 0 && (
+                      <div>
+                        <dt className="inline font-semibold text-slate-400">Price </dt>
+                        <dd className="inline font-bold text-slate-800">
+                          GH₵ {formatMoney(hasDiscount && salesPrice != null ? salesPrice : price)}
+                        </dd>
+                      </div>
+                    )}
+                    {formik.values.quantity !== '' && formik.values.quantity != null && (
+                      <div>
+                        <dt className="inline font-semibold text-slate-400">Stock </dt>
+                        <dd className="inline font-bold text-slate-800">{formik.values.quantity}</dd>
+                      </div>
+                    )}
+                    {defaultVariationPreview.sku && (
+                      <div>
+                        <dt className="inline font-semibold text-slate-400">SKU </dt>
+                        <dd className="inline font-bold text-slate-800">{defaultVariationPreview.sku}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              </div>
+            </div>
           )}
         </section>
       )}
@@ -1670,12 +1752,28 @@ export function ProductListingForm({
               const formValues = isEditMode
                 ? { ...values, status: values.status || 'active' }
                 : { ...values, status: 'active' }
+              const payloadValues = withResolvedBrandId(formValues, approvedBrands)
+
+              const catalogContext = buildVariationCatalogContext({
+                parentCategories,
+                categoryTree,
+                formValues: payloadValues,
+              })
+
+              const variationsForSubmit = isEditMode
+                ? formValues.variations
+                : ensureDefaultProductVariations({
+                  variations: formValues.variations,
+                  values: payloadValues,
+                  mainImage,
+                  catalogContext,
+                })
 
               const mediaState = {
                 mainImage,
                 subImages,
                 descriptiveImages,
-                variations: formValues.variations,
+                variations: variationsForSubmit,
               }
 
               if (import.meta.env.DEV) {
@@ -1693,7 +1791,7 @@ export function ProductListingForm({
                 setMainImage(nextMediaState.mainImage)
                 setSubImages(nextMediaState.subImages)
                 setDescriptiveImages(nextMediaState.descriptiveImages)
-                actions.setFieldValue('variations', nextMediaState.variations ?? formValues.variations)
+                actions.setFieldValue('variations', nextMediaState.variations ?? variationsForSubmit)
 
                 if (import.meta.env.DEV) {
                   console.log(
@@ -1706,6 +1804,16 @@ export function ProductListingForm({
                 setPublishStage(PRODUCT_PUBLISH_STAGE.CREATING_PRODUCT)
               }
 
+              const resolvedVariations = nextMediaState.variations ?? variationsForSubmit
+
+              if (
+                import.meta.env.DEV
+                && !isEditMode
+                && !hasAnyProductVariationValues(formValues.variations)
+              ) {
+                console.log('[product default variation]', resolvedVariations)
+              }
+
               const context = buildProductMutationContext(formValues, {
                 parentCategories,
                 categoryTree,
@@ -1714,13 +1822,14 @@ export function ProductListingForm({
 
               if (isEditMode) {
                 const payload = buildProductPayload(
-                  formValues,
+                  payloadValues,
                   nextMediaState.mainImage,
                   nextMediaState.subImages,
                   {
                     mode: 'edit',
                     includeVariations: true,
                     descriptiveImages: nextMediaState.descriptiveImages,
+                    variations: resolvedVariations,
                   },
                 )
 
@@ -1735,13 +1844,13 @@ export function ProductListingForm({
                 })
               } else if (usePresignedUpload) {
                 const payload = buildProductCreateJsonPayload(
-                  formValues,
+                  payloadValues,
                   nextMediaState.mainImage,
                   nextMediaState.subImages,
                   {
                     includeVariations: true,
                     descriptiveImages: nextMediaState.descriptiveImages,
-                    variations: nextMediaState.variations,
+                    variations: resolvedVariations,
                   },
                 )
 
@@ -1755,13 +1864,14 @@ export function ProductListingForm({
                 })
               } else {
                 const payload = buildProductPayload(
-                  formValues,
+                  payloadValues,
                   nextMediaState.mainImage,
                   nextMediaState.subImages,
                   {
                     mode: 'create',
                     includeVariations: true,
                     descriptiveImages: nextMediaState.descriptiveImages,
+                    variations: resolvedVariations,
                   },
                 )
 
@@ -1871,7 +1981,13 @@ export function ProductListingForm({
                   />
                 )}
                 {activeStep === 2 && <PricingStep formik={formik} />}
-                {activeStep === 3 && <VariationsStep formik={formik} />}
+                {activeStep === 3 && (
+                  <VariationsStep
+                    formik={formik}
+                    parentCategories={parentCategories}
+                    categoryTree={categoryTree}
+                  />
+                )}
                 {activeStep === 4 && <ShippingStep formik={formik} />}
                 {activeStep === 5 && (
                   <ReviewStep

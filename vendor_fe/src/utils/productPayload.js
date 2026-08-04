@@ -197,6 +197,22 @@ export function resolveVariantAttributeFields(variant) {
   return parseVariantAttributes(variant.attributes)
 }
 
+/** Primary image URL from API variant record (`images[]`, flat `image_url`, or legacy `image`). */
+export function resolveVariantImageUrl(variant) {
+  if (!variant || typeof variant !== 'object') return null
+
+  const firstImage = Array.isArray(variant.images) ? variant.images[0] : null
+  const url = firstImage?.image_url
+    ?? firstImage?.url
+    ?? firstImage?.preview
+    ?? variant.image_url
+    ?? variant.image
+    ?? null
+
+  const normalized = String(url ?? '').trim()
+  return normalized || null
+}
+
 export function getVariantAttributeValue(variant, attributeName) {
   const normalized = String(attributeName ?? '').trim().toLowerCase()
   if (!normalized || !variant || typeof variant !== 'object') return ''
@@ -1057,11 +1073,13 @@ export function buildProductPayload(values, mainImage, subImages = [], options =
     removedDescriptiveImageIds = [],
     omitRootSku = false,
     omitRootQuantity = false,
+    variations: variationsOverride,
   } = options
   const productImages = validateProductImageFiles(mainImage, subImages, { mode })
   const descriptiveImagePayload = validateDescriptiveImageFiles(descriptiveImages, { mode })
+  const variationSource = variationsOverride ?? values.variations
   const variations = includeVariations
-    ? buildVariationsPayload(values.variations, values)
+    ? buildVariationsPayload(variationSource, values)
     : []
   const metadata = mergeProductMetadata(values)
   const tags = values.tags ?? []

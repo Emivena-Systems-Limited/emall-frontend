@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
@@ -12,6 +12,7 @@ import { formatCartItemOptions, resolveCartItemDisplayImage } from '../../utils/
 import CartSectionEmptyState from './CartSectionEmptyState'
 
 const drawerEase = [0.16, 1, 0.3, 1]
+const FLOATING_TRIGGER_SCROLL_PX = 140
 
 function resolveProductHref(item) {
   return item.href?.replace(/^\/products\//, '/') ?? '/'
@@ -83,7 +84,10 @@ function SavedDrawerItem({ item, onRestore, onDelete, onNavigate }) {
   )
 }
 
-export function SavedItemsTrigger({ className = '' }) {
+export const SavedItemsTrigger = forwardRef(function SavedItemsTrigger(
+  { className = '' },
+  ref,
+) {
   const savedItemsDrawer = useOptionalSavedItemsDrawer()
   const savedItems = useSelector(selectSavedCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
@@ -95,6 +99,7 @@ export function SavedItemsTrigger({ className = '' }) {
 
   return (
     <button
+      ref={ref}
       type="button"
       onClick={openSavedItemsDrawer}
       className={`inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-auth-primary hover:text-auth-primary sm:px-4 sm:text-sm ${className}`}
@@ -107,6 +112,60 @@ export function SavedItemsTrigger({ className = '' }) {
         </span>
       )}
     </button>
+  )
+})
+
+/** Fixed bottom-left control shown after scrolling on the cart page. */
+export function SavedItemsFloatingTrigger({ elevateForMobileBar = false }) {
+  const savedItemsDrawer = useOptionalSavedItemsDrawer()
+  const savedItems = useSelector(selectSavedCartItems)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const [scrolledPast, setScrolledPast] = useState(false)
+
+  useEffect(() => {
+    const updateVisibility = () => {
+      setScrolledPast(window.scrollY > FLOATING_TRIGGER_SCROLL_PX)
+    }
+
+    updateVisibility()
+    window.addEventListener('scroll', updateVisibility, { passive: true })
+    return () => window.removeEventListener('scroll', updateVisibility)
+  }, [])
+
+  if (!isAuthenticated || !savedItemsDrawer) return null
+
+  const { isOpen, openSavedItemsDrawer } = savedItemsDrawer
+  const count = savedItems.length
+  const show = scrolledPast && !isOpen
+
+  return createPortal(
+    <AnimatePresence>
+      {show && (
+        <motion.button
+          type="button"
+          onClick={openSavedItemsDrawer}
+          aria-label={count > 0 ? `Saved items, ${count}` : 'Saved items'}
+          initial={{ opacity: 0, y: 16, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 12, scale: 0.94 }}
+          transition={{ duration: 0.22, ease: drawerEase }}
+          className={`fixed left-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_10px_28px_-8px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/5 transition-colors hover:border-auth-primary hover:text-auth-primary sm:left-6 ${
+            elevateForMobileBar ? 'bottom-24 lg:bottom-8' : 'bottom-6 lg:bottom-8'
+          }`}
+        >
+          <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-auth-primary/10 text-auth-primary">
+            <Bookmark className="size-4" strokeWidth={2.25} />
+            {count > 0 && (
+              <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-auth-primary px-1 py-px text-[0.625rem] font-bold leading-none text-white">
+                {count > 99 ? '99+' : count}
+              </span>
+            )}
+          </span>
+          <span className="pr-0.5">Saved items</span>
+        </motion.button>
+      )}
+    </AnimatePresence>,
+    document.body,
   )
 }
 

@@ -9,8 +9,10 @@ const MIN_SCALE = 1
 const MAX_SCALE = 3
 
 const HOVER_ZOOM_FACTOR = 2.5
-const HOVER_ZOOM_PANEL_WIDTH = 440
+const HOVER_ZOOM_PANEL_WIDTH = 520
 const HOVER_ZOOM_GAP = 16
+/** Keep the side zoom panel shorter than the viewport so it never feels full-screen. */
+const HOVER_ZOOM_MAX_VIEWPORT_RATIO = 0.82
 
 const imageEase = [0.22, 1, 0.36, 1]
 
@@ -42,7 +44,11 @@ function computeHoverZoomPanelRect(containerRect) {
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
   const width = Math.min(HOVER_ZOOM_PANEL_WIDTH, viewportWidth - HOVER_ZOOM_GAP * 2)
-  const height = containerRect.height
+  const height = Math.min(
+    containerRect.height,
+    viewportHeight - HOVER_ZOOM_GAP * 2,
+    viewportHeight * HOVER_ZOOM_MAX_VIEWPORT_RATIO,
+  )
 
   let left = containerRect.right + HOVER_ZOOM_GAP
   if (left + width > viewportWidth - HOVER_ZOOM_GAP) {
@@ -50,7 +56,11 @@ function computeHoverZoomPanelRect(containerRect) {
   }
   left = clamp(left, HOVER_ZOOM_GAP, Math.max(HOVER_ZOOM_GAP, viewportWidth - width - HOVER_ZOOM_GAP))
 
-  const top = clamp(containerRect.top, HOVER_ZOOM_GAP, Math.max(HOVER_ZOOM_GAP, viewportHeight - height - HOVER_ZOOM_GAP))
+  const top = clamp(
+    containerRect.top,
+    HOVER_ZOOM_GAP,
+    Math.max(HOVER_ZOOM_GAP, viewportHeight - height - HOVER_ZOOM_GAP),
+  )
 
   return { left, top, width, height }
 }

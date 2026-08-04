@@ -9,6 +9,10 @@ import ResendTimer from '../../components/auth/ResendTimer'
 import notify from '../../lib/notify'
 import { OTP_LENGTH } from '../../constants/auth'
 import {
+  clearOtpResendCooldown,
+  OTP_RESEND_STORAGE_KEYS,
+} from '../../utils/otpResendCooldown'
+import {
   useResendVendorOtpMutation,
   useVerifyVendorOtpMutation,
 } from '../../hooks/useAuthMutations'
@@ -51,6 +55,7 @@ export default function VerifyAccount() {
         accessToken: data.accessToken,
         applicationToken: data.applicationToken,
       }))
+      clearOtpResendCooldown(OTP_RESEND_STORAGE_KEYS.VERIFY_ACCOUNT)
       notify.success('Account verified successfully!')
       navigate('/dashboard', { replace: true })
     } catch {
@@ -59,10 +64,14 @@ export default function VerifyAccount() {
   }
 
   const handleResend = async () => {
-    await resendMutation.mutateAsync({ email })
-    notify.success('Verification code resent')
-    setOtp('')
-    setHasError(false)
+    try {
+      await resendMutation.mutateAsync({ email })
+      notify.success('Verification code resent')
+      setOtp('')
+      setHasError(false)
+    } catch {
+      // mutation onError already toasted; keep resend available
+    }
   }
 
   return (
@@ -97,6 +106,7 @@ export default function VerifyAccount() {
             <ResendTimer
               onResend={handleResend}
               disabled={resendMutation.isPending || verifyMutation.isPending}
+              cooldownKey={OTP_RESEND_STORAGE_KEYS.VERIFY_ACCOUNT}
             />
           </div>
         </div>

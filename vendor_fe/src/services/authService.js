@@ -154,9 +154,9 @@ export async function verifyVendorOtp({ email, otp_token }) {
 
 export async function resendVendorOtp({ email }) {
   const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.RESEND_OTP, {
-    email,
+    email: String(email ?? '').trim(),
     guard: AUTH_GUARD.VENDOR,
-    type: AUTH_VERIFICATION_TYPE.REGISTRATION,
+    type: AUTH_VERIFICATION_TYPE.RESEND,
   })
   return assertApiSuccess(data)
 }

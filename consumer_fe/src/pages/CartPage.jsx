@@ -14,7 +14,7 @@ import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
 import { formatCartItemOptions, resolveCartItemDisplayImage } from '../utils/normalizeCart'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
-import { SavedItemsTrigger } from '../components/cart/SavedItemsDrawer'
+import { SavedItemsFloatingTrigger, SavedItemsTrigger } from '../components/cart/SavedItemsDrawer'
 
 const clampQuantity = (value) => Math.max(1, value)
 
@@ -497,6 +497,7 @@ export default function CartPage() {
   }
 
   const savedItemsTrigger = <SavedItemsTrigger />
+  const elevateSavedFab = items.length > 0 && selectedItems.length > 0
 
   return (
     <SiteLayout>
@@ -570,6 +571,8 @@ export default function CartPage() {
           </div>
         </Container>
       </main>
+
+      <SavedItemsFloatingTrigger elevateForMobileBar={elevateSavedFab} />
 
       <MobileCheckoutBar
         itemCount={orderAmounts.itemCount}

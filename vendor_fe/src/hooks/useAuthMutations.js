@@ -13,6 +13,7 @@ import {
 import { logout } from '../store/slices/authSlice'
 import { persistor } from '../store/store'
 import notify from '../lib/notify'
+import { parseApiError } from '../utils/parseApiError'
 
 export function useRegisterVendorMutation({ suppressErrorToast = false } = {}) {
   return useMutation({
@@ -26,11 +27,29 @@ export function useRegisterVendorMutation({ suppressErrorToast = false } = {}) {
   })
 }
 
+function getLoginErrorMessage(error) {
+  const { message } = parseApiError(error, '')
+
+  // Backend returns "resource not found" when the email is not registered
+  if (String(message).toLowerCase().includes('resource not found')) {
+    return 'No account found with this email. Please create an account or check the address and try again.'
+  }
+
+  return null
+}
+
 export function useLoginVendorMutation() {
   return useMutation({
     mutationKey: ['vendor-auth', 'login'],
     mutationFn: loginVendor,
-    onError: (error) => notify.fromError(error, 'Invalid email or password'),
+    onError: (error) => {
+      const friendlyMessage = getLoginErrorMessage(error)
+      if (friendlyMessage) {
+        notify.error(friendlyMessage)
+        return
+      }
+      notify.fromError(error, 'Invalid email or password')
+    },
   })
 }
 

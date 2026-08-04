@@ -13,7 +13,7 @@ export function useCreateBrandMutation() {
     onSuccess: (brand) => {
       queryClient.setQueryData(brandQueryKeys.approved(), (current = []) => {
         const next = Array.isArray(current) ? [...current] : []
-        if (next.some((item) => item.id === brand.id)) {
+        if (next.some((item) => String(item.id) === String(brand.id))) {
           return next
         }
         return sortBrandsAlphabetically([...next, brand])

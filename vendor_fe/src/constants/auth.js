@@ -1,5 +1,5 @@
 export const OTP_LENGTH = 6
-export const OTP_RESEND_SECONDS = 15
+export const OTP_RESEND_SECONDS = 5
 export const OTP_EXPIRY_MINUTES = 5
 
 export const AUTH_GUARD = {
@@ -10,6 +10,7 @@ export const AUTH_VERIFICATION_TYPE = {
   REGISTRATION: 'registration',
   PASSWORD_RESET: 'password_reset',
   RESET_PASSWORD: 'reset_password',
+  RESEND: 'resend',
 }
 
 export const VENDOR_AUTH_ENDPOINTS = {
