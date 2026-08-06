@@ -115,12 +115,17 @@ export function resolveVariantPricing(variantValue, productValues) {
     const sale = roundMoney(Number(rawSale))
     if (sale > 0 && sale < listPrice) salePrice = sale
   } else if (parent.hasDiscount && listPrice > 0) {
-    salePrice = hasPriceOverride
+    const inheritedSale = hasPriceOverride
       ? roundMoney(listPrice * parent.discountRatio)
       : parent.salePrice
+
+    if (inheritedSale != null && inheritedSale > 0 && inheritedSale < listPrice) {
+      salePrice = inheritedSale
+    }
   }
 
-  const customerPrice = salePrice ?? listPrice
+  const hasDiscount = salePrice != null
+  const customerPrice = hasDiscount ? salePrice : listPrice
 
   return {
     listPrice,
@@ -129,7 +134,7 @@ export function resolveVariantPricing(variantValue, productValues) {
     isInherited: !hasPriceOverride,
     isSaleInherited: !hasSaleOverride && parent.hasDiscount,
     hasSaleOverride,
-    hasDiscount: salePrice != null,
+    hasDiscount,
     parent,
   }
 }

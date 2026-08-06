@@ -19,10 +19,26 @@ import OrderStatusBadge from '../../components/orders/OrderStatusBadge'
 import PaymentStatusBadge from '../../components/orders/PaymentStatusBadge'
 import DeliveryStatusBadge from '../../components/orders/DeliveryStatusBadge'
 import UpdateOrderStatusModal from '../../components/orders/UpdateOrderStatusModal'
+import { DELIVERY_STATUSES } from '../../constants/orders'
 import { useVendorOrder } from '../../hooks/useVendorOrders'
-import { useUpdateOrderItemStatusMutation } from '../../hooks/useVendorOrderMutations'
-import { deriveOrderStatusFromItems } from '../../utils/normalizeVendorOrders'
+import { useUpdateOrderDeliveryStatusMutation } from '../../hooks/useVendorOrderMutations'
 import notify from '../../lib/notify'
+
+function mapDeliveryStatusToOrderStatus(deliveryStatus) {
+  switch (deliveryStatus) {
+    case 'processing':
+      return 'processing'
+    case 'order_confirmed':
+      return 'confirmed'
+    case 'shipped':
+    case 'out_for_delivery':
+      return 'shipped'
+    case 'delivered':
+      return 'delivered'
+    default:
+      return undefined
+  }
+}
 
 function formatOrderDateTime(value) {
   if (!value) return '—'
@@ -78,9 +94,9 @@ export default function OrderDetails() {
   const location = useLocation()
   const listPayment = location.state?.listPayment ?? null
   const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId, { listPayment })
-  const updateItemStatus = useUpdateOrderItemStatusMutation()
+  const updateDeliveryStatus = useUpdateOrderDeliveryStatusMutation()
   const [localOrder, setLocalOrder] = useState(null)
-  const [statusUpdateItem, setStatusUpdateItem] = useState(null)
+  const [statusUpdateOpen, setStatusUpdateOpen] = useState(false)
   const [customerDrawerOpen, setCustomerDrawerOpen] = useState(false)
 
   useEffect(() => {
@@ -146,29 +162,27 @@ export default function OrderDetails() {
     )
   }
 
-  const handleItemStatusChange = async (item, nextStatus) => {
-    if (item.orderStatus === nextStatus) {
-      setStatusUpdateItem(null)
+  const handleDeliveryStatusChange = async (order, nextStatus) => {
+    if (order.deliveryStatus === nextStatus) {
+      setStatusUpdateOpen(false)
       return
     }
 
     try {
-      await updateItemStatus.mutateAsync({ orderItemId: item.id, status: nextStatus })
+      await updateDeliveryStatus.mutateAsync({ orderId: order.id, status: nextStatus })
 
-      setLocalOrder((current) => {
-        const nextItems = current.items.map((line) =>
-          line.id === item.id ? { ...line, orderStatus: nextStatus } : line,
-        )
+      const mappedOrderStatus = mapDeliveryStatusToOrderStatus(nextStatus)
 
-        return {
-          ...current,
-          items: nextItems,
-          orderStatus: deriveOrderStatusFromItems(nextItems, current.orderStatus),
-        }
-      })
+      setLocalOrder((current) => ({
+        ...current,
+        deliveryStatus: nextStatus,
+        ...(mappedOrderStatus ? { orderStatus: mappedOrderStatus } : {}),
+        items: current.items.map((line) => ({ ...line, deliveryStatus: nextStatus })),
+      }))
 
-      setStatusUpdateItem(null)
-      notify.success(`${item.productName} updated to ${nextStatus.replaceAll('_', ' ')}.`)
+      setStatusUpdateOpen(false)
+      const statusLabel = DELIVERY_STATUSES[nextStatus]?.label ?? nextStatus.replaceAll('_', ' ')
+      notify.success(`Delivery status updated to ${statusLabel}.`)
     } catch {
       // Error toast handled by mutation hook.
     }
@@ -206,6 +220,14 @@ export default function OrderDetails() {
               <OrderStatusBadge status={localOrder.orderStatus} />
               <DeliveryStatusBadge status={localOrder.deliveryStatus} />
               <PaymentStatusBadge status={localOrder.paymentStatus} />
+              <button
+                type="button"
+                onClick={() => setStatusUpdateOpen(true)}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:border-brand/30 hover:bg-brand-light/30 hover:text-brand print:hidden"
+              >
+                <RefreshCw className="size-3.5" aria-hidden />
+                Update delivery
+              </button>
             </div>
           </div>
 
@@ -247,7 +269,7 @@ export default function OrderDetails() {
           <OrderLineItems
             items={localOrder.items}
             orderId={localOrder.id}
-            onUpdateItemStatus={setStatusUpdateItem}
+            deliveryStatus={localOrder.deliveryStatus}
           />
         </SectionCard>
 
@@ -296,12 +318,11 @@ export default function OrderDetails() {
       />
 
       <UpdateOrderStatusModal
-        open={Boolean(statusUpdateItem)}
-        item={statusUpdateItem}
-        orderNumber={localOrder.orderNumber}
-        onClose={() => setStatusUpdateItem(null)}
-        onConfirm={handleItemStatusChange}
-        isLoading={updateItemStatus.isPending}
+        open={statusUpdateOpen}
+        order={localOrder}
+        onClose={() => setStatusUpdateOpen(false)}
+        onConfirm={handleDeliveryStatusChange}
+        isLoading={updateDeliveryStatus.isPending}
       />
     </DashboardLayout>
   )

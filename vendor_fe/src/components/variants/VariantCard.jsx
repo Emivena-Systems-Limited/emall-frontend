@@ -1,11 +1,12 @@
 import { Edit2, Package, Tag, Trash2 } from 'lucide-react'
-import { hasVariantSalePrice, resolveStockStatus } from './variantFormUtils'
+import { resolveStockStatus } from './variantFormUtils'
+import { formatVariantPriceLabel, getVariantPriceDisplay } from './variantPriceDisplay'
 
-export default function VariantCard({ variation, variantValue, onEdit, onRemove }) {
+export default function VariantCard({ variation, variantValue, productValues = {}, onEdit, onRemove }) {
   const stock = resolveStockStatus(variantValue.quantity, variantValue.minimum_threshold)
   const thumbnail = variantValue.images?.[0]?.preview
-  const hasPrice = variantValue.price !== '' && variantValue.price != null
-  const hasSale = hasVariantSalePrice(variantValue.discount_price)
+  const priceDisplay = getVariantPriceDisplay(variantValue, productValues)
+  const priceLabel = formatVariantPriceLabel(priceDisplay)
   const displayName = variantValue.variant_name || variantValue.value || '—'
 
   return (
@@ -44,22 +45,18 @@ export default function VariantCard({ variation, variantValue, onEdit, onRemove 
             {variantValue.sku ? (
               <span className="text-xs text-slate-400">SKU: {variantValue.sku}</span>
             ) : null}
-            {hasPrice && (
+            {priceDisplay.showPricing && (
               <span className="text-xs font-semibold text-slate-700">
-                {hasSale ? (
+                {priceDisplay.hasDiscount ? (
                   <>
-                    <span className="whitespace-nowrap text-brand">
-                      GH₵ {Number(variantValue.discount_price).toFixed(2)}
-                    </span>
+                    <span className="whitespace-nowrap text-brand">{priceLabel.primary}</span>
                     {' '}
                     <span className="whitespace-nowrap text-slate-400 line-through">
-                      GH₵ {Number(variantValue.price).toFixed(2)}
+                      {priceLabel.compareAt}
                     </span>
                   </>
                 ) : (
-                  <span className="whitespace-nowrap">
-                    GH₵ {Number(variantValue.price).toFixed(2)}
-                  </span>
+                  <span className="whitespace-nowrap">{priceLabel.primary}</span>
                 )}
               </span>
             )}

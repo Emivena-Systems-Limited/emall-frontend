@@ -19,7 +19,7 @@ function navigateWithListPayment(navigate, path, order) {
   navigate(path, listPayment ? { state: { listPayment } } : undefined)
 }
 
-function OrderMenuAction({ icon: Icon, tone, label, helper, onClick }) {
+function OrderMenuAction({ icon: Icon, tone, label, helper, helperTitle, onClick }) {
   return (
     <button
       type="button"
@@ -32,9 +32,14 @@ function OrderMenuAction({ icon: Icon, tone, label, helper, onClick }) {
       >
         <Icon className="size-4" strokeWidth={2} />
       </span>
-      <span className="min-w-0 flex-1 pt-0.5">
-        <span className="block text-sm font-semibold text-slate-900">{label}</span>
-        <span className="mt-0.5 block text-xs leading-snug text-slate-500">{helper}</span>
+      <span className="min-w-0 flex-1 overflow-hidden pt-0.5">
+        <span className="block truncate text-sm font-semibold text-slate-900">{label}</span>
+        <span
+          className="mt-0.5 block line-clamp-2 text-xs leading-snug text-slate-500"
+          title={helperTitle ?? helper}
+        >
+          {helper}
+        </span>
       </span>
     </button>
   )
@@ -51,12 +56,19 @@ export default function OrderActionsMenu({
   const orderProducts = getUniqueOrderProducts(order)
   const hasLinkedProducts = orderProducts.length > 0
 
-  const viewProductHelper = useMemo(() => {
+  const viewProductMeta = useMemo(() => {
     if (orderProducts.length === 1) {
-      return `Open “${orderProducts[0].productName}” in your catalogue.`
+      const fullName = orderProducts[0].productName
+      return {
+        helper: 'Open this product in your catalogue.',
+        helperTitle: fullName || undefined,
+      }
     }
 
-    return `Choose from ${orderProducts.length} products included in this order.`
+    return {
+      helper: `Choose from ${orderProducts.length} products in this order.`,
+      helperTitle: undefined,
+    }
   }, [orderProducts])
 
   const close = () => setOpen(false)
@@ -142,7 +154,8 @@ export default function OrderActionsMenu({
                 icon={Package}
                 tone="bg-violet-50 text-violet-700 ring-violet-100"
                 label="View Product"
-                helper={viewProductHelper}
+                helper={viewProductMeta.helper}
+                helperTitle={viewProductMeta.helperTitle}
                 onClick={() => run(handleViewProduct)}
               />
             </>

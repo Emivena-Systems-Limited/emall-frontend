@@ -1,12 +1,14 @@
 import { AlertTriangle, CheckCircle2, Edit2, Trash2 } from 'lucide-react'
 import AttributeIcon from './AttributeIcon'
-import { hasVariantSalePrice, resolveStockStatus } from './variantFormUtils'
+import { resolveStockStatus } from './variantFormUtils'
+import { formatVariantPriceLabel, getVariantPriceDisplay } from './variantPriceDisplay'
 
 /** Card shown in the add-variant flow for each value, before and after its details are saved. */
 export default function VariantValueDraftCard({
   attribute,
   value,
   persistedEntry,
+  productValues = {},
   onEdit,
   onRemove,
   isRemoving,
@@ -17,8 +19,8 @@ export default function VariantValueDraftCard({
     const { variantValue } = persistedEntry
     const stock = resolveStockStatus(variantValue.quantity, variantValue.minimum_threshold)
     const thumbnail = variantValue.images?.[0]?.preview
-    const hasPrice = variantValue.price !== '' && variantValue.price != null
-    const hasSale = hasVariantSalePrice(variantValue.discount_price)
+    const priceDisplay = getVariantPriceDisplay(variantValue, productValues)
+    const priceLabel = formatVariantPriceLabel(priceDisplay)
 
     return (
       <article
@@ -38,19 +40,17 @@ export default function VariantValueDraftCard({
         <div className="mt-3 min-w-0 flex-1 text-center">
           <p className="truncate text-sm font-bold text-slate-900">{value}</p>
           <div className="mt-2 flex flex-col items-center gap-1.5">
-            {hasPrice && (
+            {priceDisplay.showPricing && (
               <span className="text-xs font-semibold text-slate-700">
-                {hasSale ? (
+                {priceDisplay.hasDiscount ? (
                   <>
-                    <span className="whitespace-nowrap text-brand">
-                      GH₵ {Number(variantValue.discount_price).toFixed(2)}
-                    </span>{' '}
+                    <span className="whitespace-nowrap text-brand">{priceLabel.primary}</span>{' '}
                     <span className="whitespace-nowrap text-slate-400 line-through">
-                      GH₵ {Number(variantValue.price).toFixed(2)}
+                      {priceLabel.compareAt}
                     </span>
                   </>
                 ) : (
-                  <span className="whitespace-nowrap">GH₵ {Number(variantValue.price).toFixed(2)}</span>
+                  <span className="whitespace-nowrap">{priceLabel.primary}</span>
                 )}
               </span>
             )}

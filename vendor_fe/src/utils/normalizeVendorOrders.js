@@ -1,4 +1,5 @@
 import { unwrapApiEnvelope } from './parseApiError'
+import { resolveBackendMediaUrl } from './resolveBackendMediaUrl'
 
 function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '') ?? ''
@@ -39,6 +40,7 @@ function normalizeDeliveryStatus(record) {
 
   if (deliveryStatus === 'pending') return 'pending'
   if (deliveryStatus === 'processing') return 'processing'
+  if (deliveryStatus === 'order_confirmed' || deliveryStatus === 'confirmed') return 'order_confirmed'
   if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) return 'ready_for_shipment'
   if (deliveryStatus === 'shipped') return 'shipped'
   if (deliveryStatus === 'out_for_delivery') return 'out_for_delivery'
@@ -154,7 +156,8 @@ export function resolvePaymentFieldsFromPayment(payment) {
 function resolvePrimaryImage(images = []) {
   const list = toArray(images)
   const primary = list.find((image) => image?.is_primary === true || image?.is_primary === 'true' || image?.is_primary === 1) ?? list[0]
-  return firstValue(primary?.image_url, primary?.url, primary?.src)
+  const url = firstValue(primary?.image_url, primary?.url, primary?.src)
+  return url ? resolveBackendMediaUrl(url) : ''
 }
 
 function resolveItemImage(item) {
@@ -164,7 +167,24 @@ function resolveItemImage(item) {
   const productImage = resolvePrimaryImage(item?.product?.images)
   if (productImage) return productImage
 
-  return firstValue(item?.image, item?.image_url, item?.thumbnail, item?.product?.image_url) || null
+  const fallback = firstValue(item?.image, item?.image_url, item?.thumbnail, item?.product?.image_url)
+  return fallback ? resolveBackendMediaUrl(fallback) : null
+}
+
+function resolveOrderItemUnitPrice(item) {
+  const raw = Number(item?.unit_price ?? item?.price ?? item?.sale_price ?? 0)
+  if (Number.isFinite(raw) && raw > 0) return raw
+
+  const fallback = Number(
+    item?.variant?.regular_price
+    ?? item?.variant?.price
+    ?? item?.product?.regular_price
+    ?? item?.product?.price
+    ?? item?.list_price
+    ?? 0,
+  )
+
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : 0
 }
 
 function resolveVariantLabel(item) {
@@ -192,6 +212,9 @@ function resolveVariantLabel(item) {
 }
 
 function resolveComparePrice(item, unitPrice) {
+  const normalizedUnitPrice = Number(unitPrice)
+  if (!Number.isFinite(normalizedUnitPrice) || normalizedUnitPrice <= 0) return null
+
   const regularPrice = Number(
     item?.variant?.regular_price
     ?? item?.product?.regular_price
@@ -200,10 +223,21 @@ function resolveComparePrice(item, unitPrice) {
     ?? 0,
   )
 
-  if (regularPrice > unitPrice) return regularPrice
+  if (regularPrice > normalizedUnitPrice) return regularPrice
 
-  const discountPrice = Number(item?.variant?.discount_price ?? item?.product?.regular_discount_price ?? 0)
-  if (regularPrice > 0 && discountPrice > 0 && discountPrice < regularPrice && unitPrice <= discountPrice) {
+  const discountPrice = Number(
+    item?.variant?.discount_price
+    ?? item?.product?.regular_discount_price
+    ?? item?.product?.discount_price
+    ?? 0,
+  )
+
+  if (
+    regularPrice > 0
+    && discountPrice > 0
+    && discountPrice < regularPrice
+    && normalizedUnitPrice <= discountPrice
+  ) {
     return regularPrice
   }
 
@@ -212,7 +246,7 @@ function resolveComparePrice(item, unitPrice) {
 
 function normalizeOrderItem(item, index, orderRecord = null) {
   const quantity = Math.max(1, Number(item?.quantity) || 1)
-  const unitPrice = Number(item?.unit_price ?? item?.price ?? item?.sale_price ?? 0)
+  const unitPrice = resolveOrderItemUnitPrice(item)
   const totalPrice = Number(item?.total_price ?? unitPrice * quantity)
   const product = item?.product ?? {}
   const variant = item?.variant ?? {}

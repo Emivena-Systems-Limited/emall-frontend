@@ -71,7 +71,12 @@ export const DELIVERY_STATUSES = {
     dot: 'bg-amber-500',
   },
   processing: {
-    label: 'Being Prepared',
+    label: 'Processing',
+    className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
+    dot: 'bg-sky-500',
+  },
+  order_confirmed: {
+    label: 'Order Confirmed',
     className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
     dot: 'bg-sky-500',
   },
@@ -104,13 +109,12 @@ export const DELIVERY_STATUSES = {
 
 export const STATUS_FILTERS = {
   ALL: 'all',
-  ORDERED: 'ordered',
-  CONFIRMED: 'confirmed',
+  PENDING: 'pending',
   PROCESSING: 'processing',
-  READY_FOR_SHIPMENT: 'ready_for_shipment',
+  ORDER_CONFIRMED: 'order_confirmed',
   SHIPPED: 'shipped',
+  OUT_FOR_DELIVERY: 'out_for_delivery',
   DELIVERED: 'delivered',
-  REFUNDED: 'refunded',
 }
 
 export const SUMMARY_FILTERS = {
@@ -123,21 +127,21 @@ export const SUMMARY_FILTERS = {
 
 export const STATUS_FILTER_TABS = [
   { key: STATUS_FILTERS.ALL, label: 'All Orders' },
-  { key: STATUS_FILTERS.ORDERED, label: 'Ordered' },
-  { key: STATUS_FILTERS.CONFIRMED, label: 'Order Confirmed' },
+  { key: STATUS_FILTERS.PENDING, label: 'Pending' },
   { key: STATUS_FILTERS.PROCESSING, label: 'Processing' },
-  { key: STATUS_FILTERS.READY_FOR_SHIPMENT, label: 'Ready for Shipment' },
+  { key: STATUS_FILTERS.ORDER_CONFIRMED, label: 'Order Confirmed' },
   { key: STATUS_FILTERS.SHIPPED, label: 'Shipped' },
+  { key: STATUS_FILTERS.OUT_FOR_DELIVERY, label: 'Out for Delivery' },
   { key: STATUS_FILTERS.DELIVERED, label: 'Delivered' },
-  { key: STATUS_FILTERS.REFUNDED, label: 'Refunded' },
 ]
 
-export const VENDOR_UPDATABLE_STATUSES = [
+/** Delivery statuses vendors may set via PUT /api/orders/{id}/update/delivery-status */
+export const VENDOR_UPDATABLE_DELIVERY_STATUSES = [
   'processing',
-  'ready_for_shipment',
+  'order_confirmed',
   'shipped',
+  'out_for_delivery',
   'delivered',
-  'refunded',
 ]
 
 export const ORDERS_PAGE_SIZE = 10
@@ -145,5 +149,5 @@ export const ORDERS_PAGE_SIZE = 10
 export const ORDER_ENDPOINTS = {
   VENDOR_LIST: '/api/orders/vendor',
   byId: (orderId) => `/api/orders/vendor/get/${orderId}`,
-  updateItemStatus: '/api/orders/vendor/item/update-status',
+  updateDeliveryStatus: (orderId) => `/api/orders/${orderId}/update/delivery-status`,
 }

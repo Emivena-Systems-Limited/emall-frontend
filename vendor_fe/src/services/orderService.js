@@ -57,25 +57,23 @@ export async function getVendorOrderById(orderId) {
   return record
 }
 
-export async function updateVendorOrderItemStatus(orderItemId, status) {
-  const id = String(orderItemId ?? '').trim()
+export async function updateVendorOrderDeliveryStatus(orderId, status) {
+  const id = String(orderId ?? '').trim()
   const nextStatus = String(status ?? '').trim()
 
   if (!id) {
-    throw new Error('Order item id is required.')
+    throw new Error('Order id is required.')
   }
 
   if (!nextStatus) {
     throw new Error('Status is required.')
   }
 
-  const { data } = await apiClient.post(ORDER_ENDPOINTS.updateItemStatus, {
-    order_item_id: id,
-    status: nextStatus,
-  })
+  const endpoint = ORDER_ENDPOINTS.updateDeliveryStatus(id)
+  const { data } = await apiClient.put(endpoint, { delivery_status: nextStatus })
 
   if (import.meta.env.DEV) {
-    console.info('[orders] POST', ORDER_ENDPOINTS.updateItemStatus, { order_item_id: id, status: nextStatus }, data)
+    console.info('[orders] PUT', endpoint, { delivery_status: nextStatus }, data)
   }
 
   assertApiSuccess(data)

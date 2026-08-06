@@ -5,7 +5,7 @@ import ConfirmModal from '../common/ConfirmModal'
 import AttributeIcon from './AttributeIcon'
 import VariantValueDraftCard from './VariantValueDraftCard'
 
-export default function VariantListView({ productId, entries, onAdd, onEdit, onFinished, deleteVariantMutation }) {
+export default function VariantListView({ productId, entries, productValues = {}, onAdd, onEdit, onFinished, deleteVariantMutation }) {
   const [removeTarget, setRemoveTarget] = useState(null)
 
   const handleConfirmRemove = async () => {
@@ -145,6 +145,7 @@ export default function VariantListView({ productId, entries, onAdd, onEdit, onF
                     key={variantValue.id}
                     attribute={attribute}
                     value={variantValue.value}
+                    productValues={productValues}
                     persistedEntry={{ variation, variantValue }}
                     onEdit={() => onEdit({ variation, variantValue })}
                     onRemove={() => setRemoveTarget({ variation, variantValue })}

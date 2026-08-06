@@ -1110,6 +1110,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                         dataField={`variations.${groupIndex}.values.${valueIndex}`}
                         attribute={group.attribute}
                         value={value.value}
+                        productValues={formik.values}
                         persistedEntry={isVariantValueReady(value) ? { variantValue: value } : null}
                         error={getVariantValueErrorMessage(formik, groupIndex, valueIndex)}
                         onEdit={() => setEditingId(value.id)}
