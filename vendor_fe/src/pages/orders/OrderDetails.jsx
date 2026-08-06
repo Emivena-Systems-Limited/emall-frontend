@@ -269,7 +269,6 @@ export default function OrderDetails() {
           <OrderLineItems
             items={localOrder.items}
             orderId={localOrder.id}
-            deliveryStatus={localOrder.deliveryStatus}
           />
         </SectionCard>
 

@@ -1,7 +1,6 @@
 import { Link } from 'react-router'
 import { ExternalLink, Package } from 'lucide-react'
 import { buildViewProductPath } from '../../utils/orderProductNavigation'
-import DeliveryStatusBadge from './DeliveryStatusBadge'
 
 function formatMoney(amount) {
   if (amount == null || Number.isNaN(Number(amount))) return '—'
@@ -27,14 +26,13 @@ function OrderItemPrice({ amount, compareAmount, align = 'right' }) {
   )
 }
 
-function OrderLineItemCard({ item, orderId, deliveryStatus }) {
+function OrderLineItemCard({ item, orderId }) {
   const productHref = item.productId ? buildViewProductPath(item.productId, orderId) : null
   const metaParts = [item.brandName, item.categoryName].filter(Boolean)
-  const lineDeliveryStatus = item.deliveryStatus ?? deliveryStatus
 
   return (
     <article className="rounded-xl border border-slate-200 bg-slate-50/40 p-4 transition-colors hover:border-slate-300 hover:bg-white lg:rounded-none lg:border-0 lg:border-b lg:border-slate-100 lg:bg-transparent lg:p-0 lg:py-4 lg:last:border-b-0 lg:hover:bg-slate-50/50">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)_minmax(7rem,8rem)] lg:items-center lg:gap-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)] lg:items-center lg:gap-4">
         <div className="flex min-w-0 items-start gap-3.5">
           {item.image ? (
             <span className="flex size-18 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
@@ -106,17 +104,12 @@ function OrderLineItemCard({ item, orderId, deliveryStatus }) {
             compareAmount={item.comparePrice != null ? item.comparePrice * item.quantity : null}
           />
         </div>
-
-        <div className="flex items-center justify-between gap-3 lg:justify-center">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 lg:hidden">Delivery</span>
-          <DeliveryStatusBadge status={lineDeliveryStatus} />
-        </div>
       </div>
     </article>
   )
 }
 
-export default function OrderLineItems({ items, orderId, deliveryStatus }) {
+export default function OrderLineItems({ items, orderId }) {
   if (!items?.length) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -134,13 +127,12 @@ export default function OrderLineItems({ items, orderId, deliveryStatus }) {
 
   return (
     <div>
-      <div className="mb-3 hidden rounded-xl bg-slate-50 px-4 py-2.5 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)_minmax(7rem,8rem)] lg:gap-4">
+      <div className="mb-3 hidden rounded-xl bg-slate-50 px-4 py-2.5 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)] lg:gap-4">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Product</span>
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Variant</span>
         <span className="text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
         <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">Unit price</span>
         <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">Line total</span>
-        <span className="text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">Delivery</span>
       </div>
 
       <div className="space-y-3 lg:space-y-0">
@@ -149,7 +141,6 @@ export default function OrderLineItems({ items, orderId, deliveryStatus }) {
             key={item.id}
             item={item}
             orderId={orderId}
-            deliveryStatus={deliveryStatus}
           />
         ))}
       </div>
