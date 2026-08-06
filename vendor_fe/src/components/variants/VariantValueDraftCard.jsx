@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2, Edit2, Trash2 } from 'lucide-react'
 import AttributeIcon from './AttributeIcon'
-import { resolveStockStatus } from './variantFormUtils'
+import { hasVariantSalePrice, resolveStockStatus } from './variantFormUtils'
 
 /** Card shown in the add-variant flow for each value, before and after its details are saved. */
 export default function VariantValueDraftCard({
@@ -18,7 +18,7 @@ export default function VariantValueDraftCard({
     const stock = resolveStockStatus(variantValue.quantity, variantValue.minimum_threshold)
     const thumbnail = variantValue.images?.[0]?.preview
     const hasPrice = variantValue.price !== '' && variantValue.price != null
-    const hasSale = variantValue.discount_price !== '' && variantValue.discount_price != null
+    const hasSale = hasVariantSalePrice(variantValue.discount_price)
 
     return (
       <article

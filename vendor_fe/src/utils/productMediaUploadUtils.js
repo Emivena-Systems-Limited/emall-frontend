@@ -663,16 +663,22 @@ function toSavedProductImage(image, index) {
   return null
 }
 
-/** Description images send both id and upload_id (same value for kept records). */
+/** Description images: existing → { id }; new upload → { upload_id }. */
 function toSavedDescriptionImage(image, index) {
   const uploadId = resolveImageUploadId(image)
   const remoteId = resolveRemoteProductImageId(image)
-  const resolvedId = remoteId ?? uploadId
 
-  if (resolvedId) {
+  if (remoteId) {
     return {
-      id: resolvedId,
-      upload_id: uploadId ?? remoteId,
+      id: remoteId,
+      sort_order: index,
+      is_primary: index === 0,
+    }
+  }
+
+  if (uploadId) {
+    return {
+      upload_id: uploadId,
       sort_order: index,
       is_primary: index === 0,
     }
@@ -680,7 +686,7 @@ function toSavedDescriptionImage(image, index) {
 
   if (resolveImageUrl(image)) {
     throw new Error(
-      `Detail image ${index + 1} is missing an upload id. Remove and re-add the image, then try again.`,
+      `Detail image ${index + 1} is missing a backend id or upload id. Remove and re-add the image, then try again.`,
     )
   }
 

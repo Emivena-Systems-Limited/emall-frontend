@@ -104,7 +104,7 @@ export function resolveVariantPricing(variantValue, productValues) {
   const hasPriceOverride =
     rawPrice !== '' && rawPrice != null && !Number.isNaN(Number(rawPrice))
   const hasSaleOverride =
-    rawSale !== '' && rawSale != null && !Number.isNaN(Number(rawSale))
+    rawSale !== '' && rawSale != null && !Number.isNaN(Number(rawSale)) && Number(rawSale) > 0
 
   const listPrice = hasPriceOverride
     ? roundMoney(Number(rawPrice))

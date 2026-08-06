@@ -1,11 +1,11 @@
 import { Edit2, Package, Tag, Trash2 } from 'lucide-react'
-import { resolveStockStatus } from './variantFormUtils'
+import { hasVariantSalePrice, resolveStockStatus } from './variantFormUtils'
 
 export default function VariantCard({ variation, variantValue, onEdit, onRemove }) {
   const stock = resolveStockStatus(variantValue.quantity, variantValue.minimum_threshold)
   const thumbnail = variantValue.images?.[0]?.preview
   const hasPrice = variantValue.price !== '' && variantValue.price != null
-  const hasSale = variantValue.discount_price !== '' && variantValue.discount_price != null
+  const hasSale = hasVariantSalePrice(variantValue.discount_price)
   const displayName = variantValue.variant_name || variantValue.value || '—'
 
   return (

@@ -1,6 +1,6 @@
 import { convertDiscountAmountToPercent } from './productPricing'
 import { resolveVariantAttributeFields } from './productPayload'
-import { fromVariantOptionalField } from '../components/variants/variantFormUtils'
+import { fromVariantDescriptionField, fromVariantOptionalField, fromVariantSalePriceField } from '../components/variants/variantFormUtils'
 import {
   mapApiProductStatus,
   resolveBrandId,
@@ -160,9 +160,7 @@ function mapVariantsToFormVariations(variants = []) {
       variant_name: fromVariantOptionalField(variant.variant_name),
       sku: fromVariantOptionalField(variant.sku),
       price: fromVariantOptionalField(variant.price == null ? '' : String(variant.price)),
-      discount_price: fromVariantOptionalField(
-        variant.discount_price == null ? '' : String(variant.discount_price),
-      ),
+      discount_price: fromVariantSalePriceField(variant.discount_price),
       quantity: variant.quantity == null ? '' : String(variant.quantity),
       reserved_quantity: fromVariantOptionalField(resolveVariantInventoryValue(variant, 'reserved_quantity')),
       minimum_threshold: fromVariantOptionalField(
@@ -175,7 +173,7 @@ function mapVariantsToFormVariations(variants = []) {
       length: fromVariantOptionalField(variant.length == null ? '' : String(variant.length)),
       width: fromVariantOptionalField(variant.width == null ? '' : String(variant.width)),
       height: fromVariantOptionalField(variant.height == null ? '' : String(variant.height)),
-      description: fromVariantOptionalField(variant.description),
+      description: fromVariantDescriptionField(variant.description),
       has_compatible_models: Boolean(
         variant.has_compatible_models ?? variant.compatible_models?.length,
       ),

@@ -94,6 +94,34 @@ function toMoneyOrNull(val) {
   return num == null ? null : roundMoney(num)
 }
 
+/** Backend requires numeric discount fields (0–2 dp). No sale price → 0. */
+function resolveVariantDiscountPriceFields(listPrice, rawDiscountPrice) {
+  const list = roundMoney(Number(listPrice) || 0)
+  const raw = rawDiscountPrice ?? null
+  const noSalePrice = {
+    discount_price: 0,
+    regular_discount_price: 0,
+  }
+
+  if (
+    raw == null
+    || raw === ''
+    || String(raw).trim() === VARIANT_OPTIONAL_EMPTY_VALUE
+  ) {
+    return noSalePrice
+  }
+
+  const sale = toMoneyOrNull(raw)
+  if (sale == null || sale <= 0 || sale >= list) {
+    return noSalePrice
+  }
+
+  return {
+    discount_price: sale,
+    regular_discount_price: sale,
+  }
+}
+
 function resolvePayloadId(value) {
   if (value == null || value === '') return null
 
@@ -369,13 +397,17 @@ function buildSingleVariationJsonFields(variantValue, variation, values) {
     !isBlankVariantField(variantValue.price)
     && variantValue.price !== VARIANT_OPTIONAL_EMPTY_VALUE
 
-  let discountPrice = pricing.salePrice
+  let rawDiscountPrice = pricing.salePrice
   if (hasCustomPrice) {
     const rawSale = variantValue.discount_price
     if (isBlankVariantField(rawSale) || rawSale === VARIANT_OPTIONAL_EMPTY_VALUE) {
-      discountPrice = null
+      rawDiscountPrice = null
+    } else {
+      rawDiscountPrice = rawSale
     }
   }
+
+  const discountFields = resolveVariantDiscountPriceFields(pricing.listPrice, rawDiscountPrice)
 
   const barcodeFields = resolveVariantBarcodePayloadFields(variantValue)
   const compatibleModelsFields = resolveVariantCompatibleModelsForPayload(variantValue)
@@ -404,8 +436,7 @@ function buildSingleVariationJsonFields(variantValue, variation, values) {
     ...compatibleModelsFields,
     price: pricing.listPrice,
     regular_price: pricing.listPrice,
-    discount_price: discountPrice,
-    regular_discount_price: discountPrice,
+    ...discountFields,
     sku,
   }
 }
@@ -956,6 +987,16 @@ function normalizeVariantUpdateData(variationData, variantValue, variation, prod
 
   const barcodeFields = resolveVariantBarcodePayloadFields(variantValue)
   const compatibleModelsFields = resolveVariantCompatibleModelsForPayload(variantValue)
+  const regularPrice = roundMoney(Number(
+    variationData.regular_price
+    ?? variationData.price
+    ?? toNumberOrNull(productValues.price)
+    ?? 0,
+  ))
+  const discountFields = resolveVariantDiscountPriceFields(
+    regularPrice,
+    variationData.discount_price ?? variationData.regular_discount_price,
+  )
 
   return {
     ...variationData,
@@ -977,20 +1018,9 @@ function normalizeVariantUpdateData(variationData, variantValue, variation, prod
     height: variationData.height ?? null,
     description: variationData.description || null,
     ...compatibleModelsFields,
-    price: variationData.price ?? toNumberOrNull(productValues.price) ?? 0,
-    regular_price:
-      variationData.regular_price
-      ?? variationData.price
-      ?? toNumberOrNull(productValues.price)
-      ?? 0,
-    discount_price:
-      variationData.discount_price
-      ?? variationData.regular_discount_price
-      ?? null,
-    regular_discount_price:
-      variationData.regular_discount_price
-      ?? variationData.discount_price
-      ?? null,
+    price: variationData.price ?? regularPrice,
+    regular_price: regularPrice,
+    ...discountFields,
     ...(variationData.sku ? { sku: variationData.sku } : {}),
     attributes,
   }
