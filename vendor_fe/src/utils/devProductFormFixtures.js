@@ -152,24 +152,57 @@ export const DEV_PRODUCT_FILLABLE_STEPS = [
   { index: 4, label: 'Shipping' },
 ]
 
-function applyCatalogContextToStepFixture(stepIndex, catalogContext) {
+function createDevProductSkuSeed(base = 'AUD-WEP') {
+  const suffix = Date.now().toString(36).slice(-4).toUpperCase()
+  return `${base}-${suffix}`
+}
+
+function withDevVariationSkus(variations = [], productSku) {
+  return variations.map((group) => ({
+    ...group,
+    values: (group.values ?? []).map((value, index) => ({
+      ...value,
+      sku: `${productSku}-${index === 0 ? 'BLK' : 'BLU'}`,
+    })),
+  }))
+}
+
+function applyCatalogContextToStepFixture(stepIndex, catalogContext, devProductSku = null) {
   const base = DEV_PRODUCT_STEP_FIXTURES[stepIndex] ?? null
   if (!base) return null
-  if (stepIndex !== 0 || !catalogContext) return base
 
-  return {
-    ...base,
-    ...resolveDevProductCatalogFields(catalogContext),
+  if (stepIndex === 0) {
+    const sku = devProductSku ?? createDevProductSkuSeed()
+    return {
+      ...base,
+      sku,
+      ...(catalogContext ? resolveDevProductCatalogFields(catalogContext) : {}),
+    }
   }
+
+  if (stepIndex === 3 && devProductSku) {
+    return {
+      ...base,
+      variations: withDevVariationSkus(base.variations, devProductSku),
+    }
+  }
+
+  return base
 }
 
 export function getDevProductMergedFixtures(catalogContext) {
+  const devProductSku = createDevProductSkuSeed()
+
   return DEV_PRODUCT_FILLABLE_STEPS.reduce(
-    (acc, { index }) => ({ ...acc, ...applyCatalogContextToStepFixture(index, catalogContext) }),
+    (acc, { index }) => {
+      const fixture = applyCatalogContextToStepFixture(index, catalogContext, devProductSku)
+      return fixture ? { ...acc, ...fixture } : acc
+    },
     {},
   )
 }
 
 export function getDevProductStepFixture(stepIndex, catalogContext) {
-  return applyCatalogContextToStepFixture(stepIndex, catalogContext)
+  const devProductSku = stepIndex === 3 ? createDevProductSkuSeed() : null
+  return applyCatalogContextToStepFixture(stepIndex, catalogContext, devProductSku)
 }

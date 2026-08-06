@@ -1,7 +1,6 @@
 import { Link } from 'react-router'
-import { ExternalLink, Package, RefreshCw } from 'lucide-react'
+import { ExternalLink, Package } from 'lucide-react'
 import { buildViewProductPath } from '../../utils/orderProductNavigation'
-import OrderStatusBadge from './OrderStatusBadge'
 
 function formatMoney(amount) {
   if (amount == null || Number.isNaN(Number(amount))) return '—'
@@ -10,24 +9,30 @@ function formatMoney(amount) {
 
 function OrderItemPrice({ amount, compareAmount, align = 'right' }) {
   const alignClass = align === 'right' ? 'items-end text-right' : 'items-start text-left'
+  const normalizedAmount = Number(amount)
+  const normalizedCompare = Number(compareAmount)
+  const showCompare = Number.isFinite(normalizedCompare)
+    && normalizedCompare > 0
+    && Number.isFinite(normalizedAmount)
+    && normalizedCompare > normalizedAmount
 
   return (
     <div className={`flex flex-col gap-0.5 ${alignClass}`}>
       <span className="text-sm font-bold tabular-nums text-slate-900">{formatMoney(amount)}</span>
-      {compareAmount != null && compareAmount > amount ? (
+      {showCompare ? (
         <span className="text-xs tabular-nums text-slate-400 line-through">{formatMoney(compareAmount)}</span>
       ) : null}
     </div>
   )
 }
 
-function OrderLineItemCard({ item, orderId, onUpdateItemStatus }) {
+function OrderLineItemCard({ item, orderId }) {
   const productHref = item.productId ? buildViewProductPath(item.productId, orderId) : null
   const metaParts = [item.brandName, item.categoryName].filter(Boolean)
 
   return (
     <article className="rounded-xl border border-slate-200 bg-slate-50/40 p-4 transition-colors hover:border-slate-300 hover:bg-white lg:rounded-none lg:border-0 lg:border-b lg:border-slate-100 lg:bg-transparent lg:p-0 lg:py-4 lg:last:border-b-0 lg:hover:bg-slate-50/50">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)_minmax(7rem,8rem)_minmax(6.5rem,7.5rem)] lg:items-center lg:gap-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)] lg:items-center lg:gap-4">
         <div className="flex min-w-0 items-start gap-3.5">
           {item.image ? (
             <span className="flex size-18 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
@@ -99,30 +104,12 @@ function OrderLineItemCard({ item, orderId, onUpdateItemStatus }) {
             compareAmount={item.comparePrice != null ? item.comparePrice * item.quantity : null}
           />
         </div>
-
-        <div className="flex items-center justify-between gap-3 lg:justify-center">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 lg:hidden">Status</span>
-          <OrderStatusBadge status={item.orderStatus} />
-        </div>
-
-        <div className="flex items-center justify-end lg:justify-end">
-          {onUpdateItemStatus ? (
-            <button
-              type="button"
-              onClick={() => onUpdateItemStatus(item)}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:border-brand/30 hover:bg-brand-light/30 hover:text-brand"
-            >
-              <RefreshCw className="size-3.5" aria-hidden />
-              Update
-            </button>
-          ) : null}
-        </div>
       </div>
     </article>
   )
 }
 
-export default function OrderLineItems({ items, orderId, onUpdateItemStatus }) {
+export default function OrderLineItems({ items, orderId }) {
   if (!items?.length) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -140,14 +127,12 @@ export default function OrderLineItems({ items, orderId, onUpdateItemStatus }) {
 
   return (
     <div>
-      <div className="mb-3 hidden rounded-xl bg-slate-50 px-4 py-2.5 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)_minmax(7rem,8rem)_minmax(6.5rem,7.5rem)] lg:gap-4">
+      <div className="mb-3 hidden rounded-xl bg-slate-50 px-4 py-2.5 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(5rem,6rem)_minmax(6.5rem,7.5rem)_minmax(6.5rem,7.5rem)] lg:gap-4">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Product</span>
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Variant</span>
         <span className="text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
         <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">Unit price</span>
         <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">Line total</span>
-        <span className="text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</span>
-        <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">Action</span>
       </div>
 
       <div className="space-y-3 lg:space-y-0">
@@ -156,7 +141,6 @@ export default function OrderLineItems({ items, orderId, onUpdateItemStatus }) {
             key={item.id}
             item={item}
             orderId={orderId}
-            onUpdateItemStatus={onUpdateItemStatus}
           />
         ))}
       </div>

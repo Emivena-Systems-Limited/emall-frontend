@@ -2,6 +2,7 @@ import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../constants/productMediaUpl
 import {
   buildProductMediaPresignRequest,
   hasPendingProductMediaUploads,
+  rehydrateKeptImagesMissingIds,
 } from './productMediaUploadUtils'
 
 /**
@@ -17,7 +18,7 @@ export async function prepareVariantFormValuesForSave({
     return variantFormValues
   }
 
-  const mediaState = {
+  const mediaState = await rehydrateKeptImagesMissingIds({
     mainImage: null,
     subImages: [],
     descriptiveImages: [],
@@ -28,7 +29,7 @@ export async function prepareVariantFormValuesForSave({
         images: variantFormValues.images ?? [],
       }],
     }],
-  }
+  })
 
   const presignRequest = buildProductMediaPresignRequest(mediaState)
 

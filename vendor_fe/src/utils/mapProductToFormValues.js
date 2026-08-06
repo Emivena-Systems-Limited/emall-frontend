@@ -1,6 +1,6 @@
 import { convertDiscountAmountToPercent } from './productPricing'
 import { resolveVariantAttributeFields } from './productPayload'
-import { fromVariantOptionalField } from '../components/variants/variantFormUtils'
+import { fromVariantDescriptionField, fromVariantOptionalField, fromVariantSalePriceField } from '../components/variants/variantFormUtils'
 import {
   mapApiProductStatus,
   resolveBrandId,
@@ -9,7 +9,13 @@ import {
   isProductActive,
 } from './normalizeProducts'
 import { isGenericBrand } from './normalizeBrands'
-import { createProductImageFromRemote, isGalleryProductImage, isPrimaryProductImage } from './productImageUtils'
+import {
+  createDescriptiveImageFromRemote,
+  createProductImageFromRemote,
+  isGalleryProductImage,
+  isPrimaryProductImage,
+  resolveRemoteProductImageId,
+} from './productImageUtils'
 import { isDescriptiveProductImage, getMetadataValue, mapKeyDetailsFromRecord } from './productMetadata'
 
 function humanizeAttributeKey(key = '') {
@@ -154,9 +160,7 @@ function mapVariantsToFormVariations(variants = []) {
       variant_name: fromVariantOptionalField(variant.variant_name),
       sku: fromVariantOptionalField(variant.sku),
       price: fromVariantOptionalField(variant.price == null ? '' : String(variant.price)),
-      discount_price: fromVariantOptionalField(
-        variant.discount_price == null ? '' : String(variant.discount_price),
-      ),
+      discount_price: fromVariantSalePriceField(variant.discount_price),
       quantity: variant.quantity == null ? '' : String(variant.quantity),
       reserved_quantity: fromVariantOptionalField(resolveVariantInventoryValue(variant, 'reserved_quantity')),
       minimum_threshold: fromVariantOptionalField(
@@ -169,7 +173,7 @@ function mapVariantsToFormVariations(variants = []) {
       length: fromVariantOptionalField(variant.length == null ? '' : String(variant.length)),
       width: fromVariantOptionalField(variant.width == null ? '' : String(variant.width)),
       height: fromVariantOptionalField(variant.height == null ? '' : String(variant.height)),
-      description: fromVariantOptionalField(variant.description),
+      description: fromVariantDescriptionField(variant.description),
       has_compatible_models: Boolean(
         variant.has_compatible_models ?? variant.compatible_models?.length,
       ),
@@ -187,14 +191,55 @@ function sortProductImages(images = []) {
   return [...images].sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0))
 }
 
+function getDescriptiveImageDedupeKey(image) {
+  if (typeof image === 'string') {
+    const normalized = image.trim().split(/[?#]/)[0]
+    return normalized || null
+  }
+
+  const url = String(image?.image_url ?? image?.url ?? image?.preview ?? image?.image_path ?? '').trim()
+  if (url) return url.split(/[?#]/)[0]
+
+  const remoteId = resolveRemoteProductImageId(image)
+  return remoteId ? `id:${remoteId}` : null
+}
+
+function mergeDescriptiveImageRecords(existing, candidate) {
+  const existingId = resolveRemoteProductImageId(existing)
+  const candidateId = resolveRemoteProductImageId(candidate)
+
+  if (!existingId && candidateId) return candidate
+  // Both (or neither) carry ids — keep the first-seen record, which comes from
+  // the descriptive_images list, the canonical source for description_images.
+  return existing
+}
+
+function mergeDescriptiveImageSources(descriptiveImages = [], productImages = []) {
+  const merged = new Map()
+
+  sortProductImages([
+    ...(Array.isArray(descriptiveImages) ? descriptiveImages : []),
+    ...(Array.isArray(productImages) ? productImages : []).filter(isDescriptiveProductImage),
+  ]).forEach((image, index) => {
+    const key = getDescriptiveImageDedupeKey(image) ?? `__index__:${index}`
+    const existing = merged.get(key)
+
+    if (!existing) {
+      merged.set(key, image)
+      return
+    }
+
+    merged.set(key, mergeDescriptiveImageRecords(existing, image))
+  })
+
+  return sortProductImages([...merged.values()])
+}
+
 export function mapProductImagesToFormState(images = [], descriptiveImages = []) {
   const productSource = sortProductImages(
     (Array.isArray(images) ? images : []).filter((image) => !isDescriptiveProductImage(image)),
   )
-  const descriptiveSource = sortProductImages([
-    ...(Array.isArray(descriptiveImages) ? descriptiveImages : []),
-    ...(Array.isArray(images) ? images : []).filter(isDescriptiveProductImage),
-  ])
+  const descriptiveSource = mergeDescriptiveImageSources(descriptiveImages, images)
 
   const hasPrimaryFlag = productSource.some(isPrimaryProductImage)
   const mainRecord = hasPrimaryFlag
@@ -207,7 +252,7 @@ export function mapProductImagesToFormState(images = [], descriptiveImages = [])
   return {
     mainImage: mainRecord ? createProductImageFromRemote(mainRecord) : null,
     subImages: galleryRecords.map(createProductImageFromRemote),
-    descriptiveImages: descriptiveSource.map(createProductImageFromRemote),
+    descriptiveImages: descriptiveSource.map(createDescriptiveImageFromRemote),
   }
 }
 

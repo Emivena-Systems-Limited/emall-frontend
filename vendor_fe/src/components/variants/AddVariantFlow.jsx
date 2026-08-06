@@ -372,6 +372,7 @@ export default function AddVariantFlow({
                         key={`${group.attribute}::${value}`}
                         attribute={group.attribute}
                         value={value}
+                        productValues={productValues}
                         persistedEntry={findPersistedEntry(group.attribute, value)}
                         onEdit={() => setEditingTarget({ attribute: group.attribute, value })}
                         onRemove={() => handleRemoveValue(group.attribute, value)}

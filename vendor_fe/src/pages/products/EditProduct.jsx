@@ -29,6 +29,7 @@ import { captureProductImageBaseline, summarizeProductImageChanges } from '../..
 import {
   buildProductMediaPresignRequest,
   hasPendingProductMediaUploads,
+  rehydrateKeptImagesMissingIds,
 } from '../../utils/productMediaUploadUtils'
 import { productInfoSchema } from '../../utils/validationSchemas'
 import {
@@ -528,11 +529,17 @@ function ProductInfoEditForm({
             const formValues = { ...values, status: values.status || 'active' }
             const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD
 
-            const mediaState = {
+            let mediaState = {
               mainImage,
               subImages,
               descriptiveImages,
               variations: [],
+            }
+
+            if (usePresignedUpload) {
+              // Kept images without a backend id (URL-only API records) are
+              // re-downloaded here so they go through presign like new images.
+              mediaState = await rehydrateKeptImagesMissingIds(mediaState)
             }
 
             const presignRequest = buildProductMediaPresignRequest(mediaState)
@@ -730,6 +737,17 @@ export default function EditProduct() {
   const [searchParams] = useSearchParams()
   const { data: product, isLoading, isError, refetch } = useProduct(productId)
   const formState = product ? mapProductRecordToFormState(product) : null
+  const variationsFormState = useMemo(() => {
+    if (!formState) return null
+
+    return {
+      ...formState,
+      formValues: {
+        ...formState.formValues,
+        barcode: '',
+      },
+    }
+  }, [formState])
   const section = searchParams.get('section')
   const finished = searchParams.get('finished') === '1'
   const needsEditorOptions = section === EDIT_SECTIONS.INFO
@@ -819,10 +837,10 @@ export default function EditProduct() {
           categoriesError={categoriesError}
         />
       )}
-      {section === EDIT_SECTIONS.VARIATIONS && (
+      {section === EDIT_SECTIONS.VARIATIONS && variationsFormState && (
         <VariationsEditForm
           productId={productId}
-          formState={formState}
+          formState={variationsFormState}
           onFinished={() => navigate(`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}&finished=1`)}
         />
       )}

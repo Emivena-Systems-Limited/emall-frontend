@@ -1,4 +1,5 @@
 import { DEFAULT_VARIANT_MINIMUM_THRESHOLD } from './variantConstants'
+import { hasHtmlDescription, stripHtmlToPlainText } from '../../utils/productDescriptionHtml'
 
 export const VARIANT_OPTIONAL_EMPTY_VALUE = 'N/A'
 
@@ -18,6 +19,32 @@ export function fromVariantOptionalField(value) {
   if (isBlankVariantField(value)) return ''
   const str = String(value).trim()
   return str === VARIANT_OPTIONAL_EMPTY_VALUE ? '' : value
+}
+
+/** Sale price of 0 means "no sale" — show an empty input, not zero. */
+export function fromVariantSalePriceField(value) {
+  if (isBlankVariantField(value)) return ''
+  const str = String(value).trim()
+  if (str === VARIANT_OPTIONAL_EMPTY_VALUE) return ''
+  const num = Number(str)
+  if (Number.isFinite(num) && num <= 0) return ''
+  return str
+}
+
+/** Plain-text variant descriptions in the form; strip HTML from API/rich-text sources. */
+export function fromVariantDescriptionField(value) {
+  if (isBlankVariantField(value)) return ''
+  const str = String(value).trim()
+  if (str === VARIANT_OPTIONAL_EMPTY_VALUE) return ''
+  if (hasHtmlDescription(str)) return stripHtmlToPlainText(str)
+  return str
+}
+
+export function hasVariantSalePrice(value) {
+  if (isBlankVariantField(value)) return false
+  if (String(value).trim() === VARIANT_OPTIONAL_EMPTY_VALUE) return false
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0
 }
 
 function optionalFieldOrNa(value) {
@@ -116,10 +143,7 @@ export function resolveVariantBarcodePayloadFields(variantValue) {
   const barcode = optionalVariantStringForJsonPayload(variantValue.barcode)
 
   if (!barcode) {
-    return {
-      barcode: null,
-      barcode_type: null,
-    }
+    return {}
   }
 
   const barcodeType = isPresentVariantField(variantValue.barcode_type)
@@ -189,7 +213,7 @@ export function toVariantFormValues(variantValue, attributeType) {
     variant_name: fromVariantOptionalField(variantValue.variant_name),
     sku: fromVariantOptionalField(variantValue.sku),
     price: fromVariantOptionalField(variantValue.price),
-    discount_price: fromVariantOptionalField(variantValue.discount_price),
+    discount_price: fromVariantSalePriceField(variantValue.discount_price),
     quantity: variantValue.quantity ?? '',
     reserved_quantity: fromVariantOptionalField(variantValue.reserved_quantity),
     minimum_threshold: fromVariantOptionalField(
@@ -201,7 +225,7 @@ export function toVariantFormValues(variantValue, attributeType) {
     length: fromVariantOptionalField(variantValue.length),
     width: fromVariantOptionalField(variantValue.width),
     height: fromVariantOptionalField(variantValue.height),
-    description: fromVariantOptionalField(variantValue.description),
+    description: fromVariantDescriptionField(variantValue.description),
     has_compatible_models: Boolean(variantValue.compatible_models?.length),
     compatible_models: variantValue.compatible_models ?? [],
     images: variantValue.images ?? [],

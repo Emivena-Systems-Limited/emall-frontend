@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Loader2 } from 'lucide-react'
-import { ORDER_STATUSES, VENDOR_UPDATABLE_STATUSES } from '../../constants/orders'
-import OrderStatusBadge from './OrderStatusBadge'
+import {
+  DELIVERY_STATUSES,
+  VENDOR_UPDATABLE_DELIVERY_STATUSES,
+} from '../../constants/orders'
+import DeliveryStatusBadge from './DeliveryStatusBadge'
 
-function getStatusOptions(currentStatus) {
-  const options = [...VENDOR_UPDATABLE_STATUSES]
+function getDeliveryStatusOptions(currentStatus) {
+  const options = [...VENDOR_UPDATABLE_DELIVERY_STATUSES]
   if (currentStatus && !options.includes(currentStatus)) {
     options.unshift(currentStatus)
   }
@@ -14,19 +17,19 @@ function getStatusOptions(currentStatus) {
 
 export default function UpdateOrderStatusModal({
   open,
-  item,
-  orderNumber,
+  order,
   onClose,
   onConfirm,
   isLoading = false,
 }) {
-  const [selectedStatus, setSelectedStatus] = useState(item?.orderStatus ?? '')
+  const currentStatus = order?.deliveryStatus ?? ''
+  const [selectedStatus, setSelectedStatus] = useState(currentStatus)
 
   useEffect(() => {
-    if (open && item) {
-      setSelectedStatus(item.orderStatus)
+    if (open && order) {
+      setSelectedStatus(order.deliveryStatus)
     }
-  }, [open, item])
+  }, [open, order])
 
   useEffect(() => {
     if (!open) return undefined
@@ -45,10 +48,10 @@ export default function UpdateOrderStatusModal({
     }
   }, [open, isLoading, onClose])
 
-  if (!open || !item) return null
+  if (!open || !order) return null
 
-  const statusOptions = getStatusOptions(item.orderStatus)
-  const hasChange = selectedStatus !== item.orderStatus
+  const statusOptions = getDeliveryStatusOptions(currentStatus)
+  const hasChange = selectedStatus !== currentStatus
 
   return createPortal(
     <div
@@ -68,24 +71,17 @@ export default function UpdateOrderStatusModal({
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_32px_80px_rgba(15,23,42,0.28)]">
         <div className="px-5 py-5 sm:px-6 sm:py-6">
           <h2 id="update-order-status-title" className="text-lg font-bold text-slate-950">
-            Update item status
+            Update delivery status
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Choose a new fulfilment status for{' '}
-            <span className="font-semibold text-slate-700">{item.productName}</span>
-            {orderNumber ? (
-              <>
-                {' '}
-                in order <span className="font-semibold text-slate-700">{orderNumber}</span>.
-              </>
-            ) : (
-              '.'
-            )}
+            Choose a delivery status for order{' '}
+            <span className="font-semibold text-slate-700">{order.orderNumber}</span>.
+            You can move forward or revert to a previous status if needed.
           </p>
 
           <div className="mt-4 flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current</span>
-            <OrderStatusBadge status={item.orderStatus} />
+            <DeliveryStatusBadge status={currentStatus} />
           </div>
 
           <label className="mt-5 block">
@@ -100,7 +96,7 @@ export default function UpdateOrderStatusModal({
             >
               {statusOptions.map((status) => (
                 <option key={status} value={status}>
-                  {ORDER_STATUSES[status]?.label ?? status}
+                  {DELIVERY_STATUSES[status]?.label ?? status.replaceAll('_', ' ')}
                 </option>
               ))}
             </select>
@@ -118,7 +114,7 @@ export default function UpdateOrderStatusModal({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(item, selectedStatus)}
+            onClick={() => onConfirm(order, selectedStatus)}
             disabled={isLoading || !hasChange}
             className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
           >

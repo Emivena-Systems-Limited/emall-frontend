@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, duplicateProduct, getProductById, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
 import { buildSingleVariantCreateJsonPayload, buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
+import { assertVariationBarcodesAvailable, collectKnownBarcodes } from '../utils/variantIdentityValidation'
+import { fetchKnownSkusForSubmit, prepareVariationsForSubmit } from '../utils/variantSkuRegistry'
 import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../constants/productMediaUpload'
 import notify from '../lib/notify'
 import { productQueryKeys } from './useProducts'
@@ -51,6 +53,64 @@ function getCreateSuccessMessage(catalogProduct) {
 
 function getUpdateSuccessMessage(catalogProduct) {
   return `${catalogProduct.name} was updated successfully.`
+}
+
+function assertVariantBarcodeAvailable(queryClient, {
+  productId,
+  variantId = null,
+  productValues,
+  variantFormValues,
+}) {
+  const catalogProducts = queryClient.getQueryData(productQueryKeys.list()) ?? []
+  const knownBarcodes = collectKnownBarcodes(catalogProducts, {
+    excludeProductId: productId,
+    excludeVariantId: variantId,
+  })
+
+  assertVariationBarcodesAvailable({
+    productBarcode: productValues?.barcode,
+    variations: [{
+      attribute: variantFormValues.attribute,
+      values: [variantFormValues],
+    }],
+    knownBarcodes,
+    excludeProductId: productId,
+  })
+}
+
+function prepareVariantFormValuesForMutation(queryClient, {
+  productId,
+  variantId = null,
+  productValues,
+  variantFormValues,
+}) {
+  return fetchKnownSkusForSubmit(queryClient, {
+    excludeProductId: productId,
+    excludeVariantId: variantId,
+  }).then((knownSkus) => {
+    assertVariantBarcodeAvailable(queryClient, {
+      productId,
+      variantId,
+      productValues,
+      variantFormValues,
+    })
+
+    const [preparedGroup] = prepareVariationsForSubmit({
+      variations: [{
+        attribute: variantFormValues.attribute,
+        values: [variantFormValues],
+      }],
+      productValues,
+      knownSkus,
+      reserveProductSku: true,
+    })
+
+    return {
+      ...variantFormValues,
+      sku: preparedGroup.values[0]?.sku ?? variantFormValues.sku,
+      barcode: preparedGroup.values[0]?.barcode ?? '',
+    }
+  })
 }
 
 export function useCreateProductMutation() {
@@ -173,11 +233,18 @@ export function useUpdateSingleVariantMutation() {
   return useMutation({
     mutationKey: ['products', 'update-single-variant'],
     mutationFn: async ({ productId, variantId, variantFormValues, productValues }) => {
+      const preparedVariantFormValues = await prepareVariantFormValuesForMutation(queryClient, {
+        productId,
+        variantId,
+        productValues,
+        variantFormValues,
+      })
+
       if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
-        const payload = buildSingleVariantUpdateJsonPayload(variantFormValues, productValues)
+        const payload = buildSingleVariantUpdateJsonPayload(preparedVariantFormValues, productValues)
         await updateProductVariant(variantId, payload)
       } else {
-        const formData = buildSingleVariantUpdatePayload(variantFormValues, variantId, productValues)
+        const formData = buildSingleVariantUpdatePayload(preparedVariantFormValues, variantId, productValues)
         await updateProductVariant(variantId, formData)
       }
       return getProductById(productId)
@@ -200,11 +267,17 @@ export function useCreateProductVariantMutation() {
   return useMutation({
     mutationKey: ['products', 'create-variant'],
     mutationFn: async ({ productId, variantFormValues, productValues }) => {
+      const preparedVariantFormValues = await prepareVariantFormValuesForMutation(queryClient, {
+        productId,
+        productValues,
+        variantFormValues,
+      })
+
       if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
-        const payload = buildSingleVariantCreateJsonPayload(variantFormValues, productId, productValues)
+        const payload = buildSingleVariantCreateJsonPayload(preparedVariantFormValues, productId, productValues)
         await createProductVariant(productId, payload)
       } else {
-        const formData = buildSingleVariantCreatePayload(variantFormValues, productId, productValues)
+        const formData = buildSingleVariantCreatePayload(preparedVariantFormValues, productId, productValues)
         await createProductVariant(productId, formData)
       }
       return getProductById(productId)

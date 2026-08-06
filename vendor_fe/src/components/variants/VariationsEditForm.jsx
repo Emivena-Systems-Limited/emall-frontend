@@ -116,6 +116,7 @@ export default function VariationsEditForm({ productId, formState, onFinished })
       <VariantListView
         productId={productId}
         entries={entries}
+        productValues={productValues}
         onAdd={handleAdd}
         onEdit={setDrawerEntry}
         onFinished={onFinished}

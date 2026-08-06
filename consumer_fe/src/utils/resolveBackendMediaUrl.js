@@ -3,7 +3,9 @@ export function resolveBackendMediaUrl(value) {
   if (!source) return ''
   if (/^(https?:|data:|blob:)/i.test(source)) return source
 
-  const apiBaseUrl = String(import.meta.env.API_BASE_URL ?? '/api')
+  const apiBaseUrl = String(
+    import.meta.env.API_BASE_URL ?? 'https://emall-backend-main-fnfxdk.laravel.cloud/api',
+  )
   if (!/^https?:/i.test(apiBaseUrl)) return source.startsWith('/') ? source : `/${source}`
 
   const backendOrigin = new URL(apiBaseUrl).origin

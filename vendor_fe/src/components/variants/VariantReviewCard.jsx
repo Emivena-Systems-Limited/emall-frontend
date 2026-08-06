@@ -6,6 +6,7 @@ import {
   resolveVariantMinimumThreshold,
 } from './variantFormUtils'
 import { formatMoney, resolveVariantPricing, calculateDisplayDiscountPercent } from '../../utils/productPricing'
+import VariantDescriptionContent from './VariantDescriptionContent'
 
 function formatOptionalField(value) {
   if (isBlankVariantField(value) || String(value).trim() === 'N/A') return null
@@ -47,7 +48,8 @@ export default function VariantReviewCard({ attribute, variantValue, productValu
   const barcode = formatOptionalField(variantValue.barcode)
   const weight = formatOptionalField(variantValue.weight)
   const dimensions = formatVariantDimensions(variantValue)
-  const description = formatOptionalField(variantValue.description)
+  const hasDescription = !isBlankVariantField(variantValue.description)
+    && String(variantValue.description).trim() !== 'N/A'
   const reservedQty = formatOptionalField(variantValue.reserved_quantity)
   const quantity = formatOptionalField(variantValue.quantity)
   const thresholdLabel = isBlankVariantField(variantValue.minimum_threshold)
@@ -165,8 +167,11 @@ export default function VariantReviewCard({ attribute, variantValue, productValu
             )}
           </div>
 
-          {description && (
-            <p className="line-clamp-2 text-xs leading-relaxed text-slate-600">{description}</p>
+          {hasDescription && (
+            <VariantDescriptionContent
+              value={variantValue.description}
+              className="line-clamp-3 text-xs leading-relaxed text-slate-600"
+            />
           )}
 
           {compatibleModels.length > 0 && (
