@@ -350,7 +350,7 @@ export function buildDefaultProductVariationGroup(
         id: createLocalId('val-default'),
         value: identity.value,
         variant_name: identity.variant_name,
-        sku: identity.sku,
+        sku: '',
         price: '',
         discount_price: '',
         quantity: values.quantity === '' || values.quantity == null
@@ -360,7 +360,7 @@ export function buildDefaultProductVariationGroup(
         minimum_threshold: values.low_stock_threshold === '' || values.low_stock_threshold == null
           ? ''
           : values.low_stock_threshold,
-        barcode: String(values.barcode ?? '').trim(),
+        barcode: '',
         barcode_type: 'UPC',
         weight: values.shipping_weight ?? '',
         length: values.shipping_length ?? '',

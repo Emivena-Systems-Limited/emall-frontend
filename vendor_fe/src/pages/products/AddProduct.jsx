@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Form, Formik, getIn } from 'formik'
 import { Link, useNavigate } from 'react-router'
 import {
@@ -89,6 +90,7 @@ import { PRODUCT_PUBLISH_STAGE, USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../..
 import useProductMediaUpload from '../../hooks/useProductMediaUpload'
 import ProductPublishProgressModal from '../../components/products/ProductPublishProgressModal'
 import { useCreateProductMutation, useUpdateProductMutation } from '../../hooks/useProductMutations'
+import { productQueryKeys } from '../../hooks/useProducts'
 import {
   convertDiscountAmountToPercent,
   convertDiscountPercentToAmount,
@@ -100,6 +102,19 @@ import {
 } from '../../utils/productPricing'
 import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirstError'
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
+import { parseApiError } from '../../utils/parseApiError'
+import {
+  assertVariationBarcodesAvailable,
+  collectKnownBarcodes,
+  mapFieldErrorsToFormikErrors,
+} from '../../utils/variantIdentityValidation'
+import {
+  assertPayloadSkuUniqueness,
+  buildVariantSkuCandidates,
+  fetchKnownSkusForSubmit,
+  prepareVariationsForSubmit,
+  resolveProductSkuForSubmit,
+} from '../../utils/variantSkuRegistry'
 import notify from '../../lib/notify'
 import { isLocalEnvironment } from '../../utils/environment'
 import { getProductConditionLabel } from '../../utils/productMetadata'
@@ -120,6 +135,9 @@ const productListingSteps = [
   { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
   { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
 ]
+
+const PRODUCT_LISTING_PRICING_STEP = 2
+const PRODUCT_LISTING_VARIATIONS_STEP = 3
 
 const productListingStepFields = [
   ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details'],
@@ -226,6 +244,21 @@ function isVariantValueReady(value) {
 
 function createVariantGroupId() {
   return `var-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function finalizeVariationsForSubmit({
+  variations,
+  productValues,
+  knownSkus,
+  autoResolveVendorSkus = false,
+}) {
+  return prepareVariationsForSubmit({
+    variations,
+    productValues,
+    knownSkus,
+    reserveProductSku: true,
+    autoResolveVendorSkus,
+  })
 }
 
 
@@ -1238,6 +1271,11 @@ export function ReviewStep({
   })
   const defaultVariationPreview = resolveDefaultVariationIdentity(formik.values, catalogContext)
   const defaultVariationLabel = formatDefaultVariationLabel(defaultVariationPreview)
+  const suggestedVariantSku = buildVariantSkuCandidates({
+    productSku: formik.values.sku,
+    attribute: defaultVariationPreview.attribute,
+    value: defaultVariationPreview.value,
+  })[0] ?? null
 
   const summaryRows = [
     {
@@ -1472,13 +1510,6 @@ export function ReviewStep({
                     <span className="font-semibold text-slate-700">{defaultVariationPreview.attribute}</span>{' '}
                     option named{' '}
                     <span className="font-semibold text-slate-700">{defaultVariationPreview.variant_name}</span>
-                    {defaultVariationPreview.sku ? (
-                      <>
-                        {' '}
-                        with SKU{' '}
-                        <span className="font-semibold text-slate-700">{defaultVariationPreview.sku}</span>
-                      </>
-                    ) : null}
                     , using your pricing, stock, shipping details, and main photo.
                   </p>
                   <dl className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-slate-500">
@@ -1496,10 +1527,13 @@ export function ReviewStep({
                         <dd className="inline font-bold text-slate-800">{formik.values.quantity}</dd>
                       </div>
                     )}
-                    {defaultVariationPreview.sku && (
+                    {suggestedVariantSku && (
                       <div>
-                        <dt className="inline font-semibold text-slate-400">SKU </dt>
-                        <dd className="inline font-bold text-slate-800">{defaultVariationPreview.sku}</dd>
+                        <dt className="inline font-semibold text-slate-400">Variant SKU </dt>
+                        <dd className="inline font-bold text-slate-800">
+                          {suggestedVariantSku}-V••••••
+                          <span className="font-medium text-slate-400"> · auto-assigned on publish</span>
+                        </dd>
                       </div>
                     )}
                   </dl>
@@ -1513,8 +1547,6 @@ export function ReviewStep({
     </div>
   )
 }
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 
 function buildProductMutationContext(values, { parentCategories, categoryTree, approvedBrands }) {
   const selectedCategory =
@@ -1540,6 +1572,35 @@ function buildProductMutationContext(values, { parentCategories, categoryTree, a
   }
 }
 
+function resolveListingStepForFieldErrors(fieldErrors = {}) {
+  const fields = Object.keys(fieldErrors)
+  if (fields.some((field) => field.startsWith('variations.'))) {
+    return PRODUCT_LISTING_VARIATIONS_STEP
+  }
+  if (fields.includes('barcode')) {
+    return PRODUCT_LISTING_PRICING_STEP
+  }
+  return null
+}
+
+function applyListingFieldErrors(actions, fieldErrors, { onStepChange } = {}) {
+  if (!fieldErrors || Object.keys(fieldErrors).length === 0) return false
+
+  actions.setErrors(mapFieldErrorsToFormikErrors(fieldErrors))
+
+  const nextStep = resolveListingStepForFieldErrors(fieldErrors)
+  if (nextStep != null) {
+    onStepChange?.(nextStep)
+  }
+
+  requestAnimationFrame(() => {
+    scrollToFirstError(fieldErrors)
+  })
+
+  notify.error(Object.values(fieldErrors)[0])
+  return true
+}
+
 export function ProductListingForm({
   mode = 'create',
   productId = null,
@@ -1559,6 +1620,7 @@ export function ProductListingForm({
   const stepDirectionRef = useRef('forward')
   const isInitialStepMount = useRef(true)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const createProductMutation = useCreateProductMutation()
   const updateProductMutation = useUpdateProductMutation()
   const { uploadPendingMedia, uploadProgress } = useProductMediaUpload()
@@ -1752,7 +1814,7 @@ export function ProductListingForm({
               const formValues = isEditMode
                 ? { ...values, status: values.status || 'active' }
                 : { ...values, status: 'active' }
-              const payloadValues = withResolvedBrandId(formValues, approvedBrands)
+              let payloadValues = withResolvedBrandId(formValues, approvedBrands)
 
               const catalogContext = buildVariationCatalogContext({
                 parentCategories,
@@ -1760,7 +1822,9 @@ export function ProductListingForm({
                 formValues: payloadValues,
               })
 
-              const variationsForSubmit = isEditMode
+              const hadCustomVariations = hasAnyProductVariationValues(formValues.variations)
+
+              let variationsForSubmit = isEditMode
                 ? formValues.variations
                 : ensureDefaultProductVariations({
                   variations: formValues.variations,
@@ -1768,6 +1832,54 @@ export function ProductListingForm({
                   mainImage,
                   catalogContext,
                 })
+
+              const knownSkus = await fetchKnownSkusForSubmit(queryClient, {
+                excludeProductId: isEditMode ? productId : null,
+              })
+              const knownBarcodes = collectKnownBarcodes(
+                queryClient.getQueryData(productQueryKeys.list()) ?? [],
+                { excludeProductId: isEditMode ? productId : null },
+              )
+
+              try {
+                const productSkuResult = resolveProductSkuForSubmit(payloadValues.sku, knownSkus, {
+                  autoResolve: !isEditMode,
+                })
+                const submitValues = { ...payloadValues, sku: productSkuResult.sku }
+
+                if (productSkuResult.wasAdjusted) {
+                  notify.info(
+                    `Product SKU updated to ${productSkuResult.sku} because ${productSkuResult.originalSku} is already in your catalogue.`,
+                  )
+                }
+
+                variationsForSubmit = finalizeVariationsForSubmit({
+                  variations: variationsForSubmit,
+                  productValues: submitValues,
+                  knownSkus: productSkuResult.knownSkus,
+                  autoResolveVendorSkus: !isEditMode,
+                })
+
+                assertPayloadSkuUniqueness(submitValues.sku, variationsForSubmit)
+
+                assertVariationBarcodesAvailable({
+                  productBarcode: submitValues.barcode,
+                  variations: variationsForSubmit,
+                  knownBarcodes,
+                  excludeProductId: isEditMode ? productId : null,
+                })
+
+                payloadValues = submitValues
+              } catch (validationError) {
+                if (applyListingFieldErrors(actions, validationError.fieldErrors, {
+                  onStepChange: navigateToStep,
+                })) {
+                  return
+                }
+
+                notify.error(validationError.message || 'Fix the highlighted variation fields before publishing.')
+                return
+              }
 
               const mediaState = {
                 mainImage,
@@ -1809,9 +1921,12 @@ export function ProductListingForm({
               if (
                 import.meta.env.DEV
                 && !isEditMode
-                && !hasAnyProductVariationValues(formValues.variations)
+                && !hadCustomVariations
               ) {
                 console.log('[product default variation]', resolvedVariations)
+                console.log('[product variant skus]', resolvedVariations.flatMap((group) => (
+                  group.values?.map((value) => value.sku) ?? []
+                )))
               }
 
               const context = buildProductMutationContext(formValues, {
@@ -1891,6 +2006,17 @@ export function ProductListingForm({
 
               navigate('/products')
             } catch (error) {
+              if (applyListingFieldErrors(actions, parseApiError(error).fieldErrors, {
+                onStepChange: navigateToStep,
+              })) {
+                if (usePresignedUpload) {
+                  setPublishStage(PRODUCT_PUBLISH_STAGE.IDLE)
+                  setPublishErrorMessage(null)
+                  setErroredPublishStage(null)
+                }
+                return
+              }
+
               if (usePresignedUpload) {
                 const failedDuringUpload = (
                   currentStage === PRODUCT_PUBLISH_STAGE.REQUESTING_URLS

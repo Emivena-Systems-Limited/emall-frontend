@@ -116,10 +116,7 @@ export function resolveVariantBarcodePayloadFields(variantValue) {
   const barcode = optionalVariantStringForJsonPayload(variantValue.barcode)
 
   if (!barcode) {
-    return {
-      barcode: null,
-      barcode_type: null,
-    }
+    return {}
   }
 
   const barcodeType = isPresentVariantField(variantValue.barcode_type)

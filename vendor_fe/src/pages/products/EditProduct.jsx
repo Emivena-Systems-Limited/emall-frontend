@@ -730,6 +730,17 @@ export default function EditProduct() {
   const [searchParams] = useSearchParams()
   const { data: product, isLoading, isError, refetch } = useProduct(productId)
   const formState = product ? mapProductRecordToFormState(product) : null
+  const variationsFormState = useMemo(() => {
+    if (!formState) return null
+
+    return {
+      ...formState,
+      formValues: {
+        ...formState.formValues,
+        barcode: '',
+      },
+    }
+  }, [formState])
   const section = searchParams.get('section')
   const finished = searchParams.get('finished') === '1'
   const needsEditorOptions = section === EDIT_SECTIONS.INFO
@@ -819,10 +830,10 @@ export default function EditProduct() {
           categoriesError={categoriesError}
         />
       )}
-      {section === EDIT_SECTIONS.VARIATIONS && (
+      {section === EDIT_SECTIONS.VARIATIONS && variationsFormState && (
         <VariationsEditForm
           productId={productId}
-          formState={formState}
+          formState={variationsFormState}
           onFinished={() => navigate(`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}&finished=1`)}
         />
       )}
