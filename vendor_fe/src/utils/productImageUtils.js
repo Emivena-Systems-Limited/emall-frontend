@@ -395,6 +395,15 @@ function isFileValue(value) {
   return typeof File !== 'undefined' && value instanceof File
 }
 
+function isSyntheticProductImageId(value) {
+  const id = String(value ?? '')
+  return id.startsWith('img-') || id.startsWith('remote-')
+}
+
+/**
+ * Backend database id of an image record. Only ids returned by the API count —
+ * never derive ids from storage URLs/filenames; those are not the record id.
+ */
 export function resolveRemoteProductImageId(image) {
   if (!image || typeof image !== 'object') return null
 
@@ -402,6 +411,7 @@ export function resolveRemoteProductImageId(image) {
     image.remoteId
     ?? image.id
     ?? image.product_image_id
+    ?? image.descriptive_image_id
     ?? image.image_id
     ?? image.uuid
     ?? null
@@ -409,26 +419,47 @@ export function resolveRemoteProductImageId(image) {
   if (remoteId == null || remoteId === '') return null
 
   const id = String(remoteId)
-  if (id.startsWith('img-') || id.startsWith('remote-')) return null
+  if (isSyntheticProductImageId(id)) return null
 
   return id
 }
 
 export function createProductImageFromRemote(image) {
-  const remoteId = resolveRemoteProductImageId(image)
+  const source = typeof image === 'string' ? { image_url: image.trim() } : image
+  const remoteId = resolveRemoteProductImageId(source)
   const id = remoteId ?? `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const preview = source.image_url ?? source.url ?? source.preview ?? source.image_path ?? ''
 
   return {
     id,
-    content_id: image.content_id ?? id,
+    content_id: source.content_id ?? id,
     file: null,
-    preview: image.image_url ?? image.url ?? image.preview ?? image.image_path ?? '',
+    preview,
     remoteId,
     isRemote: true,
-    s3Path: image.s3Path ?? image.storagePath ?? image.image_path ?? null,
-    storagePath: image.storagePath ?? image.s3Path ?? image.image_path ?? null,
+    upload_id: null,
+    image_url: source.image_url ?? source.url ?? null,
+    s3Path: source.s3Path ?? source.storagePath ?? source.image_path ?? null,
+    storagePath: source.storagePath ?? source.s3Path ?? source.image_path ?? null,
     uploadStatus: 'uploaded',
     uploadError: null,
+  }
+}
+
+/**
+ * Descriptive images from the API use the same value for record id and upload_id.
+ * Mirror that in form state so edit payloads can reference kept images as { upload_id }.
+ */
+export function createDescriptiveImageFromRemote(image) {
+  const source = typeof image === 'string' ? { image_url: image.trim() } : image
+  const formImage = createProductImageFromRemote(source)
+  const backendId = formImage.remoteId ?? source.upload_id ?? null
+
+  if (!backendId) return formImage
+
+  return {
+    ...formImage,
+    upload_id: String(backendId),
   }
 }
 

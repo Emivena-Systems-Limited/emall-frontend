@@ -1905,7 +1905,7 @@ export function ProductListingForm({
                 setDescriptiveImages(nextMediaState.descriptiveImages)
                 actions.setFieldValue('variations', nextMediaState.variations ?? variationsForSubmit)
 
-                if (import.meta.env.DEV) {
+                if (import.meta.env.DEV && !isEditMode) {
                   console.log(
                     '[product media save images]',
                     buildProductMediaSaveImagesPayload(nextMediaState),

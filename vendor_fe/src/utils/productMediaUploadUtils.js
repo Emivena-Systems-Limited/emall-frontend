@@ -522,19 +522,18 @@ export function markImageUploadStatus(image, status, error = null) {
 export function attachUploadResultToImage(image, { upload_id, image_url = null, path = null }) {
   if (!image || typeof image !== 'object') return image
 
-  const resolvedImageUrl = upload_id ?? image_url ?? path
-
   return {
     ...image,
     file: null,
     upload_id,
-    image_url: resolvedImageUrl != null ? String(resolvedImageUrl) : null,
+    image_url: image_url != null && image_url !== '' ? String(image_url) : null,
     s3Path: path ?? null,
     storagePath: path ?? null,
     uploadStatus: PRODUCT_MEDIA_UPLOAD_STATUS.UPLOADED,
     uploadError: null,
     isRemote: false,
-    remoteId: resolveRemoteProductImageId(image),
+    // A new upload replaces any prior identity — never reuse a stale backend id.
+    remoteId: null,
   }
 }
 
@@ -654,13 +653,35 @@ function toSavedProductImage(image, index) {
     }
   }
 
-  const imageUrl = resolveImageUrl(image)
-  if (imageUrl) {
+  // Edit/create JSON payloads must reference images by backend id or upload id only.
+  if (resolveImageUrl(image)) {
+    throw new Error(
+      `Image ${index + 1} is missing a backend id or upload id. Remove and re-add the image, then try again.`,
+    )
+  }
+
+  return null
+}
+
+/** Description images send both id and upload_id (same value for kept records). */
+function toSavedDescriptionImage(image, index) {
+  const uploadId = resolveImageUploadId(image)
+  const remoteId = resolveRemoteProductImageId(image)
+  const resolvedId = remoteId ?? uploadId
+
+  if (resolvedId) {
     return {
-      image_url: imageUrl,
+      id: resolvedId,
+      upload_id: uploadId ?? remoteId,
       sort_order: index,
       is_primary: index === 0,
     }
+  }
+
+  if (resolveImageUrl(image)) {
+    throw new Error(
+      `Detail image ${index + 1} is missing an upload id. Remove and re-add the image, then try again.`,
+    )
   }
 
   return null
@@ -683,7 +704,7 @@ export function buildProductMediaSaveImagesPayload({
 
   const description_images = (Array.isArray(descriptiveImages) ? descriptiveImages : [])
     .filter(Boolean)
-    .map((image, index) => toSavedProductImage(image, index))
+    .map((image, index) => toSavedDescriptionImage(image, index))
     .filter(Boolean)
 
   const variationsPayload = (variations ?? [])
@@ -717,5 +738,106 @@ export function buildProductMediaSaveImagesPayload({
     product_images,
     description_images,
     variations: variationsPayload,
+  }
+}
+
+function resolveImageFileNameFromUrl(url, fallbackName = 'image.jpg') {
+  const lastSegment = String(url ?? '')
+    .split(/[?#]/)[0]
+    .split('/')
+    .filter(Boolean)
+    .pop()
+
+  return lastSegment || fallbackName
+}
+
+async function fetchRemoteImageAsFile(url, { signal } = {}) {
+  const response = await fetch(url, { signal })
+
+  if (!response.ok) {
+    throw new Error(`Could not re-download image (${response.status}).`)
+  }
+
+  const blob = await response.blob()
+  const name = resolveImageFileNameFromUrl(url)
+
+  return new File([blob], name, { type: blob.type || 'image/jpeg' })
+}
+
+function imageNeedsRehydration(image) {
+  if (!image || typeof image !== 'object') return false
+  if (isFileValue(image.file)) return false
+  if (resolveImageUploadId(image)) return false
+  if (resolveRemoteProductImageId(image)) return false
+
+  return Boolean(resolveImageUrl(image))
+}
+
+async function rehydrateImage(image, { signal } = {}) {
+  if (!imageNeedsRehydration(image)) return image
+
+  const url = resolveImageUrl(image)
+
+  let file
+  try {
+    file = await fetchRemoteImageAsFile(url, { signal })
+  } catch (error) {
+    throw new Error(
+      'One of your existing images could not be prepared for saving. Remove and re-add it, then try again.',
+      { cause: error },
+    )
+  }
+
+  return {
+    ...image,
+    file,
+    upload_id: null,
+    remoteId: null,
+    isRemote: false,
+    s3Path: null,
+    storagePath: null,
+    uploadStatus: PRODUCT_MEDIA_UPLOAD_STATUS.IDLE,
+    uploadError: null,
+  }
+}
+
+/**
+ * Some API records (typically descriptive images) come back URL-only with no
+ * backend id, so they can't be referenced as { id } in edit payloads. Re-download
+ * those files so they run through the normal presign flow and are sent as
+ * { upload_id } — exactly like a newly added image. Images with a backend id or
+ * a pending upload are returned untouched.
+ */
+export async function rehydrateKeptImagesMissingIds(mediaState, { signal } = {}) {
+  const mainImage = await rehydrateImage(mediaState.mainImage, { signal })
+
+  const subImages = await Promise.all(
+    (mediaState.subImages ?? []).map((image) => rehydrateImage(image, { signal })),
+  )
+
+  const descriptiveImages = await Promise.all(
+    (mediaState.descriptiveImages ?? []).map((image) => rehydrateImage(image, { signal })),
+  )
+
+  const variations = await Promise.all(
+    (mediaState.variations ?? []).map(async (variation) => ({
+      ...variation,
+      values: await Promise.all(
+        (variation.values ?? []).map(async (variantValue) => ({
+          ...variantValue,
+          images: await Promise.all(
+            (variantValue.images ?? []).map((image) => rehydrateImage(image, { signal })),
+          ),
+        })),
+      ),
+    })),
+  )
+
+  return {
+    ...mediaState,
+    mainImage,
+    subImages,
+    descriptiveImages,
+    variations,
   }
 }

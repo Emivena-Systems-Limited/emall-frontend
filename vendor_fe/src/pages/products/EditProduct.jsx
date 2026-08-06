@@ -29,6 +29,7 @@ import { captureProductImageBaseline, summarizeProductImageChanges } from '../..
 import {
   buildProductMediaPresignRequest,
   hasPendingProductMediaUploads,
+  rehydrateKeptImagesMissingIds,
 } from '../../utils/productMediaUploadUtils'
 import { productInfoSchema } from '../../utils/validationSchemas'
 import {
@@ -528,11 +529,17 @@ function ProductInfoEditForm({
             const formValues = { ...values, status: values.status || 'active' }
             const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD
 
-            const mediaState = {
+            let mediaState = {
               mainImage,
               subImages,
               descriptiveImages,
               variations: [],
+            }
+
+            if (usePresignedUpload) {
+              // Kept images without a backend id (URL-only API records) are
+              // re-downloaded here so they go through presign like new images.
+              mediaState = await rehydrateKeptImagesMissingIds(mediaState)
             }
 
             const presignRequest = buildProductMediaPresignRequest(mediaState)
