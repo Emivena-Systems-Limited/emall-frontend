@@ -65,6 +65,8 @@ export function combineDateAndTime(dateValue, timeValue, { endOfDay = false } = 
 
 export function validatePromotionSchedule(form) {
   const { type } = form
+  if (!type) return 'Select a promotion type to configure the schedule.'
+
   const config = getPromotionScheduleConfig(type)
 
   if (config.mode === 'single_day_times') {

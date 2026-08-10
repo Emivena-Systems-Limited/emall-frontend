@@ -49,12 +49,12 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    label: 'Config',
+    label: 'Settings',
     items: [
       { to: '/profile', icon: User, label: 'Profile' },
-      { to: '/settings', icon: Settings, label: 'Store Settings' },
+      // { to: '/settings', icon: Settings, label: 'Store Settings' },
       { to: '/users', icon: UserCog, label: 'Users & Permissions' },
-      { to: '/help', icon: HelpCircle, label: 'Help & Support' },
+      // { to: '/help', icon: HelpCircle, label: 'Help & Support' },
     ],
   },
 ]

@@ -1,204 +1,146 @@
-import { MoreHorizontal, Search, UserMinus, UserX } from 'lucide-react'
-import { useState } from 'react'
+import { Link } from 'react-router'
 import EmptyState from '../dashboard/EmptyState'
-import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
-import { USER_ROLES, USER_STATUS } from '../../constants/usersPermissions'
+import { USER_ROLE_CONFIG, USER_TABS } from '../../constants/usersPermissions'
+import { canInviteUsers } from '../../utils/authorization'
 import {
   formatInvitedAt,
   formatLastActive,
   getInitials,
 } from '../../utils/usersPermissionsUtils'
+import UserPermissionLevelBadge from './UserPermissionLevelBadge'
 import UserRoleBadge from './UserRoleBadge'
+import UserRowActions from './UserRowActions'
 import UserStatusBadge from './UserStatusBadge'
+import UsersCatalogToolbar from './UsersCatalogToolbar'
 
 const TABLE_HEAD_CLASS =
   'whitespace-nowrap px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400'
 
-function MemberActionsMenu({ member, onSuspend, onRemove, onResend }) {
-  const [open, setOpen] = useState(false)
+function UserAvatar({ user }) {
+  const roleConfig = USER_ROLE_CONFIG[user.role] ?? USER_ROLE_CONFIG.store_manager
+
+  if (user.profilePicture) {
+    return (
+      <img
+        src={user.profilePicture}
+        alt=""
+        className="size-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+      />
+    )
+  }
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="cursor-pointer rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-        aria-label={`Actions for ${member.name}`}
-      >
-        <MoreHorizontal className="size-4" />
-      </button>
-      {open && (
-        <>
-          <button type="button" aria-label="Close menu" onClick={() => setOpen(false)} className="fixed inset-0 z-10 cursor-default" />
-          <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-            {member.status === 'pending' && (
-              <button type="button" onClick={() => { onResend(member); setOpen(false) }} className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                Resend invite
-              </button>
-            )}
-            {member.status === 'active' && member.role !== 'owner' && (
-              <button type="button" onClick={() => { onSuspend(member); setOpen(false) }} className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50">
-                <UserX className="size-3.5" /> Suspend
-              </button>
-            )}
-            {member.status === 'suspended' && (
-              <button type="button" onClick={() => { onSuspend(member, 'active'); setOpen(false) }} className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
-                Reactivate
-              </button>
-            )}
-            {member.role !== 'owner' && (
-              <button type="button" onClick={() => { onRemove(member); setOpen(false) }} className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50">
-                <UserMinus className="size-3.5" /> Remove
-              </button>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function MemberAvatar({ member }) {
-  const role = USER_ROLES[member.role] ?? USER_ROLES.viewer
-
-  return (
-    <span
-      className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ${role.avatarClass}`}
-    >
-      {getInitials(member.name)}
+    <span className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ${roleConfig.avatarClass}`}>
+      {getInitials(user.name)}
     </span>
   )
 }
 
-function MemberMobileCard({ member, onSuspend, onRemove, onResend }) {
-  const role = USER_ROLES[member.role] ?? USER_ROLES.viewer
+function getEmptyState(tab, hasActiveFilters) {
+  if (hasActiveFilters) {
+    return {
+      title: 'No users found',
+      description: 'Try adjusting your search or filters.',
+    }
+  }
 
+  if (tab === USER_TABS.PENDING) {
+    return {
+      title: 'No pending invitations',
+      description: 'There are currently no outstanding team invitations.',
+    }
+  }
+
+  if (tab === USER_TABS.DEACTIVATED) {
+    return {
+      title: 'No deactivated users',
+      description: 'There are currently no deactivated team members.',
+    }
+  }
+
+  return {
+    title: 'No team members found',
+    description: 'Add team members to help manage your store.',
+    showAddUser: canInviteUsers(),
+  }
+}
+
+function UserMobileCard({ user, tab, handlers }) {
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <MemberAvatar member={member} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-slate-900">{member.name}</p>
-            <p className="mt-0.5 truncate text-xs text-slate-500">{member.email}</p>
-            <p className="mt-1 text-[11px] leading-snug text-slate-400">{role.description}</p>
+      <div className="flex items-start gap-3">
+        <UserAvatar user={user} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold text-slate-900">{user.name}</p>
+          <p className="mt-0.5 truncate text-xs text-slate-500">{user.email}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <UserRoleBadge role={user.role} />
+            <UserStatusBadge status={user.status} />
+            <UserPermissionLevelBadge summary={user.permissionLevel} />
           </div>
+          <p className="mt-3 text-[11px] text-slate-500">
+            {tab === USER_TABS.PENDING
+              ? `Invited ${formatInvitedAt(user.invitedAt)}`
+              : `Last active ${formatLastActive(user.lastActiveAt)}`}
+          </p>
         </div>
-        <MemberActionsMenu
-          member={member}
-          onSuspend={onSuspend}
-          onRemove={onRemove}
-          onResend={onResend}
-        />
       </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <UserRoleBadge role={member.role} />
-        <UserStatusBadge status={member.status} />
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Last active</p>
-          <p className="mt-1 font-medium text-slate-800">{formatLastActive(member.lastActive)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Invited</p>
-          <p className="mt-1 font-medium text-slate-800">{formatInvitedAt(member.invitedAt)}</p>
-        </div>
+      <div className="mt-4">
+        <UserRowActions user={user} {...handlers} />
       </div>
     </article>
   )
 }
 
 export default function UsersTable({
-  members,
-  hasMembers,
-  hasActiveFilters,
+  users,
+  tab,
   search,
   onSearchChange,
   roleFilter,
   onRoleFilterChange,
   statusFilter,
   onStatusFilterChange,
-  onSuspend,
-  onRemove,
-  onResend,
+  onClearFilters,
+  hasActiveFilters,
+  ...handlers
 }) {
-  if (!hasMembers) {
-    const preset = EMPTY_STATE_PRESETS.teamMembers
-    return (
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-        <EmptyState icon={preset.icon} title={preset.title} description={preset.description} />
-      </section>
-    )
-  }
+  const empty = getEmptyState(tab, hasActiveFilters)
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
       <div className="border-b border-slate-100 px-5 py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Team directory</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {hasActiveFilters
-                ? 'Showing members that match your filters'
-                : 'Everyone with access to your vendor dashboard'}
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative min-w-0 sm:w-56 lg:w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search name or email..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
-              />
-            </div>
-            <select
-              value={roleFilter}
-              onChange={(e) => onRoleFilterChange(e.target.value)}
-              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
-            >
-              <option value="all">All roles</option>
-              {Object.entries(USER_ROLES).map(([key, r]) => (
-                <option key={key} value={key}>{r.label}</option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
-            >
-              <option value="all">All statuses</option>
-              {Object.entries(USER_STATUS).map(([key, s]) => (
-                <option key={key} value={key}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <UsersCatalogToolbar
+          search={search}
+          onSearchChange={onSearchChange}
+          roleFilter={roleFilter}
+          onRoleFilterChange={onRoleFilterChange}
+          statusFilter={statusFilter}
+          onStatusFilterChange={onStatusFilterChange}
+          onClearFilters={onClearFilters}
+          hasActiveFilters={hasActiveFilters}
+        />
       </div>
 
-      {members.length === 0 ? (
+      {users.length === 0 ? (
         <EmptyState
-          icon={EMPTY_STATE_PRESETS.teamMembersFiltered.icon}
-          title={EMPTY_STATE_PRESETS.teamMembersFiltered.title}
-          description={EMPTY_STATE_PRESETS.teamMembersFiltered.description}
+          title={empty.title}
+          description={empty.description}
+          action={empty.showAddUser ? (
+            <Link
+              to="/users/new"
+              className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
+            >
+              Add User
+            </Link>
+          ) : undefined}
           compact
         />
       ) : (
         <>
           <div className="space-y-3 p-4 lg:hidden">
-            {members.map((member) => (
-              <MemberMobileCard
-                key={member.id}
-                member={member}
-                onSuspend={onSuspend}
-                onRemove={onRemove}
-                onResend={onResend}
-              />
+            {users.map((user) => (
+              <UserMobileCard key={user.id} user={user} tab={tab} handlers={handlers} />
             ))}
           </div>
 
@@ -206,54 +148,49 @@ export default function UsersTable({
             <table className="min-w-full text-left">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  <th className={TABLE_HEAD_CLASS}>Member</th>
+                  <th className={TABLE_HEAD_CLASS}>User</th>
                   <th className={TABLE_HEAD_CLASS}>Role</th>
+                  <th className={TABLE_HEAD_CLASS}>Permission Level</th>
                   <th className={TABLE_HEAD_CLASS}>Status</th>
-                  <th className={TABLE_HEAD_CLASS}>Last active</th>
-                  <th className={TABLE_HEAD_CLASS}>Invited</th>
-                  <th className={`${TABLE_HEAD_CLASS} w-12`}>Actions</th>
+                  {tab === USER_TABS.PENDING ? (
+                    <th className={TABLE_HEAD_CLASS}>Date Invited</th>
+                  ) : (
+                    <th className={TABLE_HEAD_CLASS}>Last Active</th>
+                  )}
+                  <th className={`${TABLE_HEAD_CLASS} w-36`}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {members.map((member) => {
-                  const role = USER_ROLES[member.role] ?? USER_ROLES.viewer
-                  return (
-                    <tr key={member.id} className="text-sm text-slate-700 transition-colors hover:bg-slate-50/60">
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <MemberAvatar member={member} />
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-slate-900">{member.name}</p>
-                            <p className="truncate text-xs text-slate-500">{member.email}</p>
-                          </div>
+                {users.map((user) => (
+                  <tr key={user.id} className="text-sm text-slate-700 transition-colors hover:bg-slate-50/60">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <UserAvatar user={user} />
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900">{user.name}</p>
+                          <p className="truncate text-xs text-slate-500">{user.email}</p>
                         </div>
-                      </td>
-                      <td className="whitespace-nowrap px-5 py-4">
-                        <div className="space-y-1">
-                          <UserRoleBadge role={member.role} />
-                          <p className="max-w-[12rem] text-[11px] leading-snug text-slate-400">{role.description}</p>
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-5 py-4">
-                        <UserStatusBadge status={member.status} />
-                      </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-600">
-                        {formatLastActive(member.lastActive)}
-                      </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-600">
-                        {formatInvitedAt(member.invitedAt)}
-                      </td>
-                      <td className="whitespace-nowrap px-5 py-4">
-                        <MemberActionsMenu
-                          member={member}
-                          onSuspend={onSuspend}
-                          onRemove={onRemove}
-                          onResend={onResend}
-                        />
-                      </td>
-                    </tr>
-                  )
-                })}
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <UserRoleBadge role={user.role} />
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <UserPermissionLevelBadge summary={user.permissionLevel} />
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <UserStatusBadge status={user.status} />
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-600">
+                      {tab === USER_TABS.PENDING
+                        ? formatInvitedAt(user.invitedAt)
+                        : formatLastActive(user.lastActiveAt)}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <UserRowActions user={user} {...handlers} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

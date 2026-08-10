@@ -1,23 +1,41 @@
-import { Search } from 'lucide-react'
-import { STATUS_FILTER_TABS } from '../../constants/promotions'
+import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { STATUS_FILTERS, STATUS_FILTER_TABS } from '../../constants/promotions'
+
+function ActiveFilterChip({ label, onRemove }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 py-1 pl-2.5 pr-1 text-[11px] font-semibold text-cyan-800 ring-1 ring-cyan-200/60">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="inline-flex cursor-pointer items-center justify-center rounded-full p-0.5 transition-colors hover:bg-cyan-100"
+        aria-label={`Remove ${label} filter`}
+      >
+        <X className="size-3" />
+      </button>
+    </span>
+  )
+}
 
 export default function PromotionCatalogToolbar({
   search,
   onSearchChange,
+  onOpenFilters,
+  activeFilterCount = 0,
   statusFilter,
   onStatusFilterChange,
   dateRange,
   onDateRangeChange,
-  onApplyFilters,
-  onResetFilters,
+  onClearFilters,
 }) {
+  const hasDrawerFilters = activeFilterCount > 0
+  const statusLabel = STATUS_FILTER_TABS.find((tab) => tab.key === statusFilter)?.label
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <label className="block min-w-0 flex-1">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Search
-          </span>
+          <span className="sr-only">Search promotions</span>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -30,66 +48,57 @@ export default function PromotionCatalogToolbar({
           </div>
         </label>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="block min-w-[160px]">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Date From
+        <button
+          type="button"
+          onClick={onOpenFilters}
+          className={`inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+            hasDrawerFilters
+              ? 'bg-slate-900 text-white shadow-[0_4px_14px_rgba(15,23,42,0.18)]'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <SlidersHorizontal className="size-4" />
+          Filters
+          {hasDrawerFilters && (
+            <span className="flex size-5 items-center justify-center rounded-full bg-cyan-500 text-[10px] font-bold text-white">
+              {activeFilterCount}
             </span>
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(event) => onDateRangeChange({ ...dateRange, startDate: event.target.value })}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light"
+          )}
+        </button>
+      </div>
+
+      {hasDrawerFilters && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Active
+          </span>
+          {statusFilter !== STATUS_FILTERS.ALL && statusLabel && (
+            <ActiveFilterChip
+              label={statusLabel}
+              onRemove={() => onStatusFilterChange(STATUS_FILTERS.ALL)}
             />
-          </label>
-          <label className="block min-w-[160px]">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Date To
-            </span>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(event) => onDateRangeChange({ ...dateRange, endDate: event.target.value })}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light"
+          )}
+          {dateRange.startDate && (
+            <ActiveFilterChip
+              label={`From ${dateRange.startDate}`}
+              onRemove={() => onDateRangeChange({ ...dateRange, startDate: '' })}
             />
-          </label>
+          )}
+          {dateRange.endDate && (
+            <ActiveFilterChip
+              label={`To ${dateRange.endDate}`}
+              onRemove={() => onDateRangeChange({ ...dateRange, endDate: '' })}
+            />
+          )}
           <button
             type="button"
-            onClick={onApplyFilters}
-            className="cursor-pointer rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
+            onClick={onClearFilters}
+            className="cursor-pointer text-[11px] font-semibold text-slate-500 underline-offset-2 hover:text-brand hover:underline"
           >
-            Filter
-          </button>
-          <button
-            type="button"
-            onClick={onResetFilters}
-            className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            Reset Filters
+            Clear all
           </button>
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {STATUS_FILTER_TABS.map((tab) => {
-          const isActive = statusFilter === tab.key
-
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => onStatusFilterChange(tab.key)}
-              className={`cursor-pointer whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
-                isActive
-                  ? 'bg-brand text-white shadow-sm'
-                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
-      </div>
+      )}
     </div>
   )
 }

@@ -44,3 +44,21 @@ export function aggregatePurchasedItems(orderHistory) {
 export function countUniqueProducts(orderHistory) {
   return aggregatePurchasedItems(orderHistory).length
 }
+
+export function formatOrderProductsDisplay(products, maxVisible = 1) {
+  const names = (products || []).filter(Boolean)
+
+  if (names.length === 0) {
+    return { primary: '—', extra: 0, all: [] }
+  }
+
+  if (names.length <= maxVisible) {
+    return { primary: names.join(', '), extra: 0, all: names }
+  }
+
+  return {
+    primary: names[0],
+    extra: names.length - maxVisible,
+    all: names,
+  }
+}

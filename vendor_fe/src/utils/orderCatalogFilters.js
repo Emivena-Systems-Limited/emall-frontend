@@ -45,9 +45,20 @@ function matchesSearch(order, search) {
   return haystack.includes(query)
 }
 
-export function filterOrderCatalog(orders, { search = '', statusFilter = STATUS_FILTERS.ALL } = {}) {
+function matchesCustomerFilter(order, customerEmail) {
+  if (!customerEmail) return true
+  return order.customer?.email?.toLowerCase() === customerEmail.toLowerCase()
+}
+
+export function filterOrderCatalog(
+  orders,
+  { search = '', statusFilter = STATUS_FILTERS.ALL, customerEmail = null } = {},
+) {
   return orders.filter(
-    (order) => matchesStatusFilter(order, statusFilter) && matchesSearch(order, search),
+    (order) =>
+      matchesStatusFilter(order, statusFilter)
+      && matchesSearch(order, search)
+      && matchesCustomerFilter(order, customerEmail),
   )
 }
 

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Eye, MoreHorizontal, Printer } from 'lucide-react'
+import { Eye, MoreHorizontal, Printer, ShoppingBag } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
+import { getCustomerOrdersRoute } from '../../constants/customers'
 
 function CustomerMenuAction({ icon: Icon, tone, label, helper, onClick }) {
   return (
@@ -24,7 +25,13 @@ function CustomerMenuAction({ icon: Icon, tone, label, helper, onClick }) {
   )
 }
 
-export default function CustomerActionsMenu({ customer, onPrint, hideViewDetails = false }) {
+export default function CustomerRowActions({
+  customer,
+  onPrint,
+  hideViewDetails = false,
+  align = 'end',
+  className = '',
+}) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
@@ -37,13 +44,14 @@ export default function CustomerActionsMenu({ customer, onPrint, hideViewDetails
   }
 
   return (
-    <div className="flex justify-end">
+    <div className={`flex ${align === 'end' ? 'justify-end' : 'justify-start'} ${className}`}>
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="menu"
+        title="Customer actions"
         className={`inline-flex cursor-pointer items-center justify-center rounded-lg p-2 ring-1 transition-all ${
           open
             ? 'bg-brand-light/30 text-brand ring-brand/25 shadow-sm'
@@ -58,17 +66,14 @@ export default function CustomerActionsMenu({ customer, onPrint, hideViewDetails
         open={open}
         onClose={close}
         triggerRef={triggerRef}
-        menuWidth={300}
+        menuWidth={280}
         className="overflow-hidden py-0 shadow-[0_20px_50px_rgba(15,23,42,0.14)]"
       >
-        <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white px-4 py-3.5">
+        <div className="border-b border-slate-100 bg-linear-to-b from-slate-50 to-white px-4 py-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
             Customer actions
           </p>
-          <p className="mt-1 text-sm font-bold text-slate-950">{customer.name}</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-500">
-            View profile details or print a customer summary.
-          </p>
+          <p className="mt-1 truncate text-sm font-bold text-slate-950">{customer.name}</p>
         </div>
 
         <div className="py-1.5">
@@ -76,11 +81,18 @@ export default function CustomerActionsMenu({ customer, onPrint, hideViewDetails
             <CustomerMenuAction
               icon={Eye}
               tone="bg-cyan-50 text-cyan-700 ring-cyan-100"
-              label="View Details"
+              label="View details"
               helper="See contact info, order history, and reviews."
               onClick={() => run(() => navigate(`/customers/${customer.id}`))}
             />
           )}
+          <CustomerMenuAction
+            icon={ShoppingBag}
+            tone="bg-violet-50 text-violet-700 ring-violet-100"
+            label="View orders"
+            helper="See all orders placed by this customer."
+            onClick={() => run(() => navigate(getCustomerOrdersRoute(customer.id)))}
+          />
           <CustomerMenuAction
             icon={Printer}
             tone="bg-slate-100 text-slate-700 ring-slate-200"

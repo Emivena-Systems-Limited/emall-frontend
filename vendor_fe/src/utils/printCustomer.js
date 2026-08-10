@@ -1,16 +1,4 @@
-function formatMoney(amount) {
-  return `GH₵ ${Number(amount).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`
-}
-
-function formatDate(value) {
-  return new Date(value).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+import { formatMoney, formatShortDate } from './financeUtils'
 
 function buildPrintHtml(customer) {
   const reviewsHtml = customer.reviews.length
@@ -18,9 +6,9 @@ function buildPrintHtml(customer) {
       .map(
         (review) => `
           <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
-            <p style="margin:0;font-size:13px;font-weight:600;">${review.rating}/5 — Order ${review.orderId}</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#64748b;">${formatDate(review.date)}</p>
-            <p style="margin:6px 0 0;font-size:13px;">${review.comment}</p>
+            <p style="margin:0;font-size:13px;font-weight:600;">${review.productName || 'Product'}</p>
+            <p style="margin:4px 0 0;font-size:12px;color:#64748b;">${review.rating}/5 — ${formatShortDate(review.date)}</p>
+            <p style="margin:6px 0 0;font-size:13px;">&ldquo;${review.comment}&rdquo;</p>
           </div>
         `,
       )
@@ -32,8 +20,9 @@ function buildPrintHtml(customer) {
       (order) => `
         <tr>
           <td>${order.orderNumber}</td>
-          <td>${formatDate(order.orderDate)}</td>
+          <td>${formatShortDate(order.orderDate)}</td>
           <td>${order.productsPurchased.join(', ')}</td>
+          <td>${formatMoney(order.orderTotal)}</td>
           <td>${order.orderStatus.replaceAll('_', ' ')}</td>
         </tr>
       `,
@@ -54,24 +43,25 @@ function buildPrintHtml(customer) {
           table { width: 100%; border-collapse: collapse; margin-top: 8px; }
           th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 4px; font-size: 12px; text-align: left; vertical-align: top; }
           th { color: #64748b; font-weight: 600; }
-          .stats { display: flex; gap: 24px; margin-top: 12px; }
-          .stat { font-size: 13px; }
+          .stats { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+          .stat { font-size: 13px; min-width: 120px; }
           .stat strong { display: block; font-size: 16px; margin-bottom: 2px; }
+          @media print {
+            body { margin: 16px; }
+          }
         </style>
       </head>
       <body>
         <h1>${customer.name}</h1>
         <p>${customer.email} · ${customer.phone}</p>
-        <p>${customer.address}, ${customer.city}, ${customer.region}</p>
+        <p>${customer.address}, ${customer.city}, ${customer.region}${customer.country ? `, ${customer.country}` : ''}</p>
 
         <div class="stats">
           <div class="stat"><strong>${customer.totalOrders}</strong>Total orders</div>
           <div class="stat"><strong>${formatMoney(customer.totalSpend)}</strong>Total spend</div>
-          <div class="stat"><strong>${formatDate(customer.firstPurchaseDate)}</strong>First purchase</div>
+          <div class="stat"><strong>${formatShortDate(customer.firstPurchaseDate)}</strong>First purchase</div>
+          <div class="stat"><strong>${formatShortDate(customer.lastOrderDate)}</strong>Last purchase</div>
         </div>
-
-        <h2>Reviews</h2>
-        ${reviewsHtml}
 
         <h2>Order history</h2>
         <table>
@@ -80,11 +70,15 @@ function buildPrintHtml(customer) {
               <th>Order ID</th>
               <th>Date</th>
               <th>Products</th>
+              <th>Total</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>${ordersHtml}</tbody>
         </table>
+
+        <h2>Reviews</h2>
+        ${reviewsHtml}
       </body>
     </html>
   `

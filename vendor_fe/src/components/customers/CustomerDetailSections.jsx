@@ -1,23 +1,8 @@
 import { Mail, MapPin, Phone, ShoppingBag, Package } from 'lucide-react'
+import { formatMoney, formatShortDate } from '../../utils/financeUtils'
 import { getCustomerInitials } from '../../utils/customerUtils'
 
-function formatMoney(amount) {
-  return `GH₵ ${Number(amount).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`
-}
-
-function formatDateTime(value) {
-  return new Date(value).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export default function CustomerDetailHeader({ customer }) {
-  const uniqueProducts = customer.purchasedItems?.length ?? 0
-
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
       <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-brand-light/20 px-6 py-5">
@@ -52,8 +37,8 @@ export default function CustomerDetailHeader({ customer }) {
         {[
           { label: 'Total orders', value: customer.totalOrders, icon: ShoppingBag },
           { label: 'Total spend', value: formatMoney(customer.totalSpend), icon: ShoppingBag },
-          { label: 'Unique products', value: uniqueProducts, icon: Package },
-          { label: 'Last order', value: formatDateTime(customer.lastOrderDate), icon: ShoppingBag, small: true },
+          { label: 'First purchase', value: formatShortDate(customer.firstPurchaseDate), icon: Package, small: true },
+          { label: 'Last purchase', value: formatShortDate(customer.lastOrderDate), icon: Package, small: true },
         ].map(({ label, value, icon: Icon, small }) => (
           <div key={label} className="bg-white px-4 py-4">
             <div className="flex items-center gap-2">
@@ -80,6 +65,7 @@ export function CustomerOverviewPanel({ customer }) {
             ['Address', customer.address],
             ['City', customer.city],
             ['Region', customer.region],
+            ['Country', customer.country],
           ].map(([label, value]) => (
             <div key={label} className="flex flex-col gap-1 py-3 sm:flex-row sm:justify-between">
               <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
@@ -93,8 +79,8 @@ export function CustomerOverviewPanel({ customer }) {
         <h2 className="text-sm font-bold text-slate-900">Purchase summary</h2>
         <dl className="mt-4 divide-y divide-slate-100">
           {[
-            ['First purchase', formatDateTime(customer.firstPurchaseDate)],
-            ['Last purchase', formatDateTime(customer.lastOrderDate)],
+            ['First purchase', formatShortDate(customer.firstPurchaseDate)],
+            ['Last purchase', formatShortDate(customer.lastOrderDate)],
             ['Average order value', formatMoney(customer.totalSpend / Math.max(customer.totalOrders, 1))],
             ['Products bought', `${customer.purchasedItems?.length ?? 0} unique items`],
             ['Reviews left', customer.reviews.length],
