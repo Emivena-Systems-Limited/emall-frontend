@@ -5,13 +5,13 @@ import {
   ArrowLeft,
   ChevronRight,
   CreditCard,
-  Loader2,
   MapPin,
   Package,
   RefreshCw,
   UserRound,
 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import OrderDetailLoader from '../../components/orders/OrderDetailLoader'
 import OrderLineItems from '../../components/orders/OrderLineItems'
 import OrderCustomerDeliveryDrawer from '../../components/orders/OrderCustomerDeliveryDrawer'
 import OrderActionsMenu from '../../components/orders/OrderActionsMenu'
@@ -23,6 +23,7 @@ import { DELIVERY_STATUSES } from '../../constants/orders'
 import { useVendorOrder } from '../../hooks/useVendorOrders'
 import { useUpdateOrderDeliveryStatusMutation } from '../../hooks/useVendorOrderMutations'
 import notify from '../../lib/notify'
+import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNavigation'
 
 function mapDeliveryStatusToOrderStatus(deliveryStatus) {
   switch (deliveryStatus) {
@@ -93,6 +94,8 @@ export default function OrderDetails() {
   const { orderId } = useParams()
   const location = useLocation()
   const listPayment = location.state?.listPayment ?? null
+  const ordersReturnTo = resolveOrdersReturnTo(location)
+  const ordersReturnLabel = getOrdersReturnLabel(ordersReturnTo)
   const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId, { listPayment })
   const updateDeliveryStatus = useUpdateOrderDeliveryStatusMutation()
   const [localOrder, setLocalOrder] = useState(null)
@@ -106,10 +109,7 @@ export default function OrderDetails() {
   if (isLoading) {
     return (
       <DashboardLayout pageTitle="Order details">
-        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-24 text-sm font-semibold text-slate-500">
-          <Loader2 className="size-4 animate-spin text-brand" />
-          Loading order…
-        </div>
+        <OrderDetailLoader />
       </DashboardLayout>
     )
   }
@@ -137,11 +137,11 @@ export default function OrderDetails() {
               Retry
             </button>
             <Link
-              to="/orders"
+              to={ordersReturnTo}
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
             >
               <ArrowLeft className="size-4" />
-              Back to orders
+              {ordersReturnLabel}
             </Link>
           </div>
         </div>
@@ -154,8 +154,8 @@ export default function OrderDetails() {
       <DashboardLayout pageTitle="Order details">
         <div className="page-enter rounded-2xl border border-slate-200 bg-white p-6 text-center">
           <p className="text-sm text-slate-600">Order not found.</p>
-          <Link to="/orders" className="mt-4 inline-flex text-sm font-bold text-cyan-700 hover:text-cyan-900">
-            Back to orders
+          <Link to={ordersReturnTo} className="mt-4 inline-flex text-sm font-bold text-cyan-700 hover:text-cyan-900">
+            {ordersReturnLabel}
           </Link>
         </div>
       </DashboardLayout>
@@ -195,17 +195,17 @@ export default function OrderDetails() {
       <div className="page-enter space-y-5 print:space-y-4">
         <div className="flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
           <Link
-            to="/orders"
+            to={ordersReturnTo}
             className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
           >
             <ArrowLeft className="size-4" />
-            Back to orders
+            {ordersReturnLabel}
           </Link>
 
           <OrderActionsMenu
             order={localOrder}
             align="start"
-            hideViewDetails
+            hideViewOrderItems
           />
         </div>
 

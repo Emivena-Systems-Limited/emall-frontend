@@ -45,6 +45,44 @@ export function countUniqueProducts(orderHistory) {
   return aggregatePurchasedItems(orderHistory).length
 }
 
+export function mapVendorOrdersToCustomerHistory(orders = []) {
+  return orders.map((order) => ({
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    orderDate: order.orderDate,
+    productsPurchased: (order.items ?? []).map((item) => item.productName).filter(Boolean),
+    orderStatus: order.orderStatus,
+    orderTotal: order.totalAmount,
+    items: (order.items ?? []).map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.sku,
+      image: item.image,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+    })),
+  }))
+}
+
+export function enrichCustomerWithOrderHistory(customer, orderHistory = []) {
+  if (!customer) return null
+
+  const sortedHistory = [...orderHistory].sort(
+    (a, b) => new Date(b.orderDate) - new Date(a.orderDate),
+  )
+
+  return {
+    ...customer,
+    totalOrders: sortedHistory.length || customer.totalOrders,
+    orderHistory: sortedHistory,
+    purchasedItems: aggregatePurchasedItems(sortedHistory),
+    firstPurchaseDate: sortedHistory.at(-1)?.orderDate ?? customer.firstPurchaseDate,
+    lastOrderDate: sortedHistory[0]?.orderDate ?? customer.lastOrderDate,
+  }
+}
+
 export function formatOrderProductsDisplay(products, maxVisible = 1) {
   const names = (products || []).filter(Boolean)
 

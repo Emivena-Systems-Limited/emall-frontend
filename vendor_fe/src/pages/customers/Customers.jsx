@@ -17,6 +17,7 @@ import {
 } from '../../constants/customers'
 import { getCustomerSummaryFromCatalog } from '../../mocks/customerMockData'
 import { useCustomers } from '../../hooks/useCustomers'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import notify from '../../lib/notify'
 import {
   filterCustomerCatalog,
@@ -30,7 +31,8 @@ export default function Customers() {
 
   const { data: customers = [], isLoading, isError, error, refetch, isFetching } = useCustomers()
 
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput, 300)
   const [orderDateRange, setOrderDateRange] = useState(DEFAULT_ORDER_DATE_RANGE)
   const [minSpend, setMinSpend] = useState('')
   const [maxSpend, setMaxSpend] = useState('')
@@ -42,13 +44,13 @@ export default function Customers() {
   const filteredCustomers = useMemo(
     () =>
       filterCustomerCatalog(customers, {
-        search,
+        search: debouncedSearch,
         segment,
         orderDateRange,
         minSpend,
         maxSpend,
       }),
-    [customers, search, segment, orderDateRange, minSpend, maxSpend],
+    [customers, debouncedSearch, segment, orderDateRange, minSpend, maxSpend],
   )
 
   const pagination = useMemo(
@@ -59,12 +61,13 @@ export default function Customers() {
   const drawerFilterCount = countCustomerDrawerFilters({ orderDateRange, minSpend, maxSpend })
   const hasCustomers = customers.length > 0
   const isNewThisMonthView = segment === CUSTOMER_SEGMENTS.NEW_THIS_MONTH
-  const hasSearchQuery = search.trim().length > 0
+  const hasSearchQuery = debouncedSearch.trim().length > 0
+  const isSearchPending = searchInput.trim() !== debouncedSearch.trim()
   const emptyVariant = hasSearchQuery ? 'search' : 'filter'
 
   useEffect(() => {
     setPage(1)
-  }, [search, segment, orderDateRange, minSpend, maxSpend])
+  }, [debouncedSearch, segment, orderDateRange, minSpend, maxSpend])
 
   useEffect(() => {
     if (isError) {
@@ -132,8 +135,9 @@ export default function Customers() {
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
               <div className="border-b border-slate-100 px-5 py-4">
                 <CustomerCatalogToolbar
-                  search={search}
-                  onSearchChange={setSearch}
+                  search={searchInput}
+                  onSearchChange={setSearchInput}
+                  isSearchPending={isSearchPending}
                   onOpenFilters={() => setFiltersOpen(true)}
                   activeFilterCount={drawerFilterCount}
                   orderDateRange={orderDateRange}
@@ -154,6 +158,7 @@ export default function Customers() {
                     customers={pagination.items}
                     onPrint={handlePrint}
                     emptyVariant={emptyVariant}
+                    orderFilters={{ orderDateRange, minSpend, maxSpend }}
                   />
                   {pagination.totalItems > 0 && (
                     <OrderPagination

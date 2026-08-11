@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Loader2, Star } from 'lucide-react'
+import { ArrowLeft, Star } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import EmptyState from '../../components/dashboard/EmptyState'
+import CustomerDetailLoader from '../../components/customers/CustomerDetailLoader'
 import CustomerRowActions from '../../components/customers/CustomerRowActions'
 import CustomerDetailHeader, {
   CustomerDetailTabs,
   CustomerOverviewPanel,
 } from '../../components/customers/CustomerDetailSections'
-import CustomerOrderProducts from '../../components/customers/CustomerOrderProducts'
-import CustomerPurchasedItems from '../../components/customers/CustomerPurchasedItems'
-import OrderStatusBadge from '../../components/orders/OrderStatusBadge'
+import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import { useCustomer } from '../../hooks/useCustomers'
 import notify from '../../lib/notify'
-import { formatMoney, formatShortDate } from '../../utils/financeUtils'
+import { formatDateTime } from '../../utils/financeUtils'
 import { printCustomerProfile } from '../../utils/printCustomer'
 
 function StarRating({ rating }) {
@@ -28,57 +28,9 @@ function StarRating({ rating }) {
   )
 }
 
-function CustomerOrderHistory({ orders }) {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="text-base font-bold text-slate-900">Order history</h2>
-        <p className="mt-0.5 text-sm text-slate-500">{orders.length} order{orders.length === 1 ? '' : 's'} placed</p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left">
-          <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              <th className="px-5 py-3">Order ID</th>
-              <th className="px-5 py-3">Date</th>
-              <th className="px-5 py-3">Products Purchased</th>
-              <th className="px-5 py-3">Total</th>
-              <th className="px-5 py-3">Order Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {orders.map((order) => (
-              <tr key={order.orderId} className="text-sm hover:bg-slate-50/60">
-                <td className="whitespace-nowrap px-5 py-4">
-                  <Link to={`/orders/${order.orderId}`} className="font-semibold text-brand hover:underline">
-                    {order.orderNumber}
-                  </Link>
-                </td>
-                <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-600">
-                  {formatShortDate(order.orderDate)}
-                </td>
-                <td className="px-5 py-4 text-xs text-slate-600">
-                  <CustomerOrderProducts
-                    products={order.productsPurchased}
-                    maxVisible={1}
-                  />
-                </td>
-                <td className="whitespace-nowrap px-5 py-4 font-semibold tabular-nums text-slate-900">
-                  {formatMoney(order.orderTotal)}
-                </td>
-                <td className="whitespace-nowrap px-5 py-4">
-                  <OrderStatusBadge status={order.orderStatus} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  )
-}
-
 function CustomerReviewsPanel({ reviews }) {
+  const preset = EMPTY_STATE_PRESETS.customerReviews
+
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
       <div className="border-b border-slate-100 px-5 py-4">
@@ -86,10 +38,11 @@ function CustomerReviewsPanel({ reviews }) {
         <p className="mt-0.5 text-sm text-slate-500">Feedback left on your products</p>
       </div>
       {reviews.length === 0 ? (
-        <div className="px-5 py-10 text-center">
-          <p className="text-sm font-semibold text-slate-800">No reviews yet</p>
-          <p className="mt-1 text-sm text-slate-500">This customer hasn&apos;t submitted any reviews.</p>
-        </div>
+        <EmptyState
+          icon={preset.icon}
+          title={preset.title}
+          description={preset.description}
+        />
       ) : (
         <ul className="divide-y divide-slate-100">
           {reviews.map((review) => (
@@ -101,9 +54,11 @@ function CustomerReviewsPanel({ reviews }) {
                     <StarRating rating={review.rating} />
                   </div>
                 </div>
-                <span className="text-xs text-slate-500">{formatShortDate(review.date)}</span>
+                <span className="text-xs text-slate-500">{formatDateTime(review.date)}</span>
               </div>
-              <p className="mt-3 text-sm leading-relaxed text-slate-700">&ldquo;{review.comment}&rdquo;</p>
+              {review.comment ? (
+                <p className="mt-3 text-sm leading-relaxed text-slate-700">&ldquo;{review.comment}&rdquo;</p>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -120,10 +75,7 @@ export default function CustomerDetails() {
   if (isLoading) {
     return (
       <DashboardLayout pageTitle="Customer details">
-        <div className="page-enter flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-24 text-sm font-semibold text-slate-500">
-          <Loader2 className="size-4 animate-spin text-brand" />
-          Loading customer details…
-        </div>
+        <CustomerDetailLoader />
       </DashboardLayout>
     )
   }
@@ -148,10 +100,9 @@ export default function CustomerDetails() {
     }
   }
 
+  const reviewsCount = customer.reviewsCount ?? customer.reviews?.length ?? 0
   const tabCounts = {
-    purchases: customer.purchasedItems?.length ?? 0,
-    orders: customer.orderHistory.length,
-    reviews: customer.reviews.length,
+    reviews: reviewsCount,
   }
 
   return (
@@ -176,11 +127,9 @@ export default function CustomerDetails() {
         <div>
           <CustomerDetailTabs activeTab={activeTab} onTabChange={setActiveTab} counts={tabCounts} />
 
-          <div className={activeTab === 'overview' ? 'rounded-b-2xl rounded-tr-2xl border border-t-0 border-slate-200 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]' : 'pt-5'}>
+          <div className="pt-5">
             {activeTab === 'overview' && <CustomerOverviewPanel customer={customer} />}
-            {activeTab === 'purchases' && <CustomerPurchasedItems items={customer.purchasedItems} />}
-            {activeTab === 'orders' && <CustomerOrderHistory orders={customer.orderHistory} />}
-            {activeTab === 'reviews' && <CustomerReviewsPanel reviews={customer.reviews} />}
+            {activeTab === 'reviews' && <CustomerReviewsPanel reviews={customer.reviews ?? []} />}
           </div>
         </div>
       </div>

@@ -18,11 +18,41 @@ export function formatTransactionDate(value) {
   })
 }
 
+export function parseApiDateTime(value) {
+  if (!value) return null
+
+  const raw = String(value).trim()
+  if (!raw) return null
+
+  const normalized = raw.includes('T')
+    ? raw
+    : raw.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/, '$1T$2')
+
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export function formatShortDate(value) {
-  return new Date(value).toLocaleDateString('en-GB', {
+  const date = parseApiDateTime(value)
+  if (!date) return '—'
+
+  return date.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+  })
+}
+
+export function formatDateTime(value) {
+  const date = parseApiDateTime(value)
+  if (!date) return '—'
+
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 

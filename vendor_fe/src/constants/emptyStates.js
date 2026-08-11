@@ -54,6 +54,11 @@ export const EMPTY_STATE_PRESETS = {
     title: 'No reviews yet',
     description: 'When customers leave feedback on your products, their reviews will appear here for you to read and respond.',
   },
+  customerReviews: {
+    icon: Star,
+    title: 'No reviews from this customer',
+    description: 'This customer hasn\'t left any product reviews yet. Reviews they submit will show up here.',
+  },
   reviewsFiltered: {
     icon: Star,
     title: 'No reviews match your filters',

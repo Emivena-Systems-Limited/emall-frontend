@@ -1,21 +1,23 @@
-import { Link, useParams } from 'react-router'
-import { AlertTriangle, ArrowLeft, ChevronRight, Loader2, Package, RefreshCw } from 'lucide-react'
+import { Link, useLocation, useParams } from 'react-router'
+import { AlertTriangle, ArrowLeft, ChevronRight, Package, RefreshCw } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import OrderProductsLoader from '../../components/orders/OrderProductsLoader'
 import { useVendorOrder } from '../../hooks/useVendorOrders'
 import { buildViewProductPath, getUniqueOrderProducts } from '../../utils/orderProductNavigation'
+import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNavigation'
 
 export default function OrderProducts() {
   const { orderId } = useParams()
+  const location = useLocation()
+  const ordersReturnTo = resolveOrdersReturnTo(location)
+  const ordersReturnLabel = getOrdersReturnLabel(ordersReturnTo)
   const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId)
   const products = order ? getUniqueOrderProducts(order) : []
 
   if (isLoading) {
     return (
       <DashboardLayout pageTitle="Order products">
-        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-24 text-sm font-semibold text-slate-500">
-          <Loader2 className="size-4 animate-spin text-brand" />
-          Loading order…
-        </div>
+        <OrderProductsLoader />
       </DashboardLayout>
     )
   }
@@ -48,8 +50,8 @@ export default function OrderProducts() {
       <DashboardLayout pageTitle="Order products">
         <div className="page-enter rounded-2xl border border-slate-200 bg-white p-6 text-center">
           <p className="text-sm text-slate-600">Order not found.</p>
-          <Link to="/orders" className="mt-4 inline-flex text-sm font-bold text-cyan-700 hover:text-cyan-900">
-            Back to orders
+          <Link to={ordersReturnTo} className="mt-4 inline-flex text-sm font-bold text-cyan-700 hover:text-cyan-900">
+            {ordersReturnLabel}
           </Link>
         </div>
       </DashboardLayout>
@@ -59,13 +61,23 @@ export default function OrderProducts() {
   return (
     <DashboardLayout pageTitle="Order products">
       <div className="page-enter space-y-5">
-        <Link
-          to={`/orders/${order.id}`}
-          className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
-        >
-          <ArrowLeft className="size-4" />
-          Back to order
-        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Link
+            to={`/orders/${order.id}`}
+            state={location.state}
+            className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
+          >
+            <ArrowLeft className="size-4" />
+            Back to order
+          </Link>
+          <Link
+            to={ordersReturnTo}
+            className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
+          >
+            <ArrowLeft className="size-4" />
+            {ordersReturnLabel}
+          </Link>
+        </div>
 
         <div>
           <h1 className="text-2xl font-bold text-slate-950">Select a product</h1>
@@ -80,6 +92,7 @@ export default function OrderProducts() {
               <li key={item.productId}>
                 <Link
                   to={buildViewProductPath(item.productId, order.id)}
+                  state={location.state}
                   className="flex cursor-pointer items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/80"
                 >
                   {item.image ? (

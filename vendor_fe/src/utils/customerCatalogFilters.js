@@ -7,16 +7,25 @@ function normalizeSearch(value) {
   return value.trim().toLowerCase()
 }
 
+function normalizePhoneDigits(value) {
+  return String(value ?? '').replace(/\D/g, '')
+}
+
 function matchesSearch(customer, search) {
   const query = normalizeSearch(search)
   if (!query) return true
 
-  const haystack = [customer.name, customer.email, customer.phone]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
+  const name = String(customer.name ?? '').toLowerCase()
+  const email = String(customer.email ?? '').toLowerCase()
+  const phoneDigits = normalizePhoneDigits(customer.phone)
+  const queryDigits = normalizePhoneDigits(search)
 
-  return haystack.includes(query)
+  if (name.includes(query) || email.includes(query)) return true
+
+  if (queryDigits.length > 0 && phoneDigits.includes(queryDigits)) return true
+
+  const phoneDisplay = String(customer.phone ?? '').toLowerCase()
+  return phoneDisplay.includes(query)
 }
 
 function matchesSegment(customer, segment) {
@@ -66,7 +75,7 @@ function matchesSpendRange(customer, minSpend = '', maxSpend = '') {
   return true
 }
 
-// TODO: Replace frontend filtering with API-powered search/filter once backend endpoints are available.
+// Frontend catalog filtering — search runs client-side on loaded customers.
 export function filterCustomerCatalog(
   customers,
   {

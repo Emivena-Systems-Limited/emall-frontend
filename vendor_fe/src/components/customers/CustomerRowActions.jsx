@@ -31,6 +31,7 @@ export default function CustomerRowActions({
   hideViewDetails = false,
   align = 'end',
   className = '',
+  orderFilters,
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -91,7 +92,7 @@ export default function CustomerRowActions({
             tone="bg-violet-50 text-violet-700 ring-violet-100"
             label="View orders"
             helper="See all orders placed by this customer."
-            onClick={() => run(() => navigate(getCustomerOrdersRoute(customer.id)))}
+            onClick={() => run(() => navigate(getCustomerOrdersRoute(customer.id, orderFilters)))}
           />
           <CustomerMenuAction
             icon={Printer}

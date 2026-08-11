@@ -1,4 +1,4 @@
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { ExternalLink, Package } from 'lucide-react'
 import { buildViewProductPath } from '../../utils/orderProductNavigation'
 
@@ -26,7 +26,7 @@ function OrderItemPrice({ amount, compareAmount, align = 'right' }) {
   )
 }
 
-function OrderLineItemCard({ item, orderId }) {
+function OrderLineItemCard({ item, orderId, linkState }) {
   const productHref = item.productId ? buildViewProductPath(item.productId, orderId) : null
   const metaParts = [item.brandName, item.categoryName].filter(Boolean)
 
@@ -48,6 +48,7 @@ function OrderLineItemCard({ item, orderId }) {
             {productHref ? (
               <Link
                 to={productHref}
+                state={linkState}
                 title={item.productName}
                 className="group flex min-w-0 items-center gap-1.5 text-sm font-bold text-slate-900 transition hover:text-brand"
               >
@@ -110,6 +111,8 @@ function OrderLineItemCard({ item, orderId }) {
 }
 
 export default function OrderLineItems({ items, orderId }) {
+  const location = useLocation()
+
   if (!items?.length) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -141,6 +144,7 @@ export default function OrderLineItems({ items, orderId }) {
             key={item.id}
             item={item}
             orderId={orderId}
+            linkState={location.state}
           />
         ))}
       </div>

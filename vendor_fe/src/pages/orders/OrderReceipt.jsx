@@ -14,11 +14,14 @@ import OrderReceiptSheet from '../../components/orders/OrderReceiptSheet'
 import { useVendorOrder } from '../../hooks/useVendorOrders'
 import notify from '../../lib/notify'
 import { buildReceiptFilename, downloadReceiptPdf } from '../../utils/downloadReceiptPdf'
+import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNavigation'
 
 export default function OrderReceipt() {
   const { orderId } = useParams()
   const location = useLocation()
   const listPayment = location.state?.listPayment ?? null
+  const ordersReturnTo = resolveOrdersReturnTo(location)
+  const ordersReturnLabel = getOrdersReturnLabel(ordersReturnTo)
   const receiptRef = useRef(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const authUser = useSelector((state) => state.auth.user)
@@ -83,8 +86,8 @@ export default function OrderReceipt() {
       <DashboardLayout pageTitle="Order receipt">
         <div className="page-enter rounded-2xl border border-slate-200 bg-white p-6 text-center">
           <p className="text-sm text-slate-600">Order not found.</p>
-          <Link to="/orders" className="mt-4 inline-flex text-sm font-bold text-brand hover:text-brand-hover">
-            Back to orders
+          <Link to={ordersReturnTo} className="mt-4 inline-flex text-sm font-bold text-brand hover:text-brand-hover">
+            {ordersReturnLabel}
           </Link>
         </div>
       </DashboardLayout>
@@ -98,6 +101,7 @@ export default function OrderReceipt() {
           <div>
             <Link
               to={`/orders/${order.id}`}
+              state={location.state}
               className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
             >
               <ArrowLeft className="size-4" />

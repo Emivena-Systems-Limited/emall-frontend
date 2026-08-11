@@ -19,6 +19,7 @@ function ActiveFilterChip({ label, onRemove }) {
 export default function CustomerCatalogToolbar({
   search,
   onSearchChange,
+  isSearchPending = false,
   onOpenFilters,
   activeFilterCount = 0,
   orderDateRange,
@@ -42,9 +43,15 @@ export default function CustomerCatalogToolbar({
               type="search"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search customers..."
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-3 pl-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
+              placeholder="Search by name, email, or phone..."
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-10 pl-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
             />
+            {isSearchPending && (
+              <span
+                className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 rounded-full border-2 border-slate-200 border-t-brand animate-spin"
+                aria-hidden="true"
+              />
+            )}
           </div>
         </label>
 

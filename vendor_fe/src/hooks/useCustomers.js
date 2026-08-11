@@ -10,13 +10,12 @@ export const customerQueryKeys = {
   detail: (customerId) => [...customerQueryKeys.all, 'detail', customerId],
 }
 
-// TODO: Integrate customer list API — swap queryFn when backend is ready.
+// TODO: Refine field mapping once customer API response shape is confirmed.
 export function useCustomers() {
   return useQuery({
     queryKey: customerQueryKeys.list(),
     queryFn: () => getCustomers(),
     staleTime: STALE_TIME,
-    select: (response) => response?.data ?? [],
   })
 }
 
@@ -29,7 +28,7 @@ export function useCustomerStats() {
   })
 }
 
-// TODO: Integrate customer details API.
+// Customer profile for the detail page.
 export function useCustomer(customerId) {
   return useQuery({
     queryKey: customerQueryKeys.detail(customerId),
