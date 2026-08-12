@@ -149,5 +149,6 @@ export const ORDERS_PAGE_SIZE = 10
 export const ORDER_ENDPOINTS = {
   VENDOR_LIST: '/api/orders/vendor',
   byId: (orderId) => `/api/orders/vendor/get/${orderId}`,
+  userOrders: (userId) => `/api/orders/get/user-orders/${userId}`,
   updateDeliveryStatus: (orderId) => `/api/orders/${orderId}/update/delivery-status`,
 }

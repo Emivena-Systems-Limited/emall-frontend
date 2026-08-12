@@ -1,3 +1,11 @@
+export const PROMOTION_ENDPOINTS = {
+  LIST: '/api/vendor/promotions',
+  byId: (promotionId) => `/api/vendor/promotions/${promotionId}`,
+  CREATE: '/api/vendor/promotions',
+  DRAFT: '/api/vendor/promotions/draft',
+  STATUS: (promotionId) => `/api/vendor/promotions/${promotionId}/status`,
+}
+
 export const PROMOTION_TYPES = {
   TODAYS_DEALS: 'todays_deals',
   FLASH_SALES: 'flash_sales',
@@ -7,15 +15,15 @@ export const PROMOTION_TYPES = {
 export const PROMOTION_TYPE_CONFIG = {
   todays_deals: {
     label: "Today's Deals",
-    description: 'Highlight daily offers to drive quick purchases.',
+    description: 'Highlight special deals available for a limited time.',
   },
   flash_sales: {
     label: 'Flash Sales',
-    description: 'Short, high-impact sales for limited-time urgency.',
+    description: 'Create time-sensitive discounts to encourage quick purchases.',
   },
   clearance: {
     label: 'Clearance',
-    description: 'Move excess inventory with deep markdowns.',
+    description: 'Move selected inventory with attractive clearance discounts.',
   },
 }
 
@@ -108,5 +116,11 @@ export const APPLICATION_TYPE_OPTIONS = [
   { value: APPLICATION_TYPES.SPECIFIC_PRODUCTS, label: 'Specific Products' },
 ]
 
+export const DEFAULT_PROMOTION_DATE_RANGE = {
+  startDate: '',
+  endDate: '',
+}
+
 export const PROMOTIONS_PAGE_SIZE = 10
 export const PROMOTION_PRODUCT_PICKER_PAGE_SIZE = 9
+export const PROMOTION_DESCRIPTION_SOFT_LIMIT = 160

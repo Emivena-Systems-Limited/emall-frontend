@@ -79,3 +79,36 @@ export async function updateVendorOrderDeliveryStatus(orderId, status) {
   assertApiSuccess(data)
   return data
 }
+
+function buildUserOrderQueryParams(filters = {}) {
+  const params = {}
+
+  if (filters.start_date) params.start_date = filters.start_date
+  if (filters.end_date) params.end_date = filters.end_date
+  if (filters.min_total !== undefined && filters.min_total !== '') {
+    params.min_total = filters.min_total
+  }
+  if (filters.max_total !== undefined && filters.max_total !== '') {
+    params.max_total = filters.max_total
+  }
+
+  return params
+}
+
+export async function getUserOrders(userId, filters = {}) {
+  const id = String(userId ?? '').trim()
+  if (!id) {
+    throw new Error('User id is required.')
+  }
+
+  const endpoint = ORDER_ENDPOINTS.userOrders(id)
+  const params = buildUserOrderQueryParams(filters)
+  const { data } = await apiClient.get(endpoint, { params })
+
+  if (import.meta.env.DEV) {
+    console.info('[orders] GET', endpoint, params, data)
+  }
+
+  assertApiSuccess(data)
+  return extractVendorOrderList(data)
+}

@@ -1,8 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
-import { Eye, MoreHorizontal, Package, Printer } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router'
+import { MoreHorizontal, Package, Printer } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import notify from '../../lib/notify'
+import {
+  buildOrderNavigationState,
+  mergeOrderNavigationState,
+  resolveOrdersReturnTo,
+} from '../../utils/orderNavigation'
 import {
   buildViewProductPath,
   getUniqueOrderProducts,
@@ -14,9 +19,13 @@ function resolveListPayment(order) {
   return order?.payment ?? resolvePaymentRecord(order?.raw)
 }
 
-function navigateWithListPayment(navigate, path, order) {
-  const listPayment = resolveListPayment(order)
-  navigate(path, listPayment ? { state: { listPayment } } : undefined)
+function navigateWithListPayment(navigate, path, order, { returnTo } = {}) {
+  const state = buildOrderNavigationState({
+    returnTo,
+    listPayment: resolveListPayment(order),
+  })
+
+  navigate(path, state ? { state } : undefined)
 }
 
 function OrderMenuAction({ icon: Icon, tone, label, helper, helperTitle, onClick }) {
@@ -48,9 +57,11 @@ function OrderMenuAction({ icon: Icon, tone, label, helper, helperTitle, onClick
 export default function OrderActionsMenu({
   order,
   align = 'end',
-  hideViewDetails = false,
+  hideViewOrderItems = false,
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const ordersReturnTo = resolveOrdersReturnTo(location)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const orderProducts = getUniqueOrderProducts(order)
@@ -86,11 +97,13 @@ export default function OrderActionsMenu({
     }
 
     if (target.type === 'direct') {
-      navigate(buildViewProductPath(target.productId, target.orderId))
+      const state = mergeOrderNavigationState(location.state, { returnTo: ordersReturnTo })
+      navigate(buildViewProductPath(target.productId, target.orderId), state ? { state } : undefined)
       return
     }
 
-    navigate(`/orders/${target.orderId}/products`)
+    const state = mergeOrderNavigationState(location.state, { returnTo: ordersReturnTo })
+    navigate(`/orders/${target.orderId}/products`, state ? { state } : undefined)
   }
 
   return (
@@ -129,13 +142,13 @@ export default function OrderActionsMenu({
         </div>
 
         <div className="py-1.5">
-          {!hideViewDetails && (
+          {!hideViewOrderItems && (
             <OrderMenuAction
-              icon={Eye}
+              icon={Package}
               tone="bg-cyan-50 text-cyan-700 ring-cyan-100"
-              label="View Details"
-              helper="See customer info, delivery address, and ordered items."
-              onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}`, order))}
+              label="View order items"
+              helper="See products, quantities, and line totals for this order."
+              onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}`, order, { returnTo: ordersReturnTo }))}
             />
           )}
 
@@ -144,7 +157,7 @@ export default function OrderActionsMenu({
             tone="bg-slate-100 text-slate-700 ring-slate-200"
             label="Print Receipt"
             helper="Open the receipt page to preview, download as PDF, or print."
-            onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}/receipt`, order))}
+            onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}/receipt`, order, { returnTo: ordersReturnTo }))}
           />
 
           {hasLinkedProducts && (

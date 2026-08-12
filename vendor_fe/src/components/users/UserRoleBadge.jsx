@@ -1,16 +1,15 @@
-import { Crown, Eye, Shield, UserCog } from 'lucide-react'
-import { USER_ROLES } from '../../constants/usersPermissions'
+import { Crown, Shield, UserCog } from 'lucide-react'
+import { USER_ROLE_CONFIG } from '../../constants/usersPermissions'
 
 const ROLE_ICONS = {
-  owner: Crown,
-  manager: Shield,
-  staff: UserCog,
-  viewer: Eye,
+  store_owner: Crown,
+  admin: Shield,
+  store_manager: UserCog,
 }
 
 export default function UserRoleBadge({ role }) {
-  const config = USER_ROLES[role] ?? USER_ROLES.viewer
-  const Icon = ROLE_ICONS[role] ?? Eye
+  const config = USER_ROLE_CONFIG[role] ?? USER_ROLE_CONFIG.store_manager
+  const Icon = ROLE_ICONS[role] ?? UserCog
 
   return (
     <span

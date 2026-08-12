@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Flame, PackagePlus, Percent, Search, Trash2 } from 'lucide-react'
+import { Check, Flame, Info, PackagePlus, Percent, Search, Trash2 } from 'lucide-react'
 import {
   APPLICATION_TYPES,
   APPLICATION_TYPE_OPTIONS,
   DISCOUNT_TYPE_OPTIONS,
   DISCOUNT_TYPES,
+  PROMOTION_DESCRIPTION_SOFT_LIMIT,
   PROMOTION_PRODUCT_PICKER_PAGE_SIZE,
   PROMOTION_TYPE_CONFIG,
   PROMOTION_TYPES,
@@ -90,6 +91,20 @@ function FieldLabel({ children, required = false }) {
   )
 }
 
+function FieldError({ message }) {
+  if (!message) return null
+  return <p className="mt-1.5 text-sm font-medium text-red-600">{message}</p>
+}
+
+function InfoNotice({ children }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-3 text-sm text-sky-900">
+      <Info className="mt-0.5 size-4 shrink-0 text-sky-600" />
+      <p>{children}</p>
+    </div>
+  )
+}
+
 export default function PromotionForm({
   form,
   onChange,
@@ -97,11 +112,12 @@ export default function PromotionForm({
   readOnly = false,
   categoryOptions = [],
   productOptions = [],
+  errors = {},
 }) {
-  const showDiscountValue = form.discountType !== DISCOUNT_TYPES.FREE_SHIPPING
-  const showMaximumDiscount =
+  const showDiscountValue =
     form.discountType === DISCOUNT_TYPES.PERCENTAGE
     || form.discountType === DISCOUNT_TYPES.FIXED
+  const showMaximumDiscount = form.discountType === DISCOUNT_TYPES.PERCENTAGE
 
   const [categorySearch, setCategorySearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
@@ -144,6 +160,7 @@ export default function PromotionForm({
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
           <h2 className="text-sm font-bold text-slate-950">Promotion Type</h2>
           <p className="mt-1 text-sm text-slate-500">Choose the promotion format that fits your campaign.</p>
+          <FieldError message={errors.type} />
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {TYPE_CARDS.map(({ key, icon: Icon, tone }) => {
               const config = PROMOTION_TYPE_CONFIG[key]
@@ -155,12 +172,18 @@ export default function PromotionForm({
                   type="button"
                   disabled={readOnly}
                   onClick={() => onChange(handlePromotionTypeChange(form, key))}
-                  className={`rounded-xl border p-4 text-left transition-all ${
+                  aria-pressed={isSelected}
+                  className={`relative rounded-xl border p-4 text-left transition-all ${
                     isSelected
                       ? 'border-brand/40 bg-brand-light/15 ring-2 ring-brand/20'
                       : 'border-slate-200 bg-white hover:border-slate-300'
                   } ${readOnly ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
                 >
+                  {isSelected && (
+                    <span className="absolute top-3 right-3 flex size-6 items-center justify-center rounded-full bg-brand text-white">
+                      <Check className="size-3.5" strokeWidth={3} />
+                    </span>
+                  )}
                   <span className={`inline-flex size-10 items-center justify-center rounded-xl ring-1 ${tone}`}>
                     <Icon className="size-5" strokeWidth={2} />
                   </span>
@@ -183,21 +206,28 @@ export default function PromotionForm({
               value={form.name}
               disabled={readOnly}
               onChange={(event) => updateField('name', event.target.value)}
-              placeholder="e.g. Weekend Flash Sale"
+              placeholder="Enter promotion name"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-slate-50"
             />
+            <FieldError message={errors.name} />
           </label>
 
           <label className="block md:col-span-2">
-            <FieldLabel>Short Description</FieldLabel>
+            <FieldLabel required>Short Description</FieldLabel>
             <textarea
               value={form.shortDescription}
               disabled={readOnly}
               onChange={(event) => updateField('shortDescription', event.target.value)}
               rows={3}
-              placeholder="Briefly describe what this promotion offers."
+              placeholder="Describe this promotion"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-slate-50"
             />
+            <div className="mt-1.5 flex items-center justify-between gap-3">
+              <FieldError message={errors.shortDescription} />
+              <p className="ml-auto shrink-0 text-xs text-slate-400">
+                {form.shortDescription.length} / {PROMOTION_DESCRIPTION_SOFT_LIMIT}
+              </p>
+            </div>
           </label>
 
           <label className="block">
@@ -222,12 +252,14 @@ export default function PromotionForm({
               <input
                 type="number"
                 min="0"
+                max={form.discountType === DISCOUNT_TYPES.PERCENTAGE ? '100' : undefined}
                 value={form.discountValue}
                 disabled={readOnly}
                 onChange={(event) => updateField('discountValue', event.target.value)}
-                placeholder={form.discountType === DISCOUNT_TYPES.PERCENTAGE ? 'e.g. 20' : 'e.g. 25'}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-slate-50"
+                placeholder={form.discountType === DISCOUNT_TYPES.PERCENTAGE ? 'e.g. 10' : 'e.g. 50.00'}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-slate-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
+              <FieldError message={errors.discountValue} />
             </label>
           )}
 
@@ -240,15 +272,37 @@ export default function PromotionForm({
                 value={form.maximumDiscount}
                 disabled={readOnly}
                 onChange={(event) => updateField('maximumDiscount', event.target.value)}
-                placeholder="Optional cap in GH₵"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-slate-50"
+                placeholder="e.g. 100.00"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-slate-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
             </label>
+          )}
+
+          {form.discountType === DISCOUNT_TYPES.BOGO && (
+            <div className="md:col-span-2">
+              <InfoNotice>
+                Customers receive an additional qualifying item when they purchase the required product.
+                {/* TODO: Connect BOGO qualification rules to promotion API when backend contract is available. */}
+              </InfoNotice>
+            </div>
+          )}
+
+          {form.discountType === DISCOUNT_TYPES.FREE_SHIPPING && (
+            <div className="md:col-span-2">
+              <InfoNotice>
+                Customers will receive free shipping on qualifying orders.
+              </InfoNotice>
+            </div>
           )}
         </div>
       </section>
 
-      <PromotionScheduleSection form={form} readOnly={readOnly} onChange={onChange} />
+      <PromotionScheduleSection
+        form={form}
+        readOnly={readOnly}
+        onChange={onChange}
+        error={errors.schedule}
+      />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
         <h2 className="text-sm font-bold text-slate-950">Applies To</h2>
@@ -328,6 +382,7 @@ export default function PromotionForm({
                 )}
               </>
             )}
+            <FieldError message={errors.categoryIds} />
           </div>
         )}
 
@@ -403,6 +458,7 @@ export default function PromotionForm({
                 )}
               </>
             )}
+            <FieldError message={errors.productIds} />
           </div>
         )}
       </section>

@@ -1,0 +1,73 @@
+{
+  "title": "Vendor Customer Detail Page — Backend Data Requirements",
+  "version": "2.0",
+  "description": "The customer show page is driven by customer profile fields and reviews. Order history and purchased items are not shown on this page — use the separate user-orders endpoint for the orders list view.",
+  "endpoints": {
+    "customer_detail": {
+      "method": "GET",
+      "path": "/api/vendor/get-customer/{userId}",
+      "description": "Customer profile for the detail header, overview tab, and review counts.",
+      "response_wrapper": {
+        "note": "Prefer { \"status\": \"success\", \"data\": { ...customer } }. The frontend also unwraps single-key objects like { \"0\": { ...customer } } but that shape is discouraged."
+      }
+    },
+    "customer_orders": {
+      "method": "GET",
+      "path": "/api/orders/get/user-orders/{userId}",
+      "description": "Used by the orders page when filtering by customer — not loaded on the customer show page."
+    }
+  },
+  "customer_fields": {
+    "id": "string (required)",
+    "first_name": "string (required)",
+    "last_name": "string (required)",
+    "email": "string (required)",
+    "phone_number": "string (required, digits without +)",
+    "city_or_town": "string",
+    "region": "string",
+    "address": "string",
+    "country": "string",
+    "status": "verified | unverified | suspended | inactive",
+    "total_spent": "number",
+    "total_orders": "integer",
+    "reviews_count": "integer",
+    "first_purchase_date": "ISO 8601 datetime",
+    "last_order_date": "ISO 8601 datetime"
+  },
+  "reviews_item": {
+    "id": "string",
+    "product_name": "string",
+    "rating": "integer 1-5",
+    "comment": "string",
+    "date": "ISO 8601 datetime"
+  },
+  "example_customer_detail_response": {
+    "status": "success",
+    "data": {
+      "id": "01kyekda849nca94nsndbf0pv0",
+      "first_name": "eugene",
+      "last_name": "asante",
+      "email": "eugenenaasante@gmail.com",
+      "phone_number": "233550442312",
+      "city_or_town": "Abokobi",
+      "region": "Greater Accra",
+      "address": "12 Main Street",
+      "country": "Ghana",
+      "status": "verified",
+      "total_spent": 13502.14,
+      "total_orders": 12,
+      "reviews_count": 2,
+      "first_purchase_date": "2024-03-15T10:30:00Z",
+      "last_order_date": "2025-07-20T14:22:00Z",
+      "reviews": [
+        {
+          "id": "rev-001",
+          "product_name": "Wireless Earbuds",
+          "rating": 5,
+          "comment": "Great sound quality!",
+          "date": "2025-06-10T09:15:00Z"
+        }
+      ]
+    }
+  }
+}

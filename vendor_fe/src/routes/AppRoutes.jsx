@@ -21,9 +21,15 @@ import Notifications from '../pages/notifications/Notifications'
 import Finance from '../pages/finance/Finance'
 import Reviews from '../pages/reviews/Reviews'
 import Messages from '../pages/messages/Messages'
-import Profile from '../pages/profile/Profile'
+import ProfileLayout from '../pages/profile/ProfileLayout'
+import PersonalInformationPage from '../pages/profile/PersonalInformationPage'
+import BusinessInformationPage from '../pages/profile/BusinessInformationPage'
+import BankDetailsPage from '../pages/profile/BankDetailsPage'
+import DocumentsPage from '../pages/profile/DocumentsPage'
+import ChangePasswordPage from '../pages/profile/ChangePasswordPage'
 import StoreSettings from '../pages/settings/StoreSettings'
 import UsersPermissions from '../pages/users/UsersPermissions'
+import AddUser from '../pages/users/AddUser'
 import HelpSupport from '../pages/help/HelpSupport'
 import Analytics from '../pages/analytics/Analytics'
 import Login from '../pages/auth_pages/Login'
@@ -68,8 +74,15 @@ export default function AppRoutes() {
       <Route path="/analytics" element={protectedPage(<Analytics />)} />
       <Route path="/reviews" element={protectedPage(<Reviews />)} />
       <Route path="/messages" element={protectedPage(<Messages />)} />
-      <Route path="/profile" element={protectedPage(<Profile />)} />
+      <Route path="/profile" element={protectedPage(<ProfileLayout />)}>
+        <Route index element={<PersonalInformationPage />} />
+        <Route path="business" element={<BusinessInformationPage />} />
+        <Route path="bank-details" element={<BankDetailsPage />} />
+        <Route path="documents" element={<DocumentsPage />} />
+        <Route path="change-password" element={<ChangePasswordPage />} />
+      </Route>
       <Route path="/settings" element={protectedPage(<StoreSettings />)} />
+      <Route path="/users/new" element={protectedPage(<AddUser />)} />
       <Route path="/users" element={protectedPage(<UsersPermissions />)} />
       <Route path="/help" element={protectedPage(<HelpSupport />)} />
       <Route path="/dev-guide" element={<DeveloperGuide />} />

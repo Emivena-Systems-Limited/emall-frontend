@@ -1,35 +1,115 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import PromotionForm from '../../components/promotions/PromotionForm'
+import PromotionFormActions from '../../components/promotions/PromotionFormActions'
 import PromotionFormIngredientsGate from '../../components/promotions/PromotionFormIngredientsGate'
-import { getPromotionById, saveVendorPromotion } from '../../constants/promotionsData'
+import {
+  usePromotion,
+  useSaveDraftMutation,
+  useUpdatePromotionMutation,
+} from '../../hooks/usePromotions'
 import { usePromotionFormIngredients } from '../../hooks/usePromotionFormIngredients'
 import notify from '../../lib/notify'
-import { buildPromotionPayload, validatePromotionForm } from '../../utils/promotionPayload'
+import {
+  buildPromotionPayload,
+  isPromotionFormDirty,
+  validatePromotionDraft,
+  validatePromotionForm,
+} from '../../utils/promotionPayload'
 
 export default function EditPromotion() {
   const { promotionId } = useParams()
   const navigate = useNavigate()
-  const existing = useMemo(() => getPromotionById(promotionId), [promotionId])
-  const [form, setForm] = useState(existing)
+  const { data: existing, isLoading: isPromotionLoading, isError } = usePromotion(promotionId)
+  const [form, setForm] = useState(null)
+  const [initialForm, setInitialForm] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   const {
     categoryOptions,
     productOptions,
-    isLoading,
-    isError,
+    isLoading: isIngredientsLoading,
+    isError: isIngredientsError,
     isReady,
     refetch,
   } = usePromotionFormIngredients()
 
-  if (!form) {
+  const updateMutation = useUpdatePromotionMutation()
+  const draftMutation = useSaveDraftMutation()
+  const isSubmitting = updateMutation.isPending || draftMutation.isPending
+
+  useEffect(() => {
+    if (!existing) return
+    setForm(existing)
+    setInitialForm(existing)
+  }, [existing])
+
+  const handleCancel = () => {
+    if (initialForm && form && isPromotionFormDirty(form, initialForm)) {
+      setDiscardOpen(true)
+      return
+    }
+    navigate('/promotions')
+  }
+
+  const handleSaveDraft = async () => {
+    if (!form) return
+    const validation = validatePromotionDraft(form)
+    setErrors(validation.errors)
+    if (!validation.isValid) return
+
+    try {
+      const payload = buildPromotionPayload(form, 'draft', { categoryOptions, productOptions })
+      await draftMutation.mutateAsync(payload)
+      notify.success('Promotion saved as draft.')
+      navigate('/promotions')
+    } catch {
+      notify.error('We couldn\'t save this draft. Please try again.')
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!form) return
+    const validation = validatePromotionForm(form, { mode: 'publish' })
+    setErrors(validation.errors)
+    if (!validation.isValid) {
+      if (validation.firstError) notify.error(validation.firstError)
+      return
+    }
+
+    try {
+      const payload = buildPromotionPayload(form, form.status === 'draft' ? 'scheduled' : form.status, {
+        categoryOptions,
+        productOptions,
+      })
+      await updateMutation.mutateAsync({ promotionId, promotion: payload })
+      notify.success(`"${form.name}" updated successfully.`)
+      navigate('/promotions')
+    } catch {
+      notify.error('We couldn\'t update this promotion. Please try again.')
+    }
+  }
+
+  if (isPromotionLoading) {
+    return (
+      <DashboardLayout pageTitle="Edit Promotion">
+        <div className="page-enter flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-24 text-sm font-semibold text-slate-500">
+          <Loader2 className="size-4 animate-spin text-brand" />
+          Loading promotion…
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (isError || !form) {
     return (
       <DashboardLayout pageTitle="Edit Promotion">
         <div className="page-enter rounded-2xl border border-slate-200 bg-white p-6 text-center">
           <p className="text-sm text-slate-600">Promotion not found.</p>
-          <Link to="/promotions" className="mt-4 inline-flex text-sm font-bold text-cyan-700 hover:text-cyan-900">
+          <Link to="/promotions" className="mt-4 inline-flex text-sm font-bold text-brand hover:underline">
             Back to promotions
           </Link>
         </div>
@@ -37,33 +117,17 @@ export default function EditPromotion() {
     )
   }
 
-  const persistForm = (statusOverride) => {
-    const error = validatePromotionForm(form)
-    if (error) {
-      notify.error(error)
-      return
-    }
-
-    const payload = buildPromotionPayload(
-      statusOverride ? { ...form, status: statusOverride } : form,
-      statusOverride ?? form.status,
-      { categoryOptions, productOptions },
-    )
-    saveVendorPromotion(payload)
-    notify.success(`"${form.name}" updated successfully.`)
-    navigate('/promotions')
-  }
-
   return (
     <DashboardLayout pageTitle="Edit Promotion">
       <div className="page-enter space-y-5">
-        <Link
-          to="/promotions"
+        <button
+          type="button"
+          onClick={handleCancel}
           className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
         >
           <ArrowLeft className="size-4" />
           Back to promotions
-        </Link>
+        </button>
 
         <div>
           <h1 className="text-2xl font-bold text-slate-950">Edit Promotion</h1>
@@ -71,14 +135,18 @@ export default function EditPromotion() {
         </div>
 
         <PromotionFormIngredientsGate
-          isLoading={isLoading}
-          isError={isError}
+          isLoading={isIngredientsLoading}
+          isError={isIngredientsError}
           onRetry={refetch}
         >
           {isReady && (
             <PromotionForm
               form={form}
-              onChange={setForm}
+              onChange={(next) => {
+                setForm(next)
+                setErrors({})
+              }}
+              errors={errors}
               showTypeSelection
               categoryOptions={categoryOptions}
               productOptions={productOptions}
@@ -87,21 +155,17 @@ export default function EditPromotion() {
         </PromotionFormIngredientsGate>
 
         {isReady && (
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <Link
-              to="/promotions"
-              className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Cancel
-            </Link>
-            <button
-              type="button"
-              onClick={() => persistForm()}
-              className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
-            >
-              Save Changes
-            </button>
-          </div>
+          <PromotionFormActions
+            mode="edit"
+            isDirty={initialForm ? isPromotionFormDirty(form, initialForm) : false}
+            isSubmitting={isSubmitting}
+            discardOpen={discardOpen}
+            onDiscardClose={() => setDiscardOpen(false)}
+            onDiscardConfirm={() => navigate('/promotions')}
+            onCancel={handleCancel}
+            onSaveDraft={handleSaveDraft}
+            onSubmit={handleSubmit}
+          />
         )}
       </div>
     </DashboardLayout>

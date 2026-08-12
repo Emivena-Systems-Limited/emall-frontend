@@ -12,6 +12,31 @@ import { NAV_SECTIONS } from '../../constants/sidebarNav'
 import VendorStoreCard from './VendorStoreCard'
 
 function NavItem({ item, collapsed }) {
+  if (item.comingSoon) {
+    return (
+      <div
+        title={collapsed ? `${item.label} — Coming soon` : undefined}
+        className={`group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium text-white/35
+          ${collapsed ? 'justify-center px-2.5' : 'px-3'}`}
+      >
+        <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
+        {!collapsed && (
+          <>
+            <span className="min-w-0 truncate">{item.label}</span>
+            <span className="ml-auto shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
+              Soon
+            </span>
+          </>
+        )}
+        {collapsed && (
+          <span className="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+            {item.label} — Coming soon
+          </span>
+        )}
+      </div>
+    )
+  }
+
   return (
     <NavLink
       to={item.to}

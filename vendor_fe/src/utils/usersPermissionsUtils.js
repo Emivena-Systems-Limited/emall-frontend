@@ -1,23 +1,88 @@
-import { SORT_DIRECTIONS, SORT_FIELDS, USER_ROLES } from '../constants/usersPermissions'
+import {
+  ASSIGNABLE_ROLES,
+  PERMISSION_LEVELS,
+  PERMISSION_MODULES,
+  ROLE_DEFAULT_PERMISSIONS,
+  SORT_DIRECTIONS,
+  SORT_FIELDS,
+  USER_ROLES,
+  USER_STATUS,
+  USER_TABS,
+} from '../constants/usersPermissions'
+import { isValidPhoneNumber } from 'libphonenumber-js'
+
+const PERMISSION_RANK = {
+  [PERMISSION_LEVELS.NO_ACCESS]: 0,
+  [PERMISSION_LEVELS.VIEW_ONLY]: 1,
+  [PERMISSION_LEVELS.FULL_ACCESS]: 2,
+}
 
 export function getInitials(name) {
   if (!name) return '?'
-  return name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
+  return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+}
+
+export function getDefaultPermissionsForRole(role) {
+  return structuredClone(ROLE_DEFAULT_PERMISSIONS[role] ?? ROLE_DEFAULT_PERMISSIONS.store_manager)
+}
+
+export function createEmptyInviteForm() {
+  const role = ASSIGNABLE_ROLES[0]
+  return {
+    name: '',
+    email: '',
+    phone: '',
+    role,
+    permissions: getDefaultPermissionsForRole(role),
+  }
+}
+
+export function isInviteFormDirty(form, baseline = createEmptyInviteForm()) {
+  return form.name.trim() !== baseline.name
+    || form.email.trim() !== baseline.email
+    || (form.phone ?? '').trim() !== (baseline.phone ?? '').trim()
+    || form.role !== baseline.role
+    || !isPlainObjectEqual(form.permissions, baseline.permissions)
+}
+
+export function summarizePermissionLevel(permissions = {}) {
+  if (!permissions || Object.keys(permissions).length === 0) return 'No Access'
+
+  const values = PERMISSION_MODULES.map((module) => permissions[module.key] ?? PERMISSION_LEVELS.NO_ACCESS)
+  const fullCount = values.filter((value) => value === PERMISSION_LEVELS.FULL_ACCESS).length
+  const noAccessCount = values.filter((value) => value === PERMISSION_LEVELS.NO_ACCESS).length
+
+  if (fullCount === PERMISSION_MODULES.length) return 'Full Access'
+  if (noAccessCount === PERMISSION_MODULES.length) return 'No Access'
+  if (values.every((value) => value === PERMISSION_LEVELS.VIEW_ONLY || value === PERMISSION_LEVELS.NO_ACCESS)
+    && values.some((value) => value === PERMISSION_LEVELS.VIEW_ONLY)) {
+    return 'View Only'
+  }
+
+  const accessibleCount = values.filter((value) => value !== PERMISSION_LEVELS.NO_ACCESS).length
+  return `${accessibleCount} of ${PERMISSION_MODULES.length} modules`
+}
+
+export function getPermissionLevelLabel(level) {
+  if (level === PERMISSION_LEVELS.FULL_ACCESS) return 'Full Access'
+  if (level === PERMISSION_LEVELS.VIEW_ONLY) return 'View Only'
+  return 'No Access'
+}
+
+export function hasPermissionLevel(userLevel, requiredLevel) {
+  return (PERMISSION_RANK[userLevel] ?? 0) >= (PERMISSION_RANK[requiredLevel] ?? 0)
 }
 
 export function formatLastActive(iso) {
   if (!iso) return 'Never'
   const date = new Date(iso)
-  const now = new Date()
-  const diffMs = now - date
-  const diffMins = Math.floor(diffMs / (1000 * 60))
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function formatInvitedAt(iso) {
@@ -29,50 +94,67 @@ export function formatInvitedAt(iso) {
   })
 }
 
-export function computeTeamSummary(members) {
-  const total = members.length
-  const active = members.filter((m) => m.status === 'active').length
-  const pending = members.filter((m) => m.status === 'pending').length
-  const suspended = members.filter((m) => m.status === 'suspended').length
-
-  const roleCounts = Object.keys(USER_ROLES).reduce((acc, role) => {
-    acc[role] = members.filter((m) => m.role === role).length
-    return acc
-  }, {})
-
-  return { total, active, pending, suspended, roleCounts }
+export function computeUsersSummary(users) {
+  return {
+    total: users.length,
+    admins: users.filter((user) => user.role === USER_ROLES.ADMIN).length,
+    storeManagers: users.filter((user) => user.role === USER_ROLES.STORE_MANAGER).length,
+    active: users.filter((user) => user.status === USER_STATUS.ACTIVE).length,
+    invited: users.filter((user) => user.status === USER_STATUS.INVITED).length,
+    deactivated: users.filter((user) => user.status === USER_STATUS.DEACTIVATED).length,
+  }
 }
 
-export function filterTeamMembers(members, { search, roleFilter, statusFilter }) {
-  let result = [...members]
+export function computeTabCounts(users) {
+  return {
+    [USER_TABS.ALL]: users.filter((user) => user.status !== USER_STATUS.DEACTIVATED).length,
+    [USER_TABS.PENDING]: users.filter((user) => user.status === USER_STATUS.INVITED).length,
+    [USER_TABS.DEACTIVATED]: users.filter((user) => user.status === USER_STATUS.DEACTIVATED).length,
+  }
+}
+
+export function filterUsersByTab(users, tab) {
+  if (tab === USER_TABS.PENDING) {
+    return users.filter((user) => user.status === USER_STATUS.INVITED)
+  }
+  if (tab === USER_TABS.DEACTIVATED) {
+    return users.filter((user) => user.status === USER_STATUS.DEACTIVATED)
+  }
+  return users.filter((user) => user.status !== USER_STATUS.DEACTIVATED)
+}
+
+export function filterUsers(users, { search, roleFilter, statusFilter }) {
+  let result = [...users]
 
   if (roleFilter !== 'all') {
-    result = result.filter((m) => m.role === roleFilter)
+    result = result.filter((user) => user.role === roleFilter)
   }
+
   if (statusFilter !== 'all') {
-    result = result.filter((m) => m.status === statusFilter)
+    result = result.filter((user) => user.status === statusFilter)
   }
-  if (search.trim()) {
-    const q = search.trim().toLowerCase()
+
+  const query = search.trim().toLowerCase()
+  if (query) {
     result = result.filter(
-      (m) =>
-        m.name?.toLowerCase().includes(q)
-        || m.email?.toLowerCase().includes(q),
+      (user) =>
+        user.name?.toLowerCase().includes(query)
+        || user.email?.toLowerCase().includes(query),
     )
   }
 
   return result
 }
 
-export function sortTeamMembers(members, field, direction) {
+export function sortUsers(users, field, direction) {
   const dir = direction === SORT_DIRECTIONS.asc ? 1 : -1
-  return [...members].sort((a, b) => {
+  return [...users].sort((a, b) => {
     switch (field) {
       case SORT_FIELDS.role:
         return a.role.localeCompare(b.role) * dir
       case SORT_FIELDS.lastActive: {
-        const aTime = a.lastActive ? new Date(a.lastActive).getTime() : 0
-        const bTime = b.lastActive ? new Date(b.lastActive).getTime() : 0
+        const aTime = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0
+        const bTime = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0
         return (aTime - bTime) * dir
       }
       case SORT_FIELDS.name:
@@ -99,23 +181,37 @@ export function paginateItems(items, { page, pageSize }) {
   }
 }
 
-export function createInviteMember({ name, email, role }) {
-  return {
-    id: `user-${Date.now()}`,
-    name: name.trim(),
-    email: email.trim(),
-    role,
-    status: 'pending',
-    lastActive: null,
-    invitedAt: new Date().toISOString(),
-    avatar: null,
+export function validateInviteUserForm({ name, email, role, phone }) {
+  const errors = {}
+  const trimmedName = name.trim()
+  const trimmedEmail = email.trim()
+  const trimmedPhone = String(phone ?? '').trim()
+
+  if (trimmedName.length < 3) errors.name = 'Enter the user\'s full name.'
+  if (!trimmedEmail) errors.email = 'Email address is required.'
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) errors.email = 'Enter a valid email address.'
+
+  if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+    errors.phone = 'Enter a valid international phone number.'
   }
+
+  if (!role) errors.role = 'Select a role.'
+  if (role === USER_ROLES.STORE_OWNER) errors.role = 'Store Owner cannot be assigned when inviting users.'
+
+  return errors
 }
 
-export function updateMemberStatus(members, memberId, status) {
-  return members.map((m) => (m.id === memberId ? { ...m, status } : m))
+export function isStoreOwner(user) {
+  return user?.role === USER_ROLES.STORE_OWNER
 }
 
-export function removeMember(members, memberId) {
-  return members.filter((m) => m.id !== memberId)
+export function isPlainObjectEqual(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+export function enrichUserRecord(user) {
+  return {
+    ...user,
+    permissionLevel: summarizePermissionLevel(user.permissions),
+  }
 }

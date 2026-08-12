@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams, useLocation } from 'react-router'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -36,6 +36,7 @@ export default function ViewProduct() {
   const { productId } = useParams()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const orderId = searchParams.get('orderId')
   const linkedOrder = orderId ? getOrderById(orderId) : null
   const orderProducts = linkedOrder ? getUniqueOrderProducts(linkedOrder) : []
@@ -135,6 +136,7 @@ export default function ViewProduct() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
             to={orderId ? `/orders/${orderId}` : '/products'}
+            state={orderId ? location.state : undefined}
             className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800"
           >
             <ArrowLeft className="size-4" />

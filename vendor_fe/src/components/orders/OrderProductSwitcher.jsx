@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { ChevronDown, Package } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import { buildViewProductPath } from '../../utils/orderProductNavigation'
 
 export default function OrderProductSwitcher({ orderId, products, currentProductId }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
 
@@ -15,7 +16,7 @@ export default function OrderProductSwitcher({ orderId, products, currentProduct
   const current = products[currentIndex] ?? products[0]
 
   const switchTo = (productId) => {
-    navigate(buildViewProductPath(productId, orderId))
+    navigate(buildViewProductPath(productId, orderId), location.state ? { state: location.state } : undefined)
     setOpen(false)
   }
 

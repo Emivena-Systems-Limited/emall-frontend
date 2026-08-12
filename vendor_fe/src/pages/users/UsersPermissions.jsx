@@ -1,131 +1,288 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router'
+import ConfirmModal from '../../components/common/ConfirmModal'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import OrderPagination from '../../components/orders/OrderPagination'
-import InviteUserModal from '../../components/users/InviteUserModal'
+import EditRoleModal from '../../components/users/EditRoleModal'
+import UserDetailsDrawer from '../../components/users/UserDetailsDrawer'
+import UserPermissionsDrawer from '../../components/users/UserPermissionsDrawer'
+import UsersErrorState from '../../components/users/UsersErrorState'
 import UsersPageHeader from '../../components/users/UsersPageHeader'
+import UsersPageLoader from '../../components/users/UsersPageLoader'
 import UsersSummaryCards from '../../components/users/UsersSummaryCards'
 import UsersTable from '../../components/users/UsersTable'
-import { SORT_DIRECTIONS, SORT_FIELDS, USERS_PAGE_SIZE } from '../../constants/usersPermissions'
-import { DEV_TEAM_MEMBERS, MOCK_TEAM_MEMBERS } from '../../constants/usersPermissionsData'
+import UserTabs from '../../components/users/UserTabs'
+import {
+  SORT_DIRECTIONS,
+  SORT_FIELDS,
+  USER_TABS,
+  USERS_PAGE_SIZE,
+} from '../../constants/usersPermissions'
+import {
+  useDeactivateUserMutation,
+  useReactivateUserMutation,
+  useRemoveUserMutation,
+  useResendInvitationMutation,
+  useUpdateUserPermissionsMutation,
+  useUpdateUserRoleMutation,
+  useUsers,
+} from '../../hooks/useUsers'
 import notify from '../../lib/notify'
 import {
-  computeTeamSummary,
-  createInviteMember,
-  filterTeamMembers,
+  computeTabCounts,
+  computeUsersSummary,
+  filterUsers,
+  filterUsersByTab,
   paginateItems,
-  removeMember,
-  sortTeamMembers,
-  updateMemberStatus,
+  sortUsers,
 } from '../../utils/usersPermissionsUtils'
 
 export default function UsersPermissions() {
-  const [devDataEnabled, setDevDataEnabled] = useState(false)
-  const [members, setMembers] = useState(MOCK_TEAM_MEMBERS)
-  const [inviteOpen, setInviteOpen] = useState(false)
+  const location = useLocation()
+  const { data: users = [], isLoading, isError, error, refetch, isFetching } = useUsers()
 
+  const [activeTab, setActiveTab] = useState(USER_TABS.ALL)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
 
-  const summary = useMemo(() => computeTeamSummary(members), [members])
-  const hasMembers = members.length > 0
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [roleModalUser, setRoleModalUser] = useState(null)
+  const [permissionsUser, setPermissionsUser] = useState(null)
+  const [confirmAction, setConfirmAction] = useState(null)
+
+  const roleMutation = useUpdateUserRoleMutation()
+  const permissionsMutation = useUpdateUserPermissionsMutation()
+  const deactivateMutation = useDeactivateUserMutation()
+  const reactivateMutation = useReactivateUserMutation()
+  const removeMutation = useRemoveUserMutation()
+  const resendMutation = useResendInvitationMutation()
+
+  const summary = useMemo(() => computeUsersSummary(users), [users])
+  const tabCounts = useMemo(() => computeTabCounts(users), [users])
 
   const hasActiveFilters = search.trim() !== '' || roleFilter !== 'all' || statusFilter !== 'all'
 
-  const filtered = useMemo(
-    () => filterTeamMembers(members, { search, roleFilter, statusFilter }),
-    [members, search, roleFilter, statusFilter],
-  )
+  const filteredUsers = useMemo(() => {
+    const tabUsers = filterUsersByTab(users, activeTab)
+    return filterUsers(tabUsers, { search, roleFilter, statusFilter })
+  }, [users, activeTab, search, roleFilter, statusFilter])
 
-  const sorted = useMemo(
-    () => sortTeamMembers(filtered, SORT_FIELDS.name, SORT_DIRECTIONS.asc),
-    [filtered],
+  const sortedUsers = useMemo(
+    () => sortUsers(filteredUsers, SORT_FIELDS.name, SORT_DIRECTIONS.asc),
+    [filteredUsers],
   )
 
   const pagination = useMemo(
-    () => paginateItems(sorted, { page, pageSize: USERS_PAGE_SIZE }),
-    [sorted, page],
+    () => paginateItems(sortedUsers, { page, pageSize: USERS_PAGE_SIZE }),
+    [sortedUsers, page],
   )
 
   useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab)
+    }
+  }, [location.state?.activeTab])
+
+  useEffect(() => {
     setPage(1)
-  }, [search, roleFilter, statusFilter])
+  }, [activeTab, search, roleFilter, statusFilter])
 
-  const handleInvite = ({ name, email, role }) => {
-    setMembers((current) => [...current, createInviteMember({ name, email, role })])
-    notify.success(`Invite sent to ${email}.`)
+  useEffect(() => {
+    if (isError) {
+      notify.fromError(error, 'Unable to load users')
+    }
+  }, [error, isError])
+
+  const closeDetails = () => {
+    setDetailsOpen(false)
+    setSelectedUser(null)
   }
 
-  const handleSuspend = (member, status = 'suspended') => {
-    setMembers((current) => updateMemberStatus(current, member.id, status))
-    notify.info(status === 'active' ? `${member.name} reactivated.` : `${member.name} suspended.`)
+  const openDetails = (user) => {
+    setSelectedUser(user)
+    setDetailsOpen(true)
   }
 
-  const handleRemove = (member) => {
-    setMembers((current) => removeMember(current, member.id))
-    notify.info(`${member.name} removed from team.`)
+  const handleRoleSave = async (user, role) => {
+    try {
+      await roleMutation.mutateAsync({ userId: user.id, role })
+      notify.success('User role updated successfully.')
+      setRoleModalUser(null)
+      closeDetails()
+    } catch {
+      notify.error('Unable to update user role. Please try again.')
+    }
   }
 
-  const handleResend = (member) => {
-    notify.success(`Invite resent to ${member.email}.`)
+  const handlePermissionsSave = async (user, permissions) => {
+    try {
+      await permissionsMutation.mutateAsync({ userId: user.id, permissions })
+      notify.success('Permissions updated successfully.')
+      setPermissionsUser(null)
+      closeDetails()
+    } catch {
+      notify.error('Unable to update permissions. Your changes were not saved. Please try again.')
+    }
   }
 
-  const handleDevDataToggle = (enabled) => {
-    setDevDataEnabled(enabled)
-    setMembers(enabled ? DEV_TEAM_MEMBERS : [])
-    setSearch('')
-    setRoleFilter('all')
-    setStatusFilter('all')
-    setPage(1)
-    notify.info(enabled ? 'Loaded dummy team data.' : 'Cleared team data.')
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return
+    const { type, user } = confirmAction
+
+    try {
+      if (type === 'deactivate') {
+        await deactivateMutation.mutateAsync(user.id)
+        notify.success('User deactivated successfully.')
+        setActiveTab(USER_TABS.DEACTIVATED)
+      } else if (type === 'reactivate') {
+        await reactivateMutation.mutateAsync(user.id)
+        notify.success('User reactivated successfully.')
+        setActiveTab(USER_TABS.ALL)
+      } else if (type === 'remove') {
+        await removeMutation.mutateAsync(user.id)
+        notify.success('User removed successfully.')
+      }
+      closeDetails()
+    } catch {
+      notify.error('Unable to complete this action. Please try again.')
+    } finally {
+      setConfirmAction(null)
+    }
   }
+
+  const handleResend = async (user) => {
+    try {
+      await resendMutation.mutateAsync(user.id)
+      notify.success('Invitation resent successfully.')
+    } catch {
+      notify.error('Unable to resend invitation. Please try again.')
+    }
+  }
+
+  const actionHandlers = {
+    onView: openDetails,
+    onEditRole: (user) => setRoleModalUser(user),
+    onManagePermissions: (user) => setPermissionsUser(user),
+    onDeactivate: (user) => setConfirmAction({ type: 'deactivate', user }),
+    onReactivate: (user) => setConfirmAction({ type: 'reactivate', user }),
+    onRemove: (user) => setConfirmAction({ type: 'remove', user }),
+    onResend: handleResend,
+  }
+
+  const confirmCopy = confirmAction?.type === 'deactivate'
+    ? {
+      title: 'Deactivate User?',
+      description: `${confirmAction.user.name} will no longer be able to access the Vendor Dashboard.`,
+      confirmLabel: 'Deactivate User',
+      tone: 'warning',
+    }
+    : confirmAction?.type === 'reactivate'
+      ? {
+        title: 'Reactivate User?',
+        description: `${confirmAction.user.name} will regain access to the Vendor Dashboard.`,
+        confirmLabel: 'Reactivate User',
+        tone: 'success',
+      }
+      : confirmAction?.type === 'remove'
+        ? {
+          title: 'Remove User?',
+          description: `This will permanently remove ${confirmAction.user.name} from your vendor team. This action cannot be undone.`,
+          confirmLabel: 'Remove User',
+          tone: 'danger',
+        }
+        : null
 
   return (
     <DashboardLayout pageTitle="Users & Permissions">
       <div className="page-enter space-y-6">
-        <UsersPageHeader
-          summary={summary}
-          devDataEnabled={devDataEnabled}
-          onDevDataChange={handleDevDataToggle}
-          onInvite={() => setInviteOpen(true)}
-        />
+        <UsersPageHeader />
 
-        {hasMembers && <UsersSummaryCards summary={summary} />}
-
-        <UsersTable
-          members={pagination.items}
-          hasMembers={hasMembers}
-          hasActiveFilters={hasActiveFilters}
-          search={search}
-          onSearchChange={setSearch}
-          roleFilter={roleFilter}
-          onRoleFilterChange={setRoleFilter}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-          onSuspend={handleSuspend}
-          onRemove={handleRemove}
-          onResend={handleResend}
-        />
-
-        {hasMembers && sorted.length > 0 && (
-          <OrderPagination
-            page={pagination.page}
-            pageCount={pagination.pageCount}
-            totalItems={pagination.totalItems}
-            startIndex={pagination.startIndex}
-            endIndex={pagination.endIndex}
-            onPageChange={setPage}
-            itemLabel="members"
+        {isLoading ? (
+          <UsersPageLoader />
+        ) : isError ? (
+          <UsersErrorState
+            message={error?.message}
+            onRetry={() => refetch()}
+            isRetrying={isFetching}
           />
-        )}
+        ) : (
+          <>
+            <UsersSummaryCards summary={summary} />
+            <UserTabs activeTab={activeTab} counts={tabCounts} onChange={setActiveTab} />
 
+            <UsersTable
+              users={pagination.items}
+              tab={activeTab}
+              search={search}
+              onSearchChange={setSearch}
+              roleFilter={roleFilter}
+              onRoleFilterChange={setRoleFilter}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              onClearFilters={() => {
+                setSearch('')
+                setRoleFilter('all')
+                setStatusFilter('all')
+              }}
+              hasActiveFilters={hasActiveFilters}
+              {...actionHandlers}
+            />
+
+            {sortedUsers.length > 0 && (
+              <OrderPagination
+                page={pagination.page}
+                pageCount={pagination.pageCount}
+                totalItems={pagination.totalItems}
+                startIndex={pagination.startIndex}
+                endIndex={pagination.endIndex}
+                onPageChange={setPage}
+                itemLabel="users"
+              />
+            )}
+          </>
+        )}
       </div>
 
-      <InviteUserModal
-        open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        onInvite={handleInvite}
+      <UserDetailsDrawer
+        open={detailsOpen}
+        user={selectedUser}
+        onClose={closeDetails}
+        onEditRole={(user) => setRoleModalUser(user)}
+        onManagePermissions={(user) => setPermissionsUser(user)}
+        onDeactivate={(user) => setConfirmAction({ type: 'deactivate', user })}
+        onReactivate={(user) => setConfirmAction({ type: 'reactivate', user })}
+        onRemove={(user) => setConfirmAction({ type: 'remove', user })}
+        onResend={handleResend}
+      />
+
+      <EditRoleModal
+        open={Boolean(roleModalUser)}
+        user={roleModalUser}
+        onClose={() => setRoleModalUser(null)}
+        onSubmit={handleRoleSave}
+        isSubmitting={roleMutation.isPending}
+      />
+
+      <UserPermissionsDrawer
+        open={Boolean(permissionsUser)}
+        user={permissionsUser}
+        onClose={() => setPermissionsUser(null)}
+        onSubmit={handlePermissionsSave}
+        isSubmitting={permissionsMutation.isPending}
+      />
+
+      <ConfirmModal
+        open={Boolean(confirmCopy)}
+        title={confirmCopy?.title}
+        description={confirmCopy?.description}
+        confirmLabel={confirmCopy?.confirmLabel}
+        tone={confirmCopy?.tone}
+        isLoading={deactivateMutation.isPending || reactivateMutation.isPending || removeMutation.isPending}
+        onConfirm={handleConfirmAction}
+        onClose={() => setConfirmAction(null)}
       />
     </DashboardLayout>
   )
