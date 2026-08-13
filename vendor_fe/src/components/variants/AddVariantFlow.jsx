@@ -2,40 +2,42 @@ import { useRef, useState } from 'react'
 import { Layers3, Plus } from 'lucide-react'
 import ConfirmModal from '../common/ConfirmModal'
 import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
-import { isPersistedVariantId } from '../../utils/productPayload'
 import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
 import notify from '../../lib/notify'
 import AttributeIcon from './AttributeIcon'
 import AttributeTypePicker from './AttributeTypePicker'
 import CardStepHeader from './CardStepHeader'
-import VariantDetailsDrawer from './VariantDetailsDrawer'
-import VariantValueDraftCard from './VariantValueDraftCard'
-import VariantValuesInput from './VariantValuesInput'
+import PersistedVariantAccordion from './PersistedVariantAccordion'
+import VariantAccordionCard from './VariantAccordionCard'
+import VariantGroupActionBar from './VariantGroupActionBar'
 import { isPresetAttribute } from './variantConstants'
-import {
-  EMPTY_VARIANT_VALUES,
-  getVariantValuesHint,
-  getVariantValuesInputPlaceholder,
-  toVariantFormValues,
-} from './variantFormUtils'
+import { getSingleVariantValuePlaceholder, normalizeVariantOptionalFields, parseMultiValues } from './variantFormUtils'
 
-function createGroupId() {
-  return `grp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+function createDraftId() {
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-function mergeUniqueValues(existing = [], additions = []) {
-  const seen = new Set(existing.map((item) => item.toLowerCase()))
-  const merged = [...existing]
-  additions.forEach((item) => {
-    const key = item.toLowerCase()
-    if (seen.has(key)) return
-    seen.add(key)
-    merged.push(item)
-  })
-  return merged
+function createDraftCard(value) {
+  return {
+    id: createDraftId(),
+    value,
+    sku: '',
+    quantity: '',
+    price: '',
+    discount_price: '',
+    images: [],
+    has_compatible_models: false,
+    compatible_models: [],
+    isCustomPrice: false,
+    error: '',
+  }
 }
 
-/** Add-variant flow: add multiple option types (Color, Size, …) each with values, then fill details per value in the drawer. */
+/**
+ * Add-variant flow: pick an option type (Color, Size, …), type a value and it opens
+ * as its own accordion card right away — fill in quantity, price & photo inline. Save
+ * the batch when done, and the option type picker comes back for the next type.
+ */
 export default function AddVariantFlow({
   productId,
   productValues,
@@ -46,19 +48,26 @@ export default function AddVariantFlow({
   deleteVariantMutation,
 }) {
   const lockedAttribute = prefillAttribute?.trim() || ''
-  const [groups, setGroups] = useState([])
   const [usePrefillAttribute, setUsePrefillAttribute] = useState(Boolean(lockedAttribute))
   const [buildingAttribute, setBuildingAttribute] = useState(lockedAttribute)
   const [showCustomAttribute, setShowCustomAttribute] = useState(() =>
     Boolean(lockedAttribute && !isPresetAttribute(lockedAttribute)),
   )
   const [attributeError, setAttributeError] = useState('')
-  const [pendingValues, setPendingValues] = useState([])
+  const [valueInput, setValueInput] = useState('')
   const [valuesError, setValuesError] = useState('')
-  const [editingTarget, setEditingTarget] = useState(null) // { attribute, value }
+  const [draftCards, setDraftCards] = useState([])
+  const [openDraftIds, setOpenDraftIds] = useState(() => new Set())
+  const [isSavingBatch, setIsSavingBatch] = useState(false)
+  const [openPersistedIds, setOpenPersistedIds] = useState(() => new Set())
+  const [persistedSavingId, setPersistedSavingId] = useState(null)
   const [removeTarget, setRemoveTarget] = useState(null)
   const savedValuesRef = useRef(null)
   const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
+
+  const activeAttribute = usePrefillAttribute && lockedAttribute
+    ? lockedAttribute
+    : buildingAttribute.trim()
 
   const scrollToSavedValues = () => {
     requestAnimationFrame(() => {
@@ -78,161 +87,199 @@ export default function AddVariantFlow({
     })
   }
 
-  const findPersistedEntry = (attribute, value) =>
-    entries.find(
-      (entry) =>
-        (entry.variation.attribute || '').toLowerCase() === attribute.toLowerCase()
-        && (entry.variantValue.value || '').toLowerCase() === value.toLowerCase(),
-    )
-
-  const resetBuildingForm = () => {
+  const resetSession = () => {
     setBuildingAttribute(usePrefillAttribute && lockedAttribute ? lockedAttribute : '')
     setShowCustomAttribute(Boolean(usePrefillAttribute && lockedAttribute && !isPresetAttribute(lockedAttribute)))
-    setPendingValues([])
+    setDraftCards([])
+    setOpenDraftIds(new Set())
+    setValueInput('')
     setAttributeError('')
     setValuesError('')
   }
 
-  const activeAttribute = usePrefillAttribute && lockedAttribute
-    ? lockedAttribute
-    : buildingAttribute.trim()
+  const toggleDraftOpen = (cardId) => {
+    setOpenDraftIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) next.delete(cardId)
+      else next.add(cardId)
+      return next
+    })
+  }
 
-  const handleAddOptionGroup = () => {
+  const addValue = (rawValue) => {
+    const trimmed = rawValue.trim()
+    if (!trimmed) return
     if (!activeAttribute) {
       setAttributeError('Choose or enter an option type to continue')
       return
     }
-    if (pendingValues.length === 0) {
-      setValuesError('Add at least one value, then click Add Attribute')
+
+    const key = trimmed.toLowerCase()
+    const alreadyDraft = draftCards.some((card) => card.value.toLowerCase() === key)
+    const alreadyPersisted = entries.some(
+      (entry) =>
+        (entry.variation.attribute || '').toLowerCase() === activeAttribute.toLowerCase()
+        && (entry.variantValue.value || '').toLowerCase() === key,
+    )
+    if (alreadyDraft || alreadyPersisted) {
+      setValuesError(`"${trimmed}" was already added for ${activeAttribute}`)
       return
     }
 
     setAttributeError('')
     setValuesError('')
-
-    setGroups((prev) => {
-      const existingIndex = prev.findIndex(
-        (group) => group.attribute.toLowerCase() === activeAttribute.toLowerCase(),
-      )
-      if (existingIndex >= 0) {
-        return prev.map((group, index) => (
-          index === existingIndex
-            ? { ...group, values: mergeUniqueValues(group.values, pendingValues) }
-            : group
-        ))
-      }
-      return [
-        ...prev,
-        { id: createGroupId(), attribute: activeAttribute, values: [...pendingValues] },
-      ]
-    })
-
-    resetBuildingForm()
+    const card = createDraftCard(trimmed)
+    setDraftCards((prev) => [...prev, card])
+    setOpenDraftIds((prev) => new Set(prev).add(card.id))
     scrollToSavedValues()
   }
 
-  const handleRemoveValue = (attribute, value) => {
-    const persisted = findPersistedEntry(attribute, value)
-    if (persisted) {
-      setRemoveTarget({ attribute, value, persistedEntry: persisted })
-      return
+  const commitValueInput = () => {
+    if (!valueInput.trim()) return
+    if (valueInput.includes(',')) {
+      parseMultiValues(valueInput).forEach(addValue)
+    } else {
+      addValue(valueInput)
     }
-    setGroups((prev) =>
-      prev
-        .map((group) => (
-          group.attribute === attribute
-            ? { ...group, values: group.values.filter((item) => item !== value) }
-            : group
-        ))
-        .filter((group) => group.values.length > 0),
-    )
+    setValueInput('')
+  }
+
+  const handleValueInputKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault()
+      commitValueInput()
+    }
+  }
+
+  const updateDraftField = (cardId, field, value) => {
+    setDraftCards((prev) => prev.map((card) => (
+      card.id === cardId ? { ...card, [field]: value, error: '' } : card
+    )))
+  }
+
+  const toggleDraftCustomPrice = (cardId, next) => {
+    setDraftCards((prev) => prev.map((card) => (
+      card.id === cardId ? { ...card, isCustomPrice: next } : card
+    )))
+  }
+
+  const removeDraftCard = (cardId) => {
+    setDraftCards((prev) => prev.filter((card) => card.id !== cardId))
+  }
+
+  const handleSaveBatch = async () => {
+    if (draftCards.length === 0) return
+    setIsSavingBatch(true)
+
+    const remaining = []
+    let successCount = 0
+
+    for (const card of draftCards) {
+      if (!card.value.trim()) {
+        remaining.push({ ...card, error: 'Value is required' })
+        continue
+      }
+      if (card.quantity === '' || card.quantity == null) {
+        remaining.push({ ...card, error: 'Quantity is required' })
+        continue
+      }
+
+      try {
+        const normalized = normalizeVariantOptionalFields(
+          { ...card, attribute: activeAttribute },
+          { isCustomPrice: card.isCustomPrice },
+        )
+        const prepared = await prepareVariantFormValuesForSave({
+          variantFormValues: normalized,
+          attribute: activeAttribute,
+          uploadPendingMedia,
+        })
+
+        await createVariantMutation.mutateAsync({
+          productId,
+          variantFormValues: prepared,
+          productValues,
+        })
+        successCount += 1
+      } catch (error) {
+        remaining.push({ ...card, error: error?.message || 'Failed to save this option' })
+      }
+    }
+
+    setDraftCards(remaining)
+    setOpenDraftIds(new Set(remaining.map((card) => card.id)))
+    setIsSavingBatch(false)
+
+    if (remaining.length === 0) {
+      notify.success(
+        `${successCount} ${activeAttribute} option${successCount === 1 ? '' : 's'} added successfully.`,
+      )
+      resetSession()
+    } else if (successCount > 0) {
+      notify.error(`${successCount} option(s) saved. Fix ${remaining.length} option(s) below and save again.`)
+    } else {
+      notify.error('Could not save these options. Check the highlighted fields.')
+    }
+  }
+
+  const togglePersistedOpen = (variantId) => {
+    setOpenPersistedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(variantId)) next.delete(variantId)
+      else next.add(variantId)
+      return next
+    })
+  }
+
+  const handleSavePersisted = async (entry, draft, { isCustomPrice }) => {
+    const variantId = entry.variantValue.id
+    setPersistedSavingId(variantId)
+    try {
+      const normalized = normalizeVariantOptionalFields(draft, { isCustomPrice })
+      const prepared = await prepareVariantFormValuesForSave({
+        variantFormValues: normalized,
+        attribute: entry.variation.attribute,
+        uploadPendingMedia,
+      })
+      await updateSingleVariantMutation.mutateAsync({
+        productId,
+        variantId,
+        variantFormValues: prepared,
+        productValues,
+      })
+    } finally {
+      setPersistedSavingId(null)
+    }
   }
 
   const handleConfirmRemove = async () => {
     if (!removeTarget) return
-    if (removeTarget.persistedEntry) {
-      await deleteVariantMutation.mutateAsync({
-        productId,
-        productVariantId: removeTarget.persistedEntry.variantValue.id,
-      })
-    }
-    setGroups((prev) =>
-      prev
-        .map((group) => (
-          group.attribute === removeTarget.attribute
-            ? { ...group, values: group.values.filter((item) => item !== removeTarget.value) }
-            : group
-        ))
-        .filter((group) => group.values.length > 0),
-    )
+    await deleteVariantMutation.mutateAsync({
+      productId,
+      productVariantId: removeTarget.variantValue.id,
+    })
     setRemoveTarget(null)
   }
 
-  const handleDrawerSave = async (variantFormValues) => {
-    if (!editingTarget) return
-    const { attribute, value } = editingTarget
-    const persisted = findPersistedEntry(attribute, value)
-
-    try {
-      const nextVariantFormValues = await prepareVariantFormValuesForSave({
-        variantFormValues,
-        attribute,
-        uploadPendingMedia,
-      })
-
-      if (import.meta.env.DEV) {
-        console.log('[variant save] prepared images:', nextVariantFormValues.images)
-      }
-
-      if (persisted && isPersistedVariantId(persisted.variantValue.id)) {
-        await updateSingleVariantMutation.mutateAsync({
-          productId,
-          variantId: persisted.variantValue.id,
-          variantFormValues: nextVariantFormValues,
-          productValues,
-        })
-      } else {
-        await createVariantMutation.mutateAsync({
-          productId,
-          variantFormValues: nextVariantFormValues,
-          productValues,
-        })
-      }
-
-      setEditingTarget(null)
-    } catch (error) {
-      if (!error?.response) {
-        notify.error(error?.message || 'Failed to prepare variant images.')
-      }
-    }
-  }
-
-  const editingPersisted = editingTarget
-    ? findPersistedEntry(editingTarget.attribute, editingTarget.value)
-    : null
-  const drawerInitialValues = editingTarget
-    ? (editingPersisted
-      ? toVariantFormValues(editingPersisted.variantValue, editingTarget.attribute)
-      : { ...EMPTY_VARIANT_VALUES, attribute: editingTarget.attribute, value: editingTarget.value })
-    : EMPTY_VARIANT_VALUES
-
-  const totalValues = groups.reduce((count, group) => count + group.values.length, 0)
-  const readyCount = groups.reduce(
-    (count, group) => count + group.values.filter((value) => findPersistedEntry(group.attribute, value)).length,
-    0,
-  )
+  const groupedEntries = entries.reduce((groups, entry) => {
+    const key = entry.variation.attribute || 'Options'
+    if (!groups[key]) groups[key] = []
+    groups[key].push(entry)
+    return groups
+  }, {})
+  const attributeGroupCount = Object.keys(groupedEntries).length
 
   return (
     <div className="space-y-6">
-      {/* Build a new option type */}
+      {/* Choose option type + add values */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
         <CardStepHeader
           step={1}
           title="Add option types & values"
           subtitle={
             lockedAttribute
-              ? `Add more "${lockedAttribute}" values, or add another option type like Size or Material — all in one go.`
-              : 'Set up one or more option types (Color, Size, Material…). Each type gets its own values before you fill in photos and pricing.'
+              ? `Add more "${lockedAttribute}" values, or add another option type like Size or Material.`
+              : 'Pick an option type (Color, Size, Material…), then type each value — Black, Red, Blue — and fill in its details right on the card.'
           }
           required
         />
@@ -291,127 +338,139 @@ export default function AddVariantFlow({
           <p className="mt-2 text-xs font-semibold text-red-600">{attributeError}</p>
         )}
 
-        {activeAttribute ? (
+        {activeAttribute && draftCards.length === 0 ? (
           <div className="mt-5 border-t border-slate-100 pt-5">
-            <VariantValuesInput
-              values={pendingValues}
-              onChange={(next) => {
-                setPendingValues(next)
-                setValuesError('')
-              }}
-              label={`${activeAttribute} value(s)`}
-              hint={getVariantValuesHint(activeAttribute)}
-              placeholder={getVariantValuesInputPlaceholder(activeAttribute)}
-              error={valuesError}
-            />
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              {!usePrefillAttribute && groups.length > 0 && (
-                <button
-                  type="button"
-                  onClick={resetBuildingForm}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:border-slate-300"
-                >
-                  Clear form
-                </button>
-              )}
+            <label className="mb-1.5 block text-sm font-semibold text-slate-800">
+              Add a {activeAttribute.toLowerCase()} value
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={valueInput}
+                onChange={(event) => setValueInput(event.target.value)}
+                onKeyDown={handleValueInputKeyDown}
+                onBlur={commitValueInput}
+                placeholder={getSingleVariantValuePlaceholder(activeAttribute)}
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
+              />
               <button
                 type="button"
-                onClick={handleAddOptionGroup}
-                disabled={pendingValues.length === 0}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={commitValueInput}
+                disabled={!valueInput.trim()}
+                className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="size-4" />
-                Add Attribute
-                {pendingValues.length > 0 ? ` (${pendingValues.length} value${pendingValues.length === 1 ? '' : 's'})` : ''}
+                Add value
               </button>
             </div>
+            {valuesError && <p className="mt-2 text-xs font-semibold text-red-600">{valuesError}</p>}
+            <p className="mt-2 text-[11px] text-slate-400">
+              Press Enter or comma after each value, or paste several at once — e.g. Black, Red, Blue.
+            </p>
           </div>
         ) : null}
       </div>
 
-      {/* All added option groups */}
+      {/* Draft cards for the option type being built right now */}
       <div ref={savedValuesRef} className="scroll-mt-6">
-        {groups.length > 0 ? (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
-              <div className="flex items-center gap-2">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-brand-light text-brand">
-                  <Layers3 className="size-4" />
-                </span>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                    {groups.length} option type{groups.length !== 1 ? 's' : ''} · {totalValues} value{totalValues !== 1 ? 's' : ''}
-                  </p>
-                  <p className="text-[11px] text-slate-400">Fill in photo, price & stock for each value below</p>
-                </div>
-              </div>
-              <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80">
-                {readyCount}/{totalValues} ready
+        {draftCards.length > 0 && (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-brand-light text-brand">
+                <AttributeIcon attribute={activeAttribute} className="size-4" />
               </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  {draftCards.length} {activeAttribute} value{draftCards.length !== 1 ? 's' : ''} to save
+                </p>
+                <p className="text-[11px] text-slate-400">Fill in quantity, price & photo for each value below</p>
+              </div>
             </div>
 
-            {groups.map((group) => {
-              const groupReady = group.values.filter((value) => findPersistedEntry(group.attribute, value)).length
-              return (
-                <div key={group.id} className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                      <AttributeIcon attribute={group.attribute} className="size-3.5" />
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                      {group.attribute}
-                    </span>
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200/80">
-                      {groupReady}/{group.values.length} ready
-                    </span>
-                    <span className="h-px flex-1 bg-slate-100" />
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {group.values.map((value) => (
-                      <VariantValueDraftCard
-                        key={`${group.attribute}::${value}`}
-                        attribute={group.attribute}
-                        value={value}
-                        productValues={productValues}
-                        persistedEntry={findPersistedEntry(group.attribute, value)}
-                        onEdit={() => setEditingTarget({ attribute: group.attribute, value })}
-                        onRemove={() => handleRemoveValue(group.attribute, value)}
-                        isRemoving={
-                          deleteVariantMutation.isPending
-                          && removeTarget?.attribute === group.attribute
-                          && removeTarget?.value === value
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 px-6 py-10 text-center">
-            <p className="text-sm font-semibold text-slate-700">No options added yet</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Pick a type above, add values, then click <strong>Add Attribute</strong>. Repeat for Color, Size, Material, and more.
-            </p>
+            <div className="space-y-3 px-4 py-4 sm:px-5">
+              {draftCards.map((card) => (
+                <VariantAccordionCard
+                  key={card.id}
+                  idPrefix={`draft-${card.id}`}
+                  attribute={activeAttribute}
+                  values={card}
+                  onFieldChange={(field, value) => updateDraftField(card.id, field, value)}
+                  isCustomPrice={card.isCustomPrice}
+                  onToggleCustomPrice={(next) => toggleDraftCustomPrice(card.id, next)}
+                  productValues={productValues}
+                  mainQty={productValues?.quantity ? Number(productValues.quantity) : null}
+                  isOpen={openDraftIds.has(card.id)}
+                  onToggle={() => toggleDraftOpen(card.id)}
+                  onRemove={() => removeDraftCard(card.id)}
+                  removeLabel={`Remove ${card.value}`}
+                  isBusy={isSavingBatch}
+                  error={card.error}
+                />
+              ))}
+            </div>
+
+            <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
+              <VariantGroupActionBar
+                attribute={activeAttribute}
+                valueInput={valueInput}
+                onValueInputChange={(event) => setValueInput(event.target.value)}
+                onValueInputKeyDown={handleValueInputKeyDown}
+                onCommitValue={commitValueInput}
+                valuesError={valuesError}
+                onSave={handleSaveBatch}
+                saveLabel={`Save ${activeAttribute} option${draftCards.length !== 1 ? 's' : ''}`}
+                isSaving={isSavingBatch || isUploadingMedia}
+                showSave
+              />
+            </div>
           </div>
         )}
       </div>
 
-      <VariantDetailsDrawer
-        open={Boolean(editingTarget)}
-        attribute={editingTarget?.attribute ?? ''}
-        value={editingTarget?.value ?? null}
-        initialValues={drawerInitialValues}
-        productValues={productValues}
-        onClose={() => setEditingTarget(null)}
-        onSave={handleDrawerSave}
-        isSaving={
-          createVariantMutation.isPending
-          || updateSingleVariantMutation.isPending
-          || isUploadingMedia
-        }
-      />
+      {/* Already-saved options, grouped by option type */}
+      {entries.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+              <Layers3 className="size-4" />
+            </span>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              {entries.length} saved option{entries.length !== 1 ? 's' : ''} · {attributeGroupCount} option type{attributeGroupCount !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          {Object.entries(groupedEntries).map(([attribute, group]) => (
+            <div key={attribute} className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <AttributeIcon attribute={attribute} className="size-3.5" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{attribute}</span>
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200/80">
+                  {group.length} value{group.length !== 1 ? 's' : ''}
+                </span>
+                <span className="h-px flex-1 bg-slate-100" />
+              </div>
+              <div className="space-y-3">
+                {group.map(({ variation, variantValue }) => (
+                  <PersistedVariantAccordion
+                    key={variantValue.id}
+                    variation={variation}
+                    variantValue={variantValue}
+                    productValues={productValues}
+                    isOpen={openPersistedIds.has(variantValue.id)}
+                    onToggle={() => togglePersistedOpen(variantValue.id)}
+                    onSave={(draft, options) => handleSavePersisted({ variation, variantValue }, draft, options)}
+                    onRemove={() => setRemoveTarget({ variation, variantValue })}
+                    isSaving={persistedSavingId === variantValue.id || isUploadingMedia}
+                    isRemoving={deleteVariantMutation.isPending && removeTarget?.variantValue.id === variantValue.id}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <ConfirmModal
         open={Boolean(removeTarget)}
@@ -419,7 +478,7 @@ export default function AddVariantFlow({
         title="Remove variant?"
         description={
           removeTarget
-            ? `Remove "${removeTarget.value}" from ${removeTarget.attribute}? This cannot be undone.`
+            ? `Remove "${removeTarget.variantValue.value}" from ${removeTarget.variation.attribute}? This cannot be undone.`
             : ''
         }
         confirmLabel="Remove variant"

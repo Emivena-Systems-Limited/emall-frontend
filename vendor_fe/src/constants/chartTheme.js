@@ -1,4 +1,4 @@
-export const INSTRUMENT_SANS = '"Instrument Sans", sans-serif'
+export const INSTRUMENT_SANS = '"Onest", sans-serif'
 
 export const CHART_AXIS_TICK = {
   fontSize: 11,

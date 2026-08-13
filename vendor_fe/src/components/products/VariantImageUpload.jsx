@@ -17,6 +17,7 @@ export default function VariantImageUpload({
   compact = false,
   maxImages = Infinity,
   thumbnailSizeClass = 'size-16 sm:size-18',
+  dropzoneMinHeightClass = '',
 }) {
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -91,7 +92,7 @@ export default function VariantImageUpload({
           onDrop={handleZoneDrop}
           onClick={() => inputRef.current?.click()}
           onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-all ${
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-all ${dropzoneMinHeightClass} ${
             isDragOver
               ? 'border-brand bg-brand-light/30 px-4 py-4'
               : images.length === 0
@@ -107,12 +108,12 @@ export default function VariantImageUpload({
             onChange={(event) => { processFiles(event.target.files); event.target.value = '' }}
             className="sr-only"
           />
-          <span className={`flex size-9 items-center justify-center rounded-lg ring-1 ${
+          <span className={`flex size-11 items-center justify-center rounded-lg ring-1 ${
             isDragOver ? 'bg-brand text-white ring-brand/30' : 'bg-white text-slate-400 ring-slate-200'
           }`}>
             {images.length === 0
-              ? <ImagePlus className="size-4" strokeWidth={1.75} />
-              : <Upload className="size-4" strokeWidth={1.75} />}
+              ? <ImagePlus className="size-5" strokeWidth={1.75} />
+              : <Upload className="size-5" strokeWidth={1.75} />}
           </span>
           <span className="text-center text-xs font-semibold text-slate-600">
             {images.length === 0

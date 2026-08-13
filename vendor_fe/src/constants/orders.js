@@ -14,16 +14,6 @@ export const ORDER_STATUSES = {
     className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
     dot: 'bg-sky-500',
   },
-  confirmed: {
-    label: 'Order Confirmed',
-    className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
-    dot: 'bg-sky-500',
-  },
-  ready_for_shipment: {
-    label: 'Ready for Shipment',
-    className: 'bg-indigo-50 text-indigo-800 ring-indigo-200/80',
-    dot: 'bg-indigo-500',
-  },
   shipped: {
     label: 'Shipped',
     className: 'bg-violet-50 text-violet-800 ring-violet-200/80',
@@ -75,23 +65,8 @@ export const DELIVERY_STATUSES = {
     className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
     dot: 'bg-sky-500',
   },
-  order_confirmed: {
-    label: 'Order Confirmed',
-    className: 'bg-sky-50 text-sky-800 ring-sky-200/80',
-    dot: 'bg-sky-500',
-  },
-  ready_for_shipment: {
-    label: 'Ready for Shipment',
-    className: 'bg-indigo-50 text-indigo-800 ring-indigo-200/80',
-    dot: 'bg-indigo-500',
-  },
   shipped: {
     label: 'Shipped',
-    className: 'bg-violet-50 text-violet-800 ring-violet-200/80',
-    dot: 'bg-violet-500',
-  },
-  out_for_delivery: {
-    label: 'Out for Delivery',
     className: 'bg-violet-50 text-violet-800 ring-violet-200/80',
     dot: 'bg-violet-500',
   },
@@ -99,6 +74,11 @@ export const DELIVERY_STATUSES = {
     label: 'Delivered',
     className: 'bg-emerald-50 text-emerald-800 ring-emerald-200/80',
     dot: 'bg-emerald-500',
+  },
+  refunded: {
+    label: 'Refunded',
+    className: 'bg-rose-50 text-rose-800 ring-rose-200/80',
+    dot: 'bg-rose-500',
   },
   cancelled: {
     label: 'Cancelled',
@@ -111,10 +91,9 @@ export const STATUS_FILTERS = {
   ALL: 'all',
   PENDING: 'pending',
   PROCESSING: 'processing',
-  ORDER_CONFIRMED: 'order_confirmed',
   SHIPPED: 'shipped',
-  OUT_FOR_DELIVERY: 'out_for_delivery',
   DELIVERED: 'delivered',
+  REFUNDED: 'refunded',
 }
 
 export const SUMMARY_FILTERS = {
@@ -129,19 +108,17 @@ export const STATUS_FILTER_TABS = [
   { key: STATUS_FILTERS.ALL, label: 'All Orders' },
   { key: STATUS_FILTERS.PENDING, label: 'Pending' },
   { key: STATUS_FILTERS.PROCESSING, label: 'Processing' },
-  { key: STATUS_FILTERS.ORDER_CONFIRMED, label: 'Order Confirmed' },
   { key: STATUS_FILTERS.SHIPPED, label: 'Shipped' },
-  { key: STATUS_FILTERS.OUT_FOR_DELIVERY, label: 'Out for Delivery' },
   { key: STATUS_FILTERS.DELIVERED, label: 'Delivered' },
+  { key: STATUS_FILTERS.REFUNDED, label: 'Refunded' },
 ]
 
 /** Delivery statuses vendors may set via PUT /api/orders/{id}/update/delivery-status */
 export const VENDOR_UPDATABLE_DELIVERY_STATUSES = [
   'processing',
-  'order_confirmed',
   'shipped',
-  'out_for_delivery',
   'delivered',
+  'refunded',
 ]
 
 export const ORDERS_PAGE_SIZE = 10

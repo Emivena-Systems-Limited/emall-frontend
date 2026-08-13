@@ -9,7 +9,7 @@ import VariantIdentitySection from './VariantIdentitySection'
 import { MAX_VARIANT_IMAGE_COUNT } from './variantConstants'
 import { svFieldError } from './variantFormUtils'
 
-/** Steps shared between the single-variant form and the add-variant details drawer: photo, identity/specs, pricing, stock, compatible models. */
+/** Steps shared between the single-variant form and the add-variant details drawer: photo, pricing, identity/specs, stock, compatible models. */
 export default function VariantDetailFields({
   formik,
   productValues,
@@ -62,13 +62,10 @@ export default function VariantDetailFields({
         </div>
       </div>
 
-      {/* Step: Identity & specs */}
-      <VariantIdentitySection formik={formik} step={startStep + 1} />
-
       {/* Step: Pricing */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
         <CardStepHeader
-          step={startStep + 2}
+          step={startStep + 1}
           title="Pricing"
           subtitle="Use the base product's price, or set a custom price just for this value."
         />
@@ -134,6 +131,9 @@ export default function VariantDetailFields({
         <VariantPricingSummary variantValue={formik.values} productValues={productValues} />
       </div>
 
+      {/* Step: Identity & specs */}
+      <VariantIdentitySection formik={formik} step={startStep + 2} />
+
       {/* Step: Stock */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
         <CardStepHeader step={startStep + 3} title="Stock quantity" required />
@@ -166,6 +166,7 @@ export default function VariantDetailFields({
             onBlur={formik.handleBlur}
             error={svFieldError(formik, 'quantity')}
           />
+          {/* Reserved quantity
           <ProductInput
             id="reserved_quantity"
             name="reserved_quantity"
@@ -180,6 +181,8 @@ export default function VariantDetailFields({
             onBlur={formik.handleBlur}
             error={svFieldError(formik, 'reserved_quantity')}
           />
+          */}
+          {/* Low stock alert
           <ProductInput
             id="minimum_threshold"
             name="minimum_threshold"
@@ -193,6 +196,7 @@ export default function VariantDetailFields({
             onBlur={formik.handleBlur}
             error={svFieldError(formik, 'minimum_threshold')}
           />
+          */}
         </div>
       </div>
 

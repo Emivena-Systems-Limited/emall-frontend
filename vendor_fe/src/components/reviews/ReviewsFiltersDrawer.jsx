@@ -2,27 +2,20 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowDownUp,
-  Eye,
-  Layers,
+  CalendarRange,
   MessageCircle,
-  Package,
+  RotateCcw,
   SlidersHorizontal,
   Star,
   X,
 } from 'lucide-react'
 import {
+  DEFAULT_REVIEW_DATE_RANGE,
   RATING_FILTERS,
   REPLY_STATUS_FILTERS,
-  SORT_DIRECTIONS,
-  SORT_FIELDS,
-  VISIBILITY_FILTERS,
+  SORT_ORDERS,
 } from '../../constants/reviews'
-
-const SORT_OPTIONS = [
-  { field: SORT_FIELDS.date, label: 'Date' },
-  { field: SORT_FIELDS.rating, label: 'Rating' },
-  { field: SORT_FIELDS.helpful, label: 'Helpful Votes' },
-]
+import { hasReviewDateRange } from '../../utils/reviewUtils'
 
 function FilterSection({ icon: Icon, title, description, children }) {
   return (
@@ -64,8 +57,12 @@ const RATING_ACCENTS = {
   '5': 'bg-amber-500',
   '4': 'bg-amber-400',
   '3': 'bg-amber-300',
-  low: 'bg-rose-500',
 }
+
+const SORT_OPTIONS = [
+  { value: SORT_ORDERS.desc, label: 'Newest first' },
+  { value: SORT_ORDERS.asc, label: 'Oldest first' },
+]
 
 export default function ReviewsFiltersDrawer({
   open,
@@ -74,15 +71,10 @@ export default function ReviewsFiltersDrawer({
   onRatingFilterChange,
   replyFilter,
   onReplyFilterChange,
-  visibilityFilter,
-  onVisibilityFilterChange,
-  productFilter,
-  onProductFilterChange,
-  products,
-  sortField,
-  sortDirection,
-  onSortFieldChange,
-  onSortDirectionChange,
+  dateRange,
+  onDateRangeChange,
+  sortOrder,
+  onSortOrderChange,
   onClearFilters,
   resultCount,
 }) {
@@ -107,8 +99,7 @@ export default function ReviewsFiltersDrawer({
   const activeFilterCount = [
     ratingFilter !== 'all',
     replyFilter !== 'all',
-    visibilityFilter !== 'all',
-    productFilter !== 'all',
+    hasReviewDateRange(dateRange),
   ].filter(Boolean).length
 
   return createPortal(
@@ -139,7 +130,7 @@ export default function ReviewsFiltersDrawer({
                   Filter Reviews
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Narrow by rating, reply status, or product.
+                  Narrow by rating, reply status, or date.
                 </p>
               </div>
             </div>
@@ -200,87 +191,74 @@ export default function ReviewsFiltersDrawer({
           </FilterSection>
 
           <FilterSection
-            icon={Eye}
-            title="Storefront Visibility"
-            description="Filter by whether reviews are live, pending, or hidden."
+            icon={CalendarRange}
+            title="Review date"
+            description="Filter reviews by when they were submitted."
           >
-            <div className="grid grid-cols-1 gap-2">
-              {VISIBILITY_FILTERS.map((option) => (
-                <SelectableChip
-                  key={option.key}
-                  active={visibilityFilter === option.key}
-                  label={option.label}
-                  onClick={() => onVisibilityFilterChange(option.key)}
-                />
-              ))}
-            </div>
-          </FilterSection>
-
-          <FilterSection
-            icon={Package}
-            title="Product"
-            description="Filter reviews for a specific listing."
-          >
-            <div className="space-y-2">
-              <SelectableChip
-                active={productFilter === 'all'}
-                label="All Products"
-                onClick={() => onProductFilterChange('all')}
-              />
-              <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
-                {products.map((product) => (
-                  <SelectableChip
-                    key={product.id}
-                    active={productFilter === product.id}
-                    label={product.name}
-                    onClick={() => onProductFilterChange(product.id)}
+            <div className="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-100">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    From
+                  </span>
+                  <input
+                    type="date"
+                    value={dateRange.startDate}
+                    max={dateRange.endDate || undefined}
+                    onChange={(event) =>
+                      onDateRangeChange({ ...dateRange, startDate: event.target.value })
+                    }
+                    className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light"
                   />
-                ))}
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    To
+                  </span>
+                  <input
+                    type="date"
+                    value={dateRange.endDate}
+                    min={dateRange.startDate || undefined}
+                    onChange={(event) =>
+                      onDateRangeChange({ ...dateRange, endDate: event.target.value })
+                    }
+                    className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light"
+                  />
+                </label>
               </div>
+              {hasReviewDateRange(dateRange) && (
+                <button
+                  type="button"
+                  onClick={() => onDateRangeChange(DEFAULT_REVIEW_DATE_RANGE)}
+                  className="mt-3 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-brand"
+                >
+                  <RotateCcw className="size-3.5" />
+                  Reset dates
+                </button>
+              )}
             </div>
           </FilterSection>
 
           <FilterSection
             icon={ArrowDownUp}
             title="Sort Order"
-            description="Choose how reviews are ordered."
+            description="Order reviews by submission date."
           >
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {SORT_OPTIONS.map((option) => (
-                  <button
-                    key={option.field}
-                    type="button"
-                    onClick={() => onSortFieldChange(option.field)}
-                    className={`cursor-pointer rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
-                      sortField === option.field
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: SORT_DIRECTIONS.desc, label: 'Newest / Highest' },
-                  { value: SORT_DIRECTIONS.asc, label: 'Oldest / Lowest' },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => onSortDirectionChange(option.value)}
-                    className={`cursor-pointer rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-all ${
-                      sortDirection === option.value
-                        ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
-                        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 gap-2">
+              {SORT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onSortOrderChange(option.value)}
+                  className={`cursor-pointer rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-all ${
+                    sortOrder === option.value
+                      ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </FilterSection>
         </div>

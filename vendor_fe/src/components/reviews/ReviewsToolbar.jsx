@@ -2,16 +2,9 @@ import { ArrowDownUp, Search, SlidersHorizontal, X } from 'lucide-react'
 import {
   RATING_FILTERS,
   REPLY_STATUS_FILTERS,
-  SORT_DIRECTIONS,
-  SORT_FIELDS,
-  VISIBILITY_FILTERS,
+  SORT_ORDERS,
 } from '../../constants/reviews'
-
-const SORT_LABELS = {
-  [SORT_FIELDS.date]: 'Date',
-  [SORT_FIELDS.rating]: 'Rating',
-  [SORT_FIELDS.helpful]: 'Helpful Votes',
-}
+import { formatReviewDateRangeLabel, hasReviewDateRange } from '../../utils/reviewUtils'
 
 function ActiveFilterChip({ label, onRemove }) {
   return (
@@ -36,21 +29,15 @@ export default function ReviewsToolbar({
   onRatingFilterChange,
   replyFilter,
   onReplyFilterChange,
-  visibilityFilter,
-  onVisibilityFilterChange,
-  productFilter,
-  onProductFilterChange,
-  products,
-  sortField,
-  sortDirection,
+  dateRange,
+  onDateRangeChange,
+  sortOrder,
   onOpenFilters,
   activeFilterCount,
   onClearFilters,
 }) {
   const ratingLabel = RATING_FILTERS.find((f) => f.key === ratingFilter)?.label
   const replyLabel = REPLY_STATUS_FILTERS.find((f) => f.key === replyFilter)?.label
-  const visibilityLabel = VISIBILITY_FILTERS.find((f) => f.key === visibilityFilter)?.label
-  const productLabel = products.find((p) => p.id === productFilter)?.name
   const hasDrawerFilters = activeFilterCount > 0
 
   return (
@@ -100,13 +87,10 @@ export default function ReviewsToolbar({
           {replyFilter !== 'all' && (
             <ActiveFilterChip label={replyLabel} onRemove={() => onReplyFilterChange('all')} />
           )}
-          {visibilityFilter !== 'all' && (
-            <ActiveFilterChip label={visibilityLabel} onRemove={() => onVisibilityFilterChange('all')} />
-          )}
-          {productFilter !== 'all' && productLabel && (
+          {hasReviewDateRange(dateRange) && (
             <ActiveFilterChip
-              label={productLabel}
-              onRemove={() => onProductFilterChange('all')}
+              label={formatReviewDateRangeLabel(dateRange)}
+              onRemove={() => onDateRangeChange({ startDate: '', endDate: '' })}
             />
           )}
           <button
@@ -121,8 +105,7 @@ export default function ReviewsToolbar({
 
       <p className="flex items-center gap-1.5 text-xs text-slate-400">
         <ArrowDownUp className="size-3.5" />
-        Sorted by {SORT_LABELS[sortField]} ·{' '}
-        {sortDirection === SORT_DIRECTIONS.asc ? 'Ascending' : 'Descending'}
+        Sorted by date · {sortOrder === SORT_ORDERS.asc ? 'Oldest first' : 'Newest first'}
         <span className="text-slate-300">·</span>
         <button
           type="button"

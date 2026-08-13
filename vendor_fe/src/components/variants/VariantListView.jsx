@@ -2,11 +2,55 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { ArrowLeft, CheckCircle2, Layers3, Plus } from 'lucide-react'
 import ConfirmModal from '../common/ConfirmModal'
+import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
+import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
 import AttributeIcon from './AttributeIcon'
-import VariantValueDraftCard from './VariantValueDraftCard'
+import PersistedVariantAccordion from './PersistedVariantAccordion'
+import { normalizeVariantOptionalFields } from './variantFormUtils'
 
-export default function VariantListView({ productId, entries, productValues = {}, onAdd, onEdit, onFinished, deleteVariantMutation }) {
+export default function VariantListView({
+  productId,
+  entries,
+  productValues = {},
+  onAdd,
+  onFinished,
+  updateSingleVariantMutation,
+  deleteVariantMutation,
+}) {
   const [removeTarget, setRemoveTarget] = useState(null)
+  const [openIds, setOpenIds] = useState(() => new Set())
+  const [savingId, setSavingId] = useState(null)
+  const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
+
+  const toggleOpen = (variantId) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(variantId)) next.delete(variantId)
+      else next.add(variantId)
+      return next
+    })
+  }
+
+  const handleSave = async (entry, draft, { isCustomPrice }) => {
+    const variantId = entry.variantValue.id
+    setSavingId(variantId)
+    try {
+      const normalized = normalizeVariantOptionalFields(draft, { isCustomPrice })
+      const prepared = await prepareVariantFormValuesForSave({
+        variantFormValues: normalized,
+        attribute: entry.variation.attribute,
+        uploadPendingMedia,
+      })
+      await updateSingleVariantMutation.mutateAsync({
+        productId,
+        variantId,
+        variantFormValues: prepared,
+        productValues,
+      })
+    } finally {
+      setSavingId(null)
+    }
+  }
 
   const handleConfirmRemove = async () => {
     if (!removeTarget) return
@@ -34,7 +78,7 @@ export default function VariantListView({ productId, entries, productValues = {}
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Manage variations</p>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Product variants</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Edit or remove existing variants, or add new values to expand your product options.
+              Expand a variant to edit it, or add new values to expand your product options.
             </p>
             {entries.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -42,7 +86,7 @@ export default function VariantListView({ productId, entries, productValues = {}
                   {entries.length} variant{entries.length !== 1 ? 's' : ''}
                 </span>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                  {attributeCount} attribute{attributeCount !== 1 ? 's' : ''}
+                  {attributeCount} option type{attributeCount !== 1 ? 's' : ''}
                 </span>
               </div>
             )}
@@ -104,8 +148,8 @@ export default function VariantListView({ productId, entries, productValues = {}
               Red, Blue, Large, etc.
             </span>
             <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
-              <strong className="block text-slate-700">3. Set price & photo</strong>
-              For each value
+              <strong className="block text-slate-700">3. Fill in the card</strong>
+              Price, stock & photo
             </span>
           </div>
           <button
@@ -118,47 +162,47 @@ export default function VariantListView({ productId, entries, productValues = {}
           </button>
         </div>
       ) : (
-        Object.entries(groupedByAttribute).map(([attribute, group]) => {
-          return (
-            <div key={attribute} className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                  <AttributeIcon attribute={attribute} className="size-3.5" />
-                </span>
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{attribute}</span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
-                  {group.length} option{group.length !== 1 ? 's' : ''}
-                </span>
-                <span className="h-px flex-1 bg-slate-100" />
-                <button
-                  type="button"
-                  onClick={() => onAdd(attribute)}
-                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-light/60"
-                >
-                  <Plus className="size-3.5" />
-                  Add value
-                </button>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {group.map(({ variation, variantValue }) => (
-                  <VariantValueDraftCard
-                    key={variantValue.id}
-                    attribute={attribute}
-                    value={variantValue.value}
-                    productValues={productValues}
-                    persistedEntry={{ variation, variantValue }}
-                    onEdit={() => onEdit({ variation, variantValue })}
-                    onRemove={() => setRemoveTarget({ variation, variantValue })}
-                    isRemoving={
-                      deleteVariantMutation.isPending
-                      && removeTarget?.variantValue.id === variantValue.id
-                    }
-                  />
-                ))}
-              </div>
+        Object.entries(groupedByAttribute).map(([attribute, group]) => (
+          <div key={attribute} className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                <AttributeIcon attribute={attribute} className="size-3.5" />
+              </span>
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{attribute}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                {group.length} option{group.length !== 1 ? 's' : ''}
+              </span>
+              <span className="h-px flex-1 bg-slate-100" />
+              <button
+                type="button"
+                onClick={() => onAdd(attribute)}
+                className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-light/60"
+              >
+                <Plus className="size-3.5" />
+                Add value
+              </button>
             </div>
-          )
-        })
+            <div className="space-y-3">
+              {group.map(({ variation, variantValue }) => (
+                <PersistedVariantAccordion
+                  key={variantValue.id}
+                  variation={variation}
+                  variantValue={variantValue}
+                  productValues={productValues}
+                  isOpen={openIds.has(variantValue.id)}
+                  onToggle={() => toggleOpen(variantValue.id)}
+                  onSave={(draft, options) => handleSave({ variation, variantValue }, draft, options)}
+                  onRemove={() => setRemoveTarget({ variation, variantValue })}
+                  isSaving={savingId === variantValue.id || isUploadingMedia}
+                  isRemoving={
+                    deleteVariantMutation.isPending
+                    && removeTarget?.variantValue.id === variantValue.id
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        ))
       )}
 
       {/* Delete confirm */}

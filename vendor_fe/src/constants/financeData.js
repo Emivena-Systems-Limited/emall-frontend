@@ -411,10 +411,3 @@ export const MOCK_FINANCE_TRANSACTIONS = [
     status: 'completed',
   },
 ]
-
-export const MOCK_FINANCE_SUMMARY_PREVIOUS = {
-  totalEarnings: 38240.5,
-  totalPayouts: 28450.0,
-  refunds: 1680.0,
-  deductions: 4823.4,
-}

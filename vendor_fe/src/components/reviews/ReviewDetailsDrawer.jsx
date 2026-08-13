@@ -11,25 +11,21 @@ import {
   X,
 } from 'lucide-react'
 import { formatReviewDate, getCustomerInitials } from '../../utils/reviewUtils'
-import ReviewVisibilityBadge, { ReviewVisibilityActions } from './ReviewVisibilityControls'
 import StarRating from './StarRating'
 
 export default function ReviewDetailsDrawer({
   review,
   onClose,
   onSaveReply,
-  onAllow,
-  onFlag,
 }) {
   const [replyText, setReplyText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     if (!review) return undefined
 
-    setReplyText(review.vendorReply?.text ?? '')
-    setIsEditing(!review.vendorReply)
+    setReplyText('')
+    setIsSaving(false)
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose()
@@ -46,16 +42,24 @@ export default function ReviewDetailsDrawer({
 
   if (!review) return null
 
+  const hasReply = Boolean(review.vendorReply)
+
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (hasReply) return
+
     const trimmed = replyText.trim()
     if (!trimmed) return
 
     setIsSaving(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    onSaveReply(review.id, trimmed)
-    setIsSaving(false)
-    setIsEditing(false)
+    try {
+      await onSaveReply(review.id, trimmed)
+      setReplyText('')
+    } catch {
+      // Parent surfaces the error.
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return createPortal(
@@ -87,7 +91,6 @@ export default function ReviewDetailsDrawer({
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <StarRating rating={review.rating} size="size-3.5" />
                   <span className="text-xs text-slate-500">{formatReviewDate(review.date)}</span>
-                  <ReviewVisibilityBadge status={review.status} />
                 </div>
               </div>
             </div>
@@ -136,24 +139,13 @@ export default function ReviewDetailsDrawer({
                 )}
               </div>
               <p className="mt-3 text-sm leading-relaxed text-slate-700">{review.comment}</p>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-400">
-                <Link
-                  to={`/orders/${review.orderId}`}
-                  className="font-semibold text-brand hover:underline"
-                >
-                  Order {review.orderNumber}
-                </Link>
-                <span>{review.helpfulCount} found this helpful</span>
-              </div>
+              <Link
+                to={`/orders/${review.orderId}`}
+                className="mt-3 inline-block text-xs font-semibold text-brand hover:underline"
+              >
+                Order {review.orderNumber}
+              </Link>
             </div>
-          </div>
-
-          <div className="mt-6">
-            <ReviewVisibilityActions
-              review={review}
-              onAllow={onAllow}
-              onFlag={onFlag}
-            />
           </div>
 
           <div className="mt-6">
@@ -162,18 +154,14 @@ export default function ReviewDetailsDrawer({
                 <MessageSquare className="size-4 text-slate-400" />
                 Your Response
               </h3>
-              {review.vendorReply && !isEditing && (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="cursor-pointer text-xs font-semibold text-brand hover:underline"
-                >
-                  Edit reply
-                </button>
+              {hasReply && (
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  One reply only
+                </span>
               )}
             </div>
 
-            {review.vendorReply && !isEditing ? (
+            {hasReply ? (
               <div className="rounded-2xl border-l-4 border-brand bg-brand-light/30 p-4">
                 <p className="text-sm leading-relaxed text-slate-700">{review.vendorReply.text}</p>
                 <p className="mt-2 text-xs text-slate-400">
@@ -190,7 +178,7 @@ export default function ReviewDetailsDrawer({
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
                 />
                 <p className="text-xs text-slate-400">
-                  Public replies appear on your storefront. Be professional and address any concerns raised.
+                  Public replies appear on your storefront. You can post only one reply per review.
                 </p>
                 <button
                   type="submit"
@@ -202,7 +190,7 @@ export default function ReviewDetailsDrawer({
                   ) : (
                     <Send className="size-4" />
                   )}
-                  {review.vendorReply ? 'Update Reply' : 'Post Reply'}
+                  Post Reply
                 </button>
               </form>
             )}

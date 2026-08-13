@@ -127,7 +127,7 @@ export const MOCK_VENDOR_ORDERS = [
     paymentStatus: 'paid',
     paymentMethod: 'Mobile Money',
     transactionReference: 'TXN-MOMO-771204',
-    orderStatus: 'ready_for_shipment',
+    orderStatus: 'processing',
     deliveryMethod: 'Standard Delivery',
     delivery: {
       address: '5 Spintex Road, Baatsona',
@@ -489,7 +489,7 @@ export const MOCK_VENDOR_ORDERS = [
     paymentStatus: 'paid',
     paymentMethod: 'Mobile Money',
     transactionReference: 'TXN-MOMO-330007',
-    orderStatus: 'ready_for_shipment',
+    orderStatus: 'processing',
     deliveryMethod: 'Express Delivery',
     delivery: {
       address: '45 Ho Municipal Road',

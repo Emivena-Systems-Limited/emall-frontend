@@ -1,4 +1,48 @@
-import { SORT_DIRECTIONS, SORT_FIELDS } from '../constants/reviews'
+import { DEFAULT_REVIEW_DATE_RANGE, SORT_ORDERS } from '../constants/reviews'
+
+export function hasReviewDateRange({ startDate, endDate } = DEFAULT_REVIEW_DATE_RANGE) {
+  return Boolean(String(startDate ?? '').trim() || String(endDate ?? '').trim())
+}
+
+export function formatReviewDateRangeLabel({ startDate, endDate } = DEFAULT_REVIEW_DATE_RANGE) {
+  const start = String(startDate ?? '').trim()
+  const end = String(endDate ?? '').trim()
+
+  if (start && end) {
+    return `${start} – ${end}`
+  }
+  if (start) return `From ${start}`
+  if (end) return `Until ${end}`
+  return ''
+}
+
+function startOfReviewDay(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function endOfReviewDay(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  date.setHours(23, 59, 59, 999)
+  return date
+}
+
+export function isWithinReviewDateRange(reviewDate, { startDate, endDate } = DEFAULT_REVIEW_DATE_RANGE) {
+  if (!hasReviewDateRange({ startDate, endDate })) return true
+
+  const date = new Date(reviewDate)
+  if (Number.isNaN(date.getTime())) return false
+
+  const start = startDate ? startOfReviewDay(startDate) : null
+  const end = endDate ? endOfReviewDay(endDate) : null
+
+  if (start && date < start) return false
+  if (end && date > end) return false
+  return true
+}
 
 export function formatReviewDate(value) {
   return new Date(value).toLocaleString('en-GB', {
@@ -27,15 +71,8 @@ export function getCustomerInitials(name) {
     .join('')
 }
 
-export function normalizeReviewRecord(review) {
-  let status = review.status
-  if (status === 'flagged') status = 'hidden'
-  if (status === 'published' && !review.vendorReply) status = 'pending'
-  return status === review.status ? review : { ...review, status }
-}
-
 export function normalizeReviewCatalog(reviews) {
-  return reviews.map(normalizeReviewRecord)
+  return [...reviews]
 }
 
 export function filterReviews(reviews, filters) {
@@ -43,13 +80,14 @@ export function filterReviews(reviews, filters) {
     search = '',
     ratingFilter = 'all',
     replyFilter = 'all',
-    visibilityFilter = 'all',
-    productFilter = 'all',
+    dateRange = DEFAULT_REVIEW_DATE_RANGE,
   } = filters
 
   const query = search.trim().toLowerCase()
 
   return reviews.filter((review) => {
+    if (!isWithinReviewDateRange(review.date, dateRange)) return false
+
     if (ratingFilter !== 'all') {
       if (ratingFilter === 'low' && review.rating > 2) return false
       if (ratingFilter !== 'low' && review.rating !== Number(ratingFilter)) return false
@@ -57,10 +95,6 @@ export function filterReviews(reviews, filters) {
 
     if (replyFilter === 'needs_reply' && review.vendorReply) return false
     if (replyFilter === 'replied' && !review.vendorReply) return false
-
-    if (visibilityFilter !== 'all' && review.status !== visibilityFilter) return false
-
-    if (productFilter !== 'all' && review.productId !== productFilter) return false
 
     if (query) {
       const haystack = [
@@ -81,20 +115,10 @@ export function filterReviews(reviews, filters) {
   })
 }
 
-export function sortReviews(reviews, sortField, sortDirection) {
-  const direction = sortDirection === SORT_DIRECTIONS.asc ? 1 : -1
+export function sortReviews(reviews, sortOrder) {
+  const direction = sortOrder === SORT_ORDERS.asc ? 1 : -1
 
-  return [...reviews].sort((a, b) => {
-    switch (sortField) {
-      case SORT_FIELDS.rating:
-        return (a.rating - b.rating) * direction
-      case SORT_FIELDS.helpful:
-        return (a.helpfulCount - b.helpfulCount) * direction
-      case SORT_FIELDS.date:
-      default:
-        return (new Date(a.date) - new Date(b.date)) * direction
-    }
-  })
+  return [...reviews].sort((a, b) => (new Date(a.date) - new Date(b.date)) * direction)
 }
 
 export function paginateItems(items, { page, pageSize }) {
@@ -121,8 +145,6 @@ export function computeReviewsSummary(reviews) {
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
     : 0
   const pendingReplies = reviews.filter((r) => !r.vendorReply).length
-  const pendingApproval = reviews.filter((r) => r.status === 'pending').length
-  const liveOnStorefront = reviews.filter((r) => r.status === 'published').length
   const replied = reviews.filter((r) => r.vendorReply).length
   const responseRate = totalReviews ? Math.round((replied / totalReviews) * 100) : 0
 
@@ -135,8 +157,6 @@ export function computeReviewsSummary(reviews) {
     totalReviews,
     averageRating,
     pendingReplies,
-    pendingApproval,
-    liveOnStorefront,
     responseRate,
     distribution,
   }
@@ -212,9 +232,7 @@ export function exportReviewsCsv(reviews) {
     'Rating',
     'Title',
     'Comment',
-    'Helpful Votes',
     'Replied',
-    'Status',
   ]
 
   const rows = reviews.map((r) => [
@@ -226,9 +244,7 @@ export function exportReviewsCsv(reviews) {
     r.rating,
     `"${r.title.replace(/"/g, '""')}"`,
     `"${r.comment.replace(/"/g, '""')}"`,
-    r.helpfulCount,
     r.vendorReply ? 'Yes' : 'No',
-    r.status,
   ])
 
   const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')

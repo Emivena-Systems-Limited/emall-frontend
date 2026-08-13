@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import OrderPagination from '../../components/orders/OrderPagination'
 import ProductRatingInsights from '../../components/reviews/ProductRatingInsights'
@@ -9,20 +10,32 @@ import ReviewsList from '../../components/reviews/ReviewsList'
 import ReviewsPageHeader from '../../components/reviews/ReviewsPageHeader'
 import ReviewsSummaryCards from '../../components/reviews/ReviewsSummaryCards'
 import ReviewsToolbar from '../../components/reviews/ReviewsToolbar'
-import { REVIEWS_PAGE_SIZE, SORT_DIRECTIONS, SORT_FIELDS } from '../../constants/reviews'
+import {
+  DEFAULT_REVIEW_DATE_RANGE,
+  EMPTY_REVIEWS_PAGE,
+  EMPTY_REVIEWS_SUMMARY,
+  EMPTY_REVIEWS_SUMMARY_PREVIOUS,
+  REVIEWS_PAGE_SIZE,
+  SORT_ORDERS,
+} from '../../constants/reviews'
 import {
   DEV_REVIEWS_SUMMARY_PREVIOUS,
   DEV_VENDOR_REVIEWS,
-  MOCK_REVIEWS_SUMMARY_PREVIOUS,
   MOCK_VENDOR_REVIEWS,
 } from '../../constants/reviewsData'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import {
+  useReplyToVendorReviewMutation,
+  useVendorReviews,
+  useVendorReviewsSummary,
+} from '../../hooks/useReviews'
 import notify from '../../lib/notify'
 import {
   computeReviewsSummary,
   exportReviewsCsv,
   filterReviews,
   getProductInsights,
-  getUniqueProducts,
+  hasReviewDateRange,
   normalizeReviewCatalog,
   paginateItems,
   sortReviews,
@@ -30,131 +43,231 @@ import {
 
 export default function Reviews() {
   const [devDataEnabled, setDevDataEnabled] = useState(false)
-  const [reviews, setReviews] = useState(MOCK_VENDOR_REVIEWS)
+  const [localReviews, setLocalReviews] = useState(MOCK_VENDOR_REVIEWS)
 
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput, 300)
   const [ratingFilter, setRatingFilter] = useState('all')
   const [replyFilter, setReplyFilter] = useState('all')
-  const [visibilityFilter, setVisibilityFilter] = useState('all')
-  const [productFilter, setProductFilter] = useState('all')
+  const [dateRange, setDateRange] = useState(DEFAULT_REVIEW_DATE_RANGE)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
-  const [sortField, setSortField] = useState(SORT_FIELDS.date)
-  const [sortDirection, setSortDirection] = useState(SORT_DIRECTIONS.desc)
+  const [sortOrder, setSortOrder] = useState(SORT_ORDERS.desc)
   const [page, setPage] = useState(1)
 
   const [selectedReview, setSelectedReview] = useState(null)
 
-  const products = useMemo(() => getUniqueProducts(reviews), [reviews])
+  const listFilters = useMemo(
+    () => ({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      search: debouncedSearch,
+      ratingFilter,
+      replyFilter,
+      sortOrder,
+      page,
+      perPage: REVIEWS_PAGE_SIZE,
+    }),
+    [
+      dateRange,
+      debouncedSearch,
+      ratingFilter,
+      replyFilter,
+      sortOrder,
+      page,
+    ],
+  )
 
-  const filteredReviews = useMemo(
+  const {
+    data: reviewsPage = EMPTY_REVIEWS_PAGE,
+    isLoading: isReviewsLoading,
+    isError: isReviewsError,
+    error: reviewsError,
+    refetch: refetchReviews,
+    isFetching: isReviewsFetching,
+  } = useVendorReviews(listFilters, { enabled: !devDataEnabled })
+
+  const {
+    data: apiSummary,
+    isError: isSummaryError,
+    error: summaryError,
+  } = useVendorReviewsSummary({ enabled: !devDataEnabled })
+
+  const replyMutation = useReplyToVendorReviewMutation()
+
+  const devFilteredReviews = useMemo(
     () =>
-      filterReviews(reviews, {
-        search,
+      filterReviews(localReviews, {
+        search: debouncedSearch,
         ratingFilter,
         replyFilter,
-        visibilityFilter,
-        productFilter,
+        dateRange,
       }),
-    [reviews, search, ratingFilter, replyFilter, visibilityFilter, productFilter],
+    [
+      localReviews,
+      debouncedSearch,
+      ratingFilter,
+      replyFilter,
+      dateRange,
+    ],
   )
 
-  const sortedReviews = useMemo(
-    () => sortReviews(filteredReviews, sortField, sortDirection),
-    [filteredReviews, sortField, sortDirection],
+  const devSortedReviews = useMemo(
+    () => sortReviews(devFilteredReviews, sortOrder),
+    [devFilteredReviews, sortOrder],
   )
 
-  const pagination = useMemo(
-    () => paginateItems(sortedReviews, { page, pageSize: REVIEWS_PAGE_SIZE }),
-    [sortedReviews, page],
+  const devPagination = useMemo(
+    () => paginateItems(devSortedReviews, { page, pageSize: REVIEWS_PAGE_SIZE }),
+    [devSortedReviews, page],
   )
 
-  const summary = useMemo(() => computeReviewsSummary(reviews), [reviews])
-  const insights = useMemo(() => getProductInsights(reviews), [reviews])
-  const hasReviews = reviews.length > 0
+  const reviews = devDataEnabled ? devPagination.items : reviewsPage.items
+  const catalogReviews = devDataEnabled ? localReviews : reviewsPage.items
 
+  const pagination = useMemo(() => {
+    if (devDataEnabled) {
+      return {
+        page: devPagination.page,
+        pageCount: devPagination.pageCount,
+        totalItems: devPagination.totalItems,
+        startIndex: devPagination.startIndex,
+        endIndex: devPagination.endIndex,
+      }
+    }
+
+    const totalItems = reviewsPage.total
+    const pageCount = Math.max(1, reviewsPage.totalPages)
+    const safePage = Math.min(Math.max(page, 1), pageCount)
+    const perPage = reviewsPage.perPage || REVIEWS_PAGE_SIZE
+    const startIndex = totalItems === 0 ? 0 : (safePage - 1) * perPage + 1
+    const endIndex = Math.min(safePage * perPage, totalItems)
+
+    return {
+      page: safePage,
+      pageCount,
+      totalItems,
+      startIndex,
+      endIndex,
+    }
+  }, [devDataEnabled, devPagination, page, reviewsPage])
+
+  const exportCount = devDataEnabled ? devSortedReviews.length : reviewsPage.total
+  const filterResultCount = devDataEnabled ? devFilteredReviews.length : reviewsPage.total
+
+  const computedSummary = useMemo(() => computeReviewsSummary(catalogReviews), [catalogReviews])
+  const insights = useMemo(() => getProductInsights(catalogReviews), [catalogReviews])
+  const hasReviews = devDataEnabled ? localReviews.length > 0 : reviewsPage.total > 0 || isReviewsLoading
+
+  const summary = devDataEnabled ? computedSummary : (apiSummary ?? EMPTY_REVIEWS_SUMMARY)
   const previousSummary = devDataEnabled
     ? DEV_REVIEWS_SUMMARY_PREVIOUS
-    : MOCK_REVIEWS_SUMMARY_PREVIOUS
+    : (apiSummary?.previousSummary ?? EMPTY_REVIEWS_SUMMARY_PREVIOUS)
 
   const activeFilterCount = [
     ratingFilter !== 'all',
     replyFilter !== 'all',
-    visibilityFilter !== 'all',
-    productFilter !== 'all',
+    hasReviewDateRange(dateRange),
   ].filter(Boolean).length
 
   useEffect(() => {
     setPage(1)
-  }, [search, ratingFilter, replyFilter, visibilityFilter, productFilter, sortField, sortDirection])
+  }, [
+    debouncedSearch,
+    ratingFilter,
+    replyFilter,
+    dateRange,
+    sortOrder,
+  ])
+
+  useEffect(() => {
+    if (!devDataEnabled && isReviewsError) {
+      notify.fromError(reviewsError, 'Unable to load reviews')
+    }
+  }, [devDataEnabled, isReviewsError, reviewsError])
+
+  useEffect(() => {
+    if (!devDataEnabled && isSummaryError) {
+      notify.fromError(summaryError, 'Unable to load review summary')
+    }
+  }, [devDataEnabled, isSummaryError, summaryError])
 
   const handleExport = () => {
-    if (sortedReviews.length === 0) {
+    const rows = devDataEnabled ? devSortedReviews : reviewsPage.items
+    if (exportCount === 0 || rows.length === 0) {
       notify.info('No reviews to export for the current filters.')
       return
     }
-    exportReviewsCsv(sortedReviews)
-    notify.success(`Exported ${sortedReviews.length} review${sortedReviews.length === 1 ? '' : 's'}.`)
+    exportReviewsCsv(rows)
+    notify.success(`Exported ${rows.length} review${rows.length === 1 ? '' : 's'}.`)
   }
 
   const handleClearFilters = () => {
     setRatingFilter('all')
     setReplyFilter('all')
-    setVisibilityFilter('all')
-    setProductFilter('all')
+    setDateRange(DEFAULT_REVIEW_DATE_RANGE)
   }
 
-  const updateReviewStatus = (reviewId, status) => {
-    setReviews((current) =>
+  const applyLocalReply = (reviewId, text) => {
+    const vendorReply = {
+      text,
+      date: new Date().toISOString(),
+    }
+
+    setLocalReviews((current) =>
       current.map((review) =>
-        review.id === reviewId ? { ...review, status } : review,
-      ),
-    )
-    setSelectedReview((current) =>
-      current?.id === reviewId ? { ...current, status } : current,
-    )
-  }
-
-  const handleAllowReview = (review) => {
-    updateReviewStatus(review.id, 'published')
-    notify.success('Review is now live on your storefront.')
-  }
-
-  const handleFlagReview = (review) => {
-    updateReviewStatus(review.id, 'hidden')
-    notify.info('Review hidden from your storefront.')
-  }
-
-  const handleSaveReply = (reviewId, text) => {
-    setReviews((current) =>
-      current.map((review) =>
-        review.id === reviewId
-          ? {
-              ...review,
-              vendorReply: {
-                text,
-                date: new Date().toISOString(),
-              },
-            }
+        review.id === reviewId && !review.vendorReply
+          ? { ...review, vendorReply }
           : review,
       ),
     )
     setSelectedReview((current) =>
-      current?.id === reviewId
-        ? { ...current, vendorReply: { text, date: new Date().toISOString() } }
+      current?.id === reviewId && !current.vendorReply
+        ? { ...current, vendorReply }
         : current,
     )
-    notify.success('Your reply has been posted.')
+  }
+
+  const handleSaveReply = async (reviewId, text) => {
+    const currentReview =
+      selectedReview?.id === reviewId
+        ? selectedReview
+        : (devDataEnabled ? localReviews : reviews).find((review) => review.id === reviewId)
+
+    if (currentReview?.vendorReply) {
+      notify.info('You can only post one reply to a review.')
+      return
+    }
+
+    if (devDataEnabled) {
+      applyLocalReply(reviewId, text)
+      notify.success('Your reply has been posted.')
+      return
+    }
+
+    try {
+      const updated = await replyMutation.mutateAsync({ reviewId, text })
+      setSelectedReview((current) => {
+        if (current?.id !== reviewId) return current
+        return {
+          ...current,
+          vendorReply: updated.vendorReply ?? { text, date: new Date().toISOString() },
+        }
+      })
+      notify.success('Your reply has been posted.')
+    } catch (error) {
+      notify.fromError(error, 'Unable to post reply')
+      throw error
+    }
   }
 
   const handleDevDataToggle = (enabled) => {
     setDevDataEnabled(enabled)
-    setReviews(enabled ? normalizeReviewCatalog(DEV_VENDOR_REVIEWS) : [])
-    setSearch('')
+    setLocalReviews(enabled ? normalizeReviewCatalog(DEV_VENDOR_REVIEWS) : [])
+    setSearchInput('')
     setRatingFilter('all')
     setReplyFilter('all')
-    setVisibilityFilter('all')
-    setProductFilter('all')
+    setDateRange(DEFAULT_REVIEW_DATE_RANGE)
     setPage(1)
     setSelectedReview(null)
     setFiltersOpen(false)
@@ -162,15 +275,22 @@ export default function Reviews() {
   }
 
   const handleReply = (review) => {
+    if (review.vendorReply) {
+      notify.info('You can only post one reply to a review.')
+      return
+    }
     setSelectedReview(review)
   }
+
+  const showListLoader = !devDataEnabled && isReviewsLoading
+  const showListError = !devDataEnabled && isReviewsError
 
   return (
     <DashboardLayout pageTitle="Reviews & Ratings">
       <div className="page-enter space-y-6">
         <ReviewsPageHeader
           onExport={handleExport}
-          exportCount={sortedReviews.length}
+          exportCount={exportCount}
           averageRating={summary.averageRating}
           totalReviews={summary.totalReviews}
           hasReviews={hasReviews}
@@ -197,18 +317,6 @@ export default function Reviews() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {summary.pendingApproval > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVisibilityFilter('pending')
-                      setFiltersOpen(true)
-                    }}
-                    className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200 transition-colors hover:bg-amber-100"
-                  >
-                    {summary.pendingApproval} awaiting approval
-                  </button>
-                )}
                 {summary.pendingReplies > 0 && (
                   <button
                     type="button"
@@ -226,19 +334,15 @@ export default function Reviews() {
 
             {hasReviews && (
               <ReviewsToolbar
-                search={search}
-                onSearchChange={setSearch}
+                search={searchInput}
+                onSearchChange={setSearchInput}
                 ratingFilter={ratingFilter}
                 onRatingFilterChange={setRatingFilter}
                 replyFilter={replyFilter}
                 onReplyFilterChange={setReplyFilter}
-                visibilityFilter={visibilityFilter}
-                onVisibilityFilterChange={setVisibilityFilter}
-                productFilter={productFilter}
-                onProductFilterChange={setProductFilter}
-                products={products}
-                sortField={sortField}
-                sortDirection={sortDirection}
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                sortOrder={sortOrder}
                 onOpenFilters={() => setFiltersOpen(true)}
                 activeFilterCount={activeFilterCount}
                 onClearFilters={handleClearFilters}
@@ -246,25 +350,49 @@ export default function Reviews() {
             )}
           </div>
 
-          <ReviewsList
-            reviews={pagination.items}
-            hasReviews={hasReviews}
-            onView={setSelectedReview}
-            onReply={handleReply}
-            onAllow={handleAllowReview}
-            onFlag={handleFlagReview}
-          />
+          {showListLoader ? (
+            <div className="flex items-center justify-center px-6 py-16">
+              <Loader2 className="size-8 animate-spin text-brand" aria-label="Loading reviews" />
+            </div>
+          ) : showListError ? (
+            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <span className="flex size-12 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
+                <AlertTriangle className="size-5" />
+              </span>
+              <p className="mt-4 text-sm font-semibold text-slate-800">Unable to load reviews</p>
+              <p className="mt-1 max-w-sm text-sm text-slate-500">
+                {reviewsError?.message ?? 'Something went wrong while fetching reviews.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => refetchReviews()}
+                className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <RefreshCw className={`size-4 ${isReviewsFetching ? 'animate-spin' : ''}`} />
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <ReviewsList
+                reviews={reviews}
+                hasReviews={hasReviews}
+                onView={setSelectedReview}
+                onReply={handleReply}
+              />
 
-          {hasReviews && (
-            <OrderPagination
-              page={pagination.page}
-              pageCount={pagination.pageCount}
-              totalItems={pagination.totalItems}
-              startIndex={pagination.startIndex}
-              endIndex={pagination.endIndex}
-              onPageChange={setPage}
-              itemLabel="reviews"
-            />
+              {hasReviews && (
+                <OrderPagination
+                  page={pagination.page}
+                  pageCount={pagination.pageCount}
+                  totalItems={pagination.totalItems}
+                  startIndex={pagination.startIndex}
+                  endIndex={pagination.endIndex}
+                  onPageChange={setPage}
+                  itemLabel="reviews"
+                />
+              )}
+            </>
           )}
         </section>
       </div>
@@ -276,25 +404,18 @@ export default function Reviews() {
         onRatingFilterChange={setRatingFilter}
         replyFilter={replyFilter}
         onReplyFilterChange={setReplyFilter}
-        visibilityFilter={visibilityFilter}
-        onVisibilityFilterChange={setVisibilityFilter}
-        productFilter={productFilter}
-        onProductFilterChange={setProductFilter}
-        products={products}
-        sortField={sortField}
-        sortDirection={sortDirection}
-        onSortFieldChange={setSortField}
-        onSortDirectionChange={setSortDirection}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        sortOrder={sortOrder}
+        onSortOrderChange={setSortOrder}
         onClearFilters={handleClearFilters}
-        resultCount={sortedReviews.length}
+        resultCount={filterResultCount}
       />
 
       <ReviewDetailsDrawer
         review={selectedReview}
         onClose={() => setSelectedReview(null)}
         onSaveReply={handleSaveReply}
-        onAllow={handleAllowReview}
-        onFlag={handleFlagReview}
       />
     </DashboardLayout>
   )

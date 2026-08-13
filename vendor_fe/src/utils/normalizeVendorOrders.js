@@ -24,9 +24,14 @@ function normalizeOrderStatus(record) {
 
   if (orderStatus === 'ordered') return 'ordered'
   if (orderStatus === 'pending' || orderStatus === 'pending_payment') return 'pending'
-  if (orderStatus === 'confirmed') return 'confirmed'
-  if (orderStatus === 'processing' || orderStatus === 'preparing') return 'processing'
-  if (orderStatus.includes('ready') && orderStatus.includes('ship')) return 'ready_for_shipment'
+  if (
+    orderStatus === 'confirmed'
+    || orderStatus === 'order_confirmed'
+    || orderStatus === 'processing'
+    || orderStatus === 'preparing'
+    || orderStatus === 'ready_for_shipment'
+  ) return 'processing'
+  if (orderStatus.includes('ready') && orderStatus.includes('ship')) return 'processing'
   if (orderStatus === 'shipped' || orderStatus === 'out_for_delivery') return 'shipped'
   if (orderStatus === 'delivered') return 'delivered'
   if (orderStatus === 'refunded' || orderStatus === 'cancelled' || orderStatus === 'canceled') return 'refunded'
@@ -39,12 +44,16 @@ function normalizeDeliveryStatus(record) {
   if (!deliveryStatus) return 'pending'
 
   if (deliveryStatus === 'pending') return 'pending'
-  if (deliveryStatus === 'processing') return 'processing'
-  if (deliveryStatus === 'order_confirmed' || deliveryStatus === 'confirmed') return 'order_confirmed'
-  if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) return 'ready_for_shipment'
-  if (deliveryStatus === 'shipped') return 'shipped'
-  if (deliveryStatus === 'out_for_delivery') return 'out_for_delivery'
+  if (
+    deliveryStatus === 'processing'
+    || deliveryStatus === 'order_confirmed'
+    || deliveryStatus === 'confirmed'
+    || deliveryStatus === 'ready_for_shipment'
+  ) return 'processing'
+  if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) return 'processing'
+  if (deliveryStatus === 'shipped' || deliveryStatus === 'out_for_delivery') return 'shipped'
   if (deliveryStatus === 'delivered') return 'delivered'
+  if (deliveryStatus === 'refunded') return 'refunded'
   if (deliveryStatus === 'cancelled' || deliveryStatus === 'canceled') return 'cancelled'
 
   return deliveryStatus
@@ -281,9 +290,7 @@ function normalizeOrderItem(item, index, orderRecord = null) {
 const ORDER_STATUS_ROLLUP = [
   'ordered',
   'pending',
-  'confirmed',
   'processing',
-  'ready_for_shipment',
   'shipped',
   'delivered',
   'refunded',

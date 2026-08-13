@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { ChevronDown, HelpCircle, MessageCircle } from 'lucide-react'
 import { landingFaqItems } from '../../constants/landingPageData'
 import { landingContainerClass } from '../../constants/landingLayout'
+import Images from '../../utils/Images'
 
 function FaqItem({ question, answer, isOpen, onToggle, isLast }) {
   const bodyRef = useRef(null)
@@ -59,50 +60,58 @@ export default function LandingFaqSection() {
 
   return (
     <section id="faq" className="border-b border-slate-200 bg-slate-50 py-14 sm:py-18 lg:py-20">
-      <div className={landingContainerClass}>
-        <div className="mx-auto max-w-xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Frequently asked questions
-          </h2>
-          <p className="mt-4 text-base leading-7 text-slate-600">
-            Everything vendors need to know about getting started and selling on EZ-Mall.
-          </p>
-        </div>
+      <div className={`${landingContainerClass} grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14`}>
+        <img
+          src={Images.common.hero_img_two}
+          alt=""
+          className="mx-auto w-full max-w-md object-contain lg:mx-0 lg:max-w-none"
+        />
 
-        <div className="mx-auto mt-10 max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-12">
-          <ol>
-            {landingFaqItems.map((item, index) => (
-              <li key={item.question}>
-                <FaqItem
-                  question={item.question}
-                  answer={item.answer}
-                  isOpen={openIndex === index}
-                  isLast={index === landingFaqItems.length - 1}
-                  onToggle={() => setOpenIndex(openIndex === index ? -1 : index)}
-                />
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:mt-10 sm:flex-row sm:px-7 sm:py-6">
-          <div className="flex items-center gap-4 text-center sm:text-left">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-              <MessageCircle className="size-6" strokeWidth={1.5} />
-            </span>
-            <div>
-              <p className="text-sm font-bold text-slate-900">Still have questions?</p>
-              <p className="mt-0.5 text-sm text-slate-500">
-                Our vendor support team is here to help you get started.
-              </p>
-            </div>
+        <div>
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              Frequently asked questions
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              Everything vendors need to know about getting started and selling on EZ-Mall.
+            </p>
           </div>
-          <Link
-            to="/signup"
-            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 px-6 text-sm font-semibold text-slate-700 transition-colors hover:border-brand/40 hover:text-brand"
-          >
-            Create an account
-          </Link>
+
+          <div className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-10">
+            <ol>
+              {landingFaqItems.map((item, index) => (
+                <li key={item.question}>
+                  <FaqItem
+                    question={item.question}
+                    answer={item.answer}
+                    isOpen={openIndex === index}
+                    isLast={index === landingFaqItems.length - 1}
+                    onToggle={() => setOpenIndex(openIndex === index ? -1 : index)}
+                  />
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="mt-6 flex flex-col items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:flex-row sm:px-7 sm:py-6">
+            <div className="flex items-center gap-4 text-center sm:text-left">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                <MessageCircle className="size-6" strokeWidth={1.5} />
+              </span>
+              <div>
+                <p className="text-sm font-bold text-slate-900">Still have questions?</p>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Our vendor support team is here to help you get started.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/signup"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 px-6 text-sm font-semibold text-slate-700 transition-colors hover:border-brand/40 hover:text-brand"
+            >
+              Create an account
+            </Link>
+          </div>
         </div>
       </div>
     </section>

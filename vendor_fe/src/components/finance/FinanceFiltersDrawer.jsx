@@ -7,7 +7,6 @@ import {
   CircleDollarSign,
   Clock3,
   Layers,
-  Loader2,
   Megaphone,
   Percent,
   RotateCcw,
@@ -22,7 +21,6 @@ import {
   PAYMENT_STATUS_FILTERS,
   PAYMENT_STATUSES,
   SORT_DIRECTIONS,
-  SORT_FIELDS,
   TRANSACTION_TYPE_FILTERS,
   TRANSACTION_TYPES,
 } from '../../constants/finance'
@@ -39,17 +37,10 @@ const TYPE_ICONS = {
 
 const STATUS_ICONS = {
   all: Tag,
-  completed: CheckCircle2,
+  paid: CheckCircle2,
   pending: Clock3,
   failed: XCircle,
-  processing: Loader2,
 }
-
-const SORT_OPTIONS = [
-  { field: SORT_FIELDS.date, label: 'Date' },
-  { field: SORT_FIELDS.amount, label: 'Amount' },
-  { field: SORT_FIELDS.type, label: 'Type' },
-]
 
 function FilterSection({ icon: Icon, title, description, children }) {
   return (
@@ -100,10 +91,8 @@ export default function FinanceFiltersDrawer({
   maxAmount,
   onMinAmountChange,
   onMaxAmountChange,
-  sortField,
-  sortDirection,
-  onSortFieldChange,
-  onSortDirectionChange,
+  sortOrder,
+  onSortOrderChange,
   onClearFilters,
   resultCount,
 }) {
@@ -295,50 +284,29 @@ export default function FinanceFiltersDrawer({
           <FilterSection
             icon={ArrowDownUp}
             title="Sort Order"
-            description="Choose how results are ordered in the table."
+            description="Order results by transaction date."
           >
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {SORT_OPTIONS.map((option) => {
-                  const isActive = sortField === option.field
-                  return (
-                    <button
-                      key={option.field}
-                      type="button"
-                      onClick={() => onSortFieldChange(option.field)}
-                      className={`cursor-pointer rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
-                        isActive
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: SORT_DIRECTIONS.desc, label: 'Newest / Highest first' },
-                  { value: SORT_DIRECTIONS.asc, label: 'Oldest / Lowest first' },
-                ].map((option) => {
-                  const isActive = sortDirection === option.value
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => onSortDirectionChange(option.value)}
-                      className={`cursor-pointer rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-all ${
-                        isActive
-                          ? 'bg-brand-light text-brand ring-1 ring-brand/20'
-                          : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  )
-                })}
-              </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: SORT_DIRECTIONS.desc, label: 'Newest first' },
+                { value: SORT_DIRECTIONS.asc, label: 'Oldest first' },
+              ].map((option) => {
+                const isActive = sortOrder === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => onSortOrderChange(option.value)}
+                    className={`cursor-pointer rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-brand-light text-brand ring-1 ring-brand/20'
+                        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
             </div>
           </FilterSection>
         </div>

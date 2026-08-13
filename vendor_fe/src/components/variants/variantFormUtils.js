@@ -280,6 +280,15 @@ export function getVariantValuesInputPlaceholder(attribute = '') {
   return getVariantValuePlaceholder(attribute).replace(/^e\.g\.\s*/, '')
 }
 
+/** Placeholder for the single "add a value" input — one example drawn from the option type. */
+export function getSingleVariantValuePlaceholder(attribute = '') {
+  const firstExample = getVariantValuePlaceholder(attribute)
+    .replace(/^e\.g\.\s*/, '')
+    .split(',')[0]
+    .trim()
+  return `e.g. ${firstExample} — press Enter to add`
+}
+
 /** Splits comma-separated input (e.g. "Red, Blue, Green") into trimmed, de-duplicated values. */
 export function parseMultiValues(raw) {
   const seenLower = new Set()
