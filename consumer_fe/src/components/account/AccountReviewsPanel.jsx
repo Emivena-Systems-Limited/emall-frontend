@@ -21,7 +21,12 @@ import homeImage from '../../assets/images/categories/home_and_kitchen.png'
 import decorImage from '../../assets/images/categories/home_decor.jpg'
 import kitchenImage from '../../assets/images/categories/kitchen_utensils.jpg'
 import { notify } from '../../lib/notify'
-import { useReviewMutations, useUserReviewsQuery } from '../../hooks/useReviewsQuery'
+import {
+  useEligibleReviewItemsQuery,
+  useReviewMutations,
+  useReviewQuery,
+  useUserReviewsQuery,
+} from '../../hooks/useReviewsQuery'
 
 const reviewsSeed = [
   {
@@ -73,6 +78,7 @@ const reviewsSeed = [
     image: decorImage,
   },
 ]
+void reviewsSeed
 
 const statusTone = {
   Published: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -99,7 +105,7 @@ function normalizeApiReview(item, index) {
 
   const rating = Number(item.rating || item.score || 5)
   const title = item.title || item.heading || 'Review'
-  const body = item.comment || item.description || item.body || item.content || ''
+  const body = item.review || item.comment || item.description || item.body || item.content || ''
 
   let status = item.status || 'Published'
   if (typeof status === 'string') {
@@ -521,20 +527,20 @@ function LeaveReview({ reviewId }) {
   const params = new URLSearchParams(location.search)
   const editing = Boolean(reviewId)
 
-  const { data: apiData } = useUserReviewsQuery()
-  const { createMutation, updateMutation, isSubmitting } = useReviewMutations({
+  const { data: reviewData, isLoading: isLoadingReview } = useReviewQuery(reviewId)
+  const { data: eligibleItems = [], isLoading: isLoadingEligible } =
+    useEligibleReviewItemsQuery({ enabled: !editing })
+  const { createMutation, updateMutation, deleteMediaMutation, isSubmitting } = useReviewMutations({
     onSaved: () => navigate('/account/reviews'),
   })
 
-  const existing = useMemo(() => {
-    if (reviewId && Array.isArray(apiData)) {
-      const found = apiData.find(
-        (item) => String(item.id || item.review_id) === String(reviewId),
-      )
-      if (found) return normalizeApiReview(found, 0)
-    }
-    return null
-  }, [reviewId, apiData])
+  const existing = useMemo(
+    () => (reviewData ? normalizeApiReview(reviewData, 0) : null),
+    [reviewData],
+  )
+
+  const requestedOrderItemId = params.get('order_item_id') ?? ''
+  const [orderItemId, setOrderItemId] = useState(requestedOrderItemId)
 
   const [rating, setRating] = useState(existing?.rating ?? 0)
   const [hover, setHover] = useState(0)
@@ -542,19 +548,37 @@ function LeaveReview({ reviewId }) {
   const [body, setBody] = useState(existing?.body ?? '')
   const [recommend, setRecommend] = useState(editing ? 'yes' : '')
   const [media, setMedia] = useState([])
+  const [existingMedia, setExistingMedia] = useState([])
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    if (existing) {
+    if (!existing) return undefined
+    const timer = window.setTimeout(() => {
       setRating(existing.rating)
       setTitle(existing.title)
       setBody(existing.body)
-    }
-  }, [existing])
+      const savedMedia = reviewData?.media ?? reviewData?.review_media ?? reviewData?.attachments ?? []
+      setExistingMedia(Array.isArray(savedMedia) ? savedMedia : [])
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [existing, reviewData])
 
-  const product = existing?.product ?? params.get('product') ?? 'Wireless Head Set'
-  const order = existing?.order ?? params.get('order') ?? 'ORD-20483'
-  const image = existing?.image ?? kitchenImage
+  const effectiveOrderItemId = orderItemId || String(
+    eligibleItems[0]?.id ?? eligibleItems[0]?.order_item_id ?? '',
+  )
+
+  const selectedEligibleItem = useMemo(
+    () =>
+      eligibleItems.find(
+        (item) => String(item.id ?? item.order_item_id) === String(effectiveOrderItemId),
+      ) ?? null,
+    [effectiveOrderItemId, eligibleItems],
+  )
+
+  const eligibleProduct = selectedEligibleItem?.product ?? selectedEligibleItem?.product_variant?.product
+  const product = existing?.product ?? eligibleProduct?.name ?? params.get('product') ?? 'Purchased item'
+  const order = existing?.order ?? selectedEligibleItem?.order_number ?? selectedEligibleItem?.order?.order_number ?? params.get('order') ?? 'Order'
+  const image = existing?.image ?? eligibleProduct?.primary_image?.image_url ?? eligibleProduct?.images?.[0]?.image_url ?? kitchenImage
   const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent']
 
   const addFiles = (files) => {
@@ -582,6 +606,7 @@ function LeaveReview({ reviewId }) {
     event.preventDefault()
     const next = {}
     if (!rating) next.rating = 'Please select an overall rating.'
+    if (!editing && !effectiveOrderItemId) next.orderItem = 'Select a delivered item to review.'
     if (!title.trim()) next.title = 'Please enter a review title.'
     if (!body.trim()) next.body = 'Please describe your experience.'
     if (!recommend) next.recommend = 'Please select an option.'
@@ -589,20 +614,24 @@ function LeaveReview({ reviewId }) {
     if (Object.keys(next).length) return
 
     const payload = {
-      product_name: product,
-      order_id: order,
       rating,
       title: title.trim(),
-      comment: body.trim(),
-      recommend,
-      media_count: media.length,
+      review: body.trim(),
     }
+    if (!editing) payload.order_item_id = effectiveOrderItemId
 
     try {
       if (editing) {
-        await updateMutation.mutateAsync({ reviewId, payload })
+        await updateMutation.mutateAsync({
+          reviewId,
+          payload,
+          files: media.map((item) => item.file),
+        })
       } else {
-        await createMutation.mutateAsync(payload)
+        await createMutation.mutateAsync({
+          payload,
+          files: media.map((item) => item.file),
+        })
       }
     } catch {
       // Handled in mutation onError
@@ -649,6 +678,44 @@ function LeaveReview({ reviewId }) {
           noValidate
           className="space-y-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-7"
         >
+          {!editing ? (
+            <label className="block">
+              <span className="text-sm font-bold text-slate-900">
+                Delivered Item <span className="text-auth-primary">*</span>
+              </span>
+              <span className="mt-1 block text-xs text-slate-500">
+                Only delivered order items that are eligible for review are shown.
+              </span>
+              <select
+                value={effectiveOrderItemId}
+                disabled={isLoadingEligible}
+                onChange={(event) => {
+                  setOrderItemId(event.target.value)
+                  setErrors((items) => ({ ...items, orderItem: '' }))
+                }}
+                className={`mt-2 h-12 w-full rounded-xl border bg-white px-4 text-sm outline-none focus:border-auth-primary ${
+                  errors.orderItem ? 'border-red-400' : 'border-slate-200'
+                }`}
+              >
+                <option value="">
+                  {isLoadingEligible ? 'Loading eligible items…' : 'Select an item'}
+                </option>
+                {eligibleItems.map((item) => {
+                  const id = String(item.id ?? item.order_item_id ?? '')
+                  const itemProduct = item.product ?? item.product_variant?.product
+                  const label = itemProduct?.name ?? item.product_name ?? `Order item ${id}`
+                  return <option key={id} value={id}>{label}</option>
+                })}
+              </select>
+              {errors.orderItem ? (
+                <span className="mt-1 block text-xs font-semibold text-red-600">
+                  {errors.orderItem}
+                </span>
+              ) : null}
+            </label>
+          ) : isLoadingReview ? (
+            <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+          ) : null}
           <fieldset>
             <legend className="text-sm font-bold text-slate-900">
               Overall Rating <span className="text-auth-primary">*</span>
@@ -798,6 +865,36 @@ function LeaveReview({ reviewId }) {
                     </button>
                   </div>
                 ))}
+              </div>
+            ) : null}
+            {existingMedia.length ? (
+              <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                {existingMedia.map((item) => {
+                  const mediaId = item.id ?? item.media_id
+                  const url = item.url ?? item.media_url ?? item.file_url
+                  const isVideo = String(item.type ?? item.mime_type ?? '').startsWith('video')
+                  return (
+                    <div key={mediaId ?? url} className="relative aspect-square overflow-hidden rounded-xl bg-slate-100">
+                      {isVideo ? <video src={url} className="size-full object-cover" /> : <img src={url} alt="" className="size-full object-cover" />}
+                      <button
+                        type="button"
+                        aria-label="Remove uploaded review media"
+                        disabled={deleteMediaMutation.isPending}
+                        onClick={async () => {
+                          try {
+                            await deleteMediaMutation.mutateAsync({ reviewId, mediaId })
+                            setExistingMedia((items) => items.filter((entry) => (entry.id ?? entry.media_id) !== mediaId))
+                          } catch {
+                            // Mutation displays the API error.
+                          }
+                        }}
+                        className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-slate-950/70 text-white disabled:opacity-50"
+                      >
+                        {deleteMediaMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             ) : null}
           </fieldset>

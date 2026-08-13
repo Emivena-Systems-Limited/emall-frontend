@@ -1,6 +1,16 @@
 import { useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createReview, deleteReview, getUserReviews, updateReview } from '../services/reviewService'
+import {
+  createReview,
+  deleteReview,
+  deleteReviewMedia,
+  getEligibleReviewItems,
+  getReview,
+  getUserReviews,
+  resolveReviewId,
+  updateReview,
+  uploadReviewMedia,
+} from '../services/reviewService'
 import { notify } from '../lib/notify'
 
 export function useUserReviewsQuery(options = {}) {
@@ -17,13 +27,42 @@ export function useUserReviewsQuery(options = {}) {
   })
 }
 
+export function useEligibleReviewItemsQuery(options = {}) {
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  return useQuery({
+    queryKey: ['eligible-review-items'],
+    queryFn: getEligibleReviewItems,
+    enabled: isAuthenticated,
+    staleTime: 30_000,
+    ...options,
+  })
+}
+
+export function useReviewQuery(reviewId, options = {}) {
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  return useQuery({
+    queryKey: ['user-review', reviewId],
+    queryFn: () => getReview(reviewId),
+    enabled: isAuthenticated && Boolean(reviewId),
+    ...options,
+  })
+}
+
 export function useReviewMutations({ onSaved, onDeleted } = {}) {
   const queryClient = useQueryClient()
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['user-reviews'] })
 
   const createMutation = useMutation({
-    mutationFn: createReview,
+    mutationFn: async ({ payload, files = [] }) => {
+      const created = await createReview(payload)
+      const reviewId = resolveReviewId(created)
+      if (files.length && !reviewId) {
+        throw new Error('Review was created, but its ID was missing so media could not be uploaded')
+      }
+      if (files.length) await uploadReviewMedia(reviewId, files)
+      return created
+    },
     onSuccess: async () => {
       await refresh()
       notify.success('Review submitted successfully')
@@ -33,7 +72,11 @@ export function useReviewMutations({ onSaved, onDeleted } = {}) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: updateReview,
+    mutationFn: async ({ reviewId, payload, files = [] }) => {
+      const updated = await updateReview({ reviewId, payload })
+      if (files.length) await uploadReviewMedia(reviewId, files)
+      return updated
+    },
     onSuccess: async () => {
       await refresh()
       notify.success('Review updated successfully')
@@ -52,10 +95,20 @@ export function useReviewMutations({ onSaved, onDeleted } = {}) {
     onError: (error) => notify.fromError(error, 'Failed to delete review'),
   })
 
+  const deleteMediaMutation = useMutation({
+    mutationFn: deleteReviewMedia,
+    onSuccess: async () => {
+      await refresh()
+      notify.success('Review media removed')
+    },
+    onError: (error) => notify.fromError(error, 'Failed to remove review media'),
+  })
+
   return {
     createMutation,
     updateMutation,
     deleteMutation,
+    deleteMediaMutation,
     isSubmitting: createMutation.isPending || updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
   }

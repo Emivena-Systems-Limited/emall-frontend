@@ -1,12 +1,12 @@
 import apiClient from '../lib/apiClient'
 
 export const REVIEWS_ENDPOINTS = {
-  USER_REVIEWS: '/reviews/user',
-  ALL_REVIEWS: '/reviews',
-  USER_ALT_REVIEWS: '/user/reviews',
-  CREATE_REVIEW: '/reviews',
-  UPDATE_REVIEW: (id) => `/reviews/${encodeURIComponent(id)}`,
-  DELETE_REVIEW: (id) => `/reviews/${encodeURIComponent(id)}`,
+  REVIEWS: '/review/reviews',
+  ELIGIBLE_ITEMS: '/review/reviews/eligible-items',
+  REVIEW: (id) => `/review/reviews/${encodeURIComponent(id)}`,
+  MEDIA: (id) => `/review/reviews/${encodeURIComponent(id)}/media`,
+  MEDIA_ITEM: (reviewId, mediaId) =>
+    `/review/reviews/${encodeURIComponent(reviewId)}/media/${encodeURIComponent(mediaId)}`,
 }
 
 function assertApiSuccess(data) {
@@ -18,93 +18,87 @@ function assertApiSuccess(data) {
   return data
 }
 
-function normalizeReviewResponse(data) {
-  assertApiSuccess(data)
-  const items = data?.data?.reviews ?? data?.data?.items ?? data?.data ?? data?.reviews ?? data ?? []
-  return Array.isArray(items) ? items : []
-}
-
-/**
- * Fetch consumer's reviews from API with fallbacks for endpoint variations.
- */
-export async function getUserReviews() {
-  const endpoints = [
-    REVIEWS_ENDPOINTS.USER_REVIEWS,
-    REVIEWS_ENDPOINTS.USER_ALT_REVIEWS,
-    REVIEWS_ENDPOINTS.ALL_REVIEWS,
-  ]
-
-  let lastError = null
-
-  for (const endpoint of endpoints) {
-    try {
-      if (import.meta.env.DEV) {
-        console.info('[reviews] GET', endpoint)
-      }
-      const { data } = await apiClient.get(endpoint, { skipAuthLogout: true })
-      const reviews = normalizeReviewResponse(data)
-      if (import.meta.env.DEV) {
-        console.info('[reviews] response count:', reviews.length)
-      }
-      return reviews
-    } catch (err) {
-      lastError = err
-      if (err.response?.status !== 404) {
-        break
-      }
-    }
-  }
-
-  if (lastError?.response?.status === 404) {
-    return []
-  }
-  throw lastError ?? new Error('Failed to load reviews')
-}
-
-/**
- * Create a new review.
- */
-export async function createReview(payload) {
-  if (import.meta.env.DEV) {
-    console.info('[reviews] POST', REVIEWS_ENDPOINTS.CREATE_REVIEW, payload)
-  }
-  const { data } = await apiClient.post(REVIEWS_ENDPOINTS.CREATE_REVIEW, payload, {
-    skipAuthLogout: true,
-  })
+function unwrap(data) {
   assertApiSuccess(data)
   return data?.data ?? data ?? {}
 }
 
-/**
- * Update an existing review.
- */
+function normalizeList(data, keys = []) {
+  const payload = unwrap(data)
+  const keyed = keys.reduce((value, key) => value ?? payload?.[key], null)
+  const source = keyed ?? payload?.items ?? payload
+  return Array.isArray(source)
+    ? source.flat(Infinity).filter((item) => item && typeof item === 'object')
+    : []
+}
+
+export async function getUserReviews() {
+  const { data } = await apiClient.get(REVIEWS_ENDPOINTS.REVIEWS, { skipAuthLogout: true })
+  return normalizeList(data, ['reviews'])
+}
+
+export async function getEligibleReviewItems() {
+  const { data } = await apiClient.get(REVIEWS_ENDPOINTS.ELIGIBLE_ITEMS, {
+    skipAuthLogout: true,
+  })
+  return normalizeList(data, ['eligible_items', 'order_items'])
+}
+
+export async function getReview(reviewId) {
+  const id = String(reviewId ?? '').trim()
+  if (!id) throw new Error('Review ID is required')
+  const { data } = await apiClient.get(REVIEWS_ENDPOINTS.REVIEW(id), {
+    skipAuthLogout: true,
+  })
+  const payload = unwrap(data)
+  return payload?.review ?? (Array.isArray(payload) ? payload.flat(Infinity)[0] : payload)
+}
+
+export async function createReview(payload) {
+  const { data } = await apiClient.post(REVIEWS_ENDPOINTS.REVIEWS, payload, {
+    skipAuthLogout: true,
+  })
+  return unwrap(data)
+}
+
 export async function updateReview({ reviewId, payload }) {
   const id = String(reviewId ?? '').trim()
   if (!id) throw new Error('Review ID is required to update a review')
-
-  if (import.meta.env.DEV) {
-    console.info('[reviews] PUT', REVIEWS_ENDPOINTS.UPDATE_REVIEW(id), payload)
-  }
-  const { data } = await apiClient.put(REVIEWS_ENDPOINTS.UPDATE_REVIEW(id), payload, {
+  const { data } = await apiClient.put(REVIEWS_ENDPOINTS.REVIEW(id), payload, {
     skipAuthLogout: true,
   })
-  assertApiSuccess(data)
-  return data?.data ?? data ?? {}
+  return unwrap(data)
 }
 
-/**
- * Delete a review.
- */
 export async function deleteReview(reviewId) {
   const id = String(reviewId ?? '').trim()
   if (!id) throw new Error('Review ID is required to delete a review')
-
-  if (import.meta.env.DEV) {
-    console.info('[reviews] DELETE', REVIEWS_ENDPOINTS.DELETE_REVIEW(id))
-  }
-  const { data } = await apiClient.delete(REVIEWS_ENDPOINTS.DELETE_REVIEW(id), {
+  const { data } = await apiClient.delete(REVIEWS_ENDPOINTS.REVIEW(id), {
     skipAuthLogout: true,
   })
-  assertApiSuccess(data)
-  return data?.data ?? data ?? {}
+  return unwrap(data)
+}
+
+export async function uploadReviewMedia(reviewId, files) {
+  const id = String(reviewId ?? '').trim()
+  if (!id) throw new Error('Review ID is required to upload media')
+  if (!files?.length) return []
+  const form = new FormData()
+  files.forEach((file) => form.append('files[]', file))
+  const { data } = await apiClient.post(REVIEWS_ENDPOINTS.MEDIA(id), form, {
+    skipAuthLogout: true,
+  })
+  return unwrap(data)
+}
+
+export async function deleteReviewMedia({ reviewId, mediaId }) {
+  const { data } = await apiClient.delete(REVIEWS_ENDPOINTS.MEDIA_ITEM(reviewId, mediaId), {
+    skipAuthLogout: true,
+  })
+  return unwrap(data)
+}
+
+export function resolveReviewId(data) {
+  const value = data?.review ?? data
+  return value?.id ?? value?.review_id ?? null
 }
