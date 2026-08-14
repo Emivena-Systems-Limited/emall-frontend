@@ -2,6 +2,7 @@ import apiClient from '../lib/apiClient'
 
 export const REVIEWS_ENDPOINTS = {
   REVIEWS: '/review/reviews',
+  CREATE: '/review/store',
   ELIGIBLE_ITEMS: '/review/reviews/eligible-items',
   REVIEW: (id) => `/review/reviews/${encodeURIComponent(id)}`,
   MEDIA: (id) => `/review/reviews/${encodeURIComponent(id)}/media`,
@@ -55,7 +56,7 @@ export async function getReview(reviewId) {
 }
 
 export async function createReview(payload) {
-  const { data } = await apiClient.post(REVIEWS_ENDPOINTS.REVIEWS, payload, {
+  const { data } = await apiClient.post(REVIEWS_ENDPOINTS.CREATE, payload, {
     skipAuthLogout: true,
   })
   return unwrap(data)

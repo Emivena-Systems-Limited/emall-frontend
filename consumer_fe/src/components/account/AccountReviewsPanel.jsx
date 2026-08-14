@@ -576,6 +576,13 @@ function LeaveReview({ reviewId }) {
   )
 
   const eligibleProduct = selectedEligibleItem?.product ?? selectedEligibleItem?.product_variant?.product
+  const productId = String(
+    selectedEligibleItem?.product_id ??
+      eligibleProduct?.id ??
+      selectedEligibleItem?.product_variant?.product_id ??
+      params.get('product_id') ??
+      '',
+  )
   const product = existing?.product ?? eligibleProduct?.name ?? params.get('product') ?? 'Purchased item'
   const order = existing?.order ?? selectedEligibleItem?.order_number ?? selectedEligibleItem?.order?.order_number ?? params.get('order') ?? 'Order'
   const image = existing?.image ?? eligibleProduct?.primary_image?.image_url ?? eligibleProduct?.images?.[0]?.image_url ?? kitchenImage
@@ -607,6 +614,7 @@ function LeaveReview({ reviewId }) {
     const next = {}
     if (!rating) next.rating = 'Please select an overall rating.'
     if (!editing && !effectiveOrderItemId) next.orderItem = 'Select a delivered item to review.'
+    if (!editing && !productId) next.orderItem = 'The selected item is missing its product ID.'
     if (!title.trim()) next.title = 'Please enter a review title.'
     if (!body.trim()) next.body = 'Please describe your experience.'
     if (!recommend) next.recommend = 'Please select an option.'
@@ -618,7 +626,10 @@ function LeaveReview({ reviewId }) {
       title: title.trim(),
       review: body.trim(),
     }
-    if (!editing) payload.order_item_id = effectiveOrderItemId
+    if (!editing) {
+      payload.order_item_id = effectiveOrderItemId
+      payload.product_id = productId
+    }
 
     try {
       if (editing) {
