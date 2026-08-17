@@ -26,7 +26,10 @@ export async function getVendorReviews(filters = {}) {
     console.info('[reviews] GET', REVIEW_ENDPOINTS.LIST, params, data)
   }
 
-  const normalized = normalizeReviewsPage(data)
+  const normalized = normalizeReviewsPage(data, {
+    page: params.page,
+    perPage: params.per_page,
+  })
   if (!normalized) {
     return { ...EMPTY_REVIEWS_PAGE }
   }
@@ -76,16 +79,26 @@ export async function replyToVendorReview(reviewId, text) {
   }
 
   const payload = extractVendorReplyPayload(data)
-  const normalizedReview = normalizeReviewRecord(payload)
-  if (normalizedReview) {
+  const normalizedReview = payload ? normalizeReviewRecord({
+    ...payload,
+    id: payload.id ?? payload.review_id ?? id,
+    review_id: payload.review_id ?? id,
+    vendor_reply: payload.vendor_reply ?? payload.reply ?? payload.text ?? bodyText,
+    vendor_replied_at: payload.vendor_replied_at ?? payload.replied_at,
+  }) : null
+
+  if (normalizedReview?.vendorReply) {
     return normalizedReview
+  }
+
+  const vendorReply = normalizeVendorReplyFromPayload(payload) ?? {
+    text: bodyText,
+    date: new Date().toISOString(),
   }
 
   return {
     id,
-    vendorReply: normalizeVendorReplyFromPayload(payload) ?? {
-      text: bodyText,
-      date: new Date().toISOString(),
-    },
+    reviewId: id,
+    vendorReply,
   }
 }

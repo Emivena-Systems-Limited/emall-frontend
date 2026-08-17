@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { MoreHorizontal, Package, Printer } from 'lucide-react'
+import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import notify from '../../lib/notify'
 import {
@@ -17,6 +17,10 @@ import { resolvePaymentRecord } from '../../utils/normalizeVendorOrders'
 
 function resolveListPayment(order) {
   return order?.payment ?? resolvePaymentRecord(order?.raw)
+}
+
+function resolveParentOrderId(order) {
+  return order?.orderId || order?.id
 }
 
 function navigateWithListPayment(navigate, path, order, { returnTo } = {}) {
@@ -57,7 +61,8 @@ function OrderMenuAction({ icon: Icon, tone, label, helper, helperTitle, onClick
 export default function OrderActionsMenu({
   order,
   align = 'end',
-  hideViewOrderItems = false,
+  hideUpdateDeliveryStatus = false,
+  onUpdateDeliveryStatus,
 }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -66,6 +71,7 @@ export default function OrderActionsMenu({
   const triggerRef = useRef(null)
   const orderProducts = getUniqueOrderProducts(order)
   const hasLinkedProducts = orderProducts.length > 0
+  const parentOrderId = resolveParentOrderId(order)
 
   const viewProductMeta = useMemo(() => {
     if (orderProducts.length === 1) {
@@ -119,7 +125,7 @@ export default function OrderActionsMenu({
             ? 'bg-brand-light/30 text-brand ring-brand/25 shadow-sm'
             : 'text-slate-500 ring-transparent hover:bg-slate-100 hover:text-slate-800'
         }`}
-        aria-label={`Actions for order ${order.orderNumber}`}
+        aria-label={`Actions for ${order.productName || order.orderNumber}`}
       >
         <MoreHorizontal className="size-4" />
       </button>
@@ -135,20 +141,22 @@ export default function OrderActionsMenu({
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
             Order actions
           </p>
-          <p className="mt-1 text-sm font-bold text-slate-950">{order.orderNumber}</p>
+          <p className="mt-1 truncate text-sm font-bold text-slate-950">
+            {order.productName || order.orderNumber}
+          </p>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
-            Manage fulfilment, receipts, and linked products for this order.
+            Update fulfilment, print a receipt, or open the linked product.
           </p>
         </div>
 
         <div className="py-1.5">
-          {!hideViewOrderItems && (
+          {!hideUpdateDeliveryStatus && onUpdateDeliveryStatus && (
             <OrderMenuAction
-              icon={Package}
-              tone="bg-cyan-50 text-cyan-700 ring-cyan-100"
-              label="View order items"
-              helper="See products, quantities, and line totals for this order."
-              onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}`, order, { returnTo: ordersReturnTo }))}
+              icon={Truck}
+              tone="bg-sky-50 text-sky-700 ring-sky-100"
+              label="Update delivery status"
+              helper="Change fulfilment progress for this product."
+              onClick={() => run(() => onUpdateDeliveryStatus(order))}
             />
           )}
 
@@ -157,7 +165,7 @@ export default function OrderActionsMenu({
             tone="bg-slate-100 text-slate-700 ring-slate-200"
             label="Print Receipt"
             helper="Open the receipt page to preview, download as PDF, or print."
-            onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${order.id}/receipt`, order, { returnTo: ordersReturnTo }))}
+            onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${parentOrderId}/receipt`, order, { returnTo: ordersReturnTo }))}
           />
 
           {hasLinkedProducts && (

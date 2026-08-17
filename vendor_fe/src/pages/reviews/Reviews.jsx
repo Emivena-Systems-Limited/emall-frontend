@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
+import { useDispatch } from 'react-redux'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import OrderPagination from '../../components/orders/OrderPagination'
 import ProductRatingInsights from '../../components/reviews/ProductRatingInsights'
@@ -8,6 +9,7 @@ import ReviewDetailsDrawer from '../../components/reviews/ReviewDetailsDrawer'
 import ReviewsFiltersDrawer from '../../components/reviews/ReviewsFiltersDrawer'
 import ReviewsList from '../../components/reviews/ReviewsList'
 import ReviewsPageHeader from '../../components/reviews/ReviewsPageHeader'
+import ReviewsPageLoader from '../../components/reviews/ReviewsPageLoader'
 import ReviewsSummaryCards from '../../components/reviews/ReviewsSummaryCards'
 import ReviewsToolbar from '../../components/reviews/ReviewsToolbar'
 import {
@@ -40,8 +42,10 @@ import {
   paginateItems,
   sortReviews,
 } from '../../utils/reviewUtils'
+import { setAverageRating } from '../../store/slices/vendorMetricsSlice'
 
 export default function Reviews() {
+  const dispatch = useDispatch()
   const [devDataEnabled, setDevDataEnabled] = useState(false)
   const [localReviews, setLocalReviews] = useState(MOCK_VENDOR_REVIEWS)
 
@@ -89,6 +93,7 @@ export default function Reviews() {
 
   const {
     data: apiSummary,
+    isLoading: isSummaryLoading,
     isError: isSummaryError,
     error: summaryError,
   } = useVendorReviewsSummary({ enabled: !devDataEnabled })
@@ -192,6 +197,12 @@ export default function Reviews() {
     }
   }, [devDataEnabled, isSummaryError, summaryError])
 
+  useEffect(() => {
+    if (!devDataEnabled && apiSummary) {
+      dispatch(setAverageRating(apiSummary.averageRating))
+    }
+  }, [apiSummary, devDataEnabled, dispatch])
+
   const handleExport = () => {
     const rows = devDataEnabled ? devSortedReviews : reviewsPage.items
     if (exportCount === 0 || rows.length === 0) {
@@ -230,29 +241,32 @@ export default function Reviews() {
 
   const handleSaveReply = async (reviewId, text) => {
     const currentReview =
-      selectedReview?.id === reviewId
+      selectedReview?.id === reviewId || selectedReview?.reviewId === reviewId
         ? selectedReview
-        : (devDataEnabled ? localReviews : reviews).find((review) => review.id === reviewId)
+        : (devDataEnabled ? localReviews : reviews).find((review) => (
+          review.id === reviewId || review.reviewId === reviewId
+        ))
 
     if (currentReview?.vendorReply) {
       notify.info('You can only post one reply to a review.')
       return
     }
 
+    const apiReviewId = currentReview?.reviewId || currentReview?.id || reviewId
+
     if (devDataEnabled) {
-      applyLocalReply(reviewId, text)
+      applyLocalReply(currentReview?.id || reviewId, text)
       notify.success('Your reply has been posted.')
       return
     }
 
     try {
-      const updated = await replyMutation.mutateAsync({ reviewId, text })
+      const updated = await replyMutation.mutateAsync({ reviewId: apiReviewId, text })
+      const vendorReply = updated.vendorReply ?? { text, date: new Date().toISOString() }
       setSelectedReview((current) => {
-        if (current?.id !== reviewId) return current
-        return {
-          ...current,
-          vendorReply: updated.vendorReply ?? { text, date: new Date().toISOString() },
-        }
+        if (!current) return current
+        if (current.id !== currentReview?.id && current.reviewId !== apiReviewId) return current
+        return { ...current, vendorReply }
       })
       notify.success('Your reply has been posted.')
     } catch (error) {
@@ -282,12 +296,17 @@ export default function Reviews() {
     setSelectedReview(review)
   }
 
-  const showListLoader = !devDataEnabled && isReviewsLoading
+  const showPageLoader = !devDataEnabled && (isReviewsLoading || isSummaryLoading)
   const showListError = !devDataEnabled && isReviewsError
 
   return (
     <DashboardLayout pageTitle="Reviews & Ratings">
-      <div className="page-enter space-y-6">
+      {showPageLoader ? (
+        <div className="page-enter">
+          <ReviewsPageLoader />
+        </div>
+      ) : (
+        <div className="page-enter space-y-6">
         <ReviewsPageHeader
           onExport={handleExport}
           exportCount={exportCount}
@@ -332,7 +351,7 @@ export default function Reviews() {
               </div>
             </div>
 
-            {hasReviews && (
+            {hasReviews && !showListError && (
               <ReviewsToolbar
                 search={searchInput}
                 onSearchChange={setSearchInput}
@@ -350,11 +369,7 @@ export default function Reviews() {
             )}
           </div>
 
-          {showListLoader ? (
-            <div className="flex items-center justify-center px-6 py-16">
-              <Loader2 className="size-8 animate-spin text-brand" aria-label="Loading reviews" />
-            </div>
-          ) : showListError ? (
+          {showListError ? (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
               <span className="flex size-12 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
                 <AlertTriangle className="size-5" />
@@ -395,7 +410,8 @@ export default function Reviews() {
             </>
           )}
         </section>
-      </div>
+        </div>
+      )}
 
       <ReviewsFiltersDrawer
         open={filtersOpen}

@@ -1,17 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDispatch } from 'react-redux'
+import { useNavigate } from 'react-router'
 import {
   changePassword,
-  getBankDetails,
   getBusinessInformation,
   getDocuments,
   getProfile,
   removeProfilePicture,
-  updateBankDetails,
   updateBusinessInformation,
   updateProfile,
+  updateVendorAddress,
   uploadDocument,
   uploadProfilePicture,
 } from '../services/profileService'
+import { logoutVendor } from '../services/authService'
+import { logout, updateUser } from '../store/slices/authSlice'
+import { persistor, store } from '../store/store'
+import { markPasswordChanged } from '../utils/passwordChangeSession'
 
 const STALE_TIME = 60 * 1000
 
@@ -19,7 +24,6 @@ export const profileQueryKeys = {
   all: ['vendor-profile'],
   profile: () => [...profileQueryKeys.all, 'profile'],
   business: () => [...profileQueryKeys.all, 'business'],
-  bank: () => [...profileQueryKeys.all, 'bank'],
   documents: () => [...profileQueryKeys.all, 'documents'],
 }
 
@@ -39,14 +43,6 @@ export function useBusinessInformation() {
   })
 }
 
-export function useBankDetails() {
-  return useQuery({
-    queryKey: profileQueryKeys.bank(),
-    queryFn: getBankDetails,
-    staleTime: STALE_TIME,
-  })
-}
-
 export function useVendorDocuments() {
   return useQuery({
     queryKey: profileQueryKeys.documents(),
@@ -62,9 +58,43 @@ function useInvalidateProfile() {
 
 export function useUpdateProfileMutation() {
   const invalidate = useInvalidateProfile()
+  const dispatch = useDispatch()
+
   return useMutation({
     mutationFn: updateProfile,
-    onSuccess: invalidate,
+    onSuccess: (result) => {
+      if (result?.user) {
+        dispatch(updateUser(result.user))
+      }
+      invalidate()
+    },
+  })
+}
+
+export function useUpdateVendorAddressMutation() {
+  const invalidate = useInvalidateProfile()
+  const dispatch = useDispatch()
+
+  return useMutation({
+    mutationFn: updateVendorAddress,
+    onSuccess: (result) => {
+      if (result?.address) {
+        const currentAddresses = store.getState().auth.user?.addresses
+        const previousAddresses = currentAddresses && typeof currentAddresses === 'object' && !Array.isArray(currentAddresses)
+          ? currentAddresses
+          : {}
+
+        dispatch(updateUser({
+          address_id: result.address.id,
+          addresses: {
+            ...previousAddresses,
+            ...result.address,
+            id: result.address.id,
+          },
+        }))
+      }
+      invalidate()
+    },
   })
 }
 
@@ -72,14 +102,6 @@ export function useUpdateBusinessInformationMutation() {
   const invalidate = useInvalidateProfile()
   return useMutation({
     mutationFn: updateBusinessInformation,
-    onSuccess: invalidate,
-  })
-}
-
-export function useUpdateBankDetailsMutation() {
-  const invalidate = useInvalidateProfile()
-  return useMutation({
-    mutationFn: updateBankDetails,
     onSuccess: invalidate,
   })
 }
@@ -109,7 +131,23 @@ export function useUploadDocumentMutation() {
 }
 
 export function useChangePasswordMutation() {
+  const dispatch = useDispatch()
+  const navigate = useNavigate()
+
   return useMutation({
     mutationFn: changePassword,
+    onSuccess: async () => {
+      markPasswordChanged()
+
+      try {
+        await logoutVendor()
+      } catch {
+        // Local session is still cleared so the vendor can sign in again.
+      }
+
+      dispatch(logout())
+      persistor.persist()
+      navigate('/login', { replace: true, state: { passwordReset: true } })
+    },
   })
 }

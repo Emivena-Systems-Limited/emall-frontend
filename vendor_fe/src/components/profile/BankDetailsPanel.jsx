@@ -1,198 +1,71 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CreditCard } from 'lucide-react'
-import { GHANA_BANKS } from '../../constants/finance'
-import notify from '../../lib/notify'
-import {
-  isPlainObjectEqual,
-  mapBankToForm,
-  maskBankAccountNumber,
-  validateBankForm,
-} from '../../utils/profileFormUtils'
-import ProfileFormActions from './ProfileFormActions'
-import ProfileSectionCard, {
-  ProfileFieldLabel,
-  ProfileReadOnlyGrid,
-  ProfileTextInput,
-} from './ProfileSectionCard'
+import { AlertTriangle, CreditCard, Plus, RefreshCw } from 'lucide-react'
+import PayoutAccountSection from '../finance/PayoutAccountSection'
+import ProfileSectionCard from './ProfileSectionCard'
 
 export default function BankDetailsPanel({
-  bankDetails,
-  onUpdateBankDetails,
-  isUpdating = false,
+  accounts = [],
+  isLoading = false,
+  isError = false,
+  errorMessage = '',
+  isFetching = false,
+  onRetry,
+  onAdd,
+  onReplace,
+  onActivate,
+  activatingAccountId = null,
+  replacingAccountId = null,
 }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [discardOpen, setDiscardOpen] = useState(false)
-  const [form, setForm] = useState(() => mapBankToForm(bankDetails))
-  const [errors, setErrors] = useState({})
-
-  const baseline = useMemo(() => mapBankToForm(bankDetails), [bankDetails])
-
-  useEffect(() => {
-    if (!isEditing) {
-      setForm(baseline)
-      setErrors({})
-    }
-  }, [baseline, isEditing])
-
-  const isDirty = isEditing && !isPlainObjectEqual(form, baseline)
-
-  const readOnlyItems = [
-    { label: 'Bank Name', value: bankDetails?.bankName },
-    { label: 'Account Name', value: bankDetails?.accountName },
-    { label: 'Account Number', value: maskBankAccountNumber(bankDetails?.accountNumber) },
-    { label: 'Branch', value: bankDetails?.branch },
-    { label: 'Account Type', value: bankDetails?.accountType },
-  ]
-
-  const handleFieldChange = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }))
-    if (errors[field]) {
-      setErrors((current) => {
-        const next = { ...current }
-        delete next[field]
-        return next
-      })
-    }
-  }
-
-  const handleCancel = () => {
-    if (isDirty) {
-      setDiscardOpen(true)
-      return
-    }
-    setIsEditing(false)
-    setForm(baseline)
-    setErrors({})
-  }
-
-  const handleDiscardConfirm = () => {
-    setDiscardOpen(false)
-    setIsEditing(false)
-    setForm(baseline)
-    setErrors({})
-  }
-
-  const handleSave = async () => {
-    const nextErrors = validateBankForm(form)
-    setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return
-
-    try {
-      await onUpdateBankDetails({
-        bankName: form.bankName.trim(),
-        accountName: form.accountName.trim(),
-        accountNumber: form.accountNumber.replace(/\s/g, ''),
-        branch: form.branch.trim(),
-        accountType: form.accountType.trim(),
-      })
-      notify.success('Bank details updated successfully.')
-      setIsEditing(false)
-    } catch {
-      notify.error('Unable to update bank details. Please try again.')
-    }
-  }
-
-  if (!bankDetails?.bankName && !isEditing) {
-    return (
-      <ProfileSectionCard
-        icon={CreditCard}
-        title="Bank Details"
-        subtitle="Add payout bank details for receiving vendor settlements."
-        footer={(
-          <ProfileFormActions
-            isEditing={false}
-            onEdit={() => setIsEditing(true)}
-            editLabel="Add Bank Details"
-          />
-        )}
-      >
-        <p className="text-sm text-slate-500">No bank details on file yet.</p>
-      </ProfileSectionCard>
-    )
-  }
+  const hasAccounts = accounts.length > 0
 
   return (
     <ProfileSectionCard
       icon={CreditCard}
       title="Bank Details"
-      subtitle="Secure payout information for your vendor account."
-      footer={(
-        <ProfileFormActions
-          isEditing={isEditing}
-          isDirty={isDirty}
-          isSubmitting={isUpdating}
-          discardOpen={discardOpen}
-          onDiscardClose={() => setDiscardOpen(false)}
-          onDiscardConfirm={handleDiscardConfirm}
-          onEdit={() => setIsEditing(true)}
-          onCancel={handleCancel}
-          onSave={handleSave}
-          editLabel="Edit Bank Details"
-        />
-      )}
+      subtitle="Payout accounts used for vendor settlements. Only one account can be active at a time."
+      action={hasAccounts && !isLoading && !isError ? (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+        >
+          <Plus className="size-4" />
+          Add account
+        </button>
+      ) : null}
     >
-      {!isEditing ? (
-        <ProfileReadOnlyGrid items={readOnlyItems} />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <ProfileFieldLabel htmlFor="bank-name">Bank Name</ProfileFieldLabel>
-            <select
-              id="bank-name"
-              value={form.bankName}
-              onChange={(event) => handleFieldChange('bankName', event.target.value)}
-              className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light ${
-                errors.bankName ? 'border-red-300 ring-1 ring-red-100' : 'border-slate-300 bg-white text-slate-900 ring-1 ring-slate-200/60'
-              }`}
-            >
-              <option value="">Select bank</option>
-              {GHANA_BANKS.map((bank) => (
-                <option key={bank} value={bank}>{bank}</option>
-              ))}
-            </select>
-            {errors.bankName && <p className="mt-1.5 text-xs font-medium text-red-600">{errors.bankName}</p>}
-          </div>
-          <div className="sm:col-span-2">
-            <ProfileFieldLabel htmlFor="account-name">Account Name</ProfileFieldLabel>
-            <ProfileTextInput
-              id="account-name"
-              value={form.accountName}
-              onChange={(event) => handleFieldChange('accountName', event.target.value)}
-              error={errors.accountName}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <ProfileFieldLabel htmlFor="account-number">Account Number</ProfileFieldLabel>
-            <ProfileTextInput
-              id="account-number"
-              value={form.accountNumber}
-              onChange={(event) => handleFieldChange('accountNumber', event.target.value)}
-              placeholder="Enter full account number"
-              error={errors.accountNumber}
-            />
-          </div>
-          <div>
-            <ProfileFieldLabel htmlFor="bank-branch">Branch</ProfileFieldLabel>
-            <ProfileTextInput
-              id="bank-branch"
-              value={form.branch}
-              onChange={(event) => handleFieldChange('branch', event.target.value)}
-              error={errors.branch}
-            />
-          </div>
-          <div>
-            <ProfileFieldLabel htmlFor="account-type">Account Type</ProfileFieldLabel>
-            <select
-              id="account-type"
-              value={form.accountType}
-              onChange={(event) => handleFieldChange('accountType', event.target.value)}
-              className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-slate-200/60 outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
-            >
-              <option value="Current">Current</option>
-              <option value="Savings">Savings</option>
-            </select>
-          </div>
+      {isLoading ? (
+        <div className="animate-pulse space-y-3">
+          <div className="h-28 rounded-xl bg-slate-100" />
+          <div className="h-16 rounded-xl bg-slate-100" />
         </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-red-200 bg-red-50/40 px-6 py-10 text-center">
+          <span className="flex size-12 items-center justify-center rounded-2xl bg-white text-red-500 ring-1 ring-red-100">
+            <AlertTriangle className="size-5" />
+          </span>
+          <p className="mt-4 text-sm font-semibold text-slate-800">Unable to load bank details</p>
+          <p className="mt-1 max-w-sm text-sm text-slate-500">
+            {errorMessage || 'Something went wrong while fetching your payout accounts.'}
+          </p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      ) : (
+        <PayoutAccountSection
+          embedded
+          accounts={accounts}
+          onAdd={onAdd}
+          onReplace={onReplace}
+          onActivate={onActivate}
+          activatingAccountId={activatingAccountId}
+          replacingAccountId={replacingAccountId}
+        />
       )}
     </ProfileSectionCard>
   )

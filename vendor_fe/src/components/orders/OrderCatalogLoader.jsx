@@ -11,6 +11,15 @@ import {
 function OrderTableRowSkeleton({ cellClass = 'px-5 py-4' }) {
   return (
     <tr className="text-sm">
+      <td className={cellClass}>
+        <div className="flex items-center gap-3">
+          <SkeletonBlock className="size-11 shrink-0 rounded-xl" />
+          <div className="space-y-2">
+            <SkeletonBlock className="h-3.5 w-36" />
+            <SkeletonBlock className="h-2.5 w-24" />
+          </div>
+        </div>
+      </td>
       <td className={`whitespace-nowrap ${cellClass}`}>
         <SkeletonBlock className="h-3.5 w-24" />
       </td>
@@ -24,6 +33,9 @@ function OrderTableRowSkeleton({ cellClass = 'px-5 py-4' }) {
         </div>
       </td>
       <td className={`whitespace-nowrap ${cellClass}`}>
+        <SkeletonBlock className="h-3.5 w-20" />
+      </td>
+      <td className={`whitespace-nowrap ${cellClass}`}>
         <SkeletonBlock className="h-3.5 w-8" />
       </td>
       <td className={`whitespace-nowrap ${cellClass}`}>
@@ -34,12 +46,6 @@ function OrderTableRowSkeleton({ cellClass = 'px-5 py-4' }) {
       </td>
       <td className={`whitespace-nowrap ${cellClass}`}>
         <SkeletonBlock className="h-6 w-24 rounded-full" />
-      </td>
-      <td className={`whitespace-nowrap ${cellClass}`}>
-        <SkeletonBlock className="h-6 w-24 rounded-full" />
-      </td>
-      <td className={`whitespace-nowrap ${cellClass}`}>
-        <SkeletonBlock className="h-3.5 w-28" />
       </td>
       <td className={`whitespace-nowrap ${cellClass}`}>
         <SkeletonBlock className="size-8 rounded-lg" />

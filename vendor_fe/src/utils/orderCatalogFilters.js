@@ -32,9 +32,13 @@ function matchesSearch(order, search) {
 
   const haystack = [
     order.orderNumber,
+    order.orderId,
+    order.productName,
+    order.sku,
     order.customer?.name,
     order.customer?.email,
-    ...order.items.map((item) => item.productName),
+    ...(order.items ?? []).map((item) => item.productName),
+    ...(order.items ?? []).map((item) => item.sku),
   ]
     .filter(Boolean)
     .join(' ')

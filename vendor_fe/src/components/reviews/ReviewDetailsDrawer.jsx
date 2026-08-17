@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { formatReviewDate, getCustomerInitials } from '../../utils/reviewUtils'
+import { ReviewProductImage } from './ReviewCard'
 import StarRating from './StarRating'
 
 export default function ReviewDetailsDrawer({
@@ -53,7 +54,7 @@ export default function ReviewDetailsDrawer({
 
     setIsSaving(true)
     try {
-      await onSaveReply(review.id, trimmed)
+      await onSaveReply(review.reviewId || review.id, trimmed)
       setReplyText('')
     } catch {
       // Parent surfaces the error.
@@ -86,11 +87,15 @@ export default function ReviewDetailsDrawer({
                   Customer Review
                 </p>
                 <h2 id="review-drawer-title" className="truncate text-lg font-bold text-slate-900">
-                  {review.title}
+                  {review.title || review.productName || 'Customer review'}
                 </h2>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <StarRating rating={review.rating} size="size-3.5" />
-                  <span className="text-xs text-slate-500">{formatReviewDate(review.date)}</span>
+                  {Number.isFinite(review.rating) && (
+                    <StarRating rating={review.rating} size="size-3.5" />
+                  )}
+                  {review.date && (
+                    <span className="text-xs text-slate-500">{formatReviewDate(review.date)}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -106,23 +111,32 @@ export default function ReviewDetailsDrawer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          <Link
-            to={`/products/${review.productId}/view`}
-            className="flex cursor-pointer items-center gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-100 transition-colors hover:bg-slate-100"
-          >
-            <img
-              src={review.productImage}
-              alt=""
-              className="size-12 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
-            />
-            <div className="min-w-0">
-              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                <Package className="size-3" />
-                Product
-              </p>
-              <p className="truncate text-sm font-semibold text-slate-900">{review.productName}</p>
+          {review.productId ? (
+            <Link
+              to={`/products/${review.productId}/view`}
+              className="flex cursor-pointer items-center gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-100 transition-colors hover:bg-slate-100"
+            >
+              <ReviewProductImage src={review.productImage} className="size-12" />
+              <div className="min-w-0">
+                <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  <Package className="size-3" />
+                  Product
+                </p>
+                <p className="truncate text-sm font-semibold text-slate-900">{review.productName}</p>
+              </div>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-100">
+              <ReviewProductImage src={review.productImage} className="size-12" />
+              <div className="min-w-0">
+                <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  <Package className="size-3" />
+                  Product
+                </p>
+                <p className="truncate text-sm font-semibold text-slate-900">{review.productName}</p>
+              </div>
             </div>
-          </Link>
+          )}
 
           <div className="mt-5 flex items-start gap-3 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
@@ -139,12 +153,16 @@ export default function ReviewDetailsDrawer({
                 )}
               </div>
               <p className="mt-3 text-sm leading-relaxed text-slate-700">{review.comment}</p>
-              <Link
-                to={`/orders/${review.orderId}`}
-                className="mt-3 inline-block text-xs font-semibold text-brand hover:underline"
-              >
-                Order {review.orderNumber}
-              </Link>
+              {review.orderId ? (
+                <Link
+                  to={`/orders/${review.orderId}`}
+                  className="mt-3 inline-block text-xs font-semibold text-brand hover:underline"
+                >
+                  Order {review.orderNumber || ''}
+                </Link>
+              ) : review.orderNumber ? (
+                <p className="mt-3 text-xs font-semibold text-slate-500">Order {review.orderNumber}</p>
+              ) : null}
             </div>
           </div>
 
@@ -164,9 +182,11 @@ export default function ReviewDetailsDrawer({
             {hasReply ? (
               <div className="rounded-2xl border-l-4 border-brand bg-brand-light/30 p-4">
                 <p className="text-sm leading-relaxed text-slate-700">{review.vendorReply.text}</p>
-                <p className="mt-2 text-xs text-slate-400">
-                  Replied {formatReviewDate(review.vendorReply.date)}
-                </p>
+                {review.vendorReply.date && (
+                  <p className="mt-2 text-xs text-slate-400">
+                    Replied {formatReviewDate(review.vendorReply.date)}
+                  </p>
+                )}
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-3">

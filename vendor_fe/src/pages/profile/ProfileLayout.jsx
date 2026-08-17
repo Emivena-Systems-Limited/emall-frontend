@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router'
+import { shallowEqual, useSelector } from 'react-redux'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import ProfileNavigation from '../../components/profile/ProfileNavigation'
 import ProfileErrorState from '../../components/profile/ProfileErrorState'
@@ -6,60 +7,56 @@ import ProfilePageLoader from '../../components/profile/ProfilePageLoader'
 import {
   useChangePasswordMutation,
   useRemoveProfilePictureMutation,
-  useUpdateBankDetailsMutation,
-  useUpdateBusinessInformationMutation,
   useUpdateProfileMutation,
+  useUpdateVendorAddressMutation,
   useUploadDocumentMutation,
   useUploadProfilePictureMutation,
   useVendorProfile,
-  useBusinessInformation,
-  useBankDetails,
   useVendorDocuments,
 } from '../../hooks/useVendorProfile'
+import { useVendorMetricsBootstrap } from '../../hooks/useVendorMetricsBootstrap'
+import { mergeProfileWithAuthUser } from '../../utils/profileFormUtils'
 
 export default function ProfileLayout() {
+  const { user } = useSelector((state) => state.auth)
+  const accountSummary = useSelector((state) => ({
+    productsListed: state.vendorMetrics.productsListed,
+    totalOrders: state.vendorMetrics.totalOrders,
+    averageRating: state.vendorMetrics.averageRating,
+  }), shallowEqual)
+  useVendorMetricsBootstrap()
   const profileQuery = useVendorProfile()
-  const businessQuery = useBusinessInformation()
-  const bankQuery = useBankDetails()
   const documentsQuery = useVendorDocuments()
 
   const updateProfileMutation = useUpdateProfileMutation()
-  const updateBusinessMutation = useUpdateBusinessInformationMutation()
-  const updateBankMutation = useUpdateBankDetailsMutation()
+  const updateAddressMutation = useUpdateVendorAddressMutation()
   const uploadPictureMutation = useUploadProfilePictureMutation()
   const removePictureMutation = useRemoveProfilePictureMutation()
   const uploadDocumentMutation = useUploadDocumentMutation()
   const changePasswordMutation = useChangePasswordMutation()
 
-  const isInitialLoading = profileQuery.isLoading
+  const profile = mergeProfileWithAuthUser(profileQuery.data, user)
+  const hasAuthProfile = Boolean(user)
+  const isInitialLoading = profileQuery.isLoading && !hasAuthProfile
 
   const outletContext = {
-    profile: profileQuery.data,
-    business: businessQuery.data,
-    bankDetails: bankQuery.data,
+    profile,
+    accountSummary,
     documents: documentsQuery.data ?? [],
-    isProfileLoading: profileQuery.isLoading,
-    isBusinessLoading: businessQuery.isLoading,
-    isBankLoading: bankQuery.isLoading,
+    isProfileLoading: profileQuery.isLoading && !hasAuthProfile,
     isDocumentsLoading: documentsQuery.isLoading,
-    profileError: profileQuery.error,
-    businessError: businessQuery.error,
-    bankError: bankQuery.error,
+    profileError: hasAuthProfile ? null : profileQuery.error,
     documentsError: documentsQuery.error,
     refetchProfile: profileQuery.refetch,
-    refetchBusiness: businessQuery.refetch,
-    refetchBank: bankQuery.refetch,
     refetchDocuments: documentsQuery.refetch,
     onUpdateProfile: (data) => updateProfileMutation.mutateAsync(data),
-    onUpdateBusiness: (data) => updateBusinessMutation.mutateAsync(data),
-    onUpdateBankDetails: (data) => updateBankMutation.mutateAsync(data),
+    onUpdateAddress: (data) => updateAddressMutation.mutateAsync(data),
     onUploadPicture: (file) => uploadPictureMutation.mutateAsync(file),
     onRemovePicture: () => removePictureMutation.mutateAsync(),
     onUploadDocument: (payload) => uploadDocumentMutation.mutateAsync(payload),
     onChangePassword: (payload) => changePasswordMutation.mutateAsync(payload),
     isUpdatingProfile: updateProfileMutation.isPending,
-    isUpdatingBusiness: updateBusinessMutation.isPending,
-    isUpdatingBank: updateBankMutation.isPending,
+    isUpdatingAddress: updateAddressMutation.isPending,
     isUploadingPicture: uploadPictureMutation.isPending,
     isRemovingPicture: removePictureMutation.isPending,
     isUploadingDocument: uploadDocumentMutation.isPending,
@@ -80,7 +77,7 @@ export default function ProfileLayout() {
 
         {isInitialLoading ? (
           <ProfilePageLoader />
-        ) : profileQuery.isError ? (
+        ) : !hasAuthProfile && profileQuery.isError ? (
           <ProfileErrorState
             message={profileQuery.error?.message}
             onRetry={() => profileQuery.refetch()}

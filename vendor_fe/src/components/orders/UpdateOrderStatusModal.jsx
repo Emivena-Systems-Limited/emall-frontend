@@ -74,9 +74,17 @@ export default function UpdateOrderStatusModal({
             Update delivery status
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Choose a delivery status for order{' '}
-            <span className="font-semibold text-slate-700">{order.orderNumber}</span>.
-            You can move forward or revert to a previous status if needed.
+            Choose a delivery status for{' '}
+            <span className="font-semibold text-slate-700">
+              {order.productName || order.orderNumber}
+            </span>
+            {order.productName && order.orderNumber ? (
+              <>
+                {' '}
+                in order <span className="font-semibold text-slate-700">{order.orderNumber}</span>
+              </>
+            ) : null}
+            . You can move forward or revert to a previous status if needed.
           </p>
 
           <div className="mt-4 flex items-center gap-2">

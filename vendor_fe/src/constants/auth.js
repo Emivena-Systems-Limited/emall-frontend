@@ -21,4 +21,5 @@ export const VENDOR_AUTH_ENDPOINTS = {
   LOGOUT: '/api/vendor/auth/logout',
   SEND_RESET_PASSWORD_OTP: '/api/vendor/auth/send/reset-password/otp',
   RESET_PASSWORD: '/api/vendor/auth/reset-password',
+  PASSWORD_CHANGE: '/api/vendor/auth/password-change',
 }

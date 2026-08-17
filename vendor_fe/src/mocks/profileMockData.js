@@ -14,11 +14,6 @@ export const MOCK_VENDOR_PROFILE = {
   verificationStatus: 'verified',
   dateJoined: '2025-01-15T08:00:00.000Z',
   storeName: 'Accra Home & Office',
-  accountSummary: {
-    productsListed: 248,
-    totalOrders: 1284,
-    averageRating: 4.8,
-  },
   verification: {
     identity: 'verified',
     business: 'pending',
@@ -38,14 +33,6 @@ export const MOCK_BUSINESS_INFORMATION = {
   city: 'Accra',
   region: 'Greater Accra',
   country: 'Ghana',
-}
-
-export const MOCK_BANK_DETAILS = {
-  bankName: 'Ghana Commercial Bank',
-  accountName: 'Kwame Mensah',
-  accountNumber: '12345678901234',
-  branch: 'Accra Central',
-  accountType: 'Current',
 }
 
 export const MOCK_VENDOR_DOCUMENTS = [
@@ -83,13 +70,11 @@ export const MOCK_VENDOR_DOCUMENTS = [
 
 let profileStore = structuredClone(MOCK_VENDOR_PROFILE)
 let businessStore = structuredClone(MOCK_BUSINESS_INFORMATION)
-let bankStore = structuredClone(MOCK_BANK_DETAILS)
 let documentsStore = structuredClone(MOCK_VENDOR_DOCUMENTS)
 
 export function resetProfileMockStore() {
   profileStore = structuredClone(MOCK_VENDOR_PROFILE)
   businessStore = structuredClone(MOCK_BUSINESS_INFORMATION)
-  bankStore = structuredClone(MOCK_BANK_DETAILS)
   documentsStore = structuredClone(MOCK_VENDOR_DOCUMENTS)
 }
 
@@ -109,15 +94,6 @@ export function getMockBusinessInformation() {
 export function saveMockBusinessInformation(updates) {
   businessStore = { ...businessStore, ...updates }
   return getMockBusinessInformation()
-}
-
-export function getMockBankDetails() {
-  return structuredClone(bankStore)
-}
-
-export function saveMockBankDetails(updates) {
-  bankStore = { ...bankStore, ...updates }
-  return getMockBankDetails()
 }
 
 export function getMockDocuments() {

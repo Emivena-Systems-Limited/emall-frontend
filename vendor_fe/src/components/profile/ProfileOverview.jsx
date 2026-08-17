@@ -118,8 +118,8 @@ export default function ProfileOverview({
 
 export function AccountSummaryCards({ summary }) {
   const cards = [
-    { label: 'Products Listed', value: summary?.productsListed?.toLocaleString('en-GH') ?? '0' },
-    { label: 'Total Orders', value: summary?.totalOrders?.toLocaleString('en-GH') ?? '0' },
+    { label: 'Products Listed', value: summary?.productsListed?.toLocaleString('en-GH') ?? '—' },
+    { label: 'Total Orders', value: summary?.totalOrders?.toLocaleString('en-GH') ?? '—' },
     {
       label: 'Average Rating',
       value: summary?.averageRating != null ? (

@@ -12,6 +12,7 @@ import {
 } from 'redux-persist'
 import persistStorage from '../lib/persistStorage'
 import authReducer from './slices/authSlice'
+import vendorMetricsReducer from './slices/vendorMetricsSlice'
 import { isVendorVerified } from '../utils/vendorAuth'
 
 /** localStorage key: persist:vendor-auth */
@@ -55,6 +56,7 @@ const authPersistConfig = {
 
 const rootReducer = combineReducers({
   auth: persistReducer(authPersistConfig, authReducer),
+  vendorMetrics: vendorMetricsReducer,
 })
 
 export const store = configureStore({

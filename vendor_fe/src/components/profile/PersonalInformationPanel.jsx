@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useDispatch } from 'react-redux'
+import { useSelector } from 'react-redux'
 import { User } from 'lucide-react'
 import notify from '../../lib/notify'
-import { updateUser } from '../../store/slices/authSlice'
 import {
-  composePhoneNumber,
+  buildVendorInformationUpdatePayload,
   formatPhoneDisplay,
-  formatProfileDate,
   isPlainObjectEqual,
   mapProfileToPersonalForm,
   validatePersonalForm,
@@ -23,6 +21,7 @@ import ProfileSectionCard, {
 
 export default function PersonalInformationPanel({
   profile,
+  accountSummary,
   onUpdateProfile,
   onUploadPicture,
   onRemovePicture,
@@ -30,7 +29,7 @@ export default function PersonalInformationPanel({
   isUploadingPicture = false,
   isRemovingPicture = false,
 }) {
-  const dispatch = useDispatch()
+  const { user } = useSelector((state) => state.auth)
   const [isEditing, setIsEditing] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [form, setForm] = useState(() => mapProfileToPersonalForm(profile))
@@ -48,11 +47,9 @@ export default function PersonalInformationPanel({
   const isDirty = isEditing && !isPlainObjectEqual(form, baseline)
 
   const readOnlyItems = [
-    { label: 'Full Name', value: profile?.name },
+    { label: 'Full Name', value: profile?.name || profile?.admin_full_name },
     { label: 'Email Address', value: profile?.email },
-    { label: 'Phone Number', value: formatPhoneDisplay(profile?.phone) },
-    { label: 'Date of Birth', value: formatProfileDate(profile?.dateOfBirth) },
-    { label: 'Location', value: profile?.location },
+    { label: 'Phone Number', value: formatPhoneDisplay(profile?.phone ?? profile?.phone_number) },
   ]
 
   const handleFieldChange = (field, value) => {
@@ -89,24 +86,11 @@ export default function PersonalInformationPanel({
     if (Object.keys(nextErrors).length > 0) return
 
     try {
-      const payload = {
-        name: form.name.trim(),
-        phone: composePhoneNumber(form.phoneCountryCode, form.phoneLocal),
-        phoneCountryCode: form.phoneCountryCode,
-        phoneLocal: form.phoneLocal.replace(/\D/g, ''),
-        dateOfBirth: form.dateOfBirth,
-        location: form.location.trim(),
-      }
-
-      await onUpdateProfile(payload)
-      dispatch(updateUser({
-        admin_full_name: payload.name,
-        phone_number: payload.phone,
-      }))
+      await onUpdateProfile(buildVendorInformationUpdatePayload(form, user))
       notify.success('Profile updated successfully.')
       setIsEditing(false)
-    } catch {
-      notify.error('Unable to update your profile. Please try again.')
+    } catch (error) {
+      notify.fromError(error, 'Unable to update your profile. Please try again.')
     }
   }
 
@@ -140,7 +124,7 @@ export default function PersonalInformationPanel({
         isRemovingPicture={isRemovingPicture}
       />
 
-      <AccountSummaryCards summary={profile?.accountSummary} />
+      <AccountSummaryCards summary={accountSummary} />
 
       <ProfileSectionCard
         icon={User}
@@ -192,26 +176,6 @@ export default function PersonalInformationPanel({
                 onCountryCodeChange={(value) => handleFieldChange('phoneCountryCode', value)}
                 onLocalNumberChange={(value) => handleFieldChange('phoneLocal', value)}
                 error={errors.phoneLocal}
-              />
-            </div>
-            <div>
-              <ProfileFieldLabel htmlFor="profile-dob">Date of Birth</ProfileFieldLabel>
-              <ProfileTextInput
-                id="profile-dob"
-                type="date"
-                value={form.dateOfBirth}
-                onChange={(event) => handleFieldChange('dateOfBirth', event.target.value)}
-                error={errors.dateOfBirth}
-              />
-            </div>
-            <div>
-              <ProfileFieldLabel htmlFor="profile-location">Location</ProfileFieldLabel>
-              <ProfileTextInput
-                id="profile-location"
-                value={form.location}
-                onChange={(event) => handleFieldChange('location', event.target.value)}
-                placeholder="Accra, Ghana"
-                error={errors.location}
               />
             </div>
           </div>

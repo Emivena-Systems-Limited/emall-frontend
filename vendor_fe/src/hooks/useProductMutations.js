@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useDispatch, useSelector } from 'react-redux'
 import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, duplicateProduct, getProductById, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
 import { buildSingleVariantCreateJsonPayload, buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
 import { assertVariationBarcodesAvailable, collectKnownBarcodes } from '../utils/variantIdentityValidation'
@@ -6,6 +7,10 @@ import { fetchKnownSkusForSubmit, prepareVariationsForSubmit } from '../utils/va
 import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../constants/productMediaUpload'
 import notify from '../lib/notify'
 import { productQueryKeys } from './useProducts'
+import {
+  fetchVendorMetrics,
+  setProductsListed,
+} from '../store/slices/vendorMetricsSlice'
 
 function syncProductDetailCache(queryClient, productId, record) {
   if (productId && record) {
@@ -41,6 +46,20 @@ function removeProductsFromListCache(queryClient, productIds) {
   })
 
   queryClient.invalidateQueries({ queryKey: productQueryKeys.all })
+}
+
+function useProductMetricsSync(queryClient) {
+  const dispatch = useDispatch()
+  const user = useSelector((state) => state.auth.user)
+  const vendorId = user?.id ?? user?.vendor_id ?? user?.email ?? null
+
+  return () => {
+    const products = queryClient.getQueryData(productQueryKeys.list())
+    if (Array.isArray(products)) {
+      dispatch(setProductsListed(products.length))
+    }
+    dispatch(fetchVendorMetrics({ vendorId, force: true }))
+  }
 }
 
 function getCreateSuccessMessage(catalogProduct) {
@@ -115,17 +134,19 @@ function prepareVariantFormValuesForMutation(queryClient, {
 
 export function useCreateProductMutation() {
   const queryClient = useQueryClient()
+  const syncMetrics = useProductMetricsSync(queryClient)
 
   return useMutation({
     mutationKey: ['products', 'create'],
     mutationFn: ({ formData, payload }) => createProduct(payload ?? formData),
     onSuccess: (record, variables) => {
       const catalogProduct = toCatalogProduct(record, variables?.context)
-      if (!catalogProduct) return
-
-      syncProductDetailCache(queryClient, catalogProduct.id, record)
-      patchProductInListCache(queryClient, catalogProduct, { insertIfMissing: true })
-      notify.success(getCreateSuccessMessage(catalogProduct))
+      if (catalogProduct) {
+        syncProductDetailCache(queryClient, catalogProduct.id, record)
+        patchProductInListCache(queryClient, catalogProduct, { insertIfMissing: true })
+        notify.success(getCreateSuccessMessage(catalogProduct))
+      }
+      syncMetrics()
     },
     onError: (error) => notify.fromError(error, 'Failed to publish product.'),
   })
@@ -388,6 +409,7 @@ export function useUpdateProductsStatusMutation() {
 
 export function useDuplicateProductMutation() {
   const queryClient = useQueryClient()
+  const syncMetrics = useProductMetricsSync(queryClient)
 
   return useMutation({
     mutationKey: ['products', 'duplicate'],
@@ -399,13 +421,18 @@ export function useDuplicateProductMutation() {
     onSuccess: ({ record, catalogProducts }) => {
       if (catalogProducts) {
         queryClient.setQueryData(productQueryKeys.list(), catalogProducts)
+        syncMetrics()
         return
       }
 
       const catalogProduct = toCatalogProduct(record)
-      if (!catalogProduct) return
+      if (!catalogProduct) {
+        syncMetrics()
+        return
+      }
 
       patchProductInListCache(queryClient, catalogProduct, { insertIfMissing: true })
+      syncMetrics()
     },
     onError: (error) => notify.fromError(error, 'Failed to duplicate product.'),
   })
@@ -416,12 +443,14 @@ export const useReplicateProductMutation = useDuplicateProductMutation
 
 export function useDeleteProductsMutation() {
   const queryClient = useQueryClient()
+  const syncMetrics = useProductMetricsSync(queryClient)
 
   return useMutation({
     mutationKey: ['products', 'delete'],
     mutationFn: (productIds) => deleteProducts(productIds),
     onSuccess: (deletedIds) => {
       removeProductsFromListCache(queryClient, deletedIds)
+      syncMetrics()
 
       deletedIds.forEach((productId) => {
         queryClient.removeQueries({ queryKey: productQueryKeys.detail(productId) })

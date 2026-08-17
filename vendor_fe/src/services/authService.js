@@ -6,6 +6,7 @@ import {
 } from '../constants/auth'
 import { isVendorVerified } from '../utils/vendorAuth'
 import { buildVendorRegistrationPayload } from '../utils/buildVendorRegistrationPayload'
+import { mergeAuthUserAddress } from '../utils/profileFormUtils'
 import { buildFieldErrors, normalizeErrorsList, unwrapApiEnvelope } from '../utils/parseApiError'
 
 export function assertApiSuccess(data) {
@@ -67,6 +68,12 @@ function toVendorUser(record) {
   if (!isVendorRecord(source)) return null
 
   const {
+    token: _token,
+    access_token: _accessToken,
+    accessToken: _accessTokenCamel,
+    application_token: _applicationToken,
+    applicationToken: _applicationTokenCamel,
+    remember_token: _rememberToken,
     ...user
   } = source
 
@@ -94,7 +101,7 @@ function extractTokens(payload, vendor) {
 function normalizeAuthResponse(body) {
   const payload = unwrapApiPayload(body)
   const vendor = payload?.vendor ?? payload?.user ?? payload
-  const user = toVendorUser(vendor)
+  const user = mergeAuthUserAddress(toVendorUser(vendor), payload, vendor)
 
   if (!user) {
     throw new Error('Authentication response did not include vendor data')
@@ -129,7 +136,7 @@ export async function registerVendor(payload) {
 
   const { data } = await apiClient.post(VENDOR_AUTH_ENDPOINTS.REGISTER, body)
   const vendorPayload = unwrapApiPayload(data)
-  const user = toVendorUser(vendorPayload)
+  const user = mergeAuthUserAddress(toVendorUser(vendorPayload), vendorPayload, data)
 
   return {
     user,
@@ -184,6 +191,23 @@ export async function resetPasswordWithOtp({
 
 export async function resendPasswordResetOtp({ email }) {
   return requestPasswordResetOtp({ email })
+}
+
+export async function changeVendorPassword({
+  currentPassword,
+  password,
+  passwordConfirmation,
+  current_password,
+  password_confirmation,
+}) {
+  const body = {
+    current_password: String(current_password ?? currentPassword ?? ''),
+    password: String(password ?? ''),
+    password_confirmation: String(password_confirmation ?? passwordConfirmation ?? ''),
+  }
+
+  const { data } = await apiClient.patch(VENDOR_AUTH_ENDPOINTS.PASSWORD_CHANGE, body)
+  return assertApiSuccess(data)
 }
 
 export async function logoutVendor() {

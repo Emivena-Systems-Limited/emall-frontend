@@ -141,8 +141,9 @@ export function paginateItems(items, { page, pageSize }) {
 
 export function computeReviewsSummary(reviews) {
   const totalReviews = reviews.length
-  const averageRating = totalReviews
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+  const ratedReviews = reviews.filter((review) => Number.isFinite(review.rating))
+  const averageRating = ratedReviews.length
+    ? ratedReviews.reduce((sum, review) => sum + review.rating, 0) / ratedReviews.length
     : 0
   const pendingReplies = reviews.filter((r) => !r.vendorReply).length
   const replied = reviews.filter((r) => r.vendorReply).length
@@ -185,18 +186,21 @@ export function getProductInsights(reviews) {
         productName: review.productName,
         productImage: review.productImage,
         ratings: [],
+        reviewCount: 0,
         pendingReplies: 0,
       })
     }
     const entry = map.get(review.productId)
-    entry.ratings.push(review.rating)
+    entry.reviewCount += 1
+    if (Number.isFinite(review.rating)) entry.ratings.push(review.rating)
     if (!review.vendorReply) entry.pendingReplies += 1
   }
 
   const products = Array.from(map.values()).map((entry) => ({
     ...entry,
-    reviewCount: entry.ratings.length,
-    averageRating: entry.ratings.reduce((a, b) => a + b, 0) / entry.ratings.length,
+    averageRating: entry.ratings.length
+      ? entry.ratings.reduce((a, b) => a + b, 0) / entry.ratings.length
+      : 0,
   }))
 
   const topRated = [...products]

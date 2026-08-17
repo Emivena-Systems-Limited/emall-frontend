@@ -296,6 +296,21 @@ const ORDER_STATUS_ROLLUP = [
   'refunded',
 ]
 
+export function deriveDeliveryStatusFromItems(items, fallback = 'pending') {
+  if (!items?.length) return fallback
+
+  const statuses = items.map((item) => item.deliveryStatus).filter(Boolean)
+  if (!statuses.length) return fallback
+  if (statuses.every((status) => status === statuses[0])) return statuses[0]
+
+  const ranks = statuses
+    .map((status) => ORDER_STATUS_ROLLUP.indexOf(status))
+    .filter((rank) => rank >= 0)
+
+  if (!ranks.length) return fallback
+  return ORDER_STATUS_ROLLUP[Math.min(...ranks)]
+}
+
 export function deriveOrderStatusFromItems(items, fallback = 'ordered') {
   if (!items?.length) return fallback
 
@@ -323,7 +338,7 @@ function normalizeCustomer(record) {
   )
 
   return {
-    name: name || 'Customer',
+    name: name || '',
     email: firstValue(customer?.email, record?.customer_email, shipping?.email),
     phone: firstValue(customer?.phone, customer?.phone_number, shipping?.phone_number, record?.customer_phone),
   }
@@ -354,6 +369,47 @@ function resolveProductsCount(items, record) {
   return fromItems || fallback || items.length
 }
 
+function isLineItemRecord(record) {
+  if (!record || typeof record !== 'object') return false
+  if (Array.isArray(record.items) || Array.isArray(record.order_items) || Array.isArray(record.line_items)) {
+    return false
+  }
+
+  return Boolean(
+    record.order_id
+    && (record.product_id || record.product_name || record.sku || record.quantity != null || record.unit_price != null),
+  )
+}
+
+function timestampFromUlid(value) {
+  const id = String(value ?? '').trim().toUpperCase()
+  if (id.length < 10) return ''
+
+  const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+  let timestamp = 0
+
+  for (const char of id.slice(0, 10)) {
+    const digit = alphabet.indexOf(char)
+    if (digit < 0) return ''
+    timestamp = timestamp * 32 + digit
+  }
+
+  const date = new Date(timestamp)
+  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? date.toISOString() : ''
+}
+
+function resolveOrderDate(record) {
+  return firstValue(
+    record?.created_at,
+    record?.ordered_at,
+    record?.order_date,
+    record?.placed_at,
+    record?.payment?.paid_at,
+    record?.point_in_time,
+    timestampFromUlid(firstValue(record?.order_id, record?.id)),
+  )
+}
+
 function resolveDeliveryMethod(record) {
   return firstValue(
     record?.delivery_method,
@@ -366,36 +422,53 @@ function resolveDeliveryMethod(record) {
 export function normalizeVendorOrderRecord(record) {
   if (!record || typeof record !== 'object') return null
 
-  const items = toArray(record?.items ?? record?.order_items ?? record?.line_items).map(
-    (item, index) => normalizeOrderItem(item, index, record),
-  )
-  const apiId = firstValue(record?.id, record?.order_id)
-  const orderNumber = formatOrderNumber(firstValue(record?.order_number, record?.reference, apiId))
+  const isLineItem = isLineItemRecord(record)
+  const sourceItems = toArray(record?.items ?? record?.order_items ?? record?.line_items)
+  const lineItems = sourceItems.length > 0 ? sourceItems : (isLineItem ? [record] : [])
+  const items = lineItems.map((item, index) => normalizeOrderItem(item, index, record))
+  const primaryItem = items[0] ?? null
+
+  const itemId = isLineItem ? firstValue(record?.id, record?.order_item_id, primaryItem?.id) : firstValue(primaryItem?.id)
+  const parentOrderId = isLineItem
+    ? firstValue(record?.order_id, record?.orderId)
+    : firstValue(record?.id, record?.order_id)
+  const apiId = itemId || parentOrderId
+  const orderNumber = formatOrderNumber(firstValue(record?.order_number, record?.reference, parentOrderId, apiId))
+  const itemsTotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0)
+  const recordTotal = Number(record?.grand_total ?? record?.total ?? record?.total_amount ?? record?.total_price ?? 0)
+  const deliveryStatus = deriveDeliveryStatusFromItems(items, normalizeDeliveryStatus(record))
+  const hasExplicitOrderStatus = Boolean(normalizeToken(record?.status ?? record?.order_status))
+  const orderStatus = hasExplicitOrderStatus
+    ? deriveOrderStatusFromItems(items, normalizeOrderStatus(record))
+    : (ORDER_STATUS_ROLLUP.includes(deliveryStatus) ? deliveryStatus : deriveOrderStatusFromItems(items, normalizeOrderStatus(record)))
 
   return {
     id: apiId || orderNumber,
+    itemId: itemId || apiId,
+    orderId: parentOrderId || apiId,
     orderNumber,
-    orderDate: firstValue(
-      record?.created_at,
-      record?.ordered_at,
-      record?.order_date,
-      record?.payment?.paid_at,
-      record?.point_in_time,
-    ),
+    orderDate: resolveOrderDate(record),
     customer: normalizeCustomer(record),
     items,
+    productId: firstValue(primaryItem?.productId, record?.product_id),
+    variantId: firstValue(primaryItem?.variantId, record?.product_variant_id),
+    productName: firstValue(primaryItem?.productName, record?.product_name),
+    sku: firstValue(primaryItem?.sku, record?.sku),
+    image: primaryItem?.image ?? '',
+    quantity: Number(primaryItem?.quantity ?? record?.quantity ?? 0),
+    unitPrice: Number(primaryItem?.unitPrice ?? record?.unit_price ?? 0),
     productsCount: resolveProductsCount(items, record),
-    subtotal: Number(record?.subtotal ?? 0),
+    subtotal: Number(record?.subtotal ?? itemsTotal),
     deliveryFee: Number(record?.delivery_fee ?? record?.shipping_fee ?? 0),
     discount: Number(record?.discount_total ?? record?.discount ?? 0),
     taxTotal: Number(record?.tax_total ?? 0),
-    totalAmount: Number(record?.grand_total ?? record?.total ?? record?.total_amount ?? 0),
+    totalAmount: recordTotal || itemsTotal,
     paymentStatus: normalizePaymentStatus(record),
     paymentMethod: normalizePaymentMethod(record),
     transactionReference: resolveTransactionReference(record),
     payment: resolvePaymentRecord(record),
-    orderStatus: normalizeOrderStatus(record),
-    deliveryStatus: normalizeDeliveryStatus(record),
+    orderStatus,
+    deliveryStatus,
     deliveryMethod: resolveDeliveryMethod(record),
     delivery: normalizeDelivery(record),
     raw: record,
@@ -431,9 +504,14 @@ export function extractVendorOrdersPagination(body) {
   }
 
   return {
-    currentPage: Number(payload.current_page ?? payload.currentPage ?? 1),
+    currentPage: Number(payload.current_page ?? payload.currentPage ?? payload.page ?? 1),
     lastPage: Number(payload.last_page ?? payload.lastPage ?? 1),
-    total: Number(payload.total ?? extractVendorOrderList(body).length ?? 0),
+    total: Number(
+      payload.total
+      ?? payload.total_orders
+      ?? extractVendorOrderList(body).length
+      ?? 0,
+    ),
     perPage: Number(payload.per_page ?? payload.perPage ?? 20),
   }
 }
@@ -455,9 +533,7 @@ export function extractVendorOrderRecord(body) {
 }
 
 export function normalizeVendorOrdersList(records) {
-  return toArray(records)
-    .map(normalizeVendorOrderRecord)
-    .filter(Boolean)
+  return toArray(records).map(normalizeVendorOrderRecord).filter(Boolean)
 }
 
 export function findVendorOrderById(orders, orderId) {
@@ -467,6 +543,8 @@ export function findVendorOrderById(orders, orderId) {
   return orders.find((order) => {
     const candidates = [
       order.id,
+      order.itemId,
+      order.orderId,
       order.orderNumber,
       order.raw?.id,
       order.raw?.order_id,

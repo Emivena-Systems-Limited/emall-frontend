@@ -3,7 +3,7 @@ export const REVIEWS_PAGE_SIZE = 8
 export const REVIEW_ENDPOINTS = {
   LIST: '/api/review/product/vendor',
   SUMMARY: '/api/review/summary/vendor',
-  reply: (reviewId) => `/api/review/${reviewId}/reply/vendor`,
+  reply: (reviewId) => `/api/review/reply/vendor/${reviewId}`,
 }
 
 export const EMPTY_REVIEWS_PAGE = {

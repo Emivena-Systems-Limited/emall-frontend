@@ -7,7 +7,6 @@ import {
   LogOut,
   Menu,
   MessageSquare,
-  Settings,
   User,
 } from 'lucide-react'
 import { useLogoutVendorMutation } from '../../hooks/useAuthMutations'
@@ -108,20 +107,14 @@ function UserMenu({ user, logoutMutation }) {
             )}
           </div>
           <div className="p-1">
-            {[
-              { icon: User, label: 'Profile', to: '/profile' },
-              { icon: Settings, label: 'Store settings', to: '/settings' },
-            ].map(({ icon: Icon, label, to }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => { setOpen(false); navigate(to) }}
-                className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                <Icon className="size-4 text-slate-400" strokeWidth={2} />
-                {label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => { setOpen(false); navigate('/profile') }}
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <User className="size-4 text-slate-400" strokeWidth={2} />
+              Profile
+            </button>
           </div>
           <div className="border-t border-slate-100 p-1">
             <button

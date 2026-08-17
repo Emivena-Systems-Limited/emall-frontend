@@ -10,6 +10,7 @@ import notify from '../../lib/notify'
 import { useLoginVendorMutation } from '../../hooks/useAuthMutations'
 import { setCredentials, setPendingVerificationEmail, setPendingVendor } from '../../store/slices/authSlice'
 import { vendorLoginSchema } from '../../utils/validationSchemas'
+import { clearPasswordChangedFlag, hasPasswordChangedFlag } from '../../utils/passwordChangeSession'
 
 const initialValues = { email: '', password: '' }
 
@@ -19,10 +20,15 @@ export default function Login() {
   const dispatch  = useDispatch()
   const loginMutation = useLoginVendorMutation()
   const [showPasswordResetSuccess, setShowPasswordResetSuccess] = useState(
-    () => location.state?.passwordReset === true,
+    () => location.state?.passwordReset === true || hasPasswordChangedFlag(),
   )
 
   useEffect(() => {
+    if (hasPasswordChangedFlag()) {
+      setShowPasswordResetSuccess(true)
+      clearPasswordChangedFlag()
+    }
+
     if (!location.state?.passwordReset) return
 
     setShowPasswordResetSuccess(true)

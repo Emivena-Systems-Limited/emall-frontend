@@ -2,8 +2,10 @@ import {
   EMPTY_REVIEWS_DISTRIBUTION,
   EMPTY_REVIEWS_SUMMARY,
   EMPTY_REVIEWS_SUMMARY_PREVIOUS,
+  REVIEWS_PAGE_SIZE,
 } from '../constants/reviews'
 import { unwrapApiEnvelope } from './parseApiError'
+import { resolveBackendMediaUrl } from './resolveBackendMediaUrl'
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value)
@@ -11,27 +13,61 @@ function toNumber(value, fallback = 0) {
 }
 
 function firstValue(...values) {
-  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '') ?? ''
+  return values.find((value) => {
+    if (value === undefined || value === null || typeof value === 'object') return false
+    return String(value).trim() !== ''
+  }) ?? ''
+}
+
+function pickProductImage(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return resolveBackendMediaUrl(value)
+  if (Array.isArray(value)) return pickProductImage(value[0])
+  if (typeof value !== 'object') return ''
+
+  return resolveBackendMediaUrl(firstValue(
+    value.image_url,
+    value.imageUrl,
+    value.url,
+    value.path,
+    value.src,
+  ))
 }
 
 function normalizeVendorReply(record) {
+  if (typeof record === 'string') {
+    const text = record.trim()
+    return text ? { text, date: '' } : null
+  }
   if (!record || typeof record !== 'object') return null
 
-  const text = firstValue(record.text, record.body, record.message)
+  const text = firstValue(record.text, record.body, record.message, record.vendor_reply)
   if (!text) return null
 
   return {
     text: String(text),
-    date: firstValue(record.created_at, record.date, record.replied_at),
+    date: firstValue(record.created_at, record.date, record.replied_at, record.vendor_replied_at),
   }
 }
 
 function pickVendorReply(record) {
-  const raw = record.vendor_reply ?? record.vendorReply ?? record.replies
-  if (Array.isArray(raw)) {
-    return normalizeVendorReply(raw[0])
+  const raw = record.vendor_reply ?? record.vendorReply ?? record.replies ?? record.reply
+  const repliedAt = firstValue(record.vendor_replied_at, record.vendorRepliedAt, record.replied_at)
+
+  if (typeof raw === 'string' && raw.trim()) {
+    return { text: raw.trim(), date: repliedAt }
   }
-  return raw ? normalizeVendorReply(raw) : null
+  if (Array.isArray(raw)) {
+    const reply = normalizeVendorReply(raw[0])
+    if (!reply) return null
+    return { ...reply, date: reply.date || repliedAt }
+  }
+  if (raw && typeof raw === 'object') {
+    const reply = normalizeVendorReply(raw)
+    if (!reply) return null
+    return { ...reply, date: reply.date || repliedAt }
+  }
+  return null
 }
 
 export function normalizeVendorReplyFromPayload(record) {
@@ -39,25 +75,51 @@ export function normalizeVendorReplyFromPayload(record) {
   return pickVendorReply(record) ?? normalizeVendorReply(record)
 }
 
+function pickReviewRating(record) {
+  const raw = record.rating ?? record.stars ?? record.score
+  if (raw === undefined || raw === null || raw === '') return null
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export function normalizeReviewRecord(record) {
   if (!record || typeof record !== 'object') return null
 
-  const id = firstValue(record.id, record.review_id)
+  const productId = firstValue(record.product_id, record.productId)
+  const customerId = firstValue(record.customer_id, record.customerId)
+  const createdAt = firstValue(record.created_at, record.date, record.review_date)
+  const reviewId = firstValue(record.review_id, record.reviewId, record.id)
+  const id = firstValue(
+    reviewId,
+    record.order_item_id,
+    record.orderItemId,
+    [productId, customerId, createdAt].filter(Boolean).join(':'),
+  )
   if (!id) return null
+
+  const orderId = firstValue(record.order_id, record.orderId) || null
+  const orderNumber = firstValue(
+    record.order_item_number,
+    record.orderItemNumber,
+    record.order_number,
+    record.orderNumber,
+  ) || null
 
   return {
     id: String(id),
-    productId: firstValue(record.product_id, record.productId),
-    productName: String(record.product_name ?? record.productName ?? '').trim(),
-    productImage: firstValue(record.product_image, record.productImage),
-    customerId: firstValue(record.customer_id, record.customerId) || null,
-    customerName: String(record.customer_name ?? record.customerName ?? '').trim(),
-    orderId: firstValue(record.order_id, record.orderId) || null,
-    orderNumber: firstValue(record.order_number, record.orderNumber, record.order_id, record.orderId) || null,
-    rating: toNumber(record.rating),
+    reviewId: String(reviewId || id),
+    productId,
+    productName: firstValue(record.product_name, record.productName) || 'Product',
+    productImage: pickProductImage(record.product_image ?? record.productImage),
+    customerId: customerId || null,
+    customerName: firstValue(record.customer_name, record.customerName) || 'Customer',
+    orderId,
+    orderNumber,
+    orderItemId: firstValue(record.order_item_id, record.orderItemId) || null,
+    rating: pickReviewRating(record),
     title: String(record.title ?? '').trim(),
     comment: String(record.comment ?? record.body ?? '').trim(),
-    date: firstValue(record.created_at, record.date, record.review_date),
+    date: createdAt,
     isVerifiedPurchase: Boolean(record.is_verified_purchase ?? record.isVerifiedPurchase),
     vendorReply: pickVendorReply(record),
   }
@@ -80,37 +142,55 @@ export function extractReviewsList(body) {
   return []
 }
 
-export function extractReviewsPagination(body, fallbackCount = 0) {
+export function extractReviewsPagination(body, fallbackCount = 0, request = {}) {
   const envelope = unwrapApiEnvelope(body)
   const payload = envelope?.data ?? body
+  const requestedPage = Number(request.page) || 1
+  const requestedPerPage = Number(request.perPage) || REVIEWS_PAGE_SIZE
 
-  if (!payload || Array.isArray(payload)) {
-    const total = Array.isArray(payload) ? payload.length : fallbackCount
-    return { page: 1, perPage: 8, total, totalPages: 1 }
+  const metaCandidate = [
+    !Array.isArray(payload) ? payload?.pagination : null,
+    envelope?.pagination,
+    envelope?.meta,
+    !Array.isArray(payload) ? payload : null,
+  ].find((value) => (
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && ['total', 'current_page', 'last_page', 'per_page', 'total_pages', 'totalPages'].some((key) => key in value)
+  ))
+
+  if (metaCandidate) {
+    const page = Number(metaCandidate.page ?? metaCandidate.current_page ?? requestedPage)
+    const perPage = Number(metaCandidate.per_page ?? metaCandidate.perPage ?? requestedPerPage)
+    const total = Number(metaCandidate.total ?? extractReviewsList(body).length ?? 0)
+    const totalPages = Number(
+      metaCandidate.total_pages ?? metaCandidate.totalPages ?? metaCandidate.last_page ?? 1,
+    )
+
+    return {
+      page: Number.isFinite(page) ? page : requestedPage,
+      perPage: Number.isFinite(perPage) ? perPage : requestedPerPage,
+      total: Number.isFinite(total) ? total : 0,
+      totalPages: Number.isFinite(totalPages) ? Math.max(1, totalPages) : 1,
+    }
   }
 
-  const pagination = payload.pagination && typeof payload.pagination === 'object'
-    ? payload.pagination
-    : payload
-
-  const page = Number(pagination.page ?? pagination.current_page ?? 1)
-  const perPage = Number(pagination.per_page ?? pagination.perPage ?? 8)
-  const total = Number(pagination.total ?? extractReviewsList(body).length ?? 0)
-  const totalPages = Number(
-    pagination.total_pages ?? pagination.totalPages ?? pagination.last_page ?? 1,
-  )
+  const count = Array.isArray(payload) ? payload.length : fallbackCount
+  const isLastPage = count < requestedPerPage
+  const total = Math.max(0, (requestedPage - 1) * requestedPerPage + count)
 
   return {
-    page: Number.isFinite(page) ? page : 1,
-    perPage: Number.isFinite(perPage) ? perPage : 8,
-    total: Number.isFinite(total) ? total : 0,
-    totalPages: Number.isFinite(totalPages) ? Math.max(1, totalPages) : 1,
+    page: requestedPage,
+    perPage: requestedPerPage,
+    total,
+    totalPages: Math.max(1, isLastPage ? requestedPage : requestedPage + 1),
   }
 }
 
-export function normalizeReviewsPage(body) {
+export function normalizeReviewsPage(body, request = {}) {
   const items = normalizeReviews(extractReviewsList(body))
-  const pagination = extractReviewsPagination(body, items.length)
+  const pagination = extractReviewsPagination(body, items.length, request)
 
   return {
     items,
@@ -205,6 +285,14 @@ export function normalizeReviewsSummary(record) {
 export function extractVendorReplyPayload(body) {
   const envelope = unwrapApiEnvelope(body)
   const payload = envelope?.data ?? body
+
+  if (typeof payload === 'string' && payload.trim()) {
+    return {
+      vendor_reply: payload.trim(),
+      vendor_replied_at: firstValue(envelope?.point_in_time, envelope?.vendor_replied_at),
+    }
+  }
+
   if (!payload || typeof payload !== 'object') return null
   return payload
 }

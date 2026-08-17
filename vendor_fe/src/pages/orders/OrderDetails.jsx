@@ -204,7 +204,7 @@ export default function OrderDetails() {
           <OrderActionsMenu
             order={localOrder}
             align="start"
-            hideViewOrderItems
+            hideUpdateDeliveryStatus
           />
         </div>
 

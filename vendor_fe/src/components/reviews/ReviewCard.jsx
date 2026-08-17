@@ -1,24 +1,43 @@
-import { ArrowUpRight, BadgeCheck, MessageSquare } from 'lucide-react'
+import { ArrowUpRight, BadgeCheck, MessageSquare, Package } from 'lucide-react'
 import { Link } from 'react-router'
 import { formatShortReviewDate, getCustomerInitials } from '../../utils/reviewUtils'
 import StarRating from './StarRating'
 
+export function ReviewProductImage({ src, className = 'size-16' }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className={`${className} rounded-xl object-cover ring-1 ring-slate-200`}
+      />
+    )
+  }
+
+  return (
+    <span className={`flex ${className} shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200`}>
+      <Package className="size-6" strokeWidth={1.5} />
+    </span>
+  )
+}
+
 export default function ReviewCard({ review, onView, onReply }) {
   const needsReply = !review.vendorReply
+  const hasRating = Number.isFinite(review.rating)
 
   return (
     <article className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:border-slate-300 hover:shadow-[0_16px_45px_rgba(15,23,42,0.06)] sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <Link
-          to={`/products/${review.productId}/view`}
-          className="shrink-0 cursor-pointer"
-        >
-          <img
-            src={review.productImage}
-            alt=""
-            className="size-16 rounded-xl object-cover ring-1 ring-slate-200 transition-transform group-hover:scale-[1.02]"
-          />
-        </Link>
+        {review.productId ? (
+          <Link
+            to={`/products/${review.productId}/view`}
+            className="shrink-0 cursor-pointer"
+          >
+            <ReviewProductImage src={review.productImage} />
+          </Link>
+        ) : (
+          <ReviewProductImage src={review.productImage} />
+        )}
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -37,8 +56,10 @@ export default function ReviewCard({ review, onView, onReply }) {
                   )}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <StarRating rating={review.rating} size="size-3.5" />
-                  <span className="text-xs text-slate-400">{formatShortReviewDate(review.date)}</span>
+                  {hasRating && <StarRating rating={review.rating} size="size-3.5" />}
+                  {review.date && (
+                    <span className="text-xs text-slate-400">{formatShortReviewDate(review.date)}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -55,23 +76,35 @@ export default function ReviewCard({ review, onView, onReply }) {
             )}
           </div>
 
-          <Link
-            to={`/products/${review.productId}/view`}
-            className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
-          >
-            {review.productName}
-          </Link>
+          {review.productId ? (
+            <Link
+              to={`/products/${review.productId}/view`}
+              className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+            >
+              {review.productName}
+            </Link>
+          ) : (
+            <p className="mt-2 text-xs font-semibold text-slate-500">{review.productName}</p>
+          )}
 
-          <h3 className="mt-2 text-sm font-bold text-slate-900">{review.title}</h3>
+          {review.title && (
+            <h3 className="mt-2 text-sm font-bold text-slate-900">{review.title}</h3>
+          )}
           <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-600">{review.comment}</p>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <Link
-              to={`/orders/${review.orderId}`}
-              className="text-xs font-semibold text-slate-500 hover:text-brand"
-            >
-              {review.orderNumber}
-            </Link>
+            {review.orderId ? (
+              <Link
+                to={`/orders/${review.orderId}`}
+                className="text-xs font-semibold text-slate-500 hover:text-brand"
+              >
+                {review.orderNumber || 'View order'}
+              </Link>
+            ) : review.orderNumber ? (
+              <span className="text-xs font-semibold text-slate-500">{review.orderNumber}</span>
+            ) : (
+              <span />
+            )}
 
             <div className="flex flex-wrap items-center gap-2">
               {needsReply && (
