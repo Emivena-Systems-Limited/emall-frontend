@@ -1,5 +1,4 @@
-import { Link } from 'react-router'
-import { Store } from 'lucide-react'
+import LandingLogo from '../landing/LandingLogo'
 
 export default function AuthLayout({
   children,
@@ -32,15 +31,10 @@ export default function AuthLayout({
 
       <header className={headerClass}>
         <div className="mx-auto w-full max-w-8xl">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80"
-          >
-            <span className="flex size-9 items-center justify-center rounded-xl bg-brand text-white shadow-sm shadow-brand/30">
-              <Store className="size-4" strokeWidth={1.75} />
-            </span>
-            <span className="text-sm font-semibold tracking-tight text-slate-900">E-Mall Vendor</span>
-          </Link>
+          <LandingLogo
+            variant="light"
+            imgClassName="h-12 w-auto max-w-none object-contain object-left sm:h-14"
+          />
         </div>
       </header>
 
