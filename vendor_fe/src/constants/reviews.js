@@ -56,3 +56,9 @@ export const SORT_ORDERS = {
   asc: 'asc',
   desc: 'desc',
 }
+
+/** Vendors may edit a posted reply for this long after it is first sent. */
+export const REPLY_EDIT_WINDOW_MS = 60 * 60 * 1000
+
+/** Keep the original reply timestamp around so refresh cannot start a new hour. */
+export const REPLY_TIME_RETENTION_MS = 24 * 60 * 60 * 1000

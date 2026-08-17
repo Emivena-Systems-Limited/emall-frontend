@@ -47,7 +47,7 @@ export function useReplyToVendorReviewMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ reviewId, text }) => replyToVendorReview(reviewId, text),
+    mutationFn: ({ review, text }) => replyToVendorReview(review, text),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reviewQueryKeys.all })
     },

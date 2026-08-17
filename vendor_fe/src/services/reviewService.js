@@ -58,8 +58,9 @@ export async function getVendorReviewsSummary() {
   return normalized
 }
 
-export async function replyToVendorReview(reviewId, text) {
-  const id = String(reviewId ?? '').trim()
+export async function replyToVendorReview(review, text) {
+  const source = review && typeof review === 'object' ? review : { review_id: review }
+  const id = String(source.review_id ?? source.reviewId ?? source.id ?? '').trim()
   const bodyText = String(text ?? '').trim()
 
   if (!id) {
@@ -70,7 +71,10 @@ export async function replyToVendorReview(reviewId, text) {
   }
 
   const endpoint = REVIEW_ENDPOINTS.reply(id)
-  const body = { text: bodyText }
+  const body = {
+    review_id: id,
+    reply: bodyText,
+  }
   const { data } = await apiClient.post(endpoint, body)
   assertApiSuccess(data)
 

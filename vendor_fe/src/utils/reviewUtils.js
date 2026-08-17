@@ -1,4 +1,9 @@
-import { DEFAULT_REVIEW_DATE_RANGE, SORT_ORDERS } from '../constants/reviews'
+import {
+  DEFAULT_REVIEW_DATE_RANGE,
+  REPLY_EDIT_WINDOW_MS,
+  REPLY_TIME_RETENTION_MS,
+  SORT_ORDERS,
+} from '../constants/reviews'
 
 export function hasReviewDateRange({ startDate, endDate } = DEFAULT_REVIEW_DATE_RANGE) {
   return Boolean(String(startDate ?? '').trim() || String(endDate ?? '').trim())
@@ -69,6 +74,111 @@ export function getCustomerInitials(name) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('')
+}
+
+export function getVendorReplyPostedAt(review) {
+  const reviewId = review?.review_id || review?.reviewId || review?.id
+  const remembered = parseReplyTime(recallVendorReplyPostedAt(reviewId))
+  if (remembered) return remembered
+
+  return parseReplyTime(review?.vendorReply?.date)
+}
+
+function parseReplyTime(value) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function getReplyEditDeadline(review) {
+  const postedAt = getVendorReplyPostedAt(review)
+  if (!postedAt) return null
+  return new Date(postedAt.getTime() + REPLY_EDIT_WINDOW_MS)
+}
+
+export function canEditVendorReply(review, now = Date.now()) {
+  if (!review?.vendorReply) return false
+  const deadline = getReplyEditDeadline(review)
+  if (!deadline) return false
+  return now < deadline.getTime()
+}
+
+export function getReplyEditRemainingMs(review, now = Date.now()) {
+  const deadline = getReplyEditDeadline(review)
+  if (!deadline) return 0
+  return Math.max(0, deadline.getTime() - now)
+}
+
+export function formatReplyEditRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms) / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${String(seconds).padStart(2, '0')}s`
+  }
+  return `${seconds}s`
+}
+
+export function formatReplyEditRemainingCompact(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms) / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+const REPLY_TIME_STORAGE_KEY = 'emall.vendor.reviewReplyPostedAt'
+
+function readReplyTimeStore() {
+  try {
+    const raw = window.localStorage.getItem(REPLY_TIME_STORAGE_KEY)
+    const store = raw ? JSON.parse(raw) : {}
+    if (!store || typeof store !== 'object') return {}
+
+    const cutoff = Date.now() - REPLY_TIME_RETENTION_MS
+    const next = {}
+    for (const [id, iso] of Object.entries(store)) {
+      const time = new Date(iso).getTime()
+      if (Number.isFinite(time) && time >= cutoff) next[id] = iso
+    }
+    return next
+  } catch {
+    return {}
+  }
+}
+
+export function rememberVendorReplyPostedAt(reviewId, iso) {
+  const id = String(reviewId ?? '').trim()
+  const incoming = parseReplyTime(iso)
+  if (!id || typeof window === 'undefined') return incoming?.toISOString() || ''
+
+  const store = readReplyTimeStore()
+  const existing = parseReplyTime(store[id])
+
+  if (existing) {
+    store[id] = existing.toISOString()
+  } else if (incoming) {
+    store[id] = incoming.toISOString()
+  } else {
+    return ''
+  }
+
+  try {
+    window.localStorage.setItem(REPLY_TIME_STORAGE_KEY, JSON.stringify(store))
+  } catch {
+    // Ignore quota / private-mode failures.
+  }
+  return store[id]
+}
+
+export function recallVendorReplyPostedAt(reviewId) {
+  const id = String(reviewId ?? '').trim()
+  if (!id || typeof window === 'undefined') return ''
+  return readReplyTimeStore()[id] || ''
 }
 
 export function normalizeReviewCatalog(reviews) {

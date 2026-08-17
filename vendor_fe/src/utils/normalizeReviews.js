@@ -5,6 +5,7 @@ import {
   REVIEWS_PAGE_SIZE,
 } from '../constants/reviews'
 import { unwrapApiEnvelope } from './parseApiError'
+import { recallVendorReplyPostedAt } from './reviewUtils'
 import { resolveBackendMediaUrl } from './resolveBackendMediaUrl'
 
 function toNumber(value, fallback = 0) {
@@ -41,21 +42,31 @@ function normalizeVendorReply(record) {
   }
   if (!record || typeof record !== 'object') return null
 
-  const text = firstValue(record.text, record.body, record.message, record.vendor_reply)
+  const text = firstValue(record.text, record.body, record.message, record.vendor_reply, record.reply)
   if (!text) return null
 
   return {
     text: String(text),
-    date: firstValue(record.created_at, record.date, record.replied_at, record.vendor_replied_at),
+    date: firstValue(
+      record.replied_at,
+      record.vendor_replied_at,
+      record.date,
+    ),
+    updatedAt: firstValue(record.updated_at, record.edited_at, record.vendor_reply_updated_at) || null,
   }
 }
 
 function pickVendorReply(record) {
   const raw = record.vendor_reply ?? record.vendorReply ?? record.replies ?? record.reply
-  const repliedAt = firstValue(record.vendor_replied_at, record.vendorRepliedAt, record.replied_at)
+  const repliedAt = firstValue(
+    record.vendor_replied_at,
+    record.vendorRepliedAt,
+    record.replied_at,
+    record.reply_created_at,
+  )
 
   if (typeof raw === 'string' && raw.trim()) {
-    return { text: raw.trim(), date: repliedAt }
+    return { text: raw.trim(), date: repliedAt, updatedAt: null }
   }
   if (Array.isArray(raw)) {
     const reply = normalizeVendorReply(raw[0])
@@ -105,9 +116,16 @@ export function normalizeReviewRecord(record) {
     record.orderNumber,
   ) || null
 
+  const vendorReply = pickVendorReply(record)
+  if (vendorReply) {
+    const remembered = recallVendorReplyPostedAt(reviewId || id)
+    if (remembered) vendorReply.date = remembered
+  }
+
   return {
     id: String(id),
     reviewId: String(reviewId || id),
+    review_id: String(reviewId || id),
     productId,
     productName: firstValue(record.product_name, record.productName) || 'Product',
     productImage: pickProductImage(record.product_image ?? record.productImage),
@@ -121,7 +139,7 @@ export function normalizeReviewRecord(record) {
     comment: String(record.comment ?? record.body ?? '').trim(),
     date: createdAt,
     isVerifiedPurchase: Boolean(record.is_verified_purchase ?? record.isVerifiedPurchase),
-    vendorReply: pickVendorReply(record),
+    vendorReply,
   }
 }
 

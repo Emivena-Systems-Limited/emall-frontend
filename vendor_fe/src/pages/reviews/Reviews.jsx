@@ -34,12 +34,14 @@ import {
 import notify from '../../lib/notify'
 import {
   computeReviewsSummary,
+  canEditVendorReply,
   exportReviewsCsv,
   filterReviews,
   getProductInsights,
   hasReviewDateRange,
   normalizeReviewCatalog,
   paginateItems,
+  rememberVendorReplyPostedAt,
   sortReviews,
 } from '../../utils/reviewUtils'
 import { setAverageRating } from '../../store/slices/vendorMetricsSlice'
@@ -60,6 +62,7 @@ export default function Reviews() {
   const [page, setPage] = useState(1)
 
   const [selectedReview, setSelectedReview] = useState(null)
+  const [openReplyEditor, setOpenReplyEditor] = useState(false)
 
   const listFilters = useMemo(
     () => ({
@@ -219,58 +222,76 @@ export default function Reviews() {
     setDateRange(DEFAULT_REVIEW_DATE_RANGE)
   }
 
-  const applyLocalReply = (reviewId, text) => {
+  const applyLocalReply = (reviewId, text, existingReply = null) => {
+    const now = new Date().toISOString()
     const vendorReply = {
       text,
-      date: new Date().toISOString(),
+      date: existingReply?.date || now,
+      updatedAt: existingReply ? now : null,
     }
 
+    const matches = (item) =>
+      item.id === reviewId || item.reviewId === reviewId || item.review_id === reviewId
+
     setLocalReviews((current) =>
-      current.map((review) =>
-        review.id === reviewId && !review.vendorReply
-          ? { ...review, vendorReply }
-          : review,
-      ),
+      current.map((item) => (matches(item) ? { ...item, vendorReply } : item)),
     )
-    setSelectedReview((current) =>
-      current?.id === reviewId && !current.vendorReply
-        ? { ...current, vendorReply }
-        : current,
-    )
+    setSelectedReview((current) => (current && matches(current) ? { ...current, vendorReply } : current))
   }
 
-  const handleSaveReply = async (reviewId, text) => {
-    const currentReview =
-      selectedReview?.id === reviewId || selectedReview?.reviewId === reviewId
-        ? selectedReview
-        : (devDataEnabled ? localReviews : reviews).find((review) => (
-          review.id === reviewId || review.reviewId === reviewId
-        ))
+  const handleSaveReply = async (review, text) => {
+    const currentReview = review && typeof review === 'object'
+      ? review
+      : selectedReview
 
-    if (currentReview?.vendorReply) {
-      notify.info('You can only post one reply to a review.')
+    const reviewId = currentReview?.review_id || currentReview?.reviewId || currentReview?.id || review
+    const isEdit = Boolean(currentReview?.vendorReply)
+
+    if (isEdit && !canEditVendorReply(currentReview)) {
+      notify.info('The 1-hour edit window has closed. This reply can no longer be changed.')
       return
     }
 
-    const apiReviewId = currentReview?.reviewId || currentReview?.id || reviewId
-
     if (devDataEnabled) {
-      applyLocalReply(currentReview?.id || reviewId, text)
-      notify.success('Your reply has been posted.')
+      const postedAt = rememberVendorReplyPostedAt(
+        currentReview?.id || reviewId,
+        currentReview?.vendorReply?.date || new Date().toISOString(),
+      )
+      applyLocalReply(
+        currentReview?.id || reviewId,
+        text,
+        isEdit ? { ...currentReview.vendorReply, date: postedAt } : null,
+      )
+      setOpenReplyEditor(false)
+      notify.success(isEdit ? 'Your reply has been updated.' : 'Your reply has been posted.')
       return
     }
 
     try {
-      const updated = await replyMutation.mutateAsync({ reviewId: apiReviewId, text })
-      const vendorReply = updated.vendorReply ?? { text, date: new Date().toISOString() }
+      const updated = await replyMutation.mutateAsync({ review: currentReview, text })
+      const now = new Date().toISOString()
+      const postedAt = rememberVendorReplyPostedAt(
+        reviewId,
+        currentReview?.vendorReply?.date || updated.vendorReply?.date || now,
+      )
+      const vendorReply = {
+        text: updated.vendorReply?.text ?? text,
+        date: postedAt,
+        updatedAt: isEdit ? (updated.vendorReply?.updatedAt || now) : null,
+      }
       setSelectedReview((current) => {
         if (!current) return current
-        if (current.id !== currentReview?.id && current.reviewId !== apiReviewId) return current
+        if (
+          current.id !== currentReview?.id
+          && current.reviewId !== reviewId
+          && current.review_id !== reviewId
+        ) return current
         return { ...current, vendorReply }
       })
-      notify.success('Your reply has been posted.')
+      setOpenReplyEditor(false)
+      notify.success(isEdit ? 'Your reply has been updated.' : 'Your reply has been posted.')
     } catch (error) {
-      notify.fromError(error, 'Unable to post reply')
+      notify.fromError(error, isEdit ? 'Unable to update reply' : 'Unable to post reply')
       throw error
     }
   }
@@ -284,15 +305,18 @@ export default function Reviews() {
     setDateRange(DEFAULT_REVIEW_DATE_RANGE)
     setPage(1)
     setSelectedReview(null)
+    setOpenReplyEditor(false)
     setFiltersOpen(false)
     notify.info(enabled ? 'Loaded dummy review data.' : 'Cleared review data.')
   }
 
-  const handleReply = (review) => {
-    if (review.vendorReply) {
-      notify.info('You can only post one reply to a review.')
+  const handleReply = (review, options = {}) => {
+    if (review.vendorReply && !canEditVendorReply(review)) {
+      notify.info('The 1-hour edit window has closed. This reply can no longer be changed.')
       return
     }
+
+    setOpenReplyEditor(Boolean(options.edit) || !review.vendorReply)
     setSelectedReview(review)
   }
 
@@ -392,7 +416,10 @@ export default function Reviews() {
               <ReviewsList
                 reviews={reviews}
                 hasReviews={hasReviews}
-                onView={setSelectedReview}
+                onView={(review) => {
+                  setOpenReplyEditor(false)
+                  setSelectedReview(review)
+                }}
                 onReply={handleReply}
               />
 
@@ -430,7 +457,11 @@ export default function Reviews() {
 
       <ReviewDetailsDrawer
         review={selectedReview}
-        onClose={() => setSelectedReview(null)}
+        startEditing={openReplyEditor}
+        onClose={() => {
+          setSelectedReview(null)
+          setOpenReplyEditor(false)
+        }}
         onSaveReply={handleSaveReply}
       />
     </DashboardLayout>

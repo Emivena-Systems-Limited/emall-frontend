@@ -3,13 +3,16 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import {
   BadgeCheck,
+  Clock3,
   Loader2,
   MessageSquare,
   Package,
+  Pencil,
   Send,
   Star,
   X,
 } from 'lucide-react'
+import { useReplyEditWindow } from '../../hooks/useReplyEditWindow'
 import { formatReviewDate, getCustomerInitials } from '../../utils/reviewUtils'
 import { ReviewProductImage } from './ReviewCard'
 import StarRating from './StarRating'
@@ -18,15 +21,19 @@ export default function ReviewDetailsDrawer({
   review,
   onClose,
   onSaveReply,
+  startEditing = false,
 }) {
   const [replyText, setReplyText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const { canEdit, remainingLabel } = useReplyEditWindow(review)
 
   useEffect(() => {
     if (!review) return undefined
 
-    setReplyText('')
+    setReplyText(review.vendorReply?.text ?? '')
     setIsSaving(false)
+    setIsEditing(Boolean(startEditing && review.vendorReply))
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose()
@@ -39,23 +46,36 @@ export default function ReviewDetailsDrawer({
       document.body.style.overflow = ''
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [review, onClose])
+  }, [review, onClose, startEditing])
+
+  useEffect(() => {
+    if (isEditing && !canEdit) {
+      setIsEditing(false)
+      setReplyText(review?.vendorReply?.text ?? '')
+    }
+  }, [canEdit, isEditing, review?.vendorReply?.text])
 
   if (!review) return null
 
   const hasReply = Boolean(review.vendorReply)
+  const showComposer = !hasReply || isEditing
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (hasReply) return
+    if (hasReply && !canEdit) return
 
     const trimmed = replyText.trim()
     if (!trimmed) return
+    if (hasReply && trimmed === review.vendorReply.text.trim()) {
+      setIsEditing(false)
+      return
+    }
 
     setIsSaving(true)
     try {
-      await onSaveReply(review.reviewId || review.id, trimmed)
-      setReplyText('')
+      await onSaveReply(review, trimmed)
+      setIsEditing(false)
+      if (!hasReply) setReplyText('')
     } catch {
       // Parent surfaces the error.
     } finally {
@@ -172,23 +192,23 @@ export default function ReviewDetailsDrawer({
                 <MessageSquare className="size-4 text-slate-400" />
                 Your Response
               </h3>
-              {hasReply && (
+              {hasReply && canEdit ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                  <Clock3 className="size-3" />
+                  Editable {remainingLabel}
+                </span>
+              ) : hasReply ? (
                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  One reply only
+                  Edit window closed
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  1 hour to edit
                 </span>
               )}
             </div>
 
-            {hasReply ? (
-              <div className="rounded-2xl border-l-4 border-brand bg-brand-light/30 p-4">
-                <p className="text-sm leading-relaxed text-slate-700">{review.vendorReply.text}</p>
-                {review.vendorReply.date && (
-                  <p className="mt-2 text-xs text-slate-400">
-                    Replied {formatReviewDate(review.vendorReply.date)}
-                  </p>
-                )}
-              </div>
-            ) : (
+            {showComposer ? (
               <form onSubmit={handleSubmit} className="space-y-3">
                 <textarea
                   value={replyText}
@@ -198,21 +218,62 @@ export default function ReviewDetailsDrawer({
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
                 />
                 <p className="text-xs text-slate-400">
-                  Public replies appear on your storefront. You can post only one reply per review.
+                  {hasReply
+                    ? `You can edit this reply for ${remainingLabel} more. After that it becomes permanent.`
+                    : 'Public replies appear on your storefront. You can edit a reply for 1 hour after posting.'}
                 </p>
-                <button
-                  type="submit"
-                  disabled={isSaving || !replyText.trim()}
-                  className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSaving ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
-                  Post Reply
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {isEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(false)
+                        setReplyText(review.vendorReply?.text ?? '')
+                      }}
+                      className="inline-flex w-full cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+                  <button
+                    type="submit"
+                    disabled={isSaving || !replyText.trim()}
+                    className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : isEditing ? (
+                      <Pencil className="size-4" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
+                    {isEditing ? 'Save changes' : 'Post Reply'}
+                  </button>
+                </div>
               </form>
+            ) : (
+              <div className="rounded-2xl border-l-4 border-brand bg-brand-light/30 p-4">
+                <p className="text-sm leading-relaxed text-slate-700">{review.vendorReply.text}</p>
+                {review.vendorReply.date && (
+                  <p className="mt-2 text-xs text-slate-400">
+                    Replied {formatReviewDate(review.vendorReply.date)}
+                    {review.vendorReply.updatedAt ? ` · Edited ${formatReviewDate(review.vendorReply.updatedAt)}` : ''}
+                  </p>
+                )}
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyText(review.vendorReply.text)
+                      setIsEditing(true)
+                    }}
+                    className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+                  >
+                    <Pencil className="size-3.5" />
+                    Edit reply
+                  </button>
+                ) : null}
+              </div>
             )}
           </div>
         </div>
