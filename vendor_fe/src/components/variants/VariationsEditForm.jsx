@@ -5,26 +5,18 @@ import {
   useDeleteProductVariantMutation,
   useUpdateSingleVariantMutation,
 } from '../../hooks/useProductMutations'
-import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
-import { isPersistedVariantId, iterateVariantFormEntries } from '../../utils/productPayload'
-import { captureVariantImageBaseline, summarizeVariantImageChanges } from '../../utils/productImageEditUtils'
-import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
-import notify from '../../lib/notify'
+import { iterateVariantFormEntries } from '../../utils/productPayload'
 import AddVariantFlow from './AddVariantFlow'
-import VariantDetailsDrawer from './VariantDetailsDrawer'
 import VariantListView from './VariantListView'
-import { EMPTY_VARIANT_VALUES, toVariantFormValues } from './variantFormUtils'
 
-/** Mode manager for the Manage Variations section: switches between the variant list, editing one variant, and the add-variant flow. */
+/** Mode manager for the Manage Variations section: switches between the variant list and the add-variant flow. */
 export default function VariationsEditForm({ productId, formState, onFinished }) {
   const [mode, setMode] = useState('list') // 'list' | 'add'
-  const [drawerEntry, setDrawerEntry] = useState(null)
   const [addPrefillAttribute, setAddPrefillAttribute] = useState('')
 
   const updateSingleVariantMutation = useUpdateSingleVariantMutation()
   const createVariantMutation = useCreateProductVariantMutation()
   const deleteVariantMutation = useDeleteProductVariantMutation()
-  const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
 
   const productValues = formState.formValues
   const entries = iterateVariantFormEntries(productValues.variations)
@@ -32,43 +24,6 @@ export default function VariationsEditForm({ productId, formState, onFinished })
   const handleAdd = (prefillAttribute = '') => {
     setAddPrefillAttribute(prefillAttribute)
     setMode('add')
-  }
-
-  const handleSaveFromDrawer = async (variantFormValues) => {
-    if (!drawerEntry) return
-    const variantId = drawerEntry.variantValue.id
-    if (!isPersistedVariantId(variantId)) return
-
-    const imageBaseline = captureVariantImageBaseline({
-      images: drawerEntry.variantValue.images ?? [],
-    })
-
-    try {
-      const nextVariantFormValues = await prepareVariantFormValuesForSave({
-        variantFormValues,
-        attribute: drawerEntry.variation.attribute,
-        uploadPendingMedia,
-      })
-
-      if (import.meta.env.DEV) {
-        console.log('[edit variant] image changes:', summarizeVariantImageChanges(imageBaseline, {
-          images: nextVariantFormValues.images ?? [],
-        }))
-      }
-
-      await updateSingleVariantMutation.mutateAsync({
-        productId,
-        variantId,
-        variantFormValues: nextVariantFormValues,
-        productValues,
-      })
-
-      setDrawerEntry(null)
-    } catch (error) {
-      if (!error?.response) {
-        notify.error(error?.message || 'Failed to prepare variant images.')
-      }
-    }
   }
 
   const pageHeader = (title, subtitle) => (
@@ -96,7 +51,7 @@ export default function VariationsEditForm({ productId, formState, onFinished })
       <div className="page-enter space-y-5">
         {pageHeader(
           'Add new variants',
-          'Add one or more option types — Color, Size, Material, and more — each with its own values. Then fill in photo, price, and stock for every value.',
+          'Add one or more option types — Color, Size, Material, and more. Type a value and it opens as its own card, ready for you to fill in.',
         )}
         <AddVariantFlow
           productId={productId}
@@ -112,32 +67,14 @@ export default function VariationsEditForm({ productId, formState, onFinished })
   }
 
   return (
-    <>
-      <VariantListView
-        productId={productId}
-        entries={entries}
-        productValues={productValues}
-        onAdd={handleAdd}
-        onEdit={setDrawerEntry}
-        onFinished={onFinished}
-        deleteVariantMutation={deleteVariantMutation}
-      />
-
-      <VariantDetailsDrawer
-        open={Boolean(drawerEntry)}
-        attribute={drawerEntry?.variation.attribute ?? ''}
-        value={drawerEntry?.variantValue.value ?? null}
-        initialValues={
-          drawerEntry
-            ? toVariantFormValues(drawerEntry.variantValue, drawerEntry.variation.attribute)
-            : EMPTY_VARIANT_VALUES
-        }
-        productValues={productValues}
-        onClose={() => setDrawerEntry(null)}
-        onSave={handleSaveFromDrawer}
-        isSaving={updateSingleVariantMutation.isPending || isUploadingMedia}
-        showImageEditHints
-      />
-    </>
+    <VariantListView
+      productId={productId}
+      entries={entries}
+      productValues={productValues}
+      onAdd={handleAdd}
+      onFinished={onFinished}
+      updateSingleVariantMutation={updateSingleVariantMutation}
+      deleteVariantMutation={deleteVariantMutation}
+    />
   )
 }

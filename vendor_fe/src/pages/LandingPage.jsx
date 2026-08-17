@@ -5,6 +5,7 @@ import LandingFooter from '../components/landing/LandingFooter'
 import LandingHeader from '../components/landing/LandingHeader'
 import LandingHeroSection from '../components/landing/LandingHeroSection'
 import LandingHowItWorksSection from '../components/landing/LandingHowItWorksSection'
+import LandingScrollReveal from '../components/landing/LandingScrollReveal'
 
 export default function LandingPage() {
   return (
@@ -12,14 +13,30 @@ export default function LandingPage() {
       <LandingHeader />
 
       <main>
-        <LandingHeroSection />
-        <LandingBenefitsSection />
-        <LandingHowItWorksSection />
-        <LandingFaqSection />
-        <LandingCtaSection />
+        <LandingScrollReveal delay={0}>
+          <LandingHeroSection />
+        </LandingScrollReveal>
+
+        <LandingScrollReveal delay={60}>
+          <LandingHowItWorksSection />
+        </LandingScrollReveal>
+
+        <LandingScrollReveal delay={80}>
+          <LandingBenefitsSection />
+        </LandingScrollReveal>
+
+        <LandingScrollReveal delay={80}>
+          <LandingFaqSection />
+        </LandingScrollReveal>
+
+        <LandingScrollReveal delay={100}>
+          <LandingCtaSection />
+        </LandingScrollReveal>
       </main>
 
-      <LandingFooter />
+      <LandingScrollReveal delay={60}>
+        <LandingFooter />
+      </LandingScrollReveal>
     </div>
   )
 }

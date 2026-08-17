@@ -1,4 +1,53 @@
-import { SORT_DIRECTIONS, SORT_FIELDS } from '../constants/reviews'
+import {
+  DEFAULT_REVIEW_DATE_RANGE,
+  REPLY_EDIT_WINDOW_MS,
+  REPLY_TIME_RETENTION_MS,
+  SORT_ORDERS,
+} from '../constants/reviews'
+
+export function hasReviewDateRange({ startDate, endDate } = DEFAULT_REVIEW_DATE_RANGE) {
+  return Boolean(String(startDate ?? '').trim() || String(endDate ?? '').trim())
+}
+
+export function formatReviewDateRangeLabel({ startDate, endDate } = DEFAULT_REVIEW_DATE_RANGE) {
+  const start = String(startDate ?? '').trim()
+  const end = String(endDate ?? '').trim()
+
+  if (start && end) {
+    return `${start} – ${end}`
+  }
+  if (start) return `From ${start}`
+  if (end) return `Until ${end}`
+  return ''
+}
+
+function startOfReviewDay(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function endOfReviewDay(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  date.setHours(23, 59, 59, 999)
+  return date
+}
+
+export function isWithinReviewDateRange(reviewDate, { startDate, endDate } = DEFAULT_REVIEW_DATE_RANGE) {
+  if (!hasReviewDateRange({ startDate, endDate })) return true
+
+  const date = new Date(reviewDate)
+  if (Number.isNaN(date.getTime())) return false
+
+  const start = startDate ? startOfReviewDay(startDate) : null
+  const end = endDate ? endOfReviewDay(endDate) : null
+
+  if (start && date < start) return false
+  if (end && date > end) return false
+  return true
+}
 
 export function formatReviewDate(value) {
   return new Date(value).toLocaleString('en-GB', {
@@ -27,15 +76,113 @@ export function getCustomerInitials(name) {
     .join('')
 }
 
-export function normalizeReviewRecord(review) {
-  let status = review.status
-  if (status === 'flagged') status = 'hidden'
-  if (status === 'published' && !review.vendorReply) status = 'pending'
-  return status === review.status ? review : { ...review, status }
+export function getVendorReplyPostedAt(review) {
+  const reviewId = review?.review_id || review?.reviewId || review?.id
+  const remembered = parseReplyTime(recallVendorReplyPostedAt(reviewId))
+  if (remembered) return remembered
+
+  return parseReplyTime(review?.vendorReply?.date)
+}
+
+function parseReplyTime(value) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function getReplyEditDeadline(review) {
+  const postedAt = getVendorReplyPostedAt(review)
+  if (!postedAt) return null
+  return new Date(postedAt.getTime() + REPLY_EDIT_WINDOW_MS)
+}
+
+export function canEditVendorReply(review, now = Date.now()) {
+  if (!review?.vendorReply) return false
+  const deadline = getReplyEditDeadline(review)
+  if (!deadline) return false
+  return now < deadline.getTime()
+}
+
+export function getReplyEditRemainingMs(review, now = Date.now()) {
+  const deadline = getReplyEditDeadline(review)
+  if (!deadline) return 0
+  return Math.max(0, deadline.getTime() - now)
+}
+
+export function formatReplyEditRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms) / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${String(seconds).padStart(2, '0')}s`
+  }
+  return `${seconds}s`
+}
+
+export function formatReplyEditRemainingCompact(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms) / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+const REPLY_TIME_STORAGE_KEY = 'emall.vendor.reviewReplyPostedAt'
+
+function readReplyTimeStore() {
+  try {
+    const raw = window.localStorage.getItem(REPLY_TIME_STORAGE_KEY)
+    const store = raw ? JSON.parse(raw) : {}
+    if (!store || typeof store !== 'object') return {}
+
+    const cutoff = Date.now() - REPLY_TIME_RETENTION_MS
+    const next = {}
+    for (const [id, iso] of Object.entries(store)) {
+      const time = new Date(iso).getTime()
+      if (Number.isFinite(time) && time >= cutoff) next[id] = iso
+    }
+    return next
+  } catch {
+    return {}
+  }
+}
+
+export function rememberVendorReplyPostedAt(reviewId, iso) {
+  const id = String(reviewId ?? '').trim()
+  const incoming = parseReplyTime(iso)
+  if (!id || typeof window === 'undefined') return incoming?.toISOString() || ''
+
+  const store = readReplyTimeStore()
+  const existing = parseReplyTime(store[id])
+
+  if (existing) {
+    store[id] = existing.toISOString()
+  } else if (incoming) {
+    store[id] = incoming.toISOString()
+  } else {
+    return ''
+  }
+
+  try {
+    window.localStorage.setItem(REPLY_TIME_STORAGE_KEY, JSON.stringify(store))
+  } catch {
+    // Ignore quota / private-mode failures.
+  }
+  return store[id]
+}
+
+export function recallVendorReplyPostedAt(reviewId) {
+  const id = String(reviewId ?? '').trim()
+  if (!id || typeof window === 'undefined') return ''
+  return readReplyTimeStore()[id] || ''
 }
 
 export function normalizeReviewCatalog(reviews) {
-  return reviews.map(normalizeReviewRecord)
+  return [...reviews]
 }
 
 export function filterReviews(reviews, filters) {
@@ -43,13 +190,14 @@ export function filterReviews(reviews, filters) {
     search = '',
     ratingFilter = 'all',
     replyFilter = 'all',
-    visibilityFilter = 'all',
-    productFilter = 'all',
+    dateRange = DEFAULT_REVIEW_DATE_RANGE,
   } = filters
 
   const query = search.trim().toLowerCase()
 
   return reviews.filter((review) => {
+    if (!isWithinReviewDateRange(review.date, dateRange)) return false
+
     if (ratingFilter !== 'all') {
       if (ratingFilter === 'low' && review.rating > 2) return false
       if (ratingFilter !== 'low' && review.rating !== Number(ratingFilter)) return false
@@ -57,10 +205,6 @@ export function filterReviews(reviews, filters) {
 
     if (replyFilter === 'needs_reply' && review.vendorReply) return false
     if (replyFilter === 'replied' && !review.vendorReply) return false
-
-    if (visibilityFilter !== 'all' && review.status !== visibilityFilter) return false
-
-    if (productFilter !== 'all' && review.productId !== productFilter) return false
 
     if (query) {
       const haystack = [
@@ -81,20 +225,10 @@ export function filterReviews(reviews, filters) {
   })
 }
 
-export function sortReviews(reviews, sortField, sortDirection) {
-  const direction = sortDirection === SORT_DIRECTIONS.asc ? 1 : -1
+export function sortReviews(reviews, sortOrder) {
+  const direction = sortOrder === SORT_ORDERS.asc ? 1 : -1
 
-  return [...reviews].sort((a, b) => {
-    switch (sortField) {
-      case SORT_FIELDS.rating:
-        return (a.rating - b.rating) * direction
-      case SORT_FIELDS.helpful:
-        return (a.helpfulCount - b.helpfulCount) * direction
-      case SORT_FIELDS.date:
-      default:
-        return (new Date(a.date) - new Date(b.date)) * direction
-    }
-  })
+  return [...reviews].sort((a, b) => (new Date(a.date) - new Date(b.date)) * direction)
 }
 
 export function paginateItems(items, { page, pageSize }) {
@@ -117,12 +251,11 @@ export function paginateItems(items, { page, pageSize }) {
 
 export function computeReviewsSummary(reviews) {
   const totalReviews = reviews.length
-  const averageRating = totalReviews
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+  const ratedReviews = reviews.filter((review) => Number.isFinite(review.rating))
+  const averageRating = ratedReviews.length
+    ? ratedReviews.reduce((sum, review) => sum + review.rating, 0) / ratedReviews.length
     : 0
   const pendingReplies = reviews.filter((r) => !r.vendorReply).length
-  const pendingApproval = reviews.filter((r) => r.status === 'pending').length
-  const liveOnStorefront = reviews.filter((r) => r.status === 'published').length
   const replied = reviews.filter((r) => r.vendorReply).length
   const responseRate = totalReviews ? Math.round((replied / totalReviews) * 100) : 0
 
@@ -135,8 +268,6 @@ export function computeReviewsSummary(reviews) {
     totalReviews,
     averageRating,
     pendingReplies,
-    pendingApproval,
-    liveOnStorefront,
     responseRate,
     distribution,
   }
@@ -165,18 +296,21 @@ export function getProductInsights(reviews) {
         productName: review.productName,
         productImage: review.productImage,
         ratings: [],
+        reviewCount: 0,
         pendingReplies: 0,
       })
     }
     const entry = map.get(review.productId)
-    entry.ratings.push(review.rating)
+    entry.reviewCount += 1
+    if (Number.isFinite(review.rating)) entry.ratings.push(review.rating)
     if (!review.vendorReply) entry.pendingReplies += 1
   }
 
   const products = Array.from(map.values()).map((entry) => ({
     ...entry,
-    reviewCount: entry.ratings.length,
-    averageRating: entry.ratings.reduce((a, b) => a + b, 0) / entry.ratings.length,
+    averageRating: entry.ratings.length
+      ? entry.ratings.reduce((a, b) => a + b, 0) / entry.ratings.length
+      : 0,
   }))
 
   const topRated = [...products]
@@ -212,9 +346,7 @@ export function exportReviewsCsv(reviews) {
     'Rating',
     'Title',
     'Comment',
-    'Helpful Votes',
     'Replied',
-    'Status',
   ]
 
   const rows = reviews.map((r) => [
@@ -226,9 +358,7 @@ export function exportReviewsCsv(reviews) {
     r.rating,
     `"${r.title.replace(/"/g, '""')}"`,
     `"${r.comment.replace(/"/g, '""')}"`,
-    r.helpfulCount,
     r.vendorReply ? 'Yes' : 'No',
-    r.status,
   ])
 
   const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')

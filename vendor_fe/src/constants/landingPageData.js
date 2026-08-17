@@ -1,32 +1,23 @@
-import {
-  BadgeDollarSign,
-  Box,
-  CheckCircle2,
-  Megaphone,
-  ShieldCheck,
-  TrendingUp,
-  Users,
-  Wallet,
-} from 'lucide-react'
+import Images from '../utils/Images'
 
 export const landingBenefits = [
   {
-    icon: Users,
+    image: Images.common.reach_more_customers,
     title: 'Reach more customers',
     description: 'Connect your products with shoppers across Ghana from one professional seller account.',
   },
   {
-    icon: TrendingUp,
+    image: Images.common.grow_your_business,
     title: 'Grow your business',
     description: 'Use simple tools for listings, orders, inventory, and daily selling operations.',
   },
   {
-    icon: ShieldCheck,
+    image: Images.common.secure_platform,
     title: 'Trusted & secure platform',
     description: 'Sell with protected account access, secure workflows, and reliable vendor support.',
   },
   {
-    icon: BadgeDollarSign,
+    image: Images.common.increase_sales,
     title: 'Increase your sales',
     description: 'Promote your products, improve visibility, and turn more visits into paid orders.',
   },
@@ -34,22 +25,22 @@ export const landingBenefits = [
 
 export const landingSteps = [
   {
-    icon: CheckCircle2,
+    image: Images.common.step_one,
     title: 'Register',
     description: 'Create your seller account in just a few minutes.',
   },
   {
-    icon: Box,
+    image: Images.common.step_two,
     title: 'List your products',
     description: 'Add your product listings, photos, prices, and details.',
   },
   {
-    icon: Megaphone,
+    image: Images.common.step_three,
     title: 'Reach customers',
     description: 'Customers can discover and buy your products.',
   },
   {
-    icon: Wallet,
+    image: Images.common.step_four,
     title: 'Get paid',
     description: 'Earn money and grow your business.',
   },

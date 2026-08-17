@@ -95,14 +95,14 @@ function UserMobileCard({ user, tab, handlers }) {
 export default function UsersTable({
   users,
   tab,
-  search,
+  search = '',
   onSearchChange,
-  roleFilter,
+  roleFilter = 'all',
   onRoleFilterChange,
-  statusFilter,
+  statusFilter = 'all',
   onStatusFilterChange,
   onClearFilters,
-  hasActiveFilters,
+  hasActiveFilters = false,
   ...handlers
 }) {
   const empty = getEmptyState(tab, hasActiveFilters)

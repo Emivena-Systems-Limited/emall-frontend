@@ -29,13 +29,12 @@ function mapDeliveryStatusToOrderStatus(deliveryStatus) {
   switch (deliveryStatus) {
     case 'processing':
       return 'processing'
-    case 'order_confirmed':
-      return 'confirmed'
     case 'shipped':
-    case 'out_for_delivery':
       return 'shipped'
     case 'delivered':
       return 'delivered'
+    case 'refunded':
+      return 'refunded'
     default:
       return undefined
   }
@@ -205,7 +204,7 @@ export default function OrderDetails() {
           <OrderActionsMenu
             order={localOrder}
             align="start"
-            hideViewOrderItems
+            hideUpdateDeliveryStatus
           />
         </div>
 

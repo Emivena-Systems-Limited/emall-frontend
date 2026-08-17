@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowLeft, RefreshCw, UserRound } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router'
+import { useDispatch } from 'react-redux'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import EmptyState from '../../components/dashboard/EmptyState'
 import OrderCatalogLoader from '../../components/orders/OrderCatalogLoader'
@@ -8,9 +9,11 @@ import OrderCatalogToolbar from '../../components/orders/OrderCatalogToolbar'
 import OrderPagination from '../../components/orders/OrderPagination'
 import OrderSummaryCards from '../../components/orders/OrderSummaryCards'
 import OrderTable from '../../components/orders/OrderTable'
-import { ORDERS_PAGE_SIZE, STATUS_FILTERS, SUMMARY_FILTERS } from '../../constants/orders'
+import UpdateOrderStatusModal from '../../components/orders/UpdateOrderStatusModal'
+import { DELIVERY_STATUSES, ORDERS_PAGE_SIZE, STATUS_FILTERS, SUMMARY_FILTERS } from '../../constants/orders'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import { useCustomers } from '../../hooks/useCustomers'
+import { useUpdateOrderDeliveryStatusMutation } from '../../hooks/useVendorOrderMutations'
 import { useUserOrders, useVendorOrders } from '../../hooks/useVendorOrders'
 import notify from '../../lib/notify'
 import {
@@ -20,6 +23,7 @@ import {
   paginateOrders,
 } from '../../utils/orderCatalogFilters'
 import { normalizeVendorOrdersList } from '../../utils/normalizeVendorOrders'
+import { setTotalOrders } from '../../store/slices/vendorMetricsSlice'
 
 function parseUserOrderFilters(searchParams) {
   return {
@@ -40,6 +44,7 @@ function hasUserOrderApiFilters(filters) {
 }
 
 export default function Orders() {
+  const dispatch = useDispatch()
   const [searchParams] = useSearchParams()
   const customerId = searchParams.get('customerId')
   const userOrderFilters = useMemo(
@@ -63,6 +68,8 @@ export default function Orders() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(STATUS_FILTERS.ALL)
   const [page, setPage] = useState(1)
+  const [statusTarget, setStatusTarget] = useState(null)
+  const updateDeliveryStatus = useUpdateOrderDeliveryStatusMutation()
 
   const orders = useMemo(() => {
     const raw = isCustomerOrdersView ? userOrdersQuery.data : vendorOrdersQuery.data
@@ -96,12 +103,37 @@ export default function Orders() {
     }
   }, [error, isError])
 
+  useEffect(() => {
+    if (!isCustomerOrdersView && vendorOrdersQuery.isSuccess) {
+      dispatch(setTotalOrders(orders.length))
+    }
+  }, [dispatch, isCustomerOrdersView, orders.length, vendorOrdersQuery.isSuccess])
+
   const handleSummaryFilterChange = (filterKey) => {
     setStatusFilter(filterKey === SUMMARY_FILTERS.ALL ? STATUS_FILTERS.ALL : filterKey)
   }
 
   const handleStatusFilterChange = (nextFilter) => {
     setStatusFilter(nextFilter)
+  }
+
+  const handleDeliveryStatusChange = async (order, nextStatus) => {
+    if (order.deliveryStatus === nextStatus) {
+      setStatusTarget(null)
+      return
+    }
+
+    try {
+      await updateDeliveryStatus.mutateAsync({
+        orderId: order.itemId || order.id,
+        status: nextStatus,
+      })
+      setStatusTarget(null)
+      const statusLabel = DELIVERY_STATUSES[nextStatus]?.label ?? nextStatus.replaceAll('_', ' ')
+      notify.success(`Delivery status updated to ${statusLabel}.`)
+    } catch {
+      // Error toast handled by mutation hook.
+    }
   }
 
   const pageTitle = isCustomerOrdersView
@@ -142,7 +174,7 @@ export default function Orders() {
                           Orders by {customerContext.name}
                         </h1>
                         <p className="mt-1 text-sm text-slate-500">
-                          Viewing {orders.length} order{orders.length === 1 ? '' : 's'} placed by this customer.
+                          Viewing {orders.length} product{orders.length === 1 ? '' : 's'} purchased by this customer.
                         </p>
                         <p className="mt-1 truncate text-xs text-slate-500">{customerContext.email}</p>
                         {hasApiFilters && (
@@ -173,7 +205,7 @@ export default function Orders() {
               <div>
                 <h1 className="text-2xl font-bold text-slate-950">Orders</h1>
                 <p className="mt-1 text-sm text-slate-500">
-                  View and manage customer orders from your store.
+                  View and manage products customers have purchased from your store.
                 </p>
               </div>
             )}
@@ -226,7 +258,10 @@ export default function Orders() {
                     />
                   ) : (
                     <>
-                      <OrderTable orders={pagination.items} />
+                      <OrderTable
+                        orders={pagination.items}
+                        onUpdateDeliveryStatus={setStatusTarget}
+                      />
                       <OrderPagination
                         page={pagination.page}
                         pageCount={pagination.pageCount}
@@ -243,6 +278,14 @@ export default function Orders() {
           </>
         )}
       </div>
+
+      <UpdateOrderStatusModal
+        open={Boolean(statusTarget)}
+        order={statusTarget}
+        onClose={() => setStatusTarget(null)}
+        onConfirm={handleDeliveryStatusChange}
+        isLoading={updateDeliveryStatus.isPending}
+      />
     </DashboardLayout>
   )
 }

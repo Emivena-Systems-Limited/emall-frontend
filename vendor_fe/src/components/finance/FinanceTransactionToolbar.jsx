@@ -2,15 +2,8 @@ import { ArrowDownUp, Search, SlidersHorizontal, X } from 'lucide-react'
 import {
   PAYMENT_STATUS_FILTERS,
   SORT_DIRECTIONS,
-  SORT_FIELDS,
   TRANSACTION_TYPE_FILTERS,
 } from '../../constants/finance'
-
-const SORT_LABELS = {
-  [SORT_FIELDS.date]: 'Date',
-  [SORT_FIELDS.amount]: 'Amount',
-  [SORT_FIELDS.type]: 'Type',
-}
 
 function ActiveFilterChip({ label, onRemove }) {
   return (
@@ -39,8 +32,7 @@ export default function FinanceTransactionToolbar({
   maxAmount,
   onMinAmountChange,
   onMaxAmountChange,
-  sortField,
-  sortDirection,
+  sortOrder,
   onOpenFilters,
   activeFilterCount,
   onClearFilters,
@@ -129,8 +121,8 @@ export default function FinanceTransactionToolbar({
 
       <p className="flex items-center gap-1.5 text-xs text-slate-400">
         <ArrowDownUp className="size-3.5" />
-        Sorted by {SORT_LABELS[sortField]} ·{' '}
-        {sortDirection === SORT_DIRECTIONS.asc ? 'Ascending' : 'Descending'}
+        Sorted by date ·{' '}
+        {sortOrder === SORT_DIRECTIONS.asc ? 'Oldest first' : 'Newest first'}
         <span className="text-slate-300">·</span>
         <button
           type="button"

@@ -1,81 +1,153 @@
 import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import EarningsBreakdown from '../../components/finance/EarningsBreakdown'
+import EarningsBreakdownLoader from '../../components/finance/EarningsBreakdownLoader'
 import FinanceSummaryCards from '../../components/finance/FinanceSummaryCards'
+import FinanceSummaryCardsLoader from '../../components/finance/FinanceSummaryCardsLoader'
 import FinanceTransactionTable from '../../components/finance/FinanceTransactionTable'
 import FinanceTransactionToolbar from '../../components/finance/FinanceTransactionToolbar'
 import FinanceFiltersDrawer from '../../components/finance/FinanceFiltersDrawer'
 import { FinancePageHeader } from '../../components/finance/FinancePageHeader'
-import PayoutAccountSection from '../../components/finance/PayoutAccountSection'
-import PayoutAccountModal, { RemovePayoutAccountModal } from '../../components/finance/PayoutAccountModal'
+import PayoutAccountSummaryCard from '../../components/finance/PayoutAccountSummaryCard'
+import PayoutAccountsManageDrawer from '../../components/finance/PayoutAccountsManageDrawer'
+import PayoutAccountDrawer from '../../components/finance/PayoutAccountDrawer'
+import { RemovePayoutAccountModal } from '../../components/finance/PayoutAccountModal'
 import TransactionDetailsDrawer from '../../components/finance/TransactionDetailsDrawer'
 import OrderPagination from '../../components/orders/OrderPagination'
-import { FINANCE_PAGE_SIZE, SORT_DIRECTIONS, SORT_FIELDS } from '../../constants/finance'
 import {
-  MOCK_FINANCE_SUMMARY_PREVIOUS,
-  MOCK_FINANCE_TRANSACTIONS,
-  MOCK_PAYOUT_ACCOUNT,
-} from '../../constants/financeData'
+  EMPTY_FINANCE_TRANSACTIONS_PAGE,
+  EMPTY_EARNINGS_BREAKDOWN,
+  EMPTY_PAYOUT_ACCOUNTS,
+  FINANCE_PAGE_SIZE,
+  SORT_DIRECTIONS,
+} from '../../constants/finance'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import {
+  useActivatePayoutAccountMutation,
+  useDeletePayoutAccountMutation,
+  useEarningsBreakdown,
+  useFinanceSummary,
+  useFinanceTransactions,
+  usePayoutAccounts,
+  useStorePayoutAccountMutation,
+} from '../../hooks/useFinanceSummary'
+import { getFinanceTransactions } from '../../services/financeService'
 import notify from '../../lib/notify'
 import {
-  computeFinanceSummary,
   exportTransactionsCsv,
-  filterTransactions,
   getDefaultCustomRange,
-  paginateItems,
-  sortTransactions,
+  getFinanceSummaryDateParams,
 } from '../../utils/financeUtils'
 
 export default function Finance() {
-  const [transactions] = useState(MOCK_FINANCE_TRANSACTIONS)
-  const [payoutAccount, setPayoutAccount] = useState(MOCK_PAYOUT_ACCOUNT)
-
   const [dateRange, setDateRange] = useState('30d')
   const [customRange, setCustomRange] = useState(getDefaultCustomRange)
 
-  const [search, setSearch] = useState('')
+  const summaryDateParams = useMemo(
+    () => getFinanceSummaryDateParams(dateRange, customRange),
+    [dateRange, customRange],
+  )
+
+  const {
+    data: financeSummaryStats,
+    isLoading: isSummaryLoading,
+    isError: isSummaryError,
+    error: summaryError,
+    refetch: refetchSummary,
+    isFetching: isSummaryFetching,
+  } = useFinanceSummary(summaryDateParams)
+
+  const {
+    data: earningsBreakdown = EMPTY_EARNINGS_BREAKDOWN,
+    isLoading: isBreakdownLoading,
+    isError: isBreakdownError,
+    error: breakdownError,
+    refetch: refetchBreakdown,
+    isFetching: isBreakdownFetching,
+  } = useEarningsBreakdown(summaryDateParams)
+
+  const {
+    data: payoutAccounts = EMPTY_PAYOUT_ACCOUNTS,
+    isLoading: isPayoutLoading,
+    isError: isPayoutError,
+    error: payoutError,
+    refetch: refetchPayout,
+    isFetching: isPayoutFetching,
+  } = usePayoutAccounts()
+
+  const storePayoutMutation = useStorePayoutAccountMutation()
+  const deletePayoutMutation = useDeletePayoutAccountMutation()
+  const activatePayoutMutation = useActivatePayoutAccountMutation()
+
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput, 300)
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [minAmount, setMinAmount] = useState('')
   const [maxAmount, setMaxAmount] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
-
-  const [sortField, setSortField] = useState(SORT_FIELDS.date)
-  const [sortDirection, setSortDirection] = useState(SORT_DIRECTIONS.desc)
+  const [sortOrder, setSortOrder] = useState(SORT_DIRECTIONS.desc)
   const [page, setPage] = useState(1)
 
   const [selectedTransaction, setSelectedTransaction] = useState(null)
-  const [payoutModal, setPayoutModal] = useState(null)
-  const [showRemoveModal, setShowRemoveModal] = useState(false)
+  const [payoutManagerOpen, setPayoutManagerOpen] = useState(false)
+  const [payoutDrawerOpen, setPayoutDrawerOpen] = useState(false)
+  const [accountAction, setAccountAction] = useState(null)
 
-  const filteredTransactions = useMemo(
-    () =>
-      filterTransactions(transactions, {
-        search,
-        typeFilter,
-        statusFilter,
-        dateRange,
-        customRange,
-        minAmount,
-        maxAmount,
-      }),
-    [transactions, search, typeFilter, statusFilter, dateRange, customRange, minAmount, maxAmount],
+  const transactionFilters = useMemo(
+    () => ({
+      ...summaryDateParams,
+      search: debouncedSearch,
+      typeFilter,
+      statusFilter,
+      minAmount,
+      maxAmount,
+      sortOrder,
+      page,
+      perPage: FINANCE_PAGE_SIZE,
+    }),
+    [
+      summaryDateParams,
+      debouncedSearch,
+      typeFilter,
+      statusFilter,
+      minAmount,
+      maxAmount,
+      sortOrder,
+      page,
+    ],
   )
 
-  const sortedTransactions = useMemo(
-    () => sortTransactions(filteredTransactions, sortField, sortDirection),
-    [filteredTransactions, sortField, sortDirection],
-  )
+  const {
+    data: transactionsPage = EMPTY_FINANCE_TRANSACTIONS_PAGE,
+    isLoading: isTransactionsLoading,
+    isError: isTransactionsError,
+    error: transactionsError,
+    refetch: refetchTransactions,
+    isFetching: isTransactionsFetching,
+  } = useFinanceTransactions(transactionFilters)
 
-  const pagination = useMemo(
-    () => paginateItems(sortedTransactions, { page, pageSize: FINANCE_PAGE_SIZE }),
-    [sortedTransactions, page],
-  )
+  const transactions = transactionsPage.items
+  const transactionTotal = transactionsPage.total
+  const transactionPageCount = transactionsPage.totalPages
 
-  const summary = useMemo(
-    () => computeFinanceSummary(filteredTransactions),
-    [filteredTransactions],
-  )
+  const pagination = useMemo(() => {
+    const totalItems = transactionTotal
+    const pageCount = Math.max(1, transactionPageCount)
+    const safePage = Math.min(Math.max(page, 1), pageCount)
+    const perPage = transactionsPage.perPage || FINANCE_PAGE_SIZE
+    const startIndex = totalItems === 0 ? 0 : (safePage - 1) * perPage + 1
+    const endIndex = Math.min(safePage * perPage, totalItems)
+
+    return {
+      page: safePage,
+      pageCount,
+      totalItems,
+      startIndex,
+      endIndex,
+    }
+  }, [transactionTotal, transactionPageCount, page, transactionsPage.perPage])
 
   const activeFilterCount = [
     typeFilter !== 'all',
@@ -86,15 +158,66 @@ export default function Finance() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, typeFilter, statusFilter, dateRange, customRange, minAmount, maxAmount, sortField, sortDirection])
+  }, [
+    debouncedSearch,
+    typeFilter,
+    statusFilter,
+    dateRange,
+    customRange,
+    minAmount,
+    maxAmount,
+    sortOrder,
+  ])
 
-  const handleExport = () => {
-    if (sortedTransactions.length === 0) {
+  useEffect(() => {
+    if (isSummaryError) {
+      notify.fromError(summaryError, 'Unable to load finance summary')
+    }
+  }, [isSummaryError, summaryError])
+
+  useEffect(() => {
+    if (isPayoutError) {
+      notify.fromError(payoutError, 'Unable to load payout account')
+    }
+  }, [isPayoutError, payoutError])
+
+  useEffect(() => {
+    if (isTransactionsError) {
+      notify.fromError(transactionsError, 'Unable to load transactions')
+    }
+  }, [isTransactionsError, transactionsError])
+
+  useEffect(() => {
+    if (isBreakdownError) {
+      notify.fromError(breakdownError, 'Unable to load earnings breakdown')
+    }
+  }, [isBreakdownError, breakdownError])
+
+  const handleExport = async () => {
+    if (transactionTotal === 0) {
       notify.info('No transactions to export for the current filters.')
       return
     }
-    exportTransactionsCsv(sortedTransactions)
-    notify.success(`Exported ${sortedTransactions.length} transaction${sortedTransactions.length === 1 ? '' : 's'}.`)
+
+    try {
+      const exportPage = await getFinanceTransactions({
+        ...transactionFilters,
+        page: 1,
+        perPage: Math.min(transactionTotal, 500),
+      })
+
+      if (exportPage.items.length === 0) {
+        notify.info('No transactions to export for the current filters.')
+        return
+      }
+
+      exportTransactionsCsv(exportPage.items)
+      notify.success(
+        `Exported ${exportPage.items.length} transaction${exportPage.items.length === 1 ? '' : 's'}.`,
+      )
+    } catch (error) {
+      notify.fromError(error, 'Unable to export transactions')
+    }
   }
 
   const handleClearFilters = () => {
@@ -104,29 +227,77 @@ export default function Finance() {
     setMaxAmount('')
   }
 
-  const handlePayoutSave = (account) => {
-    setPayoutAccount({ ...account, id: payoutAccount?.id ?? 'pa_new' })
-    notify.success(
-      payoutModal === 'edit'
-        ? 'Payout account updated successfully.'
-        : 'Payout account added. Verification may take 1–2 business days.',
-    )
+  const handlePayoutSave = async (formData) => {
+    try {
+      await storePayoutMutation.mutateAsync(formData)
+      notify.success('Payout account added. Verification may take 1–2 business days.')
+    } catch (error) {
+      notify.fromError(error, 'Unable to save payout account')
+      throw error
+    }
   }
 
-  const handlePayoutRemove = () => {
-    setPayoutAccount({ status: 'not_added' })
-    setShowRemoveModal(false)
-    notify.success('Payout account removed.')
-  }
+  const handlePayoutAccountAction = async () => {
+    if (!accountAction?.account?.id) {
+      notify.error('No payout account selected.')
+      return
+    }
 
-  const payoutFormValues = payoutAccount?.status !== 'not_added'
-    ? {
-        bankName: payoutAccount.bankName,
-        accountHolderName: payoutAccount.accountHolderName,
-        accountNumber: payoutAccount.accountNumberRaw ?? '',
-        branch: payoutAccount.branch ?? '',
+    const { account, intent } = accountAction
+
+    try {
+      if (intent === 'activate') {
+        await activatePayoutMutation.mutateAsync(account.id)
+        setAccountAction(null)
+        notify.success(`${account.bankName} is now your active payout account.`)
+        return
       }
-    : null
+
+      await deletePayoutMutation.mutateAsync(account.id)
+      setAccountAction(null)
+      notify.success('Account removed. Add your new payout details.')
+      setPayoutDrawerOpen(true)
+    } catch (error) {
+      notify.fromError(
+        error,
+        intent === 'activate'
+          ? 'Unable to activate payout account'
+          : 'Unable to replace payout account',
+      )
+    }
+  }
+
+  const openPayoutAdd = () => {
+    setPayoutDrawerOpen(true)
+  }
+
+  const closePayoutDrawer = () => {
+    setPayoutDrawerOpen(false)
+  }
+
+  const openPayoutManager = () => {
+    setPayoutManagerOpen(true)
+  }
+
+  const closePayoutManager = () => {
+    setPayoutManagerOpen(false)
+  }
+
+  const openReplaceConfirm = (account) => {
+    setAccountAction({ account, intent: 'replace' })
+  }
+
+  const openActivateConfirm = (account) => {
+    if (account?.isActive) {
+      notify.info('This account is already active.')
+      return
+    }
+    setAccountAction({ account, intent: 'activate' })
+  }
+
+  const closeAccountAction = () => {
+    setAccountAction(null)
+  }
 
   return (
     <DashboardLayout pageTitle="Finance">
@@ -138,19 +309,66 @@ export default function Finance() {
           onCustomStartChange={(startDate) => setCustomRange((prev) => ({ ...prev, startDate }))}
           onCustomEndChange={(endDate) => setCustomRange((prev) => ({ ...prev, endDate }))}
           onExport={handleExport}
-          exportCount={sortedTransactions.length}
+          exportCount={transactionTotal}
         />
 
-        <FinanceSummaryCards summary={summary} previousSummary={MOCK_FINANCE_SUMMARY_PREVIOUS} />
+        {isSummaryLoading ? (
+          <FinanceSummaryCardsLoader />
+        ) : isSummaryError ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+            <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
+              <AlertTriangle className="size-5" />
+            </span>
+            <h2 className="mt-4 text-base font-bold text-slate-900">Unable to load summary</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {summaryError?.message ?? 'Something went wrong while fetching finance totals.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchSummary()}
+              className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <RefreshCw className={`size-4 ${isSummaryFetching ? 'animate-spin' : ''}`} />
+              Retry
+            </button>
+          </div>
+        ) : (
+          <FinanceSummaryCards summary={financeSummaryStats} />
+        )}
 
-        <PayoutAccountSection
-          account={payoutAccount}
-          onAdd={() => setPayoutModal('add')}
-          onEdit={() => setPayoutModal('edit')}
-          onRemove={() => setShowRemoveModal(true)}
+        <PayoutAccountSummaryCard
+          accounts={payoutAccounts}
+          isLoading={isPayoutLoading}
+          isError={isPayoutError}
+          errorMessage={payoutError?.message}
+          isFetching={isPayoutFetching}
+          onOpen={openPayoutManager}
+          onRetry={() => refetchPayout()}
         />
 
-        <EarningsBreakdown breakdown={summary.breakdown} />
+        {isBreakdownLoading ? (
+          <EarningsBreakdownLoader />
+        ) : isBreakdownError ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+            <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
+              <AlertTriangle className="size-5" />
+            </span>
+            <h2 className="mt-4 text-base font-bold text-slate-900">Unable to load earnings breakdown</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {breakdownError?.message ?? 'Something went wrong while fetching breakdown totals.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchBreakdown()}
+              className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <RefreshCw className={`size-4 ${isBreakdownFetching ? 'animate-spin' : ''}`} />
+              Retry
+            </button>
+          </div>
+        ) : (
+          <EarningsBreakdown breakdown={earningsBreakdown} />
+        )}
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
           <div className="border-b border-slate-100 px-5 py-4">
@@ -161,8 +379,8 @@ export default function Finance() {
               </p>
             </div>
             <FinanceTransactionToolbar
-              search={search}
-              onSearchChange={setSearch}
+              search={searchInput}
+              onSearchChange={setSearchInput}
               typeFilter={typeFilter}
               onTypeFilterChange={setTypeFilter}
               statusFilter={statusFilter}
@@ -171,28 +389,53 @@ export default function Finance() {
               maxAmount={maxAmount}
               onMinAmountChange={setMinAmount}
               onMaxAmountChange={setMaxAmount}
-              sortField={sortField}
-              sortDirection={sortDirection}
+              sortOrder={sortOrder}
               onOpenFilters={() => setFiltersOpen(true)}
               activeFilterCount={activeFilterCount}
               onClearFilters={handleClearFilters}
             />
           </div>
 
-          <FinanceTransactionTable
-            transactions={pagination.items}
-            onViewDetails={setSelectedTransaction}
-          />
+          {isTransactionsLoading ? (
+            <div className="flex items-center justify-center px-6 py-16">
+              <Loader2 className="size-8 animate-spin text-brand" aria-label="Loading transactions" />
+            </div>
+          ) : isTransactionsError ? (
+            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <span className="flex size-12 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
+                <AlertTriangle className="size-5" />
+              </span>
+              <p className="mt-4 text-sm font-semibold text-slate-800">Unable to load transactions</p>
+              <p className="mt-1 max-w-sm text-sm text-slate-500">
+                {transactionsError?.message ?? 'Something went wrong while fetching transaction history.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => refetchTransactions()}
+                className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <RefreshCw className={`size-4 ${isTransactionsFetching ? 'animate-spin' : ''}`} />
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <FinanceTransactionTable
+                transactions={transactions}
+                onViewDetails={setSelectedTransaction}
+              />
 
-          <OrderPagination
-            page={pagination.page}
-            pageCount={pagination.pageCount}
-            totalItems={pagination.totalItems}
-            startIndex={pagination.startIndex}
-            endIndex={pagination.endIndex}
-            onPageChange={setPage}
-            itemLabel="transactions"
-          />
+              <OrderPagination
+                page={pagination.page}
+                pageCount={pagination.pageCount}
+                totalItems={pagination.totalItems}
+                startIndex={pagination.startIndex}
+                endIndex={pagination.endIndex}
+                onPageChange={setPage}
+                itemLabel="transactions"
+              />
+            </>
+          )}
         </section>
       </div>
 
@@ -207,12 +450,10 @@ export default function Finance() {
         maxAmount={maxAmount}
         onMinAmountChange={setMinAmount}
         onMaxAmountChange={setMaxAmount}
-        sortField={sortField}
-        sortDirection={sortDirection}
-        onSortFieldChange={setSortField}
-        onSortDirectionChange={setSortDirection}
+        sortOrder={sortOrder}
+        onSortOrderChange={setSortOrder}
         onClearFilters={handleClearFilters}
-        resultCount={sortedTransactions.length}
+        resultCount={transactionTotal}
       />
 
       <TransactionDetailsDrawer
@@ -220,19 +461,44 @@ export default function Finance() {
         onClose={() => setSelectedTransaction(null)}
       />
 
-      <PayoutAccountModal
-        open={Boolean(payoutModal)}
-        mode={payoutModal ?? 'add'}
-        initialValues={payoutModal === 'edit' ? payoutFormValues : null}
-        onClose={() => setPayoutModal(null)}
+      <PayoutAccountsManageDrawer
+        open={payoutManagerOpen}
+        accounts={payoutAccounts}
+        onClose={closePayoutManager}
+        onAdd={openPayoutAdd}
+        onReplace={openReplaceConfirm}
+        onActivate={openActivateConfirm}
+        activatingAccountId={
+          activatePayoutMutation.isPending && accountAction?.intent === 'activate'
+            ? accountAction.account?.id
+            : null
+        }
+        replacingAccountId={
+          deletePayoutMutation.isPending && accountAction?.intent === 'replace'
+            ? accountAction.account?.id
+            : null
+        }
+      />
+
+      <PayoutAccountDrawer
+        open={payoutDrawerOpen}
+        mode="add"
+        initialValues={null}
+        onClose={closePayoutDrawer}
         onSave={handlePayoutSave}
       />
 
       <RemovePayoutAccountModal
-        open={showRemoveModal}
-        account={payoutAccount}
-        onClose={() => setShowRemoveModal(false)}
-        onConfirm={handlePayoutRemove}
+        open={Boolean(accountAction)}
+        account={accountAction?.account}
+        intent={accountAction?.intent ?? 'replace'}
+        isPending={
+          accountAction?.intent === 'activate'
+            ? activatePayoutMutation.isPending
+            : deletePayoutMutation.isPending
+        }
+        onClose={closeAccountAction}
+        onConfirm={handlePayoutAccountAction}
       />
     </DashboardLayout>
   )

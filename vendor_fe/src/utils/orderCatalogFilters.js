@@ -1,7 +1,5 @@
 import { STATUS_FILTERS, SUMMARY_FILTERS } from '../constants/orders'
 
-const IN_TRANSIT_DELIVERY_STATUSES = ['shipped', 'out_for_delivery']
-
 function resolveDeliveryStatus(order) {
   return order?.deliveryStatus ?? 'pending'
 }
@@ -21,8 +19,8 @@ function matchesStatusFilter(order, statusFilter) {
     return deliveryStatus === 'pending'
   }
 
-  if (statusFilter === SUMMARY_FILTERS.SHIPPED) {
-    return IN_TRANSIT_DELIVERY_STATUSES.includes(deliveryStatus)
+  if (statusFilter === SUMMARY_FILTERS.SHIPPED || statusFilter === STATUS_FILTERS.SHIPPED) {
+    return deliveryStatus === 'shipped'
   }
 
   return deliveryStatus === statusFilter
@@ -34,9 +32,13 @@ function matchesSearch(order, search) {
 
   const haystack = [
     order.orderNumber,
+    order.orderId,
+    order.productName,
+    order.sku,
     order.customer?.name,
     order.customer?.email,
-    ...order.items.map((item) => item.productName),
+    ...(order.items ?? []).map((item) => item.productName),
+    ...(order.items ?? []).map((item) => item.sku),
   ]
     .filter(Boolean)
     .join(' ')
@@ -67,7 +69,7 @@ export function getOrderCatalogSummary(orders) {
     total: orders.length,
     pending: orders.filter((order) => resolveDeliveryStatus(order) === 'pending').length,
     processing: orders.filter((order) => resolveDeliveryStatus(order) === 'processing').length,
-    shipped: orders.filter((order) => IN_TRANSIT_DELIVERY_STATUSES.includes(resolveDeliveryStatus(order))).length,
+    shipped: orders.filter((order) => resolveDeliveryStatus(order) === 'shipped').length,
     delivered: orders.filter((order) => resolveDeliveryStatus(order) === 'delivered').length,
   }
 }
@@ -96,11 +98,7 @@ export function getActiveSummaryFilter(statusFilter) {
   if (statusFilter === SUMMARY_FILTERS.PROCESSING || statusFilter === STATUS_FILTERS.PROCESSING) {
     return SUMMARY_FILTERS.PROCESSING
   }
-  if (
-    statusFilter === SUMMARY_FILTERS.SHIPPED
-    || statusFilter === STATUS_FILTERS.SHIPPED
-    || statusFilter === STATUS_FILTERS.OUT_FOR_DELIVERY
-  ) {
+  if (statusFilter === SUMMARY_FILTERS.SHIPPED || statusFilter === STATUS_FILTERS.SHIPPED) {
     return SUMMARY_FILTERS.SHIPPED
   }
   if (statusFilter === SUMMARY_FILTERS.DELIVERED || statusFilter === STATUS_FILTERS.DELIVERED) {

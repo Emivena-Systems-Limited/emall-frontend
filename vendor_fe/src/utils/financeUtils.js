@@ -78,6 +78,27 @@ function endOfDay(date) {
   return d
 }
 
+export function formatDateParam(date) {
+  if (!date) return ''
+
+  const value = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(value.getTime())) return ''
+
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function getFinanceSummaryDateParams(dateRange, customRange) {
+  const { start, end } = getDateRangeBounds(dateRange, customRange)
+
+  return {
+    startDate: formatDateParam(start),
+    endDate: formatDateParam(end),
+  }
+}
+
 export function getDateRangeBounds(range, customRange) {
   const now = new Date()
   const todayStart = startOfDay(now)
@@ -249,19 +270,6 @@ export function computeFinanceSummary(transactions) {
       adCharges,
       earningsTotal,
     },
-  }
-}
-
-export function computeTrendPercent(current, previous) {
-  if (!previous || previous === 0) {
-    if (current === 0) return { value: 0, isPositive: true, isNeutral: true }
-    return { value: 100, isPositive: true, isNeutral: false }
-  }
-  const change = ((current - previous) / Math.abs(previous)) * 100
-  return {
-    value: Math.abs(change),
-    isPositive: change >= 0,
-    isNeutral: Math.abs(change) < 0.5,
   }
 }
 

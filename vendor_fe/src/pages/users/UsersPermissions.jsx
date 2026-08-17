@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router'
+import { useSelector } from 'react-redux'
 import ConfirmModal from '../../components/common/ConfirmModal'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import OrderPagination from '../../components/orders/OrderPagination'
 import EditRoleModal from '../../components/users/EditRoleModal'
 import UserDetailsDrawer from '../../components/users/UserDetailsDrawer'
 import UserPermissionsDrawer from '../../components/users/UserPermissionsDrawer'
-import UsersErrorState from '../../components/users/UsersErrorState'
 import UsersPageHeader from '../../components/users/UsersPageHeader'
-import UsersPageLoader from '../../components/users/UsersPageLoader'
 import UsersSummaryCards from '../../components/users/UsersSummaryCards'
 import UsersTable from '../../components/users/UsersTable'
 import UserTabs from '../../components/users/UserTabs'
@@ -25,7 +24,6 @@ import {
   useResendInvitationMutation,
   useUpdateUserPermissionsMutation,
   useUpdateUserRoleMutation,
-  useUsers,
 } from '../../hooks/useUsers'
 import notify from '../../lib/notify'
 import {
@@ -33,13 +31,18 @@ import {
   computeUsersSummary,
   filterUsers,
   filterUsersByTab,
+  mapAuthUserToTeamMember,
   paginateItems,
   sortUsers,
 } from '../../utils/usersPermissionsUtils'
 
 export default function UsersPermissions() {
   const location = useLocation()
-  const { data: users = [], isLoading, isError, error, refetch, isFetching } = useUsers()
+  const authUser = useSelector((state) => state.auth.user)
+  const users = useMemo(() => {
+    const owner = mapAuthUserToTeamMember(authUser)
+    return owner ? [owner] : []
+  }, [authUser])
 
   const [activeTab, setActiveTab] = useState(USER_TABS.ALL)
   const [search, setSearch] = useState('')
@@ -89,12 +92,6 @@ export default function UsersPermissions() {
   useEffect(() => {
     setPage(1)
   }, [activeTab, search, roleFilter, statusFilter])
-
-  useEffect(() => {
-    if (isError) {
-      notify.fromError(error, 'Unable to load users')
-    }
-  }, [error, isError])
 
   const closeDetails = () => {
     setDetailsOpen(false)
@@ -200,49 +197,37 @@ export default function UsersPermissions() {
       <div className="page-enter space-y-6">
         <UsersPageHeader />
 
-        {isLoading ? (
-          <UsersPageLoader />
-        ) : isError ? (
-          <UsersErrorState
-            message={error?.message}
-            onRetry={() => refetch()}
-            isRetrying={isFetching}
+        <UsersSummaryCards summary={summary} />
+        <UserTabs activeTab={activeTab} counts={tabCounts} onChange={setActiveTab} />
+
+        <UsersTable
+          users={pagination.items}
+          tab={activeTab}
+          search={search}
+          onSearchChange={setSearch}
+          roleFilter={roleFilter}
+          onRoleFilterChange={setRoleFilter}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          onClearFilters={() => {
+            setSearch('')
+            setRoleFilter('all')
+            setStatusFilter('all')
+          }}
+          hasActiveFilters={hasActiveFilters}
+          {...actionHandlers}
+        />
+
+        {sortedUsers.length > 0 && (
+          <OrderPagination
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            totalItems={pagination.totalItems}
+            startIndex={pagination.startIndex}
+            endIndex={pagination.endIndex}
+            onPageChange={setPage}
+            itemLabel="users"
           />
-        ) : (
-          <>
-            <UsersSummaryCards summary={summary} />
-            <UserTabs activeTab={activeTab} counts={tabCounts} onChange={setActiveTab} />
-
-            <UsersTable
-              users={pagination.items}
-              tab={activeTab}
-              search={search}
-              onSearchChange={setSearch}
-              roleFilter={roleFilter}
-              onRoleFilterChange={setRoleFilter}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              onClearFilters={() => {
-                setSearch('')
-                setRoleFilter('all')
-                setStatusFilter('all')
-              }}
-              hasActiveFilters={hasActiveFilters}
-              {...actionHandlers}
-            />
-
-            {sortedUsers.length > 0 && (
-              <OrderPagination
-                page={pagination.page}
-                pageCount={pagination.pageCount}
-                totalItems={pagination.totalItems}
-                startIndex={pagination.startIndex}
-                endIndex={pagination.endIndex}
-                onPageChange={setPage}
-                itemLabel="users"
-              />
-            )}
-          </>
         )}
       </div>
 

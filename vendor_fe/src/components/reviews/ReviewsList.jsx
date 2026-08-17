@@ -3,7 +3,7 @@ import EmptyState from '../dashboard/EmptyState'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import ReviewCard from './ReviewCard'
 
-export default function ReviewsList({ reviews, hasReviews, onView, onReply, onAllow, onFlag }) {
+export default function ReviewsList({ reviews, hasReviews, onView, onReply }) {
   if (!hasReviews) {
     const preset = EMPTY_STATE_PRESETS.reviews
     return (
@@ -43,8 +43,6 @@ export default function ReviewsList({ reviews, hasReviews, onView, onReply, onAl
           review={review}
           onView={onView}
           onReply={onReply}
-          onAllow={onAllow}
-          onFlag={onFlag}
         />
       ))}
     </div>

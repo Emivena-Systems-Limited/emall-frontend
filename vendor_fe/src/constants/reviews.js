@@ -1,11 +1,49 @@
 export const REVIEWS_PAGE_SIZE = 8
 
+export const REVIEW_ENDPOINTS = {
+  LIST: '/api/review/product/vendor',
+  SUMMARY: '/api/review/summary/vendor',
+  reply: (reviewId) => `/api/review/reply/vendor/${reviewId}`,
+}
+
+export const EMPTY_REVIEWS_PAGE = {
+  items: [],
+  page: 1,
+  perPage: REVIEWS_PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+}
+
+export const EMPTY_REVIEWS_DISTRIBUTION = [5, 4, 3, 2, 1].map((stars) => ({
+  stars,
+  count: 0,
+}))
+
+export const EMPTY_REVIEWS_SUMMARY = {
+  averageRating: 0,
+  totalReviews: 0,
+  pendingReplies: 0,
+  responseRate: 0,
+  distribution: EMPTY_REVIEWS_DISTRIBUTION,
+}
+
+export const EMPTY_REVIEWS_SUMMARY_PREVIOUS = {
+  averageRating: 0,
+  totalReviews: 0,
+  pendingReplies: 0,
+  responseRate: 0,
+}
+
+export const DEFAULT_REVIEW_DATE_RANGE = {
+  startDate: '',
+  endDate: '',
+}
+
 export const RATING_FILTERS = [
   { key: 'all', label: 'All Ratings' },
   { key: '5', label: '5 Stars' },
   { key: '4', label: '4 Stars' },
   { key: '3', label: '3 Stars' },
-  { key: 'low', label: '1–2 Stars' },
 ]
 
 export const REPLY_STATUS_FILTERS = [
@@ -14,46 +52,13 @@ export const REPLY_STATUS_FILTERS = [
   { key: 'replied', label: 'Replied' },
 ]
 
-export const VISIBILITY_FILTERS = [
-  { key: 'all', label: 'All Visibility' },
-  { key: 'pending', label: 'Awaiting Approval' },
-  { key: 'published', label: 'Live on Storefront' },
-  { key: 'hidden', label: 'Hidden / Flagged' },
-]
-
-export const SORT_FIELDS = {
-  date: 'date',
-  rating: 'rating',
-  helpful: 'helpful',
-}
-
-export const SORT_DIRECTIONS = {
+export const SORT_ORDERS = {
   asc: 'asc',
   desc: 'desc',
 }
 
-export const REVIEW_STATUS = {
-  pending: {
-    label: 'Awaiting approval',
-    shortLabel: 'Pending',
-    className: 'bg-amber-50 text-amber-700 ring-amber-100',
-    dot: 'bg-amber-500',
-  },
-  published: {
-    label: 'Live on storefront',
-    shortLabel: 'Live',
-    className: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-    dot: 'bg-emerald-500',
-  },
-  hidden: {
-    label: 'Hidden from storefront',
-    shortLabel: 'Hidden',
-    className: 'bg-slate-100 text-slate-600 ring-slate-200',
-    dot: 'bg-slate-400',
-  },
-}
+/** Vendors may edit a posted reply for this long after it is first sent. */
+export const REPLY_EDIT_WINDOW_MS = 60 * 60 * 1000
 
-export const REVIEW_VISIBILITY_ACTIONS = {
-  allow: 'published',
-  flag: 'hidden',
-}
+/** Keep the original reply timestamp around so refresh cannot start a new hour. */
+export const REPLY_TIME_RETENTION_MS = 24 * 60 * 60 * 1000

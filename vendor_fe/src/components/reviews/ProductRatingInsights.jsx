@@ -2,6 +2,7 @@ import { AlertTriangle, Link as LinkIcon, TrendingUp } from 'lucide-react'
 import { Link } from 'react-router'
 import EmptyState from '../dashboard/EmptyState'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
+import { ReviewProductImage } from './ReviewCard'
 import StarRating from './StarRating'
 
 function ProductInsightRow({ product }) {
@@ -11,17 +12,15 @@ function ProductInsightRow({ product }) {
         to={`/products/${product.productId}/view`}
         className="group flex cursor-pointer items-start gap-3 rounded-xl bg-white p-3 ring-1 ring-slate-200 transition-all hover:ring-brand/30 hover:shadow-sm"
       >
-        <img
-          src={product.productImage}
-          alt=""
-          className="size-11 shrink-0 rounded-lg object-cover ring-1 ring-slate-100"
-        />
+        <ReviewProductImage src={product.productImage} className="size-11" />
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-xs font-semibold leading-snug text-slate-900 group-hover:text-brand">
-            {product.productName}
+            {product.productName || 'Product'}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-            <StarRating rating={product.averageRating} size="size-3.5" />
+            {product.ratings.length > 0 && (
+              <StarRating rating={product.averageRating} size="size-3.5" />
+            )}
             <span className="text-[10px] font-medium text-slate-400">
               {product.reviewCount} review{product.reviewCount === 1 ? '' : 's'}
             </span>

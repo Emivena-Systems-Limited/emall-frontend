@@ -5,31 +5,35 @@ import ProfilePageLoader from '../../components/profile/ProfilePageLoader'
 
 export default function BusinessInformationPage() {
   const {
-    business,
-    isBusinessLoading,
-    businessError,
-    refetchBusiness,
-    onUpdateBusiness,
-    isUpdatingBusiness,
+    profile,
+    isProfileLoading,
+    profileError,
+    refetchProfile,
+    onUpdateProfile,
+    onUpdateAddress,
+    isUpdatingProfile,
+    isUpdatingAddress,
   } = useOutletContext()
 
-  if (isBusinessLoading) return <ProfilePageLoader label="Loading business information…" />
+  if (isProfileLoading) return <ProfilePageLoader label="Loading business information…" />
 
-  if (businessError) {
+  if (profileError) {
     return (
       <ProfileErrorState
         title="Unable to load business information"
-        message={businessError?.message}
-        onRetry={refetchBusiness}
+        message={profileError?.message}
+        onRetry={refetchProfile}
       />
     )
   }
 
   return (
     <BusinessInformationPanel
-      business={business}
-      onUpdateBusiness={onUpdateBusiness}
-      isUpdating={isUpdatingBusiness}
+      profile={profile}
+      onUpdateBusiness={onUpdateProfile}
+      onUpdateAddress={onUpdateAddress}
+      isUpdating={isUpdatingProfile}
+      isUpdatingAddress={isUpdatingAddress}
     />
   )
 }

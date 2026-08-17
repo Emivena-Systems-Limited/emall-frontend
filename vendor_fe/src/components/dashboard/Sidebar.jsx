@@ -4,11 +4,11 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  Store,
   X,
 } from 'lucide-react'
 import { useLogoutVendorMutation } from '../../hooks/useAuthMutations'
 import { NAV_SECTIONS } from '../../constants/sidebarNav'
+import Images from '../../utils/Images'
 import VendorStoreCard from './VendorStoreCard'
 
 function NavItem({ item, collapsed }) {
@@ -90,16 +90,16 @@ function SidebarInner({ collapsed, onToggle, onMobileClose, isMobile = false }) 
   return (
     <div className={`flex h-full flex-col bg-[#1a1a2e] transition-[width] duration-300 ease-in-out ${effectiveCollapsed ? 'w-[68px]' : 'w-64'}`}>
       <div className={`flex h-16 shrink-0 items-center border-b border-white/8 ${effectiveCollapsed ? 'justify-center px-3' : 'justify-between px-4'}`}>
-        <div className={`flex items-center gap-2.5 ${effectiveCollapsed ? '' : 'min-w-0 flex-1'}`}>
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand">
-            <Store className="size-4 text-white" strokeWidth={1.75} />
-          </span>
-          {!effectiveCollapsed && (
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold tracking-wide text-white">E-Mall Vendor</p>
-              <p className="truncate text-[10px] text-white/45">{user?.store_name ?? '—'}</p>
-            </div>
-          )}
+        <div className={`flex items-center ${effectiveCollapsed ? 'justify-center' : 'shrink-0 pr-1'}`}>
+          <img
+            src={Images.brand.logoWhite}
+            alt="EZ-Mall Vendor"
+            className={
+              effectiveCollapsed
+                ? 'h-10 w-auto max-w-none object-contain object-left'
+                : 'h-12 w-auto max-w-none object-contain object-left'
+            }
+          />
         </div>
 
         {!isMobile && (

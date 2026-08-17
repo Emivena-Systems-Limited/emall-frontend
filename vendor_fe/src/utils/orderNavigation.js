@@ -22,11 +22,12 @@ export function getOrdersReturnLabel(returnTo = '/orders') {
   return String(returnTo).includes('customerId=') ? 'Back to customer orders' : 'Back to orders'
 }
 
-export function buildOrderNavigationState({ returnTo, listPayment } = {}) {
+export function buildOrderNavigationState({ returnTo, listPayment, listOrder } = {}) {
   const state = {}
 
   if (returnTo) state.returnTo = returnTo
   if (listPayment) state.listPayment = listPayment
+  if (listOrder) state.listOrder = listOrder
 
   return Object.keys(state).length > 0 ? state : undefined
 }
@@ -35,5 +36,6 @@ export function mergeOrderNavigationState(existingState = {}, overrides = {}) {
   return buildOrderNavigationState({
     returnTo: overrides.returnTo ?? existingState?.returnTo,
     listPayment: overrides.listPayment ?? existingState?.listPayment,
+    listOrder: overrides.listOrder ?? existingState?.listOrder,
   })
 }

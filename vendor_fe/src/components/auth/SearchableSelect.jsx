@@ -24,6 +24,7 @@ export default function SearchableSelect({
   allowCustom = false,
   customEntryLabel = 'Enter manually…',
   customSubmitLabel = 'Add brand',
+  customEntityName = '',
   hint,
   reserveHintSpace = false,
   optional = false,
@@ -274,7 +275,7 @@ export default function SearchableSelect({
           )}
 
           {open && (
-            <div className="fade-in absolute top-full left-0 z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div className="fade-in absolute top-full left-0 z-[60] mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
               <div className="border-b border-slate-100 p-2">
                 <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
                   <Search className="size-4 shrink-0 text-slate-400" />
@@ -313,7 +314,9 @@ export default function SearchableSelect({
                       ) : (
                         <PenLine className="size-3.5 shrink-0" />
                       )}
-                      Add brand &ldquo;{trimmedSearch}&rdquo;
+                      {customEntityName
+                        ? `Add ${customEntityName} “${trimmedSearch}”`
+                        : `Add “${trimmedSearch}”`}
                     </button>
                   </li>
                 )}

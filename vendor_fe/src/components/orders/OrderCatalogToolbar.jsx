@@ -19,7 +19,7 @@ export default function OrderCatalogToolbar({
             type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search by order number, customer, email, or product…"
+            placeholder="Search by product, SKU, order number, or customer…"
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-3 pl-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
           />
         </div>

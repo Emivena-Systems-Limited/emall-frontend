@@ -6,6 +6,7 @@ import ProfilePageLoader from '../../components/profile/ProfilePageLoader'
 export default function PersonalInformationPage() {
   const {
     profile,
+    accountSummary,
     isProfileLoading,
     profileError,
     refetchProfile,
@@ -32,6 +33,7 @@ export default function PersonalInformationPage() {
   return (
     <PersonalInformationPanel
       profile={profile}
+      accountSummary={accountSummary}
       onUpdateProfile={onUpdateProfile}
       onUploadPicture={onUploadPicture}
       onRemovePicture={onRemovePicture}

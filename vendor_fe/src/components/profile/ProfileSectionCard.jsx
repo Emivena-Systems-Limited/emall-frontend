@@ -68,6 +68,39 @@ export function ProfileTextInput({
   )
 }
 
+export function ProfileTextarea({
+  id,
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+  error,
+  rows = 3,
+  maxLength,
+}) {
+  return (
+    <div>
+      <textarea
+        id={id}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        rows={rows}
+        maxLength={maxLength}
+        className={`w-full resize-none rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light ${
+          error
+            ? 'border-red-300 bg-white text-slate-900 ring-1 ring-red-100'
+            : disabled
+              ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-500'
+              : 'border-slate-300 bg-white text-slate-900 ring-1 ring-slate-200/60'
+        }`}
+      />
+      {error && <p className="mt-1.5 text-xs font-medium text-red-600">{error}</p>}
+    </div>
+  )
+}
+
 export function ProfileReadOnlyGrid({ items }) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2">

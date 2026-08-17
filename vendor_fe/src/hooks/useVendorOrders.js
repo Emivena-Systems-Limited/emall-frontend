@@ -1,7 +1,10 @@
+import { useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getUserOrders, getVendorOrderById, getVendorOrders } from '../services/orderService'
 import {
+  buildVendorOrderReceipt,
   findVendorOrderById,
+  findVendorOrderReceiptRows,
   mergeVendorOrderPaymentDetails,
   normalizeVendorOrderRecord,
   normalizeVendorOrdersList,
@@ -63,4 +66,30 @@ export function useVendorOrder(orderId, { listPayment = null } = {}) {
     },
     select: selectOrder,
   })
+}
+
+function resolveReceiptFallback(listOrder) {
+  if (!listOrder || typeof listOrder !== 'object') return null
+  if (listOrder.items || listOrder.productName || listOrder.orderNumber) return listOrder
+  return normalizeVendorOrderRecord(listOrder.raw ?? listOrder)
+}
+
+export function useVendorOrderReceipt(orderId, { listOrder = null } = {}) {
+  const listQuery = useVendorOrders()
+  const fallback = resolveReceiptFallback(listOrder)
+
+  const receipt = useMemo(() => {
+    const list = normalizeVendorOrdersList(listQuery.data ?? [])
+    const rows = findVendorOrderReceiptRows(list, orderId)
+    return buildVendorOrderReceipt(rows, fallback)
+  }, [fallback, listQuery.data, orderId])
+
+  return {
+    data: receipt,
+    isLoading: listQuery.isLoading && !receipt,
+    isError: listQuery.isError && !receipt,
+    error: listQuery.error,
+    refetch: listQuery.refetch,
+    isFetching: listQuery.isFetching,
+  }
 }

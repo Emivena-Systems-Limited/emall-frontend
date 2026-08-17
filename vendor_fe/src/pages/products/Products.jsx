@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import { Link, useNavigate } from 'react-router'
 import { PackagePlus } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
@@ -30,8 +31,10 @@ import { exportProductsToExcel } from '../../utils/exportProductCatalog'
 import { buildCatalogFilterOptions, filterProductCatalog, sortCatalogProductsLatestFirst } from '../../utils/productCatalogFilters'
 import { getProductStatusActionCopy } from '../../utils/productStatusActions'
 import { toCatalogProduct } from '../../services/productService'
+import { setProductsListed } from '../../store/slices/vendorMetricsSlice'
 
 export default function Products() {
+  const dispatch = useDispatch()
   const navigate = useNavigate()
   const { data: products = [], isLoading, isError, refetch } = useProducts()
   const deleteProductsMutation = useDeleteProductsMutation()
@@ -54,6 +57,12 @@ export default function Products() {
   )
 
   const summary = useMemo(() => getCatalogSummary(products), [products])
+
+  useEffect(() => {
+    if (!isLoading && !isError) {
+      dispatch(setProductsListed(products.length))
+    }
+  }, [dispatch, isError, isLoading, products.length])
 
   const filteredProducts = useMemo(
     () => sortCatalogProductsLatestFirst(

@@ -88,9 +88,10 @@ function DimensionInput({ formik, id, label, unit }) {
 
 /** SKU, barcode, weight/dimensions, and description — used as a standalone step in the variant detail flow. */
 export default function VariantIdentitySection({ formik, step }) {
-  const descriptionLength = formik.values.description?.length ?? 0
-  const nearLimit = descriptionLength >= VARIANT_DESCRIPTION_MAX_LENGTH * 0.9
-  const atLimit = descriptionLength >= VARIANT_DESCRIPTION_MAX_LENGTH
+  // Used by Value description (commented out below)
+  // const descriptionLength = formik.values.description?.length ?? 0
+  // const nearLimit = descriptionLength >= VARIANT_DESCRIPTION_MAX_LENGTH * 0.9
+  // const atLimit = descriptionLength >= VARIANT_DESCRIPTION_MAX_LENGTH
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
@@ -114,9 +115,10 @@ export default function VariantIdentitySection({ formik, step }) {
           onBlur={formik.handleBlur}
           error={svFieldError(formik, 'sku')}
         />
-        <BarcodeField formik={formik} />
+        {/* <BarcodeField formik={formik} /> */}
       </div>
 
+      {/* Package dimensions (optional)
       <div className="mt-5 border-t border-slate-100 pt-5">
         <div className="mb-3 flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
@@ -137,7 +139,9 @@ export default function VariantIdentitySection({ formik, step }) {
           Used for accurate shipping estimates. Leave blank to inherit the base product's shipping weight.
         </p>
       </div>
+      */}
 
+      {/* Value description Optional
       <div className="mt-5 border-t border-slate-100 pt-5" data-field="description">
         <div className="mb-1.5 flex items-baseline justify-between gap-2">
           <label htmlFor="description" className="text-sm font-semibold text-slate-800">
@@ -164,6 +168,7 @@ export default function VariantIdentitySection({ formik, step }) {
         />
         {svFieldError(formik, 'description') && <FieldError message={svFieldError(formik, 'description')} />}
       </div>
+      */}
     </div>
   )
 }

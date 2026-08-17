@@ -36,7 +36,7 @@ export default function ProfilePhoneInput({
           type="tel"
           value={localNumber}
           onChange={(event) => onLocalNumberChange(event.target.value)}
-          placeholder="24 XXX XXXX"
+          placeholder="50085941 or 050085941"
           disabled={disabled}
           error={error}
         />

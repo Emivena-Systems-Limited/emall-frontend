@@ -3,7 +3,8 @@ import { KeyRound, Loader2 } from 'lucide-react'
 import PasswordInput from '../auth/PasswordInput'
 import PasswordStrengthBar from '../auth/PasswordStrengthBar'
 import notify from '../../lib/notify'
-import { validateChangePasswordForm } from '../../utils/profileFormUtils'
+import { parseApiError } from '../../utils/parseApiError'
+import { mapPasswordChangeFieldErrors, validateChangePasswordForm } from '../../utils/profileFormUtils'
 import ProfileSectionCard from './ProfileSectionCard'
 
 const EMPTY_FORM = {
@@ -41,12 +42,15 @@ export default function ChangePasswordPanel({
       await onChangePassword({
         currentPassword: form.currentPassword,
         password: form.password,
+        passwordConfirmation: form.passwordConfirmation,
       })
-      notify.success('Password changed successfully.')
-      setForm(EMPTY_FORM)
-      setErrors({})
-    } catch {
-      notify.error('Unable to change password. Please try again.')
+    } catch (error) {
+      const { fieldErrors } = parseApiError(error, 'Unable to change password. Please try again.')
+      const nextFieldErrors = mapPasswordChangeFieldErrors(fieldErrors)
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setErrors((current) => ({ ...current, ...nextFieldErrors }))
+      }
+      notify.fromError(error, 'Unable to change password. Please try again.')
     }
   }
 

@@ -1,13 +1,12 @@
 export const PROFILE_ENDPOINTS = {
   PROFILE: '/api/vendor/profile',
+  UPDATE_INFORMATION: '/api/vendor/update/information',
+  updateAddress: (addressId) => `/api/vendor/update/address/${addressId}`,
   BUSINESS: '/api/vendor/profile/business',
-  BANK: '/api/vendor/profile/bank-details',
   DOCUMENTS: '/api/vendor/profile/documents',
   DOCUMENT: (documentId) => `/api/vendor/profile/documents/${documentId}`,
   VERIFICATION: '/api/vendor/profile/verification',
   AVATAR: '/api/vendor/profile/avatar',
-  PASSWORD: '/api/vendor/profile/password',
-  SUMMARY: '/api/vendor/profile/summary',
 }
 
 export const PROFILE_TABS = [

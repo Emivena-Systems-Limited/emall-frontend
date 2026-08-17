@@ -4,13 +4,14 @@ import Images from '../../utils/Images'
 
 export default function LandingHeroSection() {
   return (
-    <section className={`border-b border-slate-200/70 ${landingHeroBgClass}`}>
+    <section className={`overflow-hidden border-b border-slate-200/70 ${landingHeroBgClass}`}>
       <div
-        className={`${landingContainerClass} grid gap-10 py-10 sm:gap-12 sm:py-12 lg:grid-cols-2 lg:items-center lg:gap-16 lg:py-14 xl:py-16`}
+        className={`${landingContainerClass} grid gap-10 pt-6 pb-4 sm:gap-12 sm:pt-8 sm:pb-6 lg:grid-cols-[1fr_1.2fr] lg:items-start lg:gap-10 lg:pt-8 lg:pb-0`}
       >
         <div className="order-2 flex flex-col justify-center lg:order-1">
           <h1 className="text-[2rem] font-bold leading-tight tracking-tight sm:text-4xl md:text-[2.85rem] lg:text-[3.5rem]">
-            <span className="block text-slate-950">Start selling on EZ-Mall</span>
+            <span className="block text-slate-950">Start selling on</span>
+            <span className="block text-slate-950">EZ-Mall</span>
             <span className="mt-2 block text-brand sm:mt-2.5">
               Reach customers across Ghana.
             </span>
@@ -40,23 +41,12 @@ export default function LandingHeroSection() {
           </p>
         </div>
 
-        <div className="order-1 lg:order-2">
-          <div className="relative mx-auto w-full max-w-md lg:mx-0 lg:max-w-none">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -inset-3 rounded-[1.75rem] bg-brand/8 blur-2xl sm:-inset-4 sm:rounded-4xl"
-            />
-
-            <article className="relative overflow-hidden rounded-[1.75rem] bg-white p-3 shadow-[0_22px_55px_rgba(15,23,42,0.10)] ring-1 ring-slate-200/90 sm:rounded-4xl sm:p-4">
-              <div className="overflow-hidden rounded-2xl bg-[#F6F6F8] ring-1 ring-slate-100">
-                <img
-                  src={Images.auth.signupHero}
-                  alt="Sell your products on EZ-Mall"
-                  className="aspect-[1.08] w-full object-cover object-center sm:aspect-[1.12]"
-                />
-              </div>
-            </article>
-          </div>
+        <div className="order-1 lg:order-2 lg:-mb-16 xl:-mb-24">
+          <img
+            src={Images.common.hero_img}
+            alt="Sell your products on EZ-Mall"
+            className="mx-auto -mt-2 h-[22rem] w-full max-w-xl object-contain object-top sm:-mt-3 sm:h-[28rem] lg:mx-0 lg:-mt-4 lg:h-[38rem] lg:max-w-none lg:scale-110 lg:origin-top xl:h-[44rem]"
+          />
         </div>
       </div>
     </section>

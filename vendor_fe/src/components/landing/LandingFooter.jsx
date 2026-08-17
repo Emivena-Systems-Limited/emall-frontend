@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
-import { Store } from 'lucide-react'
 import { landingFooterGroups } from '../../constants/landingPageData'
 import { landingContainerClass } from '../../constants/landingLayout'
+import LandingLogo from './LandingLogo'
 
 function FooterLink({ href, label }) {
   const isHash = href.startsWith('#')
@@ -44,22 +44,13 @@ export default function LandingFooter() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_2fr] lg:gap-14">
 
           <div>
-            <Link to="/" className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-90">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-white shadow-sm shadow-brand/30">
-                <Store className="size-5" strokeWidth={1.75} />
-              </span>
-              <span className="text-lg font-semibold tracking-tight">EZ-Mall Vendor</span>
-            </Link>
+            <LandingLogo variant="dark" imgClassName="h-16 w-auto max-w-none object-contain object-left sm:h-20" />
 
             <p className="mt-4 max-w-xs text-sm leading-6 text-white/55">
               A trusted marketplace for vendors across Ghana — list products, manage orders, and grow your business online.
             </p>
 
-            <div className="mt-6 flex items-center gap-2">
-              <span className="rounded-full bg-brand/20 px-3 py-1 text-[11px] font-semibold text-brand ring-1 ring-brand/25">
-                Ghana · 2026
-              </span>
-            </div>
+            
           </div>
 
           <div className="grid grid-cols-2 gap-8 sm:col-span-1 sm:grid-cols-2 lg:col-span-1 lg:grid-cols-3">

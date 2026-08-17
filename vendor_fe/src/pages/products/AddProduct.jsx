@@ -29,17 +29,11 @@ import ProductImageEditChangeSummary from '../../components/products/ProductImag
 import AttributeIcon from '../../components/variants/AttributeIcon'
 import AttributeTypePicker from '../../components/variants/AttributeTypePicker'
 import CardStepHeader from '../../components/variants/CardStepHeader'
-import VariantDetailsDrawer from '../../components/variants/VariantDetailsDrawer'
+import VariantAccordionCard from '../../components/variants/VariantAccordionCard'
+import VariantGroupActionBar from '../../components/variants/VariantGroupActionBar'
 import VariantReviewCard from '../../components/variants/VariantReviewCard'
-import VariantValueDraftCard from '../../components/variants/VariantValueDraftCard'
-import VariantValuesInput from '../../components/variants/VariantValuesInput'
 import { isPresetAttribute } from '../../components/variants/variantConstants'
-import {
-  EMPTY_VARIANT_VALUES,
-  getVariantValuesHint,
-  getVariantValuesInputPlaceholder,
-  toVariantFormValues,
-} from '../../components/variants/variantFormUtils'
+import { getSingleVariantValuePlaceholder, parseMultiValues } from '../../components/variants/variantFormUtils'
 import DevProductFormTools from '../../components/products/DevProductFormTools'
 import ProductTagInput from '../../components/products/ProductTagInput'
 import SearchableSelect from '../../components/auth/SearchableSelect'
@@ -411,6 +405,7 @@ export function InfoStep({
           customPlaceholder="Enter your brand name…"
           customEntryLabel="Add a custom brand…"
           customSubmitLabel="Save brand"
+          customEntityName="brand"
           onCustomSubmit={handleCustomBrandSubmit}
           isCustomSubmitting={createBrandMutation.isPending}
           onChange={(e) => {
@@ -832,9 +827,10 @@ function scrollToSavedVariationValues(target) {
   })
 }
 
-/** Add-variations step for the create/edit product wizard: build option types (Color, Size…) with values,
- *  then fill in photo, price & stock for each value via the same drawer used on the product's variants page.
- *  Nothing is saved to the server here — everything lives in the product form until the whole listing is submitted. */
+/** Add-variations step for the create/edit product wizard: pick an option type (Color, Size…),
+ *  then type each value — it opens as its own accordion card right away so photo, price & stock
+ *  can be filled in inline. Nothing is saved to the server here — everything lives in the product
+ *  form until the whole listing is submitted. */
 export function VariationsStep({ formik, parentCategories, categoryTree }) {
   const groups = formik.values.variations
   const catalogContext = buildVariationCatalogContext({
@@ -847,67 +843,96 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
   const [buildingAttribute, setBuildingAttribute] = useState('')
   const [showCustomAttribute, setShowCustomAttribute] = useState(false)
   const [attributeError, setAttributeError] = useState('')
-  const [pendingValues, setPendingValues] = useState([])
+  const [valueInput, setValueInput] = useState('')
   const [valuesError, setValuesError] = useState('')
-  const [editingId, setEditingId] = useState(null)
+  const [openValueIds, setOpenValueIds] = useState(() => new Set())
+  const [customPriceIds, setCustomPriceIds] = useState(() => new Set())
   const savedValuesRef = useRef(null)
 
   const activeAttribute = buildingAttribute.trim()
 
-  const findValueLocation = (id) => {
-    for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-      const valueIndex = groups[groupIndex].values.findIndex((item) => item.id === id)
-      if (valueIndex >= 0) return { groupIndex, valueIndex }
-    }
-    return null
+  const toggleValueOpen = (id) => {
+    setOpenValueIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleCustomPrice = (id, next) => {
+    setCustomPriceIds((prev) => {
+      const nextSet = new Set(prev)
+      if (next) nextSet.add(id)
+      else nextSet.delete(id)
+      return nextSet
+    })
   }
 
   const resetBuildingForm = () => {
     setBuildingAttribute('')
     setShowCustomAttribute(false)
-    setPendingValues([])
+    setValueInput('')
     setAttributeError('')
     setValuesError('')
   }
 
-  const handleAddOptionGroup = () => {
+  const addValue = (rawValue) => {
+    const trimmed = rawValue.trim()
+    if (!trimmed) return
     if (!activeAttribute) {
       setAttributeError('Choose or enter an option type to continue')
       return
     }
-    if (pendingValues.length === 0) {
-      setValuesError('Add at least one value, then click Add Attribute')
-      return
-    }
 
-    setAttributeError('')
-    setValuesError('')
-
+    const key = trimmed.toLowerCase()
     const existingIndex = groups.findIndex(
       (group) => group.attribute.toLowerCase() === activeAttribute.toLowerCase(),
     )
     const existingValuesLower = existingIndex >= 0
       ? new Set(groups[existingIndex].values.map((item) => item.value.toLowerCase()))
       : new Set()
-    const newValueObjects = pendingValues
-      .filter((text) => !existingValuesLower.has(text.toLowerCase()))
-      .map((text) => createVariantValue(text))
+    if (existingValuesLower.has(key)) {
+      setValuesError(`"${trimmed}" was already added for ${activeAttribute}`)
+      return
+    }
+
+    setAttributeError('')
+    setValuesError('')
+
+    const newValue = createVariantValue(trimmed)
 
     if (existingIndex >= 0) {
       formik.setFieldValue(`variations.${existingIndex}.values`, [
         ...groups[existingIndex].values,
-        ...newValueObjects,
+        newValue,
       ])
     } else {
       formik.setFieldValue('variations', [
         ...groups,
-        { id: createVariantGroupId(), attribute: activeAttribute, values: newValueObjects },
+        { id: createVariantGroupId(), attribute: activeAttribute, values: [newValue] },
       ])
     }
     formik.setFieldError('variations', undefined)
-
-    resetBuildingForm()
+    setOpenValueIds((prev) => new Set(prev).add(newValue.id))
     scrollToSavedVariationValues(savedValuesRef.current)
+  }
+
+  const commitValueInput = () => {
+    if (!valueInput.trim()) return
+    if (valueInput.includes(',')) {
+      parseMultiValues(valueInput).forEach(addValue)
+    } else {
+      addValue(valueInput)
+    }
+    setValueInput('')
+  }
+
+  const handleValueInputKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault()
+      commitValueInput()
+    }
   }
 
   const handleRemoveValue = async (id) => {
@@ -920,7 +945,6 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
 
     await formik.setFieldValue('variations', nextGroups, true)
     formik.setFieldError('variations', undefined)
-    if (editingId === id) setEditingId(null)
   }
 
   const handleRemoveGroup = async (groupIndex) => {
@@ -928,26 +952,6 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
     await formik.setFieldValue('variations', nextGroups, true)
     formik.setFieldError('variations', undefined)
   }
-
-  const handleDrawerSave = async (variantFormValues) => {
-    const location = findValueLocation(editingId)
-    if (!location) return
-    const { groupIndex, valueIndex } = location
-    const current = groups[groupIndex].values[valueIndex]
-    formik.setFieldValue(`variations.${groupIndex}.values.${valueIndex}`, {
-      ...current,
-      ...variantFormValues,
-      id: current.id,
-    })
-    setEditingId(null)
-  }
-
-  const editingLocation = editingId ? findValueLocation(editingId) : null
-  const editingGroup = editingLocation ? groups[editingLocation.groupIndex] : null
-  const editingValue = editingLocation ? editingGroup.values[editingLocation.valueIndex] : null
-  const drawerInitialValues = editingValue
-    ? toVariantFormValues(editingValue, editingGroup.attribute)
-    : EMPTY_VARIANT_VALUES
 
   const totalValues = groups.reduce((count, group) => count + group.values.length, 0)
   const readyCount = groups.reduce(
@@ -960,6 +964,11 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
     && (formik.touched.variations || formik.submitCount > 0)
     ? formik.errors.variations
     : ''
+
+  const activeGroup = groups.find(
+    (group) => group.attribute.toLowerCase() === activeAttribute.toLowerCase(),
+  )
+  const activeGroupHasValues = (activeGroup?.values?.length ?? 0) > 0
 
   return (
     <div className="space-y-6">
@@ -987,12 +996,12 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
 
       {totalValues > 0 && <ParentPricingBanner values={formik.values} />}
 
-      {/* Build a new option type */}
+      {/* Choose option type + add values */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
         <CardStepHeader
           step={1}
           title="Add option types & values"
-          subtitle="Set up one or more option types (Color, Size, Material…). Each type gets its own values before you fill in photos, price & stock."
+          subtitle="Pick an option type (Color, Size, Material…), then type each value — Black, Red, Blue — and fill in its details right on the card."
         />
 
         <AttributeTypePicker
@@ -1020,45 +1029,40 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
         />
         {attributeError && <p className="mt-2 text-xs font-semibold text-red-600">{attributeError}</p>}
 
-        {activeAttribute ? (
+        {activeAttribute && !activeGroupHasValues ? (
           <div className="mt-5 border-t border-slate-100 pt-5">
-            <VariantValuesInput
-              values={pendingValues}
-              onChange={(next) => {
-                setPendingValues(next)
-                setValuesError('')
-              }}
-              label={`${activeAttribute} value(s)`}
-              hint={getVariantValuesHint(activeAttribute)}
-              placeholder={getVariantValuesInputPlaceholder(activeAttribute)}
-              error={valuesError}
-            />
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              {groups.length > 0 && (
-                <button
-                  type="button"
-                  onClick={resetBuildingForm}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:border-slate-300"
-                >
-                  Clear form
-                </button>
-              )}
+            <label className="mb-1.5 block text-sm font-semibold text-slate-800">
+              Add a {activeAttribute.toLowerCase()} value
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={valueInput}
+                onChange={(event) => setValueInput(event.target.value)}
+                onKeyDown={handleValueInputKeyDown}
+                onBlur={commitValueInput}
+                placeholder={getSingleVariantValuePlaceholder(activeAttribute)}
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
+              />
               <button
                 type="button"
-                onClick={handleAddOptionGroup}
-                disabled={pendingValues.length === 0}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={commitValueInput}
+                disabled={!valueInput.trim()}
+                className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="size-4" />
-                Add Attribute
-                {pendingValues.length > 0 ? ` (${pendingValues.length} value${pendingValues.length === 1 ? '' : 's'})` : ''}
+                Add value
               </button>
             </div>
+            {valuesError && <p className="mt-2 text-xs font-semibold text-red-600">{valuesError}</p>}
+            <p className="mt-2 text-[11px] text-slate-400">
+              Press Enter or comma after each value, or paste several at once — e.g. Black, Red, Blue.
+            </p>
           </div>
         ) : null}
       </div>
 
-      {/* All added option groups */}
+      {/* All added option groups, each value as its own accordion card */}
       <div ref={savedValuesRef} className="scroll-mt-6" data-field="variations">
         {groups.length > 0 ? (
           <div className="space-y-6">
@@ -1081,6 +1085,29 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
 
             {groups.map((group, groupIndex) => {
               const groupReady = group.values.filter(isVariantValueReady).length
+              const isActiveGroup = activeAttribute
+                && group.attribute.toLowerCase() === activeAttribute.toLowerCase()
+              const cards = group.values.map((value, valueIndex) => (
+                <VariantAccordionCard
+                  key={value.id}
+                  idPrefix={`variation-${groupIndex}-${valueIndex}`}
+                  attribute={group.attribute}
+                  values={value}
+                  onFieldChange={(field, fieldValue) => (
+                    formik.setFieldValue(`variations.${groupIndex}.values.${valueIndex}.${field}`, fieldValue)
+                  )}
+                  isCustomPrice={customPriceIds.has(value.id)}
+                  onToggleCustomPrice={(next) => toggleCustomPrice(value.id, next)}
+                  productValues={formik.values}
+                  mainQty={formik.values.quantity ? Number(formik.values.quantity) : null}
+                  isOpen={openValueIds.has(value.id)}
+                  onToggle={() => toggleValueOpen(value.id)}
+                  onRemove={() => handleRemoveValue(value.id)}
+                  removeLabel={`Remove ${value.value}`}
+                  error={getVariantValueErrorMessage(formik, groupIndex, valueIndex)}
+                />
+              ))
+
               return (
                 <div key={group.id} className="space-y-3">
                   <div className="flex items-center gap-3">
@@ -1103,22 +1130,31 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                       <Trash2 className="size-3.5" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {group.values.map((value, valueIndex) => (
-                      <VariantValueDraftCard
-                        key={value.id}
-                        dataField={`variations.${groupIndex}.values.${valueIndex}`}
-                        attribute={group.attribute}
-                        value={value.value}
-                        productValues={formik.values}
-                        persistedEntry={isVariantValueReady(value) ? { variantValue: value } : null}
-                        error={getVariantValueErrorMessage(formik, groupIndex, valueIndex)}
-                        onEdit={() => setEditingId(value.id)}
-                        onRemove={() => handleRemoveValue(value.id)}
-                        isRemoving={false}
-                      />
-                    ))}
-                  </div>
+
+                  {isActiveGroup ? (
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                      <div className="space-y-3 px-4 py-4 sm:px-5">{cards}</div>
+                      <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
+                        <VariantGroupActionBar
+                          attribute={group.attribute}
+                          valueInput={valueInput}
+                          onValueInputChange={(event) => setValueInput(event.target.value)}
+                          onValueInputKeyDown={handleValueInputKeyDown}
+                          onCommitValue={commitValueInput}
+                          valuesError={valuesError}
+                        />
+                        <button
+                          type="button"
+                          onClick={resetBuildingForm}
+                          className="mt-3 inline-flex cursor-pointer items-center gap-1 text-xs font-bold text-slate-500 transition-colors hover:text-slate-700"
+                        >
+                          Done with {group.attribute} — add a different option type
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">{cards}</div>
+                  )}
                 </div>
               )
             })}
@@ -1130,24 +1166,13 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
             </span>
             <p className="text-sm font-semibold text-slate-700">No custom options yet</p>
             <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-500">
-              Pick a type above, add values, then click <strong>Add Attribute</strong>. Or skip this step —
+              Pick a type above, then type a value and press Enter to add it. Or skip this step —
               we&apos;ll auto-create <strong>{defaultVariationLabel}</strong> from your listing details
               and main photo.
             </p>
           </div>
         )}
       </div>
-
-      <VariantDetailsDrawer
-        open={Boolean(editingId)}
-        attribute={editingGroup?.attribute ?? ''}
-        value={editingValue?.value ?? null}
-        initialValues={drawerInitialValues}
-        productValues={formik.values}
-        onClose={() => setEditingId(null)}
-        onSave={handleDrawerSave}
-        isSaving={false}
-      />
     </div>
   )
 }

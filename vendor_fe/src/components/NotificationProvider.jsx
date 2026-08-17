@@ -9,7 +9,7 @@ export default function NotificationProvider() {
       duration={4000}
       toastOptions={{
         style: {
-          fontFamily: '"Instrument Sans", sans-serif',
+          fontFamily: '"Onest", sans-serif',
         },
       }}
     />

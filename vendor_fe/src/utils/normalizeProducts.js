@@ -236,12 +236,17 @@ export function getProductPaginationMeta(body) {
   const payload = envelope?.data
 
   if (!payload || Array.isArray(payload) || payload.id) {
-    return { lastPage: 1, currentPage: 1 }
+    return {
+      lastPage: 1,
+      currentPage: 1,
+      total: Array.isArray(payload) ? payload.length : payload?.id ? 1 : 0,
+    }
   }
 
   return {
-    lastPage: payload.last_page ?? 1,
-    currentPage: payload.current_page ?? 1,
+    lastPage: Number(payload.last_page ?? payload.lastPage ?? 1),
+    currentPage: Number(payload.current_page ?? payload.currentPage ?? 1),
+    total: payload.total == null ? null : Number(payload.total),
   }
 }
 

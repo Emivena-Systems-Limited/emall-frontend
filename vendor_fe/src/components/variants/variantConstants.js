@@ -1,5 +1,5 @@
 export const ATTRIBUTE_PRESETS = ['Color', 'Size', 'Material', 'Weight', 'Style', 'Capacity', 'Flavor']
-export const CUSTOM_ATTRIBUTE_LABEL = 'Custom attribute'
+export const CUSTOM_ATTRIBUTE_LABEL = 'My own option type'
 
 export function isPresetAttribute(attribute = '') {
   return ATTRIBUTE_PRESETS.includes(attribute)

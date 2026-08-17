@@ -21,6 +21,7 @@ import {
   getProductStatusActionCopy,
 } from '../../utils/productStatusActions'
 import { getUniqueOrderProducts } from '../../utils/orderProductNavigation'
+import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNavigation'
 
 // Reactivate later — listing status banner (API `status`, e.g. pending_approval)
 // function formatApiStatusLabel(status) {
@@ -38,6 +39,8 @@ export default function ViewProduct() {
   const navigate = useNavigate()
   const location = useLocation()
   const orderId = searchParams.get('orderId')
+  const ordersReturnTo = resolveOrdersReturnTo(location)
+  const ordersReturnLabel = getOrdersReturnLabel(ordersReturnTo)
   const linkedOrder = orderId ? getOrderById(orderId) : null
   const orderProducts = linkedOrder ? getUniqueOrderProducts(linkedOrder) : []
   const { data: rawRecord, isLoading, isError, refetch } = useProduct(productId)
@@ -135,12 +138,11 @@ export default function ViewProduct() {
       <div className="page-enter space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
-            to={orderId ? `/orders/${orderId}` : '/products'}
-            state={orderId ? location.state : undefined}
+            to={orderId ? ordersReturnTo : '/products'}
             className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800"
           >
             <ArrowLeft className="size-4" />
-            {orderId ? 'Back to order' : 'All Products'}
+            {orderId ? ordersReturnLabel : 'All Products'}
           </Link>
 
           {orderId && orderProducts.length > 1 && (

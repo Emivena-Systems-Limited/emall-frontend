@@ -3,7 +3,7 @@ import { ProductInput } from '../products/ProductFormControls'
 import AttributeIcon from './AttributeIcon'
 import { ATTRIBUTE_PRESETS, CUSTOM_ATTRIBUTE_LABEL } from './variantConstants'
 
-/** Attribute type chips + collapsible custom attribute input, shared by the single-variant form and the add-variant flow. */
+/** Option type chips + collapsible custom option type input, shared by the single-variant form and the add-variant flow. */
 export default function AttributeTypePicker({
   value,
   showCustom,
@@ -66,7 +66,7 @@ export default function AttributeTypePicker({
                 type="button"
                 onClick={onCloseCustom}
                 className="inline-flex cursor-pointer items-center justify-center rounded-lg p-1 text-rose-400 transition-colors hover:bg-rose-100 hover:text-rose-700"
-                aria-label="Close custom attribute input"
+                aria-label="Close custom option type input"
               >
                 <X className="size-3.5" />
               </button>
@@ -74,7 +74,7 @@ export default function AttributeTypePicker({
             <ProductInput
               id="attribute"
               name="attribute"
-              label="Attribute name"
+              label="Option type name"
               hint="e.g. Voltage, Finish, Fragrance"
               placeholder="e.g. Material"
               value={value}
