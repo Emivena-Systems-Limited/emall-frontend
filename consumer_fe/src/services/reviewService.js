@@ -4,6 +4,7 @@ export const REVIEWS_ENDPOINTS = {
   REVIEWS: '/review/reviews',
   CREATE: '/review/store',
   ELIGIBLE_ITEMS: '/review/reviews/eligible-items',
+  PRODUCT_REVIEWS: (productId) => `/review/${encodeURIComponent(productId)}/product`,
   REVIEW: (id) => `/review/reviews/${encodeURIComponent(id)}`,
   MEDIA: (id) => `/review/reviews/${encodeURIComponent(id)}/media`,
   MEDIA_ITEM: (reviewId, mediaId) =>
@@ -43,6 +44,39 @@ export async function getEligibleReviewItems() {
     skipAuthLogout: true,
   })
   return normalizeList(data, ['eligible_items', 'order_items'])
+}
+
+export async function getProductReviews(productId) {
+  const id = String(productId ?? '').trim()
+  if (!id) throw new Error('Product ID is required to load product reviews')
+
+  const { data } = await apiClient.get(REVIEWS_ENDPOINTS.PRODUCT_REVIEWS(id), {
+    skipAuthLogout: true,
+  })
+  const payload = unwrap(data)
+  const page = payload?.reviews ?? payload
+  const source = Array.isArray(page?.data) ? page.data : page
+  const reviews = Array.isArray(source)
+    ? source.flat(Infinity).filter((item) => item && typeof item === 'object')
+    : []
+  const averageRating = reviews.length
+    ? reviews.reduce((total, review) => total + Number(review?.rating ?? 0), 0) / reviews.length
+    : 0
+
+  return {
+    reviews,
+    reviewCount: page?.total
+      ?? payload?.reviews_count
+      ?? payload?.review_count
+      ?? payload?.total_reviews
+      ?? reviews.length,
+    averageRating: page?.average_rating
+      ?? payload?.average_rating
+      ?? payload?.avg_rating
+      ?? payload?.rating
+      ?? averageRating,
+    ratingDistribution: payload?.rating_distribution ?? payload?.distribution ?? null,
+  }
 }
 
 export async function getReview(reviewId) {

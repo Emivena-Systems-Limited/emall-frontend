@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import {
   ChevronLeft,
@@ -18,13 +18,16 @@ import ProductImageGallery from '../components/product/ProductImageGallery'
 import AddedToCartFlyout from '../components/product/AddedToCartFlyout'
 import KeyDetailsModal from '../components/product/KeyDetailsModal'
 import ProductDetailsSkeleton from '../components/product/ProductDetailsSkeleton'
+import ProductReviewsModal from '../components/product/ProductReviewsModal'
 import ImageLightbox from '../components/shared/ImageLightbox'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
+import { getProductReviews } from '../services/reviewService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
 import { notify } from '../lib/notify'
+import { addToWishlist, removeFromWishlist } from '../services/wishlistService'
 import { useCartActions } from '../hooks/useCartActions'
 import { useOptionalMiniCart } from '../context/MiniCartContext'
 import { buildCartItem, selectCartItems } from '../store/slices/cartSlice'
@@ -329,121 +332,6 @@ async function shareProduct(product) {
     }
   }
 }
-
-const SIDEBAR_REVIEW_LIMIT_MAX = 5
-const SIDEBAR_REVIEW_CARD_ESTIMATE_PX = 92
-
-function useDynamicReviewListLimit(listRef, enabled, totalReviews) {
-  const maxReviews = Math.min(totalReviews, SIDEBAR_REVIEW_LIMIT_MAX)
-  const [limit, setLimit] = useState(() => Math.min(2, maxReviews))
-
-  const syncLimit = useCallback(() => {
-    const listEl = listRef.current
-    if (!listEl || !enabled || maxReviews === 0) return
-
-    const availableHeight = listEl.clientHeight
-    if (availableHeight <= 0) return
-
-    const cards = listEl.querySelectorAll('[data-review-card]')
-    const cardStride = cards.length > 0
-      ? cards[0].offsetHeight + 12
-      : SIDEBAR_REVIEW_CARD_ESTIMATE_PX
-
-    let nextLimit = Math.max(
-      1,
-      Math.min(maxReviews, Math.floor(availableHeight / cardStride)),
-    )
-
-    if (cards.length > 0) {
-      let usedHeight = 0
-      let fitCount = 0
-
-      cards.forEach((card, index) => {
-        const blockHeight = card.offsetHeight + (index > 0 ? 12 : 0)
-        if (usedHeight + blockHeight <= availableHeight + 1) {
-          usedHeight += blockHeight
-          fitCount += 1
-        }
-      })
-
-      if (fitCount < cards.length) {
-        nextLimit = Math.max(1, fitCount)
-      }
-    }
-
-    setLimit((current) => (current === nextLimit ? current : nextLimit))
-  }, [enabled, listRef, maxReviews])
-
-  useLayoutEffect(() => {
-    if (!enabled) return undefined
-
-    let frameId = 0
-    const scheduleSync = () => {
-      cancelAnimationFrame(frameId)
-      frameId = requestAnimationFrame(syncLimit)
-    }
-
-    scheduleSync()
-
-    const listEl = listRef.current
-    if (!listEl) {
-      return () => cancelAnimationFrame(frameId)
-    }
-
-    const observer = new ResizeObserver(scheduleSync)
-    observer.observe(listEl)
-
-    const sidebar = listEl.closest('[data-product-sidebar]')
-    if (sidebar) observer.observe(sidebar)
-
-    window.addEventListener('resize', scheduleSync)
-    return () => {
-      cancelAnimationFrame(frameId)
-      observer.disconnect()
-      window.removeEventListener('resize', scheduleSync)
-    }
-  }, [enabled, limit, maxReviews, syncLimit, listRef])
-
-  return enabled ? limit : maxReviews
-}
-
-const fallbackReviewCards = [
-  {
-    id: 'review-1',
-    name: 'Isaac Morgan',
-    rating: 5,
-    date: 'Feb 2024',
-    text: 'This item is so durable, I love it.',
-  },
-  {
-    id: 'review-2',
-    name: 'Akua Mensah',
-    rating: 5,
-    date: 'Jan 28, 2026',
-    text: 'Good quality and comfortable to use every day.',
-  },
-  {
-    id: 'review-3',
-    name: 'Kwame Boateng',
-    rating: 4,
-    date: 'Dec 2025',
-    text: 'Arrived quickly and matches the description.',
-  },
-  {
-    id: 'review-4',
-    name: 'Ama Osei',
-    rating: 5,
-    date: 'Nov 2025',
-    text: 'Exactly what I needed. Would buy again.',
-  },
-  {
-    id: 'review-5',
-    name: 'Kofi Adom',
-    rating: 4,
-    date: 'Oct 2025',
-    text: 'Solid build and great value for the price.',
-  },
-]
 
 const fallbackRatingDistribution = [
   { label: 'Small', value: 7 },
@@ -852,10 +740,20 @@ function KeyDetails({ product, activeSku }) {
 }
 
 function ReviewSummary({ product, fillHeight = false }) {
-  const reviewListRef = useRef(null)
-  const totalReviews = product.reviews?.length ?? 0
-  const reviewLimit = useDynamicReviewListLimit(reviewListRef, fillHeight, totalReviews)
-  const visibleReviews = product.reviews.slice(0, reviewLimit)
+  const navigate = useNavigate()
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const [showAllReviews, setShowAllReviews] = useState(false)
+  const reviews = product.reviews ?? []
+  const visibleReviews = reviews.slice(0, 3)
+
+  const handleWriteReview = () => {
+    const destination = '/account/reviews/new'
+    if (isAuthenticated) {
+      navigate(destination)
+      return
+    }
+    navigate('/login', { state: { from: destination } })
+  }
 
   return (
     <section
@@ -866,7 +764,11 @@ function ReviewSummary({ product, fillHeight = false }) {
         <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
         <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
         <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
-        <button className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800" type="button">
+        <button
+          className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
+          type="button"
+          onClick={handleWriteReview}
+        >
           Write a customer review
         </button>
 
@@ -906,9 +808,8 @@ function ReviewSummary({ product, fillHeight = false }) {
       </div>
 
       <div
-        ref={reviewListRef}
         data-review-list
-        className={`space-y-3 overflow-hidden ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}
+        className={`space-y-3 ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}
       >
         {visibleReviews.map((review) => (
           <article key={review.id} data-review-card className="border-t border-slate-200 pt-3">
@@ -929,14 +830,28 @@ function ReviewSummary({ product, fillHeight = false }) {
         ))}
       </div>
 
-      <div
-        data-review-footer
-        className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}
-      >
-        <button type="button" className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800">
-          See All Reviews
-        </button>
-      </div>
+      {reviews.length > 3 && (
+        <div
+          data-review-footer
+          className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}
+        >
+          <button
+            type="button"
+            onClick={() => setShowAllReviews(true)}
+            className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
+          >
+            See All Reviews
+          </button>
+        </div>
+      )}
+
+      <ProductReviewsModal
+        open={showAllReviews}
+        productName={product.title ?? product.name}
+        reviews={reviews}
+        averageRating={product.rating}
+        onClose={() => setShowAllReviews(false)}
+      />
     </section>
   )
 }
@@ -1453,13 +1368,22 @@ function toNumber(value, fallback = 0) {
 function normalizeProductReviews(apiProduct) {
   const reviews = toArray(apiProduct.reviews).map((review, index) => ({
     id: review.id ?? `review-${index + 1}`,
-    name: review.user?.name ?? review.customer_name ?? review.name ?? 'Customer',
+    name: review.user?.name
+      || [review.user?.first_name, review.user?.last_name].filter(Boolean).join(' ')
+      || review.user_name
+      || review.customer_name
+      || review.name
+      || 'Customer',
     rating: toNumber(review.rating ?? review.stars, 5),
     date: formatReviewDate(review.created_at, review.date),
+    title: review.title ?? review.heading ?? '',
     text: review.comment ?? review.review ?? review.message ?? review.text ?? 'Good quality product.',
+    images: toArray(review.media ?? review.review_media ?? review.attachments ?? review.images)
+      .map((media) => media?.url ?? media?.image_url ?? media?.file_url ?? media?.path)
+      .filter(Boolean),
   }))
 
-  return reviews.length ? reviews : fallbackReviewCards
+  return reviews
 }
 
 function formatReviewDate(dateValue, fallback = 'Recent') {
@@ -1572,10 +1496,14 @@ function normalizeApiProductDetails(apiProduct) {
   const explicitReviewCount = apiProduct.reviews_count ?? apiProduct.review_count ?? apiProduct.total_reviews
   const reviewCount = explicitReviewCount !== undefined && explicitReviewCount !== null
     ? toNumber(explicitReviewCount, reviews.length)
-    : core.reviewCount > 0
-      ? core.reviewCount
-      : 91
-  const rating = toNumber(apiProduct.rating ?? apiProduct.average_rating ?? apiProduct.avg_rating ?? core.rating, 4.5)
+    : reviews.length
+  const calculatedRating = reviews.length
+    ? reviews.reduce((total, review) => total + review.rating, 0) / reviews.length
+    : 0
+  const rating = toNumber(
+    apiProduct.rating ?? apiProduct.average_rating ?? apiProduct.avg_rating,
+    calculatedRating,
+  )
 
   const categoryName = apiProduct.category?.category_name || 'General'
   const barcode = getMetadataValue(metadata, 'barcode') || apiProduct.barcode || variants.find((v) => v?.barcode)?.barcode
@@ -1679,6 +1607,13 @@ export default function ProductDetailsPage() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: productReviewData } = useQuery({
+    queryKey: ['product-reviews', apiProductId],
+    queryFn: () => getProductReviews(apiProductId),
+    enabled: Boolean(apiProductId),
+    staleTime: 60 * 1000,
+  })
+
   const isWaitingForLanding = !landingData && (isLandingPending || isLandingFetching)
   const isWaitingForProductDetails = Boolean(apiProductId)
     && !apiProduct
@@ -1689,7 +1624,15 @@ export default function ProductDetailsPage() {
 
   const product = useMemo(() => {
     if (apiProduct && isProductActive(apiProduct)) {
-      return normalizeApiProductDetails(apiProduct)
+      return normalizeApiProductDetails({
+        ...apiProduct,
+        ...(productReviewData ? {
+          reviews: productReviewData.reviews,
+          reviews_count: productReviewData.reviewCount,
+          average_rating: productReviewData.averageRating,
+          rating_distribution: productReviewData.ratingDistribution,
+        } : {}),
+      })
     }
     if (showSkeleton) {
       return null
@@ -1698,7 +1641,7 @@ export default function ProductDetailsPage() {
       return normalizeApiProductDetails(landingProduct)
     }
     return getProductBySlug(slug)
-  }, [apiProduct, landingProduct, showSkeleton, slug])
+  }, [apiProduct, landingProduct, productReviewData, showSkeleton, slug])
 
   const productViewKey = useMemo(() => {
     if (!product) return `loading::${slug}`
@@ -1865,19 +1808,53 @@ function resolveInitialVariantSelections(product) {
 }
 
 function ProductDetailsView({ product, apiProduct, landingData }) {
+  const queryClient = useQueryClient()
   const initialSelections = useMemo(() => resolveInitialVariantSelections(product), [product])
   const [activeImage, setActiveImage] = useState(null)
   const [selectedColor, setSelectedColor] = useState(initialSelections.color)
   const [selectedSize, setSelectedSize] = useState(initialSelections.size)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
   const [isWishlisted, setIsWishlisted] = useState(false)
+  const [wishlistItemId, setWishlistItemId] = useState(null)
 
-  const handleWishlistToggle = () => {
-    setIsWishlisted((current) => {
-      const next = !current
-      notify.success(next ? 'Added to wishlist' : 'Removed from wishlist')
-      return next
-    })
+  const handleWishlistToggle = async () => {
+    const nextState = !isWishlisted
+    setIsWishlisted(nextState)
+
+    const productId = String(apiProduct?.id ?? product.backendId ?? product.id ?? '').trim()
+    const payload = {
+      product_id: productId,
+      product_variant_id: activeVariant?.id ? String(activeVariant.id).trim() : null,
+    }
+
+    try {
+      if (nextState) {
+        const savedItem = await addToWishlist(payload)
+        const normalizedSavedItem = Array.isArray(savedItem)
+          ? savedItem.flat(Infinity).find((item) => item && typeof item === 'object')
+          : savedItem
+        setWishlistItemId(normalizedSavedItem?.id ?? null)
+        await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
+        notify.success('Added to wishlist')
+      } else {
+        if (!wishlistItemId) {
+          throw new Error('The saved wishlist item could not be identified. Refresh your wishlist and try again.')
+        }
+        await removeFromWishlist(wishlistItemId)
+        setWishlistItemId(null)
+        await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
+        notify.success('Removed from wishlist')
+      }
+    } catch (err) {
+      setIsWishlisted(!nextState)
+      notify.fromError(err, nextState ? 'Failed to add item to wishlist' : 'Failed to remove item from wishlist')
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[wishlist] API call failed:',
+          err?.response?.data ? JSON.stringify(err.response.data) : err?.message || err,
+        )
+      }
+    }
   }
 
   const compatibleModelOptions = useMemo(

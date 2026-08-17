@@ -116,7 +116,24 @@ function normalizeApiReview(item, index) {
     else status = status.charAt(0).toUpperCase() + status.slice(1)
   }
 
-  const image = item.image_url || item.imageUrl || item.image || item.product?.image || kitchenImage
+  const productImages = Array.isArray(item.product?.images) ? item.product.images : []
+  const primaryProductImage =
+    productImages.find((entry) => entry?.is_primary) ?? productImages[0]
+  const nestedPrimaryImage = item.product?.primary_image
+  const image =
+    item.image_url ||
+    item.imageUrl ||
+    item.image ||
+    item.product_image?.image_url ||
+    (typeof nestedPrimaryImage === 'string'
+      ? nestedPrimaryImage
+      : nestedPrimaryImage?.image_url ?? nestedPrimaryImage?.url) ||
+    primaryProductImage?.image_url ||
+    primaryProductImage?.url ||
+    item.product?.image_url ||
+    item.product?.image ||
+    kitchenImage
+  const productSlug = item.product?.slug || item.product_slug || null
 
   return {
     id,
@@ -129,6 +146,7 @@ function normalizeApiReview(item, index) {
     body,
     status,
     image,
+    productHref: productSlug ? `/${productSlug}` : null,
     raw: item,
   }
 }
@@ -381,13 +399,32 @@ function ReviewsList() {
             >
               <div className="flex flex-col gap-5 xl:flex-row">
                 <div className="flex min-w-0 gap-4 xl:w-64 xl:shrink-0">
-                  <img
-                    src={review.image}
-                    alt=""
-                    className="size-20 shrink-0 rounded-xl border border-slate-100 object-cover sm:size-24"
-                  />
+                  {review.productHref ? (
+                    <Link to={review.productHref} className="shrink-0">
+                      <img
+                        src={review.image}
+                        alt={review.product}
+                        className="size-20 rounded-xl border border-slate-100 object-cover sm:size-24"
+                      />
+                    </Link>
+                  ) : (
+                    <img
+                      src={review.image}
+                      alt={review.product}
+                      className="size-20 shrink-0 rounded-xl border border-slate-100 object-cover sm:size-24"
+                    />
+                  )}
                   <div className="min-w-0">
-                    <h3 className="font-bold text-slate-950">{review.product}</h3>
+                    <h3
+                      title={review.product}
+                      className="line-clamp-3 font-bold leading-6 text-slate-950"
+                    >
+                      {review.productHref ? (
+                        <Link to={review.productHref} className="hover:text-auth-primary hover:underline">
+                          {review.product}
+                        </Link>
+                      ) : review.product}
+                    </h3>
                     <p className="mt-1 text-xs text-slate-500">{review.variant}</p>
                     <p className="mt-3 text-[0.68rem] font-semibold text-slate-500">
                       Order #{review.order}
