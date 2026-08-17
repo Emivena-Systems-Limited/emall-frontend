@@ -72,7 +72,7 @@
 
 .receipt-sheet__status-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
   margin-top: 1rem;
   padding: 0.625rem 0.75rem;
@@ -102,6 +102,10 @@
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
   padding: 0.75rem 10mm 0.5rem;
+}
+
+.receipt-sheet__addresses--single {
+  grid-template-columns: 1fr;
 }
 
 .receipt-sheet__section-title {

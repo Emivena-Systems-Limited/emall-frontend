@@ -414,8 +414,6 @@ function resolveDeliveryMethod(record) {
   return firstValue(
     record?.delivery_method,
     record?.shipping_method,
-    record?.shipping_address?.delivery_note,
-    'Standard Delivery',
   )
 }
 
@@ -536,23 +534,86 @@ export function normalizeVendorOrdersList(records) {
   return toArray(records).map(normalizeVendorOrderRecord).filter(Boolean)
 }
 
+function matchesOrderIdentity(order, target) {
+  const candidates = [
+    order?.id,
+    order?.itemId,
+    order?.orderId,
+    order?.orderNumber,
+    order?.raw?.id,
+    order?.raw?.order_id,
+    order?.raw?.order_number,
+  ]
+
+  return candidates.some((value) => String(value ?? '').trim().toLowerCase() === target)
+}
+
 export function findVendorOrderById(orders, orderId) {
   const target = String(orderId ?? '').trim().toLowerCase()
   if (!target) return null
 
-  return orders.find((order) => {
-    const candidates = [
-      order.id,
-      order.itemId,
-      order.orderId,
-      order.orderNumber,
-      order.raw?.id,
-      order.raw?.order_id,
-      order.raw?.order_number,
-    ]
+  return toArray(orders).find((order) => matchesOrderIdentity(order, target)) ?? null
+}
 
-    return candidates.some((value) => String(value ?? '').trim().toLowerCase() === target)
-  }) ?? null
+export function findVendorOrderReceiptRows(orders, orderId) {
+  const target = String(orderId ?? '').trim().toLowerCase()
+  if (!target) return []
+
+  const list = toArray(orders)
+  const matches = list.filter((order) => matchesOrderIdentity(order, target))
+  if (!matches.length) return []
+
+  const parentIds = new Set(
+    matches
+      .map((order) => String(order.orderId || order.id || '').trim().toLowerCase())
+      .filter(Boolean),
+  )
+
+  return list.filter((order) => {
+    const parent = String(order.orderId || order.id || '').trim().toLowerCase()
+    return parentIds.has(parent) || matchesOrderIdentity(order, target)
+  })
+}
+
+export function buildVendorOrderReceipt(rows, fallback = null) {
+  const source = toArray(rows).filter(Boolean)
+  const list = source.length > 0 ? source : (fallback ? [fallback] : [])
+  if (!list.length) return null
+
+  const first = list[0]
+  const items = list.flatMap((row, rowIndex) => {
+    if (row.items?.length) {
+      return row.items.map((item, index) => ({
+        ...item,
+        id: item.id || `${row.id}-${index}`,
+      }))
+    }
+
+    return [{
+      id: row.itemId || row.id || `line-${rowIndex + 1}`,
+      productId: row.productId,
+      productName: row.productName || 'Product',
+      sku: row.sku || '—',
+      quantity: Math.max(1, Number(row.quantity) || 1),
+      unitPrice: Number(row.unitPrice || 0),
+      totalPrice: Number(row.totalAmount || 0),
+      variantLabel: null,
+      deliveryStatus: row.deliveryStatus,
+    }]
+  })
+
+  const itemsTotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0)
+
+  return {
+    ...first,
+    items,
+    productsCount: items.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0),
+    subtotal: itemsTotal,
+    totalAmount: itemsTotal,
+    deliveryFee: Number(first.deliveryFee || 0),
+    discount: Number(first.discount || 0),
+    taxTotal: Number(first.taxTotal || 0),
+  }
 }
 
 /**

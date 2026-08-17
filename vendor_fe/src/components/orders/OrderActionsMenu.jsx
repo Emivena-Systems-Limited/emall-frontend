@@ -27,6 +27,7 @@ function navigateWithListPayment(navigate, path, order, { returnTo } = {}) {
   const state = buildOrderNavigationState({
     returnTo,
     listPayment: resolveListPayment(order),
+    listOrder: order,
   })
 
   navigate(path, state ? { state } : undefined)
@@ -164,7 +165,7 @@ export default function OrderActionsMenu({
             icon={Printer}
             tone="bg-slate-100 text-slate-700 ring-slate-200"
             label="Print Receipt"
-            helper="Open the receipt page to preview, download as PDF, or print."
+            helper="Preview, download, or print a receipt for this purchase."
             onClick={() => run(() => navigateWithListPayment(navigate, `/orders/${parentOrderId}/receipt`, order, { returnTo: ordersReturnTo }))}
           />
 

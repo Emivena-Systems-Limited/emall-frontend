@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import OrderReceiptSheet from '../../components/orders/OrderReceiptSheet'
-import { useVendorOrder } from '../../hooks/useVendorOrders'
+import { useVendorOrderReceipt } from '../../hooks/useVendorOrders'
 import notify from '../../lib/notify'
 import { buildReceiptFilename, downloadReceiptPdf } from '../../utils/downloadReceiptPdf'
 import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNavigation'
@@ -19,7 +19,7 @@ import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNa
 export default function OrderReceipt() {
   const { orderId } = useParams()
   const location = useLocation()
-  const listPayment = location.state?.listPayment ?? null
+  const listOrder = location.state?.listOrder ?? null
   const ordersReturnTo = resolveOrdersReturnTo(location)
   const ordersReturnLabel = getOrdersReturnLabel(ordersReturnTo)
   const receiptRef = useRef(null)
@@ -27,7 +27,7 @@ export default function OrderReceipt() {
   const authUser = useSelector((state) => state.auth.user)
   const storeName = authUser?.store_name ?? authUser?.trading_name ?? authUser?.business_name ?? 'Your Store'
 
-  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrder(orderId, { listPayment })
+  const { data: order, isLoading, isError, error, refetch, isFetching } = useVendorOrderReceipt(orderId, { listOrder })
 
   const handleDownloadPdf = async () => {
     if (!receiptRef.current || !order) return
@@ -66,7 +66,7 @@ export default function OrderReceipt() {
             <AlertTriangle className="size-6" />
           </span>
           <p className="text-sm text-slate-500">
-            {error?.message ?? 'Something went wrong while fetching this order.'}
+            {error?.message ?? 'Something went wrong while loading this receipt.'}
           </p>
           <button
             type="button"
@@ -85,7 +85,7 @@ export default function OrderReceipt() {
     return (
       <DashboardLayout pageTitle="Order receipt">
         <div className="page-enter rounded-2xl border border-slate-200 bg-white p-6 text-center">
-          <p className="text-sm text-slate-600">Order not found.</p>
+          <p className="text-sm text-slate-600">Receipt not found for this purchase.</p>
           <Link to={ordersReturnTo} className="mt-4 inline-flex text-sm font-bold text-brand hover:text-brand-hover">
             {ordersReturnLabel}
           </Link>
@@ -94,21 +94,26 @@ export default function OrderReceipt() {
     )
   }
 
+  const itemCount = order.items?.length ?? 0
+
   return (
     <DashboardLayout pageTitle="Order receipt">
       <div className="page-enter space-y-6">
         <div className="receipt-toolbar flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Link
-              to={`/orders/${order.id}`}
-              state={location.state}
+              to={ordersReturnTo}
               className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
             >
               <ArrowLeft className="size-4" />
-              Back to order
+              {ordersReturnLabel}
             </Link>
             <h1 className="mt-2 text-2xl font-bold text-slate-950">Receipt — {order.orderNumber}</h1>
-            <p className="mt-1 text-sm text-slate-500">Preview your receipt, then download or print.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {itemCount === 1 && order.productName
+                ? `Preview, download, or print the receipt for ${order.productName}.`
+                : 'Preview your receipt, then download or print.'}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

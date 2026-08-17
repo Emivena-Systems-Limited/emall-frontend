@@ -6,8 +6,9 @@ import UserRoleBadge from './UserRoleBadge'
 import UserStatusBadge from './UserStatusBadge'
 import UserRowActions from './UserRowActions'
 import { USER_ROLE_CONFIG } from '../../constants/usersPermissions'
-import { formatInvitedAt, formatLastActive, getInitials } from '../../utils/usersPermissionsUtils'
+import { formatInvitedAt, formatLastActive, getInitials, isStoreOwner } from '../../utils/usersPermissionsUtils'
 import { formatPhoneDisplay } from '../../utils/profileFormUtils'
+import { canEditUser } from '../../utils/authorization'
 
 function UserAvatar({ user }) {
   const roleConfig = USER_ROLE_CONFIG[user.role] ?? USER_ROLE_CONFIG.store_manager
@@ -102,7 +103,10 @@ export default function UserDetailsDrawer({
               { label: 'Phone', value: user.phone ? formatPhoneDisplay(user.phone) : '—' },
               { label: 'Permission Level', value: <UserPermissionLevelBadge summary={user.permissionLevel} /> },
               { label: 'Last Active', value: formatLastActive(user.lastActiveAt) },
-              { label: 'Date Invited', value: formatInvitedAt(user.invitedAt) },
+              {
+                label: isStoreOwner(user) ? 'Date Joined' : 'Date Invited',
+                value: formatInvitedAt(user.invitedAt),
+              },
             ].map(({ label, value }) => (
               <div key={label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
                 <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</dt>

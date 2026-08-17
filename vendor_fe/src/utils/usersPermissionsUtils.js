@@ -10,6 +10,7 @@ import {
   USER_TABS,
 } from '../constants/usersPermissions'
 import { isValidPhoneNumber } from 'libphonenumber-js'
+import { getProfileDisplayName, mapAuthUserToProfile } from './profileFormUtils'
 
 const PERMISSION_RANK = {
   [PERMISSION_LEVELS.NO_ACCESS]: 0,
@@ -214,4 +215,26 @@ export function enrichUserRecord(user) {
     ...user,
     permissionLevel: summarizePermissionLevel(user.permissions),
   }
+}
+
+export function mapAuthUserToTeamMember(authUser) {
+  const profile = mapAuthUserToProfile(authUser)
+  if (!profile) return null
+
+  const role = USER_ROLES.STORE_OWNER
+  const permissions = getDefaultPermissionsForRole(role)
+
+  return enrichUserRecord({
+    id: profile.id || 'store-owner',
+    name: getProfileDisplayName(profile),
+    email: profile.email || '',
+    phone: profile.phone || null,
+    role,
+    status: USER_STATUS.ACTIVE,
+    profilePicture: profile.profilePicture,
+    lastActiveAt: new Date().toISOString(),
+    invitedAt: profile.dateJoined || null,
+    permissions,
+    storeName: profile.storeName || null,
+  })
 }

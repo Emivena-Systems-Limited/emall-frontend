@@ -53,7 +53,7 @@ export const NAV_SECTIONS = [
     items: [
       { to: '/profile', icon: User, label: 'Profile' },
       // { to: '/settings', icon: Settings, label: 'Store Settings' },
-      { to: '/users', icon: UserCog, label: 'Users & Permissions', comingSoon: true },
+      { to: '/users', icon: UserCog, label: 'Users & Permissions', comingSoon: false },
       // { to: '/help', icon: HelpCircle, label: 'Help & Support' },
     ],
   },
