@@ -1,26 +1,19 @@
 import { Link } from 'react-router'
-import { Store } from 'lucide-react'
+import Images from '../../utils/Images'
 
-export default function LandingLogo({ variant = 'dark' }) {
+export default function LandingLogo({ variant = 'dark', className = '', imgClassName = '' }) {
   const isLight = variant === 'light'
 
   return (
     <Link
       to="/"
-      className={`inline-flex items-center gap-2.5 transition-opacity hover:opacity-90 ${
-        isLight ? 'text-slate-900' : 'text-white'
-      }`}
+      className={`inline-flex shrink-0 items-center transition-opacity hover:opacity-90 ${className}`}
     >
-      <span
-        className={`flex size-10 items-center justify-center rounded-xl shadow-sm ${
-          isLight
-            ? 'bg-brand text-white shadow-brand/30'
-            : 'bg-white text-brand'
-        }`}
-      >
-        <Store className="size-5" strokeWidth={1.75} />
-      </span>
-      <span className="text-lg font-semibold tracking-tight">EZ-Mall Vendor</span>
+      <img
+        src={isLight ? Images.brand.logo : Images.brand.logoWhite}
+        alt="EZ-Mall Vendor"
+        className={imgClassName || 'h-12 w-auto max-w-none object-contain object-left sm:h-14'}
+      />
     </Link>
   )
 }

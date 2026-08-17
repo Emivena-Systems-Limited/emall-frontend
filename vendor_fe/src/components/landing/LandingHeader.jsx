@@ -24,7 +24,7 @@ export default function LandingHeader() {
 
   return (
     <header className={`sticky top-0 z-50 ${landingHeroBgClass}`}>
-      <div className={`${landingContainerClass} flex items-center justify-between gap-4 py-2`}>
+      <div className={`${landingContainerClass} flex h-14 items-center justify-between gap-4`}>
         <LandingLogo variant="light" />
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">

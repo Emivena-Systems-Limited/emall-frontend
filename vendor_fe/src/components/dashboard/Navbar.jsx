@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useLogoutVendorMutation } from '../../hooks/useAuthMutations'
 import { formatBadgeCount, getNavBadgeCount } from '../../constants/sidebarNav'
+import Images from '../../utils/Images'
 import NavbarDateRangeFilter from './NavbarDateRangeFilter'
 
 function getVendorDisplayName(user) {
@@ -156,6 +157,11 @@ export default function Navbar({ onMobileMenuOpen, pageTitle }) {
         >
           <Menu className="size-5" strokeWidth={2} />
         </button>
+        <img
+          src={Images.brand.logo}
+          alt="EZ-Mall Vendor"
+          className="h-11 w-auto max-w-none shrink-0 object-contain object-left lg:hidden"
+        />
         {pageTitle && (
           <h1 className="truncate text-sm font-bold text-slate-900 sm:text-base">{pageTitle}</h1>
         )}
