@@ -94,7 +94,9 @@ export function getParentProductPricing(productValues) {
 
 /**
  * Resolves variant list and sale prices from parent pricing.
- * Empty variant price inherits parent amounts; overrides keep the parent discount rate.
+ * Empty variant price inherits parent regular and sale.
+ * A custom variant price stands on its own unless a sale is set — a missing or 0
+ * discount_price means no sale, not "apply the base product discount".
  */
 export function resolveVariantPricing(variantValue, productValues) {
   const parent = getParentProductPricing(productValues)
@@ -103,8 +105,11 @@ export function resolveVariantPricing(variantValue, productValues) {
 
   const hasPriceOverride =
     rawPrice !== '' && rawPrice != null && !Number.isNaN(Number(rawPrice))
+  const saleNumber = Number(rawSale)
+  const hasExplicitNoSale =
+    rawSale !== '' && rawSale != null && Number.isFinite(saleNumber) && saleNumber <= 0
   const hasSaleOverride =
-    rawSale !== '' && rawSale != null && !Number.isNaN(Number(rawSale)) && Number(rawSale) > 0
+    rawSale !== '' && rawSale != null && Number.isFinite(saleNumber) && saleNumber > 0
 
   const listPrice = hasPriceOverride
     ? roundMoney(Number(rawPrice))
@@ -112,12 +117,10 @@ export function resolveVariantPricing(variantValue, productValues) {
 
   let salePrice = null
   if (hasSaleOverride) {
-    const sale = roundMoney(Number(rawSale))
+    const sale = roundMoney(saleNumber)
     if (sale > 0 && sale < listPrice) salePrice = sale
-  } else if (parent.hasDiscount && listPrice > 0) {
-    const inheritedSale = hasPriceOverride
-      ? roundMoney(listPrice * parent.discountRatio)
-      : parent.salePrice
+  } else if (!hasPriceOverride && !hasExplicitNoSale && parent.hasDiscount && listPrice > 0) {
+    const inheritedSale = parent.salePrice
 
     if (inheritedSale != null && inheritedSale > 0 && inheritedSale < listPrice) {
       salePrice = inheritedSale
@@ -132,7 +135,7 @@ export function resolveVariantPricing(variantValue, productValues) {
     salePrice,
     customerPrice,
     isInherited: !hasPriceOverride,
-    isSaleInherited: !hasSaleOverride && parent.hasDiscount,
+    isSaleInherited: Boolean(salePrice) && !hasSaleOverride && !hasPriceOverride && parent.hasDiscount,
     hasSaleOverride,
     hasDiscount,
     parent,

@@ -89,9 +89,9 @@ export default function ProductImageGallery({
   isWishlisted = false,
 }) {
   const gallery = images.filter(Boolean)
-  const activeIndex = gallery.findIndex((image) => image === (activeImage || gallery[0]))
-  const currentIndex = activeIndex >= 0 ? activeIndex : 0
-  const currentImage = gallery[currentIndex]
+  const matchedIndex = gallery.findIndex((image) => image === activeImage)
+  const currentIndex = matchedIndex >= 0 ? matchedIndex : 0
+  const currentImage = activeImage || gallery[currentIndex] || null
 
   const viewportRef = useRef(null)
   const imageRef = useRef(null)

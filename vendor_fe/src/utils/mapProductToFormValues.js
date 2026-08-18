@@ -94,6 +94,19 @@ function pickFirstUsablePrice(...candidates) {
   return null
 }
 
+function pickFirstUsableSalePrice(listPrice, ...candidates) {
+  const list = Number(listPrice)
+
+  for (const candidate of candidates) {
+    if (!isUsablePrice(candidate)) continue
+    const sale = Number(candidate)
+    if (Number.isFinite(list) && list > 0 && sale >= list) continue
+    return candidate
+  }
+
+  return null
+}
+
 function resolvePricingFields(record, firstVariant, metadataMap = {}) {
   const listPrice = pickFirstUsablePrice(
     record.regular_price,
@@ -102,7 +115,8 @@ function resolvePricingFields(record, firstVariant, metadataMap = {}) {
     firstVariant?.price,
   )
 
-  const rawSalePrice = pickFirstUsablePrice(
+  const rawSalePrice = pickFirstUsableSalePrice(
+    listPrice,
     record.regular_discount_price,
     record.discount_price,
     firstVariant?.regular_discount_price,
@@ -159,8 +173,15 @@ function mapVariantsToFormVariations(variants = []) {
       value: attributeValue,
       variant_name: fromVariantOptionalField(variant.variant_name),
       sku: fromVariantOptionalField(variant.sku),
-      price: fromVariantOptionalField(variant.price == null ? '' : String(variant.price)),
-      discount_price: fromVariantSalePriceField(variant.discount_price),
+      price: fromVariantOptionalField(
+        variant.regular_price == null && variant.price == null
+          ? ''
+          : String(variant.regular_price ?? variant.price),
+      ),
+      discount_price: fromVariantSalePriceField(
+        variant.regular_discount_price ?? variant.discount_price,
+        variant.regular_price ?? variant.price,
+      ),
       quantity: variant.quantity == null ? '' : String(variant.quantity),
       reserved_quantity: fromVariantOptionalField(resolveVariantInventoryValue(variant, 'reserved_quantity')),
       minimum_threshold: fromVariantOptionalField(

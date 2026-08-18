@@ -32,7 +32,6 @@ import {
   getVariantCompatibleModels,
   resolveVariantAttributeFields,
   resolveVariantImageUrl,
-  variantHasCompatibleModel,
 } from '../../utils/productPayload'
 
 const cediFormatter = new Intl.NumberFormat('en-GH', {
@@ -123,6 +122,74 @@ function ensureVariantGroupStore(store, groupKey) {
     store[groupKey] = { values: new Set(), images: {} }
   }
   return store[groupKey]
+}
+
+function isSamePreviewOption(selected, value) {
+  if (selected == null || value == null || selected === '' || value === '') return false
+  return String(selected).trim().toLowerCase() === String(value).trim().toLowerCase()
+}
+
+function getPreviewColorValue(variant) {
+  return getVariantAttributeValue(variant, 'color')
+    || getVariantAttributeValue(variant, 'colour')
+}
+
+function getPreviewSizeValue(variant, preview) {
+  return getVariantAttributeValue(variant, preview?.sizeGroupLabel ?? 'size')
+}
+
+function findPreviewPrimaryVariant(preview, { color = '', size = '' } = {}) {
+  const variants = preview?.variants ?? []
+  if (color) {
+    const match = variants.find((variant) => isSamePreviewOption(getPreviewColorValue(variant), color))
+    if (match) return match
+  }
+  if (size) {
+    const match = variants.find((variant) => isSamePreviewOption(getPreviewSizeValue(variant, preview), size))
+    if (match) return match
+  }
+  return variants[0] ?? null
+}
+
+function resolvePreviewVariantImage(preview, { color = '', size = '' } = {}) {
+  const variant = findPreviewPrimaryVariant(preview, { color, size })
+  if (color) {
+    const mapped = preview.colorImages?.[color]
+      ?? Object.entries(preview.colorImages ?? {}).find(
+        ([key]) => isSamePreviewOption(key, color),
+      )?.[1]
+    if (mapped) return mapped
+  }
+  if (size) {
+    const images = preview.extraVariantGroups?.[0]?.images ?? {}
+    const mapped = images[size]
+      ?? Object.entries(images).find(([key]) => isSamePreviewOption(key, size))?.[1]
+    if (mapped) return mapped
+  }
+  return resolveVariantImageUrl(variant) || null
+}
+
+function resolveInitialPreviewSelections(preview) {
+  const firstVariant = preview.variants[0] ?? null
+  if (!firstVariant) {
+    return {
+      color: preview.colors[0] ?? '',
+      size: '',
+      compatibleModel: '',
+    }
+  }
+
+  const rawColor = getPreviewColorValue(firstVariant)
+  const rawSize = getPreviewSizeValue(firstVariant, preview)
+  const color = rawColor || ''
+  const size = color ? '' : (rawSize || '')
+  const models = getVariantCompatibleModels(firstVariant)
+
+  return {
+    color,
+    size,
+    compatibleModel: models[0] ?? '',
+  }
 }
 
 function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) {
@@ -299,9 +366,17 @@ function Stars({ rating, size = 'size-4' }) {
 }
 
 function PreviewGallery({ gallery, activeImage, setActiveImage, title }) {
-  const currentImage = activeImage || gallery[0]
+  const images = useMemo(() => {
+    const next = (gallery ?? []).filter(Boolean)
+    if (activeImage && !next.includes(activeImage)) {
+      return [activeImage, ...next]
+    }
+    return next
+  }, [gallery, activeImage])
 
-  if (!gallery.length) {
+  const currentImage = activeImage || images[0]
+
+  if (!images.length) {
     return (
       <div className="flex aspect-square w-full items-center justify-center bg-slate-100 text-slate-300 sm:aspect-[1.45]">
         <Package className="size-12" />
@@ -320,9 +395,9 @@ function PreviewGallery({ gallery, activeImage, setActiveImage, title }) {
           />
         </div>
       </div>
-      {gallery.length > 1 && (
+      {images.length > 1 && (
         <div className="flex justify-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {gallery.map((image, index) => (
+          {images.map((image, index) => (
             <button
               key={`${image}-${index}`}
               type="button"
@@ -532,57 +607,80 @@ function InfoPanel({
       </div>
 
       {preview.colors.length > 0 && (
-        <div className="pt-2">
-          <p className="text-xs font-semibold text-slate-950">Color: {selectedColor}</p>
-          <div className="mt-2 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
-            {preview.colors.map((color, index) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => setSelectedColor(color)}
-                className={`border bg-white p-1 text-center transition-colors ${
-                  selectedColor === color ? 'border-brand' : 'border-slate-200'
-                }`}
-              >
-                <img
-                  src={preview.colorImages?.[color] ?? (preview.gallery.length
-                    ? preview.gallery[(index + 1) % preview.gallery.length]
-                    : undefined)}
-                  alt=""
-                  className="aspect-square w-full bg-slate-100 object-cover"
-                />
-                <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{color}</span>
-              </button>
-            ))}
+        <>
+          <div className="pt-2">
+            <p className="text-xs font-semibold text-slate-950">
+              Color{selectedColor ? `: ${selectedColor}` : ''}
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
+              {preview.colors.map((color, index) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setSelectedColor(color)}
+                  className={`border bg-white p-1 text-center transition-colors ${
+                    selectedColor === color ? 'border-brand' : 'border-slate-200'
+                  }`}
+                >
+                  <img
+                    src={preview.colorImages?.[color] ?? (preview.gallery.length
+                      ? preview.gallery[(index + 1) % preview.gallery.length]
+                      : undefined)}
+                    alt=""
+                    className="aspect-square w-full bg-slate-100 object-cover"
+                  />
+                  <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{color}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-
-      {showCompatibleModels && (
-        <VariantGroup
-          label="Compatible Model"
-          values={compatibleModelValues}
-          selected={selectedCompatibleModel}
-          onSelect={setSelectedCompatibleModel}
-        />
+          {showCompatibleModels && selectedColor ? (
+            <VariantGroup
+              label="Compatible Model"
+              values={compatibleModelValues}
+              selected={selectedCompatibleModel}
+              onSelect={setSelectedCompatibleModel}
+            />
+          ) : null}
+        </>
       )}
 
       {showVariantImagePicker ? (
-        <VariantImageGroup
-          label={preview.sizeGroupLabel ?? 'Option'}
-          values={sizeValues}
-          images={primaryVariantImages}
-          selected={selectedSize}
-          onSelect={setSelectedSize}
-          fallbackGallery={preview.gallery}
-        />
+        <>
+          <VariantImageGroup
+            label={preview.sizeGroupLabel ?? 'Option'}
+            values={sizeValues}
+            images={primaryVariantImages}
+            selected={selectedSize}
+            onSelect={setSelectedSize}
+            fallbackGallery={preview.gallery}
+          />
+          {showCompatibleModels && selectedSize ? (
+            <VariantGroup
+              label="Compatible Model"
+              values={compatibleModelValues}
+              selected={selectedCompatibleModel}
+              onSelect={setSelectedCompatibleModel}
+            />
+          ) : null}
+        </>
       ) : showSizeVariants ? (
-        <VariantGroup
-          label={preview.sizeGroupLabel ?? 'Size'}
-          values={sizeValues}
-          selected={selectedSize}
-          onSelect={setSelectedSize}
-        />
+        <>
+          <VariantGroup
+            label={preview.sizeGroupLabel ?? 'Size'}
+            values={sizeValues}
+            selected={selectedSize}
+            onSelect={setSelectedSize}
+          />
+          {showCompatibleModels && selectedSize ? (
+            <VariantGroup
+              label="Compatible Model"
+              values={compatibleModelValues}
+              selected={selectedCompatibleModel}
+              onSelect={setSelectedCompatibleModel}
+            />
+          ) : null}
+        </>
       ) : null}
 
       <div className="mt-4 border-t border-slate-200 pt-4">
@@ -1067,132 +1165,55 @@ export default function ProductStorefrontPreview({
     () => buildStorefrontPreview({ product, rawRecord, images, conditionLabel }),
     [product, rawRecord, images, conditionLabel],
   )
+  const initialSelections = useMemo(() => resolveInitialPreviewSelections(preview), [preview])
 
-  const [activeImage, setActiveImage] = useState(preview.gallery[0] ?? null)
-  const [selectedColor, setSelectedColor] = useState(preview.colors[0] ?? '')
-  const [selectedSize, setSelectedSize] = useState(preview.sizes[0] ?? '')
-  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(() => {
-    const firstWithModels = preview.variants.find(
-      (variant) => getVariantCompatibleModels(variant).length > 0,
-    )
-    return getVariantCompatibleModels(firstWithModels)[0] ?? ''
-  })
+  const [activeImage, setActiveImage] = useState(
+    () => resolvePreviewVariantImage(preview, initialSelections) || preview.gallery[0] || null,
+  )
+  const [selectedColor, setSelectedColor] = useState(initialSelections.color)
+  const [selectedSize, setSelectedSize] = useState(initialSelections.size)
+  const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
+
+  const displayActiveImage = useMemo(() => {
+    if (activeImage != null) return activeImage
+    return resolvePreviewVariantImage(preview, {
+      color: selectedColor,
+      size: selectedSize,
+    }) || preview.gallery[0] || null
+  }, [activeImage, selectedColor, selectedSize, preview])
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
+    setSelectedSize('')
 
-    let matchingVariant = preview.variants.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-      const vSize = getVariantAttributeValue(variant, preview.sizeGroupLabel ?? 'size')
-      const matchColor = String(vColor).toLowerCase() === String(newColor).toLowerCase()
-      const matchModel = !selectedCompatibleModel
-        || variantHasCompatibleModel(variant, selectedCompatibleModel)
-      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
+    const matchingVariant = findPreviewPrimaryVariant(preview, { color: newColor })
+    const models = getVariantCompatibleModels(matchingVariant)
+    setSelectedCompatibleModel(models[0] ?? '')
 
-      return matchColor && matchModel && matchSize
-    })
-
-    if (!matchingVariant) {
-      matchingVariant = preview.variants.find((variant) => {
-        const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-        return String(vColor).toLowerCase() === String(newColor).toLowerCase()
-      })
-    }
-
-    if (matchingVariant) {
-      const models = getVariantCompatibleModels(matchingVariant)
-      setSelectedCompatibleModel(models[0] ?? '')
-      const vSize = getVariantAttributeValue(matchingVariant, preview.sizeGroupLabel ?? 'size')
-      if (vSize) setSelectedSize(vSize)
-    }
-
-    const varImage = preview.colorImages?.[newColor]
+    const varImage = resolvePreviewVariantImage(preview, { color: newColor })
     if (varImage) setActiveImage(varImage)
   }
 
   const handleCompatibleModelSelect = (newModel) => {
     setSelectedCompatibleModel(newModel)
-
-    let matchingVariant = preview.variants.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-      const vSize = getVariantAttributeValue(variant, preview.sizeGroupLabel ?? 'size')
-      const matchModel = variantHasCompatibleModel(variant, newModel)
-      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
-
-      return matchColor && matchModel && matchSize
-    })
-
-    if (!matchingVariant) {
-      matchingVariant = preview.variants.find((variant) => variantHasCompatibleModel(variant, newModel))
-    }
-
-    if (matchingVariant) {
-      const vColor = getVariantAttributeValue(matchingVariant, 'color')
-      const vSize = getVariantAttributeValue(matchingVariant, preview.sizeGroupLabel ?? 'size')
-      if (vColor) {
-        setSelectedColor(vColor)
-        const varImage = preview.colorImages?.[vColor]
-        if (varImage) setActiveImage(varImage)
-      }
-      if (vSize) setSelectedSize(vSize)
-    }
   }
 
   const handleSizeSelect = (newSize) => {
     setSelectedSize(newSize)
-    const sizeAttribute = preview.sizeGroupLabel ?? 'size'
-    const variantImage = preview.extraVariantGroups?.[0]?.images?.[newSize]
+    setSelectedColor('')
+
+    const matchingVariant = findPreviewPrimaryVariant(preview, { size: newSize })
+    const models = getVariantCompatibleModels(matchingVariant)
+    setSelectedCompatibleModel(models[0] ?? '')
+
+    const variantImage = resolvePreviewVariantImage(preview, { size: newSize })
     if (variantImage) setActiveImage(variantImage)
-
-    let matchingVariant = preview.variants.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-      const vSize = getVariantAttributeValue(variant, sizeAttribute)
-      const matchSize = String(vSize).toLowerCase() === String(newSize).toLowerCase()
-      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-      const matchModel = !selectedCompatibleModel
-        || variantHasCompatibleModel(variant, selectedCompatibleModel)
-
-      return matchColor && matchSize && matchModel
-    })
-
-    if (!matchingVariant) {
-      matchingVariant = preview.variants.find((variant) => {
-        const vSize = getVariantAttributeValue(variant, sizeAttribute)
-        return String(vSize).toLowerCase() === String(newSize).toLowerCase()
-      })
-    }
-
-    if (matchingVariant) {
-      const vColor = getVariantAttributeValue(matchingVariant, 'color')
-      const models = getVariantCompatibleModels(matchingVariant)
-      if (vColor) {
-        setSelectedColor(vColor)
-        const varImage = preview.colorImages?.[vColor]
-        if (varImage) setActiveImage(varImage)
-      }
-      if (models[0]) setSelectedCompatibleModel(models[0])
-      else setSelectedCompatibleModel('')
-    }
   }
 
-  const activeVariant = useMemo(() => {
-    if (!preview.variants.length) return null
-    const sizeAttribute = preview.sizeGroupLabel ?? 'size'
-
-    return preview.variants.find((variant) => {
-      const vColor = getVariantAttributeValue(variant, 'color') || variant.variant_name || ''
-      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-
-      const vSize = getVariantAttributeValue(variant, sizeAttribute)
-      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
-
-      const matchModel = !selectedCompatibleModel
-        || variantHasCompatibleModel(variant, selectedCompatibleModel)
-
-      return matchColor && matchSize && matchModel
-    }) ?? preview.variants[0]
-  }, [preview, selectedColor, selectedSize, selectedCompatibleModel])
+  const activeVariant = useMemo(
+    () => findPreviewPrimaryVariant(preview, { color: selectedColor, size: selectedSize }),
+    [preview, selectedColor, selectedSize],
+  )
 
   const activeSku = useMemo(
     () => activeVariant?.sku || preview.keyDetails['Model/SKU'] || 'N/A',
@@ -1274,7 +1295,7 @@ export default function ProductStorefrontPreview({
               <div className="order-1 min-w-0">
                 <PreviewGallery
                   gallery={preview.gallery}
-                  activeImage={activeImage}
+                  activeImage={displayActiveImage}
                   setActiveImage={setActiveImage}
                   title={preview.title}
                 />

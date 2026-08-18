@@ -35,12 +35,20 @@ export default function SearchableSelect({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [customDraft, setCustomDraft] = useState('')
+  const [localOptions, setLocalOptions] = useState([])
   const [isCustom, setIsCustom] = useState(() => (
     Boolean(value && !options.find((o) => optionMatchesValue(o.value, value)) && !onCustomSubmit)
   ))
   const containerRef = useRef(null)
   const searchRef = useRef(null)
   const triggerRef = useRef(null)
+
+  const mergedOptions = [
+    ...options,
+    ...localOptions.filter(
+      (local) => !options.some((option) => optionMatchesValue(option.value, local.value)),
+    ),
+  ]
 
   useEffect(() => {
     if (open) searchRef.current?.focus()
@@ -51,7 +59,7 @@ export default function SearchableSelect({
     // clearCustom / successful submit. Do not force it off just because value
     // is still empty (that is the normal state when typing a new brand).
     if (onCustomSubmit) {
-      if (value && options.some((o) => optionMatchesValue(o.value, value))) {
+      if (value && mergedOptions.some((o) => optionMatchesValue(o.value, value))) {
         setIsCustom(false)
       }
       return
@@ -62,8 +70,8 @@ export default function SearchableSelect({
       return
     }
 
-    setIsCustom(!options.some((o) => optionMatchesValue(o.value, value)))
-  }, [value, options, onCustomSubmit])
+    setIsCustom(!mergedOptions.some((o) => optionMatchesValue(o.value, value)))
+  }, [value, options, localOptions, onCustomSubmit])
 
   useEffect(() => {
     if (!isCustom) setCustomDraft('')
@@ -132,11 +140,25 @@ export default function SearchableSelect({
 
     if (onCustomSubmit) {
       try {
-        await onCustomSubmit(nextValue)
+        const result = await onCustomSubmit(nextValue)
+        const selectedValue = String(result?.id ?? result?.value ?? '').trim()
+        const selectedLabel = String(result?.name ?? result?.label ?? nextValue).trim()
+
+        if (!selectedValue) {
+          return
+        }
+
+        setLocalOptions((current) => (
+          current.some((option) => optionMatchesValue(option.value, selectedValue))
+            ? current
+            : [...current, { value: selectedValue, label: selectedLabel }]
+        ))
+        emitChange(selectedValue)
         setIsCustom(false)
         setCustomDraft('')
         setOpen(false)
         setSearch('')
+        setTimeout(() => emitBlur(), 0)
       } catch {
         // handled by caller
       }
@@ -154,13 +176,13 @@ export default function SearchableSelect({
     await applyCustomValue(customDraft)
   }
 
-  const filtered = options.filter((o) =>
+  const filtered = mergedOptions.filter((o) =>
     o.label.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const selectedLabel = options.find((o) => optionMatchesValue(o.value, value))?.label ?? ''
+  const selectedLabel = mergedOptions.find((o) => optionMatchesValue(o.value, value))?.label ?? ''
   const trimmedSearch = search.trim()
-  const hasExactOptionMatch = options.some(
+  const hasExactOptionMatch = mergedOptions.some(
     (option) =>
       optionMatchesValue(option.value, trimmedSearch)
       || option.label.toLowerCase() === trimmedSearch.toLowerCase(),

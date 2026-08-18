@@ -94,13 +94,13 @@ function toMoneyOrNull(val) {
   return num == null ? null : roundMoney(num)
 }
 
-/** Backend requires numeric discount fields (0–2 dp). No sale price → 0. */
+/** Backend requires numeric discount fields (0–2 dp). No sale → regular price (0 is not a sale). */
 function resolveVariantDiscountPriceFields(listPrice, rawDiscountPrice) {
   const list = roundMoney(Number(listPrice) || 0)
   const raw = rawDiscountPrice ?? null
   const noSalePrice = {
-    discount_price: 0,
-    regular_discount_price: 0,
+    discount_price: list,
+    regular_discount_price: list,
   }
 
   if (
@@ -360,8 +360,11 @@ function buildSingleVariationFields(variantValue, variation, values) {
   if (hasCustomPrice) {
     const rawSale = variantValue.discount_price
     if (isBlankVariantField(rawSale) || rawSale === VARIANT_OPTIONAL_EMPTY_VALUE) {
-      discountPrice = VARIANT_OPTIONAL_EMPTY_VALUE
+      discountPrice = pricing.listPrice
     }
+  }
+  if (discountPrice == null || discountPrice === VARIANT_OPTIONAL_EMPTY_VALUE || Number(discountPrice) <= 0) {
+    discountPrice = pricing.listPrice
   }
 
   const barcodeFields = resolveVariantBarcodePayloadFields(variantValue)

@@ -7,6 +7,8 @@ import {
   ArrowRight,
   BadgePercent,
   Box,
+  Check,
+  CheckCircle2,
   ImagePlus,
   Info,
   Layers3,
@@ -342,15 +344,20 @@ export function InfoStep({
 
   const handleCustomBrandSubmit = async (brandName) => {
     const brand = await createBrandMutation.mutateAsync({ brand_name: brandName })
+    const selectedBrand = {
+      ...brand,
+      id: String(brand.id),
+      name: brand.name || brand.brand_name || brandName.trim(),
+    }
     setCreatedBrands((current) => (
-      current.some((item) => String(item.id) === String(brand.id))
+      current.some((item) => String(item.id) === selectedBrand.id)
         ? current
-        : [...current, brand]
+        : [...current, selectedBrand]
     ))
-    const brandId = String(brand.id)
-    await formik.setFieldValue('brand_id', brandId, false)
+    await formik.setFieldValue('brand_id', selectedBrand.id, true)
     formik.setFieldTouched('brand_id', true, false)
     formik.setFieldError('brand_id', undefined)
+    return selectedBrand
   }
 
   return (
@@ -804,7 +811,7 @@ function ParentPricingBanner({ values }) {
         )}
       </div>
       <p className="mt-2 text-xs leading-relaxed text-cyan-900/75">
-        Variants without a price override inherit this pricing. Overrides keep the same discount rate as the base product.
+        Variants without a price override inherit this pricing. A custom variant price is used as-is unless you set a sale price.
       </p>
     </div>
   )
@@ -848,6 +855,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
   const [openValueIds, setOpenValueIds] = useState(() => new Set())
   const [customPriceIds, setCustomPriceIds] = useState(() => new Set())
   const savedValuesRef = useRef(null)
+  const optionTypePickerRef = useRef(null)
 
   const activeAttribute = buildingAttribute.trim()
 
@@ -856,6 +864,15 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
+      return next
+    })
+  }
+
+  const closeValueAccordion = (id) => {
+    setOpenValueIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
       return next
     })
   }
@@ -875,6 +892,11 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
     setValueInput('')
     setAttributeError('')
     setValuesError('')
+  }
+
+  const handleDoneWithAttribute = () => {
+    resetBuildingForm()
+    scrollToSavedVariationValues(optionTypePickerRef.current)
   }
 
   const addValue = (rawValue) => {
@@ -997,7 +1019,10 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
       {totalValues > 0 && <ParentPricingBanner values={formik.values} />}
 
       {/* Choose option type + add values */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
+      <div
+        ref={optionTypePickerRef}
+        className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6"
+      >
         <CardStepHeader
           step={1}
           title="Add option types & values"
@@ -1105,6 +1130,16 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                   onRemove={() => handleRemoveValue(value.id)}
                   removeLabel={`Remove ${value.value}`}
                   error={getVariantValueErrorMessage(formik, groupIndex, valueIndex)}
+                  footer={(
+                    <button
+                      type="button"
+                      onClick={() => closeValueAccordion(value.id)}
+                      className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover"
+                    >
+                      <Check className="size-4" />
+                      Save
+                    </button>
+                  )}
                 />
               ))
 
@@ -1145,9 +1180,10 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                         />
                         <button
                           type="button"
-                          onClick={resetBuildingForm}
-                          className="mt-3 inline-flex cursor-pointer items-center gap-1 text-xs font-bold text-slate-500 transition-colors hover:text-slate-700"
+                          onClick={handleDoneWithAttribute}
+                          className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-brand bg-white px-4 py-3 text-sm font-bold text-brand shadow-sm transition-colors hover:bg-brand-light"
                         >
+                          <CheckCircle2 className="size-4" />
                           Done with {group.attribute} — add a different option type
                         </button>
                       </div>

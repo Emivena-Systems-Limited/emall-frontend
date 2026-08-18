@@ -21,13 +21,17 @@ export function fromVariantOptionalField(value) {
   return str === VARIANT_OPTIONAL_EMPTY_VALUE ? '' : value
 }
 
-/** Sale price of 0 means "no sale" — show an empty input, not zero. */
-export function fromVariantSalePriceField(value) {
+/** Sale price of 0 (or equal to regular) means "no sale" — show an empty input. */
+export function fromVariantSalePriceField(value, regularPrice) {
   if (isBlankVariantField(value)) return ''
   const str = String(value).trim()
   if (str === VARIANT_OPTIONAL_EMPTY_VALUE) return ''
   const num = Number(str)
-  if (Number.isFinite(num) && num <= 0) return ''
+  if (!Number.isFinite(num) || num <= 0) return ''
+  if (regularPrice != null && regularPrice !== '') {
+    const list = Number(regularPrice)
+    if (Number.isFinite(list) && list > 0 && num >= list) return ''
+  }
   return str
 }
 
@@ -212,8 +216,11 @@ export function toVariantFormValues(variantValue, attributeType) {
     value: variantValue.value ?? '',
     variant_name: fromVariantOptionalField(variantValue.variant_name),
     sku: fromVariantOptionalField(variantValue.sku),
-    price: fromVariantOptionalField(variantValue.price),
-    discount_price: fromVariantSalePriceField(variantValue.discount_price),
+    price: fromVariantOptionalField(variantValue.regular_price ?? variantValue.price),
+    discount_price: fromVariantSalePriceField(
+      variantValue.regular_discount_price ?? variantValue.discount_price,
+      variantValue.regular_price ?? variantValue.price,
+    ),
     quantity: variantValue.quantity ?? '',
     reserved_quantity: fromVariantOptionalField(variantValue.reserved_quantity),
     minimum_threshold: fromVariantOptionalField(

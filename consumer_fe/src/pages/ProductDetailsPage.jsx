@@ -44,7 +44,6 @@ import {
   resolveCanonicalVariantOption,
   resolveVariantAttributeFields,
   resolveVariantImageUrl,
-  variantHasCompatibleModel,
 } from '../utils/productVariantFields'
 
 const SHOW_PRODUCT_VARIANTS = true
@@ -176,9 +175,17 @@ function formatStockAvailability(stockCount, lowStockThreshold = 10) {
 }
 
 function ProductGallery({ product, activeImage, setActiveImage, onShare, onWishlist, isWishlisted }) {
+  const images = useMemo(() => {
+    const gallery = (product.gallery ?? []).filter(Boolean)
+    if (activeImage && !gallery.includes(activeImage)) {
+      return [activeImage, ...gallery]
+    }
+    return gallery
+  }, [product.gallery, activeImage])
+
   return (
     <ProductImageGallery
-      images={product.gallery}
+      images={images}
       title={product.title}
       activeImage={activeImage}
       onActiveImageChange={setActiveImage}
@@ -194,7 +201,9 @@ function ColorSwatches({ product, selected, onSelect }) {
 
   return (
     <div className="pt-2">
-      <p className="text-xs font-semibold text-slate-950">Color: {selected}</p>
+      <p className="text-xs font-semibold text-slate-950">
+        Color{selected ? `: ${selected}` : ''}
+      </p>
       <div className="mt-2 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
         {product.colors.map((color, index) => (
           <button
@@ -700,34 +709,55 @@ function ProductInfoPanel({
       </div>
 
       {SHOW_PRODUCT_VARIANTS && (
-        <ColorSwatches product={product} selected={selectedColor} onSelect={setSelectedColor} />
-      )}
-      
-      {showCompatibleModels && (
-        <VariantGroup
-          label="Compatible Model"
-          values={compatibleModelValues}
-          selected={selectedCompatibleModel}
-          onSelect={setSelectedCompatibleModel}
-        />
+        <>
+          <ColorSwatches product={product} selected={selectedColor} onSelect={setSelectedColor} />
+          {showCompatibleModels && selectedColor ? (
+            <VariantGroup
+              label="Compatible Model"
+              values={compatibleModelValues}
+              selected={selectedCompatibleModel}
+              onSelect={setSelectedCompatibleModel}
+            />
+          ) : null}
+        </>
       )}
 
       {showVariantImagePicker ? (
-        <VariantImageGroup
-          label={product.sizeGroupLabel ?? 'Option'}
-          values={sizeValues}
-          images={primaryVariantImages}
-          selected={selectedSize}
-          onSelect={setSelectedSize}
-          fallbackGallery={product.gallery}
-        />
+        <>
+          <VariantImageGroup
+            label={product.sizeGroupLabel ?? 'Option'}
+            values={sizeValues}
+            images={primaryVariantImages}
+            selected={selectedSize}
+            onSelect={setSelectedSize}
+            fallbackGallery={product.gallery}
+          />
+          {showCompatibleModels && selectedSize ? (
+            <VariantGroup
+              label="Compatible Model"
+              values={compatibleModelValues}
+              selected={selectedCompatibleModel}
+              onSelect={setSelectedCompatibleModel}
+            />
+          ) : null}
+        </>
       ) : showSizeVariants ? (
-        <VariantGroup
-          label={product.sizeGroupLabel ?? 'Size'}
-          values={sizeValues}
-          selected={selectedSize}
-          onSelect={setSelectedSize}
-        />
+        <>
+          <VariantGroup
+            label={product.sizeGroupLabel ?? 'Size'}
+            values={sizeValues}
+            selected={selectedSize}
+            onSelect={setSelectedSize}
+          />
+          {showCompatibleModels && selectedSize ? (
+            <VariantGroup
+              label="Compatible Model"
+              values={compatibleModelValues}
+              selected={selectedCompatibleModel}
+              onSelect={setSelectedCompatibleModel}
+            />
+          ) : null}
+        </>
       ) : null}
 
       <div className="mt-4 border-t border-slate-200 pt-4">
@@ -1764,7 +1794,6 @@ function getVariantColorValue(variant) {
   return getVariantAttributeValue(variant, 'color')
     || getVariantAttributeValue(variant, 'colour')
     || (variant?.color ? String(variant.color).trim() : '')
-    || (variant?.variant_name ? String(variant.variant_name).trim() : '')
 }
 
 function getVariantSizeValue(variant, product) {
@@ -1773,41 +1802,31 @@ function getVariantSizeValue(variant, product) {
     || (variant?.size ? String(variant.size).trim() : '')
 }
 
-function filterVariantsBySelection(product, { color = '', size = '', compatibleModel = '' } = {}) {
-  return (product?.variants ?? []).filter((variant) => {
-    const vColor = getVariantColorValue(variant)
-    const vSize = getVariantSizeValue(variant, product)
-    const matchColor = !color || isSameVariantOption(color, vColor)
-    const matchSize = !size || isSameVariantOption(size, vSize)
-    const matchModel = !compatibleModel || variantHasCompatibleModel(variant, compatibleModel)
-    return matchColor && matchSize && matchModel
-  })
+function findPrimaryVariant(product, { color = '', size = '' } = {}) {
+  const variants = product?.variants ?? []
+  if (color) {
+    const match = variants.find((variant) => isSameVariantOption(getVariantColorValue(variant), color))
+    if (match) return match
+  }
+  if (size) {
+    const match = variants.find((variant) => isSameVariantOption(getVariantSizeValue(variant, product), size))
+    if (match) return match
+  }
+  return variants[0] ?? null
+}
+
+function resolveSelectedVariantImage(product, { color = '', size = '' } = {}) {
+  const variant = findPrimaryVariant(product, { color, size })
+  return resolveColorImage(product, color)
+    || resolveVariantGroupImage(product, size)
+    || resolveVariantImageUrl(variant)
+    || null
 }
 
 function resolveCompatibleModelOptions(product, { color = '', size = '' } = {}) {
-  const matchingVariants = filterVariantsBySelection(product, { color, size })
-  if (!matchingVariants.length) {
-    return product?.compatibleModels ?? []
-  }
-
-  const models = []
-  const seen = new Set()
-  let foundVariantScopedModels = false
-
-  for (const variant of matchingVariants) {
-    const variantModels = getVariantCompatibleModels(variant)
-    if (variantModels.length > 0) {
-      foundVariantScopedModels = true
-    }
-    variantModels.forEach((model) => {
-      const key = String(model).trim().toLowerCase()
-      if (!key || seen.has(key)) return
-      seen.add(key)
-      models.push(model)
-    })
-  }
-
-  return foundVariantScopedModels ? models : (product?.compatibleModels ?? [])
+  const variant = findPrimaryVariant(product, { color, size })
+  if (!variant) return []
+  return getVariantCompatibleModels(variant)
 }
 
 function pickDefaultCompatibleModel(product, options = []) {
@@ -1816,57 +1835,45 @@ function pickDefaultCompatibleModel(product, options = []) {
 }
 
 /**
- * Defaults to the first available option on every axis, driven by the first
- * variant record so its own (independent) compatible models come along with it.
- * Falls back to the first entries of the aggregated product.colors/sizes lists
- * when there is no variant data to anchor the selection to.
+ * Color and Size are independent variant types (separate SKUs), not a matrix.
+ * Default to the first variant only; if it has compatible models, pick the first.
+ * Other groups stay unselected until the shopper chooses one.
  */
 function resolveInitialVariantSelections(product) {
-  const variants = product.variants ?? []
-  const firstVariant = variants[0] ?? null
+  const firstVariant = product.variants?.[0] ?? null
 
-  let color = ''
-  let size = ''
-  let compatibleModel = ''
-
-  if (firstVariant) {
-    const rawColor = getVariantColorValue(firstVariant)
-    const rawSize = getVariantSizeValue(firstVariant, product)
-
-    if (rawColor) {
-      color = resolveCanonicalVariantOption(rawColor, product.colors) || rawColor
-    }
-    if (rawSize) {
-      size = resolveCanonicalVariantOption(rawSize, product.sizes) || rawSize
-    }
-
-    const variantModels = getVariantCompatibleModels(firstVariant)
-    if (variantModels.length > 0) {
-      compatibleModel = resolveCanonicalVariantOption(variantModels[0], product.compatibleModels)
-        || variantModels[0]
+  if (!firstVariant) {
+    return {
+      color: product.colors?.[0] ?? '',
+      size: '',
+      compatibleModel: '',
     }
   }
 
-  if (!color && (product.colors?.length ?? 0) > 0) {
-    color = product.colors[0]
-  }
-  if (!size && (product.sizes?.length ?? 0) > 0) {
-    size = product.sizes[0]
-  }
+  const rawColor = getVariantColorValue(firstVariant)
+  const rawSize = getVariantSizeValue(firstVariant, product)
+  const color = rawColor
+    ? (resolveCanonicalVariantOption(rawColor, product.colors) || rawColor)
+    : ''
+  const size = color
+    ? ''
+    : rawSize
+      ? (resolveCanonicalVariantOption(rawSize, product.sizes) || rawSize)
+      : ''
 
-  if (!compatibleModel) {
-    const scopedModels = resolveCompatibleModelOptions(product, { color, size })
-    if (scopedModels.length > 0) {
-      compatibleModel = pickDefaultCompatibleModel(product, scopedModels)
-    }
-  }
+  const variantModels = getVariantCompatibleModels(firstVariant)
+  const compatibleModel = variantModels.length > 0
+    ? (resolveCanonicalVariantOption(variantModels[0], product.compatibleModels) || variantModels[0])
+    : ''
 
   return { color, size, compatibleModel }
 }
 
 function ProductDetailsView({ product, apiProduct, landingData }) {
   const initialSelections = useMemo(() => resolveInitialVariantSelections(product), [product])
-  const [activeImage, setActiveImage] = useState(null)
+  const [activeImage, setActiveImage] = useState(
+    () => resolveSelectedVariantImage(product, initialSelections) || product.gallery?.[0] || null,
+  )
   const [selectedColor, setSelectedColor] = useState(initialSelections.color)
   const [selectedSize, setSelectedSize] = useState(initialSelections.size)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
@@ -1901,141 +1908,44 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
   const displayActiveImage = useMemo(() => {
     if (activeImage != null) return activeImage
-    const colorImage = resolveColorImage(product, selectedColor)
-    if (colorImage) return colorImage
-    const groupImage = resolveVariantGroupImage(product, selectedSize)
-    if (groupImage) return groupImage
-    return product.gallery?.[0] ?? null
+    return resolveSelectedVariantImage(product, {
+      color: selectedColor,
+      size: selectedSize,
+    }) || product.gallery?.[0] || null
   }, [activeImage, selectedColor, selectedSize, product])
 
   const handleColorSelect = (newColor) => {
     setSelectedColor(newColor)
+    setSelectedSize('')
 
-    let matchingVariant = product?.variants?.find((variant) => {
-      const vColor = getVariantColorValue(variant)
-      const vSize = getVariantSizeValue(variant, product)
-      const matchColor = String(vColor).toLowerCase() === String(newColor).toLowerCase()
-      const matchModel = !selectedCompatibleModel
-        || variantHasCompatibleModel(variant, selectedCompatibleModel)
-      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
-
-      return matchColor && matchModel && matchSize
-    })
-
-    if (!matchingVariant) {
-      matchingVariant = product?.variants?.find((variant) => {
-        const vColor = getVariantColorValue(variant)
-        return String(vColor).toLowerCase() === String(newColor).toLowerCase()
-      })
-    }
-
-    if (matchingVariant) {
-      const vSize = getVariantSizeValue(matchingVariant, product)
-      const nextSize = resolveCanonicalVariantOption(vSize, product.sizes)
-      if (nextSize) setSelectedSize(nextSize)
-    }
-
-    const availableModels = resolveCompatibleModelOptions(product, {
-      color: newColor,
-      size: matchingVariant ? getVariantSizeValue(matchingVariant, product) : selectedSize,
-    })
+    const matchingVariant = findPrimaryVariant(product, { color: newColor })
+    const availableModels = getVariantCompatibleModels(matchingVariant)
     setSelectedCompatibleModel(pickDefaultCompatibleModel(product, availableModels))
 
-    const varImage = resolveColorImage(product, newColor)
+    const varImage = resolveSelectedVariantImage(product, { color: newColor })
     if (varImage) setActiveImage(varImage)
   }
 
   const handleCompatibleModelSelect = (newModel) => {
     setSelectedCompatibleModel(newModel)
-
-    let matchingVariant = product?.variants?.find((variant) => {
-      const vColor = getVariantColorValue(variant)
-      const vSize = getVariantSizeValue(variant, product)
-      const matchModel = variantHasCompatibleModel(variant, newModel)
-      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
-
-      return matchColor && matchModel && matchSize
-    })
-
-    if (!matchingVariant) {
-      matchingVariant = product?.variants?.find((variant) => variantHasCompatibleModel(variant, newModel))
-    }
-
-    if (matchingVariant) {
-      const vColor = getVariantColorValue(matchingVariant)
-      const vSize = getVariantSizeValue(matchingVariant, product)
-      const nextColor = resolveCanonicalVariantOption(vColor, product.colors)
-      if (nextColor) {
-        setSelectedColor(nextColor)
-        const varImage = resolveColorImage(product, nextColor)
-        if (varImage) setActiveImage(varImage)
-      }
-      const nextSize = resolveCanonicalVariantOption(vSize, product.sizes)
-      if (nextSize) setSelectedSize(nextSize)
-    }
   }
 
   const handleSizeSelect = (newSize) => {
     setSelectedSize(newSize)
+    setSelectedColor('')
 
-    const variantImage = resolveVariantGroupImage(product, newSize)
-    if (variantImage) setActiveImage(variantImage)
-
-    let matchingVariant = product?.variants?.find((variant) => {
-      const vColor = getVariantColorValue(variant)
-      const vSize = getVariantSizeValue(variant, product)
-      const matchSize = String(vSize).toLowerCase() === String(newSize).toLowerCase()
-      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-      const matchModel = !effectiveCompatibleModel
-        || variantHasCompatibleModel(variant, effectiveCompatibleModel)
-
-      return matchColor && matchSize && matchModel
-    })
-
-    if (!matchingVariant) {
-      matchingVariant = product?.variants?.find((variant) => {
-        const vSize = getVariantSizeValue(variant, product)
-        return String(vSize).toLowerCase() === String(newSize).toLowerCase()
-      })
-    }
-
-    if (matchingVariant) {
-      const vColor = getVariantColorValue(matchingVariant)
-      const nextColor = resolveCanonicalVariantOption(vColor, product.colors)
-      if (nextColor) {
-        setSelectedColor(nextColor)
-        const colorImage = resolveColorImage(product, nextColor)
-        if (colorImage) setActiveImage(colorImage)
-      } else if (!variantImage) {
-        const matchedImage = resolveVariantImageUrl(matchingVariant)
-        if (matchedImage) setActiveImage(matchedImage)
-      }
-    }
-
-    const availableModels = resolveCompatibleModelOptions(product, {
-      color: matchingVariant ? getVariantColorValue(matchingVariant) : selectedColor,
-      size: newSize,
-    })
+    const matchingVariant = findPrimaryVariant(product, { size: newSize })
+    const availableModels = getVariantCompatibleModels(matchingVariant)
     setSelectedCompatibleModel(pickDefaultCompatibleModel(product, availableModels))
+
+    const variantImage = resolveSelectedVariantImage(product, { size: newSize })
+    if (variantImage) setActiveImage(variantImage)
   }
 
-  const activeVariant = useMemo(() => {
-    if (!product?.variants?.length) return null
-
-    return product.variants.find((variant) => {
-      const vColor = getVariantColorValue(variant)
-      const matchColor = !selectedColor || String(vColor).toLowerCase() === String(selectedColor).toLowerCase()
-
-      const vSize = getVariantSizeValue(variant, product)
-      const matchSize = !selectedSize || String(vSize).toLowerCase() === String(selectedSize).toLowerCase()
-
-      const matchModel = !effectiveCompatibleModel
-        || variantHasCompatibleModel(variant, effectiveCompatibleModel)
-
-      return matchColor && matchSize && matchModel
-    }) ?? product.variants[0]
-  }, [product, selectedColor, selectedSize, effectiveCompatibleModel])
+  const activeVariant = useMemo(
+    () => findPrimaryVariant(product, { color: selectedColor, size: selectedSize }),
+    [product, selectedColor, selectedSize],
+  )
 
   const activeSku = useMemo(() => {
     return activeVariant?.sku || product?.sku || product?.keyDetails?.['Model/SKU'] || 'N/A'
