@@ -37,6 +37,7 @@ function matchesSearch(order, search) {
     order.sku,
     order.customer?.name,
     order.customer?.email,
+    order.customer?.phone,
     ...(order.items ?? []).map((item) => item.productName),
     ...(order.items ?? []).map((item) => item.sku),
   ]
@@ -71,6 +72,76 @@ export function getOrderCatalogSummary(orders) {
     processing: orders.filter((order) => resolveDeliveryStatus(order) === 'processing').length,
     shipped: orders.filter((order) => resolveDeliveryStatus(order) === 'shipped').length,
     delivered: orders.filter((order) => resolveDeliveryStatus(order) === 'delivered').length,
+  }
+}
+
+function resolveOrderGroupKey(order) {
+  const orderId = String(order?.orderId ?? '').trim()
+  if (orderId) return `id:${orderId.toLowerCase()}`
+
+  const orderNumber = String(order?.orderNumber ?? '').trim()
+  if (orderNumber && orderNumber !== '—') return `num:${orderNumber.toLowerCase()}`
+
+  return `row:${String(order?.id ?? order?.itemId ?? '')}`
+}
+
+export function groupOrdersByOrderNumber(orders) {
+  const groups = []
+  const indexByKey = new Map()
+
+  for (const order of orders) {
+    const key = resolveOrderGroupKey(order)
+    const existingIndex = indexByKey.get(key)
+
+    if (existingIndex == null) {
+      indexByKey.set(key, groups.length)
+      groups.push({
+        key,
+        orders: [order],
+      })
+      continue
+    }
+
+    groups[existingIndex].orders.push(order)
+  }
+
+  return groups
+}
+
+export function mergeOrderGroup(orders) {
+  const list = Array.isArray(orders) ? orders.filter(Boolean) : []
+  if (!list.length) return null
+
+  const first = list[0]
+  if (list.length === 1) return first
+
+  const items = list.flatMap((order) => {
+    if (order.items?.length) return order.items
+
+    return [{
+      id: order.itemId || order.id,
+      productId: order.productId,
+      productName: order.productName,
+      sku: order.sku,
+      image: order.image,
+      quantity: order.quantity,
+      unitPrice: order.unitPrice,
+      totalPrice: order.totalAmount,
+      variantLabel: order.items?.[0]?.variantLabel ?? null,
+      deliveryStatus: order.deliveryStatus,
+    }]
+  })
+
+  const quantity = list.reduce((sum, order) => sum + Math.max(1, Number(order.quantity) || 1), 0)
+  const totalAmount = list.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0)
+
+  return {
+    ...first,
+    items,
+    quantity,
+    productsCount: quantity,
+    totalAmount,
+    productName: `${list.length} products`,
   }
 }
 

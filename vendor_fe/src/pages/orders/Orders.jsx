@@ -20,6 +20,7 @@ import {
   filterOrderCatalog,
   getActiveSummaryFilter,
   getOrderCatalogSummary,
+  groupOrdersByOrderNumber,
   paginateOrders,
 } from '../../utils/orderCatalogFilters'
 import { normalizeVendorOrdersList } from '../../utils/normalizeVendorOrders'
@@ -83,9 +84,14 @@ export default function Orders() {
     [orders, search, statusFilter],
   )
 
+  const groupedOrders = useMemo(
+    () => groupOrdersByOrderNumber(filteredOrders),
+    [filteredOrders],
+  )
+
   const pagination = useMemo(
-    () => paginateOrders(filteredOrders, { page, pageSize: ORDERS_PAGE_SIZE }),
-    [filteredOrders, page],
+    () => paginateOrders(groupedOrders, { page, pageSize: ORDERS_PAGE_SIZE }),
+    [groupedOrders, page],
   )
 
   const activeSummaryFilter = getActiveSummaryFilter(statusFilter) ?? SUMMARY_FILTERS.ALL

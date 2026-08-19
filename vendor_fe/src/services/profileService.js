@@ -1,15 +1,18 @@
 import apiClient from '../lib/apiClient'
-import { PROFILE_ENDPOINTS } from '../constants/profile'
+import { DOCUMENT_CATEGORIES, PROFILE_ENDPOINTS } from '../constants/profile'
 import {
   getMockBusinessInformation,
-  getMockDocuments,
   getMockProfile,
   saveMockBusinessInformation,
-  saveMockDocument,
   saveMockProfile,
 } from '../mocks/profileMockData'
 import { extractVendorAddressPayload, extractVendorInformationPayload } from '../utils/profileFormUtils'
 import { unwrapApiEnvelope } from '../utils/parseApiError'
+import { resolveBackendMediaUrl } from '../utils/resolveBackendMediaUrl'
+import {
+  normalizeVendorDocument,
+  normalizeVendorDocumentsList,
+} from '../utils/normalizeVendorDocuments'
 import { assertApiSuccess, changeVendorPassword } from './authService'
 
 const MOCK_DELAY_MS = 400
@@ -133,26 +136,93 @@ export async function updateBusinessInformation(data) {
   return saveMockBusinessInformation(data)
 }
 
-// TODO: Connect documents API.
 export async function getDocuments() {
-  await delay()
-  logDev('GET', PROFILE_ENDPOINTS.DOCUMENTS)
-  return getMockDocuments()
+  try {
+    const { data } = await apiClient.get(PROFILE_ENDPOINTS.DOCUMENTS)
+    assertApiSuccess(data)
+
+    if (import.meta.env.DEV) {
+      console.info('[profile] GET', PROFILE_ENDPOINTS.DOCUMENTS, data)
+    }
+
+    return normalizeVendorDocumentsList(data)
+  } catch (error) {
+    if (error?.response?.status === 404) return []
+    throw error
+  }
 }
 
-// TODO: Connect document upload API/storage.
-export async function uploadDocument({ documentId, file, documentType }) {
-  await delay(600)
-  logDev('POST', PROFILE_ENDPOINTS.DOCUMENT(documentId))
+function buildDocumentFileUrl(file) {
+  const safeName = String(file?.name || 'document.bin')
+    .trim()
+    .replace(/[^\w.\-]+/g, '_')
+  return resolveBackendMediaUrl(`vendor-documents/${Date.now()}-${safeName}`)
+}
 
-  const uploadedAt = new Date().toISOString()
-  return saveMockDocument({
+export async function uploadDocument({
+  documentId,
+  file,
+  document_type: documentTypeSnake,
+  documentType,
+  category,
+  name,
+  file_url: fileUrlValue,
+} = {}) {
+  if (!file) {
+    throw new Error('Select a document to upload.')
+  }
+
+  const resolvedDocumentType = String(documentTypeSnake || documentType || category || '').trim()
+  const resolvedCategory = String(category || resolvedDocumentType || '').trim()
+  const resolvedName = String(
+    name
+    || DOCUMENT_CATEGORIES[resolvedCategory]
+    || resolvedDocumentType
+    || resolvedCategory
+    || file.name,
+  ).trim()
+  const fileUrl = String(fileUrlValue || '').trim() || buildDocumentFileUrl(file)
+
+  if (!resolvedDocumentType) {
+    throw new Error('Choose a document type before uploading.')
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('document_type', resolvedDocumentType)
+  formData.append('category', resolvedCategory)
+  formData.append('name', resolvedName)
+  formData.append('file_name', file.name)
+  formData.append('file_url', fileUrl)
+  formData.append('verification_status', 'pending')
+  if (documentId) formData.append('document_id', String(documentId))
+
+  const payload = Object.fromEntries(formData.entries())
+  console.log('[profile] POST', PROFILE_ENDPOINTS.UPLOAD_DOCUMENT, payload)
+
+  const { data } = await apiClient.post(PROFILE_ENDPOINTS.UPLOAD_DOCUMENT, formData, {
+    timeout: 60000,
+  })
+  assertApiSuccess(data)
+
+  if (import.meta.env.DEV) {
+    console.info('[profile] POST response', PROFILE_ENDPOINTS.UPLOAD_DOCUMENT, data)
+  }
+
+  const envelope = unwrapApiEnvelope(data)
+  const record = envelope?.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data)
+    ? envelope.data
+    : null
+
+  return normalizeVendorDocument(record ?? {
     id: documentId,
-    fileName: file?.name ?? 'uploaded-document.pdf',
-    documentType: documentType ?? 'Uploaded Document',
-    verificationStatus: 'pending',
-    uploadedAt,
-    previewLabel: `${documentType ?? 'Document'} — uploaded, pending review`,
+    category: resolvedCategory,
+    document_type: resolvedDocumentType,
+    name: resolvedName,
+    file_name: file.name,
+    file_url: fileUrl,
+    status: 'pending',
+    uploaded_at: new Date().toISOString(),
   })
 }
 

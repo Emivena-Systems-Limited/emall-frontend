@@ -58,13 +58,31 @@ export default function DocumentViewerModal({ open, document: docItem, onClose }
           </div>
 
           <div className="space-y-4 px-5 py-5">
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center ring-1 ring-slate-200/60">
-              <FileText className="mx-auto size-8 text-slate-400" />
-              <p className="mt-3 text-sm font-semibold text-slate-700">
-                {docItem.previewLabel ?? 'Document preview will appear here once storage is connected.'}
-              </p>
-              {docItem.fileName && (
-                <p className="mt-1 text-xs text-slate-500">{docItem.fileName}</p>
+            <div className="overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 ring-1 ring-slate-200/60">
+              {docItem.fileUrl ? (
+                /\.pdf($|\?)/i.test(docItem.fileUrl) || String(docItem.fileName ?? '').toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    title={docItem.name}
+                    src={docItem.fileUrl}
+                    className="h-80 w-full bg-white"
+                  />
+                ) : (
+                  <img
+                    src={docItem.fileUrl}
+                    alt={docItem.name}
+                    className="mx-auto max-h-80 w-full object-contain"
+                  />
+                )
+              ) : (
+                <div className="px-4 py-8 text-center">
+                  <FileText className="mx-auto size-8 text-slate-400" />
+                  <p className="mt-3 text-sm font-semibold text-slate-700">
+                    {docItem.previewLabel ?? 'Document preview is not available.'}
+                  </p>
+                  {docItem.fileName && (
+                    <p className="mt-1 text-xs text-slate-500">{docItem.fileName}</p>
+                  )}
+                </div>
               )}
             </div>
 

@@ -326,21 +326,67 @@ export function deriveOrderStatusFromItems(items, fallback = 'ordered') {
   return ORDER_STATUS_ROLLUP[Math.min(...ranks)]
 }
 
+function formatOrderCustomerPhone(phone) {
+  const raw = String(phone ?? '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('+')) return raw
+
+  const digits = raw.replace(/\D/g, '')
+  return digits ? `+${digits}` : raw
+}
+
+function resolveCustomerRecord(record) {
+  const parentOrder = record?.order && typeof record.order === 'object' ? record.order : null
+
+  return record?.customer
+    ?? record?.user
+    ?? record?.buyer
+    ?? parentOrder?.user
+    ?? parentOrder?.customer
+    ?? parentOrder?.buyer
+    ?? {}
+}
+
 function normalizeCustomer(record) {
-  const customer = record?.customer ?? record?.user ?? record?.buyer ?? {}
-  const shipping = record?.shipping_address ?? record?.delivery_address ?? {}
+  const parentOrder = record?.order && typeof record.order === 'object' ? record.order : null
+  const customer = resolveCustomerRecord(record)
+  const shipping = record?.shipping_address
+    ?? record?.delivery_address
+    ?? parentOrder?.shipping_address
+    ?? parentOrder?.delivery_address
+    ?? {}
 
   const name = firstValue(
     customer?.name,
+    customer?.full_name,
     [customer?.first_name, customer?.last_name].filter(Boolean).join(' '),
     [shipping?.first_name, shipping?.last_name].filter(Boolean).join(' '),
     record?.customer_name,
+    parentOrder?.customer_name,
   )
 
   return {
+    id: firstValue(
+      customer?.id,
+      record?.user_id,
+      parentOrder?.user_id,
+      record?.customer_id,
+    ),
     name: name || '',
-    email: firstValue(customer?.email, record?.customer_email, shipping?.email),
-    phone: firstValue(customer?.phone, customer?.phone_number, shipping?.phone_number, record?.customer_phone),
+    email: firstValue(
+      customer?.email,
+      record?.customer_email,
+      shipping?.email,
+      parentOrder?.customer_email,
+    ),
+    phone: formatOrderCustomerPhone(firstValue(
+      customer?.phone,
+      customer?.phone_number,
+      shipping?.phone_number,
+      shipping?.phone,
+      record?.customer_phone,
+      parentOrder?.customer_phone,
+    )),
   }
 }
 
@@ -473,17 +519,38 @@ export function normalizeVendorOrderRecord(record) {
   }
 }
 
+function toRecordList(value) {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== 'object') return []
+
+  const keys = Object.keys(value)
+  if (!keys.length || !keys.every((key) => /^\d+$/.test(key))) return []
+
+  return keys
+    .sort((a, b) => Number(a) - Number(b))
+    .map((key) => value[key])
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+}
+
 export function extractVendorOrderList(body) {
   const envelope = unwrapApiEnvelope(body)
   const payload = envelope?.data ?? body
 
-  if (Array.isArray(payload)) return payload
+  const fromPayload = toRecordList(payload)
+  if (fromPayload.length) return fromPayload
 
   // Laravel paginator: { current_page, data: [...orders], total, last_page, ... }
-  if (Array.isArray(payload?.data)) return payload.data
-  if (Array.isArray(payload?.orders)) return payload.orders
-  if (Array.isArray(payload?.items)) return payload.items
-  if (Array.isArray(payload?.results)) return payload.results
+  const nestedLists = [
+    payload?.data,
+    payload?.orders,
+    payload?.items,
+    payload?.results,
+  ]
+
+  for (const nested of nestedLists) {
+    const list = toRecordList(nested)
+    if (list.length) return list
+  }
 
   return []
 }
