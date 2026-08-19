@@ -13,6 +13,36 @@ const getVariantId = (product) =>
 const getCartKey = ({ productId, variantId, sku }) =>
   [productId, variantId, sku].filter(Boolean).join(':')
 
+const normalizeCartIdentity = (value) => (
+  value == null || value === '' ? null : String(value)
+)
+
+/**
+ * Returns true when a product (or a specific product variant) is already in the cart.
+ * Product cards intentionally omit variantId, so any cart line for that product is a match.
+ */
+export function isProductInCart(items, product, options = {}) {
+  if (!Array.isArray(items)) return false
+
+  const productId = normalizeCartIdentity(options.productId ?? getProductId(product))
+  const variantId = normalizeCartIdentity(
+    Object.prototype.hasOwnProperty.call(options, 'variantId')
+      ? options.variantId
+      : getVariantId(product),
+  )
+  if (!productId) return false
+
+  return items.some((item) => {
+    const itemProductId = normalizeCartIdentity(getProductId(item))
+    if (itemProductId !== productId) return false
+
+    // A listing card represents the whole product, while the details page can
+    // represent one selected variant. Only require a variant match when supplied.
+    if (!variantId) return true
+    return normalizeCartIdentity(getVariantId(item)) === variantId
+  })
+}
+
 function lineItemIdOf(item) {
   if (item?.cartItemId != null && item.cartItemId !== '') return String(item.cartItemId)
   const id = String(item?.id ?? '')

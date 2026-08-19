@@ -27,10 +27,10 @@ import { getProductReviews } from '../services/reviewService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
 import { notify } from '../lib/notify'
-import { addToWishlist, removeFromWishlist } from '../services/wishlistService'
+import { addToWishlist, getUserWishlist, removeFromWishlist } from '../services/wishlistService'
 import { useCartActions } from '../hooks/useCartActions'
 import { useOptionalMiniCart } from '../context/MiniCartContext'
-import { buildCartItem, selectCartItems } from '../store/slices/cartSlice'
+import { buildCartItem, isProductInCart, selectCartItems } from '../store/slices/cartSlice'
 import { saveBuyNowItem } from '../utils/buyNowItem'
 import {
   formatProductCondition,
@@ -372,7 +372,6 @@ function ProductInfoPanel({
   const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const { addToCart } = useCartActions()
-  const miniCart = useOptionalMiniCart()
   const stockAvailability = formatStockAvailability(
     activeVariant?.quantity != null
       ? toNumber(activeVariant.quantity, 0)
@@ -428,16 +427,10 @@ function ProductInfoPanel({
     displayPriceInfo.discountPercent > 0 &&
     displayPriceInfo.compareAt > displayPriceInfo.price
   const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
-  const activeCartKey = [
-    product.id,
-    activeVariant?.id,
-    activeSku,
-  ].filter(Boolean).join(':')
-  const isInCart = cartItems.some((item) => item.key === activeCartKey || (
-    String(item.productId) === String(product.id) &&
-    String(item.variantId ?? '') === String(activeVariant?.id ?? '') &&
-    String(item.sku ?? '') === String(activeSku ?? '')
-  ))
+  const isInCart = isProductInCart(cartItems, product, {
+    productId: product.backendId ?? product.id,
+    variantId: activeVariant?.id ?? null,
+  })
 
   const hasSelectableVariants = Array.isArray(product.variants) && product.variants.length > 0
 
@@ -473,10 +466,7 @@ function ProductInfoPanel({
   })
 
   const handleAddToCart = async () => {
-    if (isInCart) {
-      miniCart?.openMiniCart()
-      return
-    }
+    if (isInCart) return
 
     if (isAddingToCart) return
 
@@ -680,7 +670,7 @@ function ProductInfoPanel({
         </button>
         <button
           type="button"
-          disabled={outOfStock || isAddingToCart}
+          disabled={outOfStock || isAddingToCart || isInCart}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
           className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
@@ -691,7 +681,7 @@ function ProductInfoPanel({
               Adding...
             </>
           ) : (
-            isInCart ? 'View Cart' : 'Add to Cart'
+            isInCart ? 'Already in cart' : 'Add to Cart'
           )}
         </button>
       </div>
@@ -906,6 +896,29 @@ function RailPriceDisplay({ price }) {
 function RailProductCard({ product }) {
   const fullStars = Math.floor(product.rating ?? 0)
   const productHref = product.href?.replace(/^\/products\//, '/')
+  const cartItems = useSelector(selectCartItems)
+  const { addToCart } = useCartActions()
+  const miniCart = useOptionalMiniCart()
+  const [isAdding, setIsAdding] = useState(false)
+  const productId = product.backendId ?? product.id
+  const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
+
+  const handleRailAddToCart = async () => {
+    if (isAdding || isInCart) return
+
+    setIsAdding(true)
+    try {
+      const item = await addToCart(product, {
+        productId,
+        syncable: Boolean(productId),
+        quantity: 1,
+        silentSuccess: true,
+      })
+      if (item) miniCart?.openMiniCart()
+    } finally {
+      setIsAdding(false)
+    }
+  }
 
   return (
     <article className="min-w-0 bg-white">
@@ -952,13 +965,32 @@ function RailProductCard({ product }) {
         ) : (
           <span className="text-[0.5625rem] text-slate-400">No reviews</span>
         )}
-        <Link
-          to="/cart"
-          aria-label={`Add ${product.name} to cart`}
-          className="flex size-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-500 transition-colors hover:border-auth-primary hover:text-auth-primary"
-        >
-          <ShoppingCart className="size-3" strokeWidth={1.8} />
-        </Link>
+        <span className="group/rail-cart relative flex shrink-0">
+          <button
+            type="button"
+            onClick={handleRailAddToCart}
+            disabled={isAdding || isInCart}
+            aria-busy={isAdding}
+            aria-label={isInCart ? `${product.name} is already in cart` : `Add ${product.name} to cart`}
+            className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed ${
+              isInCart
+                ? 'border-slate-200 bg-slate-100 text-slate-400'
+                : 'border-slate-300 text-slate-500 hover:border-auth-primary hover:text-auth-primary'
+            }`}
+          >
+            {isAdding
+              ? <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+              : <ShoppingCart className="size-3" strokeWidth={1.8} />}
+          </button>
+          {isInCart && (
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-[calc(100%+0.4rem)] right-0 z-30 whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-[0.625rem] font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover/rail-cart:opacity-100 group-focus-within/rail-cart:opacity-100"
+            >
+              Already in cart
+            </span>
+          )}
+        </span>
       </div>
     </article>
   )
@@ -1821,12 +1853,41 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const [selectedColor, setSelectedColor] = useState(initialSelections.color)
   const [selectedSize, setSelectedSize] = useState(initialSelections.size)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
-  const [isWishlisted, setIsWishlisted] = useState(false)
-  const [wishlistItemId, setWishlistItemId] = useState(null)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const [localWishlisted, setLocalWishlisted] = useState(false)
+
+  const { data: wishlistItems = [] } = useQuery({
+    queryKey: ['user-wishlist'],
+    queryFn: getUserWishlist,
+    enabled: Boolean(isAuthenticated),
+    staleTime: 30000,
+  })
+
+  const currentWishlistItem = useMemo(() => {
+    if (!wishlistItems || !Array.isArray(wishlistItems)) return null
+    const targetProductId = String(apiProduct?.id ?? product.backendId ?? product.id ?? '').trim()
+    const targetSlug = String(product?.slug ?? '').trim()
+    return wishlistItems.find((item) => {
+      const itemId = String(item.product?.id ?? item.product_id ?? item.productId ?? '').trim()
+      const itemSlug = String(item.product?.slug ?? '').trim()
+      if (targetProductId && itemId && targetProductId === itemId) return true
+      if (targetSlug && itemSlug && targetSlug === itemSlug) return true
+      return false
+    }) ?? null
+  }, [wishlistItems, apiProduct, product])
+
+  const isWishlisted = Boolean(currentWishlistItem || localWishlisted)
 
   const handleWishlistToggle = async () => {
-    const nextState = !isWishlisted
-    setIsWishlisted(nextState)
+    if (isWishlisted) {
+      notify.info('Item already in wishlist')
+      return
+    }
+
+    if (!isAuthenticated) {
+      notify.error('Please sign in to add items to your wishlist')
+      return
+    }
 
     const productId = String(apiProduct?.id ?? product.backendId ?? product.id ?? '').trim()
     const payload = {
@@ -1835,26 +1896,12 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     }
 
     try {
-      if (nextState) {
-        const savedItem = await addToWishlist(payload)
-        const normalizedSavedItem = Array.isArray(savedItem)
-          ? savedItem.flat(Infinity).find((item) => item && typeof item === 'object')
-          : savedItem
-        setWishlistItemId(normalizedSavedItem?.id ?? null)
-        await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
-        notify.success('Added to wishlist')
-      } else {
-        if (!wishlistItemId) {
-          throw new Error('The saved wishlist item could not be identified. Refresh your wishlist and try again.')
-        }
-        await removeFromWishlist(wishlistItemId)
-        setWishlistItemId(null)
-        await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
-        notify.success('Removed from wishlist')
-      }
+      await addToWishlist(payload)
+      setLocalWishlisted(true)
+      await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
+      notify.success('Added to wishlist')
     } catch (err) {
-      setIsWishlisted(!nextState)
-      notify.fromError(err, nextState ? 'Failed to add item to wishlist' : 'Failed to remove item from wishlist')
+      notify.fromError(err, 'Failed to add item to wishlist')
       if (import.meta.env.DEV) {
         console.warn(
           '[wishlist] API call failed:',

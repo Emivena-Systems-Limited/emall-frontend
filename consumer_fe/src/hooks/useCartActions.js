@@ -7,6 +7,7 @@ import {
   clearCart,
   clearGuestCartId,
   clearSavedItems,
+  isProductInCart,
   moveSavedToCart,
   removeItem,
   removeSavedItem,
@@ -105,6 +106,19 @@ export function useCartActions() {
   const addToCart = useCallback(async (product, options = {}) => {
     const { silentSuccess = false, ...cartOptions } = options
     const item = buildCartItem(product, cartOptions)
+    const currentItems = store.getState().cart.items
+
+    // Keep every add-to-cart entry point idempotent, including callers that do
+    // not render their own disabled state.
+    if (isProductInCart(currentItems, item, {
+      productId: item.productId,
+      variantId: item.variantId,
+    })) {
+      return currentItems.find((current) => (
+        String(current.productId) === String(item.productId)
+        && (!item.variantId || String(current.variantId) === String(item.variantId))
+      )) ?? item
+    }
     const isAuthenticated = store.getState().auth.isAuthenticated
     const shouldSyncWithApi = canSyncToApi(item)
 

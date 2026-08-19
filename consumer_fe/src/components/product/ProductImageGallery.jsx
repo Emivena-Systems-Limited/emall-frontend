@@ -539,7 +539,8 @@ export default function ProductImageGallery({
                 event.stopPropagation()
                 onWishlist()
               }}
-              aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+              title={isWishlisted ? 'Item already in wishlist' : 'Add to wishlist'}
+              aria-label={isWishlisted ? 'Item already in wishlist' : 'Add to wishlist'}
               aria-pressed={isWishlisted}
               className={`pointer-events-auto flex size-10 items-center justify-center rounded-full bg-white/95 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95 ${
                 isWishlisted
