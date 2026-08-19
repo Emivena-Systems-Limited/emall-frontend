@@ -3,8 +3,9 @@ export const PROFILE_ENDPOINTS = {
   UPDATE_INFORMATION: '/api/vendor/update/information',
   updateAddress: (addressId) => `/api/vendor/update/address/${addressId}`,
   BUSINESS: '/api/vendor/profile/business',
-  DOCUMENTS: '/api/vendor/profile/documents',
+  DOCUMENTS: '/api/vendor/get/documents',
   DOCUMENT: (documentId) => `/api/vendor/profile/documents/${documentId}`,
+  UPLOAD_DOCUMENT: '/api/vendor/upload/document',
   VERIFICATION: '/api/vendor/profile/verification',
   AVATAR: '/api/vendor/profile/avatar',
 }

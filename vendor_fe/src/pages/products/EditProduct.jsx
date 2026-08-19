@@ -248,6 +248,7 @@ function ProductInfoEditForm({
   categoriesError,
 }) {
   const [activeStep, setActiveStep] = useState(0)
+  const [initialFormValues] = useState(() => formState.formValues)
   const [mainImage, setMainImage] = useState(formState.mainImage)
   const [subImages, setSubImages] = useState(formState.subImages)
   const [descriptiveImages, setDescriptiveImages] = useState(formState.descriptiveImages ?? [])
@@ -519,8 +520,7 @@ function ProductInfoEditForm({
       </section>
 
       <Formik
-        initialValues={formState.formValues}
-        enableReinitialize
+        initialValues={initialFormValues}
         validationSchema={productInfoSchema}
         validateOnBlur
         validateOnChange={false}
@@ -736,7 +736,10 @@ export default function EditProduct() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { data: product, isLoading, isError, refetch } = useProduct(productId)
-  const formState = product ? mapProductRecordToFormState(product) : null
+  const formState = useMemo(
+    () => (product ? mapProductRecordToFormState(product) : null),
+    [product],
+  )
   const variationsFormState = useMemo(() => {
     if (!formState) return null
 

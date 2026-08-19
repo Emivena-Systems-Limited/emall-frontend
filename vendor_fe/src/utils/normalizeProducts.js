@@ -186,7 +186,7 @@ function resolveCatalogListPrice(record, firstVariant, context, meta = {}) {
   return 0
 }
 
-function resolveCatalogSalePrice(record, firstVariant, context, meta = {}) {
+function resolveCatalogSalePrice(record, firstVariant, context, regularPrice, meta = {}) {
   const candidates = [
     context.salePrice,
     record.regular_discount_price,
@@ -196,7 +196,10 @@ function resolveCatalogSalePrice(record, firstVariant, context, meta = {}) {
   ]
 
   for (const candidate of candidates) {
-    if (isUsableCatalogPrice(candidate)) return Number(candidate)
+    if (!isUsableCatalogPrice(candidate)) continue
+    const sale = Number(candidate)
+    if (regularPrice > 0 && sale >= regularPrice) continue
+    return sale
   }
 
   return null
@@ -261,7 +264,7 @@ export function toCatalogProduct(record, context = {}) {
   const brandName = resolveBrandName(record, context)
 
   const regularPrice = resolveCatalogListPrice(record, firstVariant, context, meta)
-  const rawSalePrice = resolveCatalogSalePrice(record, firstVariant, context, meta)
+  const rawSalePrice = resolveCatalogSalePrice(record, firstVariant, context, regularPrice, meta)
   const salePrice = rawSalePrice ?? regularPrice
   const hasDiscount = rawSalePrice != null && rawSalePrice > 0 && rawSalePrice < regularPrice
 
