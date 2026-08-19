@@ -9,8 +9,10 @@ import {
   Filter,
   Loader2,
   MessageSquareText,
+  PackageCheck,
   RefreshCw,
   Search,
+  ShoppingBag,
   Star,
   Trash2,
   UploadCloud,
@@ -466,7 +468,7 @@ function ReviewsList() {
                     <button
                       type="button"
                       onClick={() => setDeleting(review)}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-red-50 hover:text-auth-primary"
                     >
                       <Trash2 className="size-3.5" />
                       Delete Review
@@ -557,6 +559,46 @@ function ReviewsList() {
   )
 }
 
+function NoEligibleReviewsCard() {
+  const navigate = useNavigate()
+
+  return (
+    <div className="flex min-h-112 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-[0_8px_30px_rgba(15,23,42,0.03)] sm:p-12">
+      <div className="flex size-16 items-center justify-center rounded-2xl bg-red-50 text-auth-primary">
+        <PackageCheck className="size-8" strokeWidth={1.8} />
+      </div>
+
+      <h3 className="mt-5 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+        No delivered orders to review yet
+      </h3>
+
+      <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+        You can only review products from orders that have been successfully delivered to you.
+        Once your package arrives, your items will become eligible for feedback here.
+      </p>
+
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/account/orders')}
+          className="inline-flex items-center gap-2 rounded-xl bg-auth-primary px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-auth-primary-hover active:scale-98"
+        >
+          <ShoppingBag className="size-4" />
+          View Your Orders
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate('/account/reviews')}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+        >
+          Back to My Reviews
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function LeaveReview({ reviewId }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -599,6 +641,12 @@ function LeaveReview({ reviewId }) {
     }, 0)
     return () => window.clearTimeout(timer)
   }, [existing, reviewData])
+
+  const hasEligibleItems =
+    editing ||
+    eligibleItems.length > 0 ||
+    Boolean(params.get('product')) ||
+    Boolean(params.get('order_item_id'))
 
   const effectiveOrderItemId = orderItemId || String(
     eligibleItems[0]?.id ?? eligibleItems[0]?.order_item_id ?? '',
@@ -666,6 +714,14 @@ function LeaveReview({ reviewId }) {
     if (!editing) {
       payload.order_item_id = effectiveOrderItemId
       payload.product_id = productId
+    } else {
+      const existingMediaIds = existingMedia
+        .map((item) => {
+          if (typeof item === 'string') return item.trim()
+          return item?.id ?? item?.media_id ?? item?.ulid ?? item?.uuid ?? null
+        })
+        .filter((id) => Boolean(id) && typeof id === 'string')
+      payload.existing_media_ids = existingMediaIds
     }
 
     try {
@@ -720,7 +776,12 @@ function LeaveReview({ reviewId }) {
         </p>
       </div>
 
-      <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
+      {!hasEligibleItems && !isLoadingEligible ? (
+        <div className="mt-7">
+          <NoEligibleReviewsCard />
+        </div>
+      ) : (
+        <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
         <form
           onSubmit={submit}
           noValidate
@@ -1039,6 +1100,7 @@ function LeaveReview({ reviewId }) {
           </Link>
         </aside>
       </div>
+      )}
     </section>
   )
 }

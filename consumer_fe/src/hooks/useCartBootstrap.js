@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import { useCartAuthSync } from './useCartAuthSync'
+import { useAuthenticatedCart } from './useAuthenticatedCart'
 import { resetAuthenticatedCartSession } from '../services/cartService'
 
 /**
  * Mounted once in App so cart hooks do not remount on every page navigation:
  * 1. useCartAuthSync — one-time guest→account handoff on login/signup.
- *
- * Cart refresh runs on CartPage via useAuthenticatedCart / useGuestCart.
+ * 2. useAuthenticatedCart — loads/syncs authenticated cart into Redux across the whole app.
  */
 export function useCartBootstrap() {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
@@ -30,4 +30,10 @@ export function useCartBootstrap() {
   }, [isAuthenticated, userId])
 
   useCartAuthSync()
+  useAuthenticatedCart({
+    enabled: isAuthenticated,
+    strategy: 'replace',
+    staleTime: 30000,
+    refetchOnMount: true,
+  })
 }

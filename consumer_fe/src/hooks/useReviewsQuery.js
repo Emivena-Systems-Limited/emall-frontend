@@ -7,9 +7,7 @@ import {
   getEligibleReviewItems,
   getReview,
   getUserReviews,
-  resolveReviewId,
   updateReview,
-  uploadReviewMedia,
 } from '../services/reviewService'
 import { notify } from '../lib/notify'
 
@@ -54,35 +52,40 @@ export function useReviewMutations({ onSaved, onDeleted } = {}) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['user-reviews'] })
 
   const createMutation = useMutation({
-    mutationFn: async ({ payload, files = [] }) => {
-      const created = await createReview(payload)
-      const reviewId = resolveReviewId(created)
-      if (files.length && !reviewId) {
-        throw new Error('Review was created, but its ID was missing so media could not be uploaded')
-      }
-      if (files.length) await uploadReviewMedia(reviewId, files)
-      return created
-    },
+    mutationFn: ({ payload, files = [] }) => createReview(payload, files),
     onSuccess: async () => {
       await refresh()
       notify.success('Review submitted successfully')
       onSaved?.()
     },
-    onError: (error) => notify.fromError(error, 'Failed to submit review'),
+    onError: (error) => {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[reviews] Create failed:',
+          error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error,
+        )
+      }
+      notify.fromError(error, 'Failed to submit review')
+    },
   })
 
   const updateMutation = useMutation({
-    mutationFn: async ({ reviewId, payload, files = [] }) => {
-      const updated = await updateReview({ reviewId, payload })
-      if (files.length) await uploadReviewMedia(reviewId, files)
-      return updated
-    },
+    mutationFn: ({ reviewId, payload, files = [] }) =>
+      updateReview({ reviewId, payload, files }),
     onSuccess: async () => {
       await refresh()
       notify.success('Review updated successfully')
       onSaved?.()
     },
-    onError: (error) => notify.fromError(error, 'Failed to update review'),
+    onError: (error) => {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[reviews] Update failed:',
+          error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error,
+        )
+      }
+      notify.fromError(error, 'Failed to update review')
+    },
   })
 
   const deleteMutation = useMutation({
