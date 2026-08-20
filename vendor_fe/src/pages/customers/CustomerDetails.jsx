@@ -85,7 +85,11 @@ export default function CustomerDetails() {
       <DashboardLayout pageTitle="Customer details">
         <div className="page-enter rounded-2xl border border-slate-200 bg-white p-6 text-center">
           <p className="text-sm text-slate-600">Customer not found.</p>
-          <Link to="/customers" className="mt-4 inline-flex text-sm font-bold text-brand hover:underline">
+          <Link
+            to="/customers"
+            className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand"
+          >
+            <ArrowLeft className="size-4" />
             Back to customers
           </Link>
         </div>
@@ -108,18 +112,18 @@ export default function CustomerDetails() {
   return (
     <DashboardLayout pageTitle="Customer details">
       <div className="page-enter space-y-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-950">Customer Details</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold text-slate-950">Customer Details</h1>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Link
               to="/customers"
-              className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
+              className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)]"
             >
               <ArrowLeft className="size-4" />
-              Back to Customers
+              Back to customers
             </Link>
+            <CustomerRowActions customer={customer} onPrint={handlePrint} hideViewDetails />
           </div>
-          <CustomerRowActions customer={customer} onPrint={handlePrint} hideViewDetails />
         </div>
 
         <CustomerDetailHeader customer={customer} />

@@ -102,13 +102,31 @@ export async function getUserOrders(userId, filters = {}) {
   }
 
   const endpoint = ORDER_ENDPOINTS.userOrders(id)
-  const params = buildUserOrderQueryParams(filters)
-  const { data } = await apiClient.get(endpoint, { params })
 
-  if (import.meta.env.DEV) {
-    console.info('[orders] GET', endpoint, params, data)
+  async function fetchPage(page = 1) {
+    const params = { ...buildUserOrderQueryParams(filters), page }
+    const { data } = await apiClient.get(endpoint, { params })
+
+    if (import.meta.env.DEV) {
+      console.info('[orders] GET', endpoint, params, data)
+    }
+
+    assertApiSuccess(data)
+    return data
   }
 
-  assertApiSuccess(data)
-  return extractVendorOrderList(data)
+  const firstResponse = await fetchPage(1)
+  const orders = extractVendorOrderList(firstResponse)
+  const { lastPage } = extractVendorOrdersPagination(firstResponse)
+
+  if (lastPage <= 1) return orders
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: lastPage - 1 }, (_, index) => fetchPage(index + 2)),
+  )
+
+  return [
+    ...orders,
+    ...remainingPages.flatMap(extractVendorOrderList),
+  ]
 }

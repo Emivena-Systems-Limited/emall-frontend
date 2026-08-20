@@ -14,7 +14,7 @@ export default function OrderManagePanel({ order, onCancelRequest, className = '
     ? 'px-4 py-2 text-xs rounded-lg'
     : 'px-5 py-3 text-sm rounded-xl'
 
-  if (order.status === 'Cancelled') {
+  if (order.status === 'Cancelled' || order.deliveryStatus === 'Cancelled' || order.fulfillment?.token === 'cancelled') {
     return (
       <article className={`w-full border border-red-200 bg-linear-to-br from-red-50 to-white ${shell} ${className}`}>
         <div className="flex min-w-0 items-start gap-2.5 sm:items-center">
@@ -41,9 +41,9 @@ export default function OrderManagePanel({ order, onCancelRequest, className = '
               <Clock3 className={iconSize} strokeWidth={1.8} aria-hidden />
             </span>
             <div className="min-w-0">
-              <h3 className={`${titleClass} text-slate-950`}>Still processing</h3>
+              <h3 className={`${titleClass} text-slate-950`}>Cancel while pending</h3>
               <p className={`${bodyClass} text-slate-600`}>
-                You can cancel this order while it&apos;s being processed. Once it moves to ready for shipment, cancellation won&apos;t be available online.
+                You can cancel this order while it&apos;s still pending. Once the vendor starts processing it, cancellation won&apos;t be available online.
               </p>
             </div>
           </div>

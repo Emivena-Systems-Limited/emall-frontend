@@ -3,7 +3,12 @@ import { ChevronRight, Download, Minus, Package, Plus, Star } from 'lucide-react
 import { formatCediPriceParts } from '../../utils/formatCurrency'
 import {
   canCancelOrder,
+  canReturnOrderItem,
+  canReviewOrderItem,
+  extractOrderItems,
+  formatDeliveryStatus,
   formatEstimatedDelivery,
+  formatOrderMoney,
   formatOrderNumber,
   getOrderTotals,
   resolveOrderItemImage,
@@ -21,6 +26,36 @@ const tableColumns =
   'sm:grid-cols-[minmax(0,1fr)_minmax(5.5rem,7rem)_minmax(5.5rem,6.5rem)_minmax(5.5rem,7rem)] sm:gap-x-6'
 
 const tableCellPadding = 'px-3 sm:px-4'
+
+const itemDeliveryStatusStyles = {
+  'Pending Delivery': 'bg-amber-50 text-amber-700',
+  Processing: 'bg-sky-50 text-sky-700',
+  Shipped: 'bg-violet-50 text-violet-700',
+  'Partially Shipped': 'bg-violet-50 text-violet-700',
+  Delivered: 'bg-emerald-50 text-emerald-700',
+  'Partially Delivered': 'bg-teal-50 text-teal-700',
+  Cancelled: 'bg-red-50 text-red-600',
+  Refunded: 'bg-slate-100 text-slate-700',
+}
+
+const paymentStatusStyles = {
+  Paid: 'bg-emerald-50 text-emerald-700',
+  'Payment pending': 'bg-amber-50 text-amber-700',
+  'Payment failed': 'bg-red-50 text-red-600',
+  Refunded: 'bg-slate-100 text-slate-700',
+  Cancelled: 'bg-red-50 text-red-600',
+}
+
+function ItemDeliveryBadge({ status }) {
+  const label = formatDeliveryStatus(status)
+  const style = itemDeliveryStatusStyles[label] ?? 'bg-slate-100 text-slate-600'
+
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[0.625rem] font-bold ${style}`}>
+      {label}
+    </span>
+  )
+}
 
 function OrderTablePrice({ amountGhs, compareAmountGhs, align = 'center' }) {
   const priceParts = formatCediPriceParts(amountGhs)
@@ -61,7 +96,10 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
   const productHref = resolveOrderItemProductHref(item)
   const productName = item.product_name ?? item.name ?? 'Product'
   const { unitPrice, comparePrice, lineTotal, compareLineTotal } = resolveOrderItemPricing(item)
-  const reviewHref = `/account/reviews/new?product=${encodeURIComponent(productName)}&order=${encodeURIComponent(orderId)}`
+  const canReview = canReviewOrderItem(item)
+  const canReturn = canReturnOrderItem(item)
+  const reviewHref = `/account/reviews/new?product=${encodeURIComponent(productName)}&order=${encodeURIComponent(orderId)}${item.id ? `&item=${encodeURIComponent(item.id)}` : ''}`
+  const returnHref = `/account/returns?product=${encodeURIComponent(productName)}&order=${encodeURIComponent(orderId)}${item.id ? `&item=${encodeURIComponent(item.id)}` : ''}`
 
   return (
     <article className={`grid grid-cols-1 gap-3 border-b border-slate-200 py-5 last:border-b-0 sm:items-center ${tableColumns}`}>
@@ -84,13 +122,16 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
           <Link to={productHref} className="text-sm font-bold text-slate-950 transition hover:text-auth-primary">
             {productName}
           </Link>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ItemDeliveryBadge status={item.delivery_status} />
+            {deliveryIsFree ? (
+              <span className="inline-flex rounded-sm bg-[#edf7ed] px-2 py-0.5 text-[0.6875rem] font-medium text-[#2e7d32]">
+                Free Delivery
+              </span>
+            ) : null}
+          </div>
           {variantLabel ? (
             <p className="text-xs leading-snug text-slate-500">{variantLabel}</p>
-          ) : null}
-          {deliveryIsFree ? (
-            <span className="inline-flex rounded-sm bg-[#edf7ed] px-2 py-0.5 text-[0.6875rem] font-medium text-[#2e7d32]">
-              Free Delivery
-            </span>
           ) : null}
           {storeName ? (
             <div className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -109,12 +150,16 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
             <Link to={productHref} className="underline underline-offset-2 hover:text-auth-primary">
               Buy Again
             </Link>
-            <Link to="/account/returns" className="underline underline-offset-2 hover:text-auth-primary">
-              Return Item
-            </Link>
-            <Link to={reviewHref} className="underline underline-offset-2 hover:text-auth-primary">
-              Leave Review
-            </Link>
+            {canReturn ? (
+              <Link to={returnHref} className="underline underline-offset-2 hover:text-auth-primary">
+                Return Item
+              </Link>
+            ) : null}
+            {canReview ? (
+              <Link to={reviewHref} className="underline underline-offset-2 hover:text-auth-primary">
+                Leave Review
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>
@@ -143,12 +188,15 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
 
 export default function OrderDetailsView({ order, onCancelRequest }) {
   const raw = order.raw ?? {}
-  const items = Array.isArray(raw.items) ? raw.items : []
+  const items = extractOrderItems(raw)
   const totals = getOrderTotals(raw)
   const estimatedDelivery = formatEstimatedDelivery(raw)
   const deliveryIsFree = totals.deliveryFee <= 0
   const cancellable = canCancelOrder(raw)
   const orderNumber = formatOrderNumber(order.id, { withHash: true })
+  const fulfillmentSummary = order.fulfillment?.summary
+  const paymentStatus = order.paymentStatus
+  const paymentStyle = paymentStatusStyles[paymentStatus] ?? 'bg-slate-100 text-slate-600'
 
   const handleDownloadInvoice = () => {
     notify.info('Invoice download will be available soon.')
@@ -174,6 +222,21 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
             Order{' '}
             <span className="tabular-nums tracking-normal">{orderNumber}</span>
           </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {order.deliveryStatus ? (
+              <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${itemDeliveryStatusStyles[order.deliveryStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                {order.deliveryStatus}
+              </span>
+            ) : null}
+            {paymentStatus ? (
+              <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${paymentStyle}`}>
+                {paymentStatus}
+              </span>
+            ) : null}
+            {fulfillmentSummary ? (
+              <span className="text-xs font-medium text-slate-500">{fulfillmentSummary}</span>
+            ) : null}
+          </div>
           <p className="mt-1.5 text-sm text-slate-600">
             {estimatedDelivery === 'Delivered' ? (
               <span className="font-bold text-emerald-700">Delivered</span>
@@ -238,6 +301,35 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
             Item details for this order are not available yet.
           </div>
         )}
+
+        <dl className="mt-4 space-y-2 border-t border-slate-200 px-3 pt-4 text-sm sm:px-4">
+          <div className="flex items-center justify-between">
+            <dt className="text-slate-600">Subtotal</dt>
+            <dd className="font-semibold text-slate-900">{formatOrderMoney(totals.subtotal)}</dd>
+          </div>
+          {totals.discountTotal > 0 ? (
+            <div className="flex items-center justify-between text-auth-primary">
+              <dt>Discount</dt>
+              <dd className="font-semibold">-{formatOrderMoney(totals.discountTotal)}</dd>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between">
+            <dt className="text-slate-600">Delivery</dt>
+            <dd className="font-semibold text-slate-900">
+              {deliveryIsFree ? 'Free' : formatOrderMoney(totals.deliveryFee)}
+            </dd>
+          </div>
+          {totals.taxTotal > 0 ? (
+            <div className="flex items-center justify-between">
+              <dt className="text-slate-600">Tax</dt>
+              <dd className="font-semibold text-slate-900">{formatOrderMoney(totals.taxTotal)}</dd>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
+            <dt className="font-bold text-slate-950">Total Paid</dt>
+            <dd className="font-extrabold text-slate-950">{formatOrderMoney(totals.grandTotal)}</dd>
+          </div>
+        </dl>
       </section>
 
       <OrderManagePanel order={order} onCancelRequest={onCancelRequest} compact />

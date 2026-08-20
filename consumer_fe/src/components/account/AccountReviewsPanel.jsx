@@ -307,7 +307,7 @@ function ReviewsList() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-auth-primary px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-auth-primary-hover"
           >
             <FilePenLine className="size-4" />
-            Write a New Review
+            Review a delivered item
           </button>
         </div>
       </div>
@@ -618,7 +618,7 @@ function LeaveReview({ reviewId }) {
     [reviewData],
   )
 
-  const requestedOrderItemId = params.get('order_item_id') ?? ''
+  const requestedOrderItemId = params.get('order_item_id') ?? params.get('item') ?? ''
   const [orderItemId, setOrderItemId] = useState(requestedOrderItemId)
 
   const [rating, setRating] = useState(existing?.rating ?? 0)
@@ -646,7 +646,8 @@ function LeaveReview({ reviewId }) {
     editing ||
     eligibleItems.length > 0 ||
     Boolean(params.get('product')) ||
-    Boolean(params.get('order_item_id'))
+    Boolean(params.get('order_item_id')) ||
+    Boolean(params.get('item'))
 
   const effectiveOrderItemId = orderItemId || String(
     eligibleItems[0]?.id ?? eligibleItems[0]?.order_item_id ?? '',

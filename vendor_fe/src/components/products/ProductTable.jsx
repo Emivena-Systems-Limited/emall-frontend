@@ -259,7 +259,13 @@ function ProductMobileCard({
             </div>
             <div className="rounded-lg bg-slate-50 px-3 py-2">
               <dt className="font-semibold uppercase tracking-wide text-slate-400">Regular</dt>
-              <dd className="mt-0.5 font-medium tabular-nums text-slate-800">GH₵ {regularPrice}</dd>
+              <dd
+                className={`mt-0.5 font-medium tabular-nums ${
+                  product.hasDiscount ? 'text-slate-400 line-through' : 'text-slate-800'
+                }`}
+              >
+                GH₵ {regularPrice}
+              </dd>
             </div>
             <div className="rounded-lg bg-slate-50 px-3 py-2">
               <dt className="font-semibold uppercase tracking-wide text-slate-400">Sale</dt>
@@ -381,7 +387,9 @@ function ProductDesktopTable({
                   {product.brand}
                 </td>
                 <td className={TABLE_PRICE_CLASS}>
-                  GH₵&nbsp;{formatProductPrice(product.regularPrice ?? product.listPrice)}
+                  <span className={product.hasDiscount ? 'text-slate-400 line-through' : undefined}>
+                    GH₵&nbsp;{formatProductPrice(product.regularPrice ?? product.listPrice)}
+                  </span>
                 </td>
                 <td className={TABLE_PRICE_CLASS}>
                   <span

@@ -58,7 +58,7 @@ export default function CancelOrderModal({ order, isPending, onClose, onConfirm 
                 <span className="tabular-nums">{formatOrderNumber(order.id, { withHash: true })}</span>?
               </h2>
               <p className="mt-1 text-[0.6875rem] leading-4 text-white/85">
-                Processing will stop. You won&apos;t be charged again if payment is still pending.
+                This order will be stopped before processing starts. You won&apos;t be charged again if payment is still pending.
               </p>
             </div>
             <button
@@ -95,7 +95,7 @@ export default function CancelOrderModal({ order, isPending, onClose, onConfirm 
               <div>
                 <p className="text-xs font-bold text-amber-950">Before you continue</p>
                 <ul className="mt-1 space-y-1 text-[0.6875rem] leading-4 text-amber-900/90">
-                  <li>Only available while the order is still processing.</li>
+                  <li>Only available while the order is still pending.</li>
                   <li>Refund timing depends on your payment method.</li>
                 </ul>
               </div>

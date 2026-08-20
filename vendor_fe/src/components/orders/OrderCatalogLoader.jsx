@@ -79,38 +79,20 @@ function OrderMobileCardSkeleton() {
   )
 }
 
-function CustomerOrdersBannerSkeleton() {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
-          <SkeletonBlock className="size-12 shrink-0 rounded-2xl" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <SkeletonBlock className="h-3 w-28" />
-            <SkeletonBlock className="h-7 w-56 max-w-full" />
-            <SkeletonBlock className="h-3.5 w-40" />
-            <SkeletonBlock className="h-3 w-48" />
-          </div>
-        </div>
-        <SkeletonBlock className="h-10 w-40 shrink-0 rounded-xl" />
-      </div>
-    </div>
-  )
-}
-
 export default function OrderCatalogLoader({
   showSummary = true,
-  showCustomerBanner = false,
+  showHeaderAction = false,
 }) {
   return (
     <div className="space-y-5" aria-busy="true" aria-label="Loading orders">
       <CatalogLoaderBar label="Loading orders" />
 
-      {showCustomerBanner ? (
-        <CustomerOrdersBannerSkeleton />
-      ) : (
-        <PageHeaderSkeleton titleClass="h-8 w-32" subtitleClass="h-4 w-72" showMeta={false} />
-      )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <PageHeaderSkeleton titleClass="h-8 w-48" subtitleClass="h-4 w-72" showMeta={false} />
+        </div>
+        {showHeaderAction ? <SkeletonBlock className="h-10 w-44 shrink-0 rounded-xl" /> : null}
+      </div>
 
       {showSummary && <SummaryCardsGridSkeleton count={4} className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" />}
 

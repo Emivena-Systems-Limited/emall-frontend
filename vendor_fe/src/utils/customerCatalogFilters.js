@@ -1,7 +1,6 @@
 import {
   CUSTOMER_SEGMENTS,
 } from '../constants/customers'
-import { MOCK_CUSTOMERS_REFERENCE_DATE } from '../mocks/customerMockData'
 
 function normalizeSearch(value) {
   return value.trim().toLowerCase()
@@ -31,7 +30,7 @@ function matchesSearch(customer, search) {
 function matchesSegment(customer, segment) {
   if (segment !== CUSTOMER_SEGMENTS.NEW_THIS_MONTH) return true
 
-  const now = new Date(MOCK_CUSTOMERS_REFERENCE_DATE)
+  const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   return new Date(customer.firstPurchaseDate) >= monthStart
 }
@@ -51,18 +50,29 @@ function parseDateBoundary(value, endOfDay = false) {
   return date
 }
 
+function isDateInRange(value, start, end) {
+  if (!value) return false
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+  if (start && date < start) return false
+  if (end && date > end) return false
+  return true
+}
+
 function matchesOrderDateRange(customer, orderDateRange = {}) {
   const start = parseDateBoundary(orderDateRange.startDate)
   const end = parseDateBoundary(orderDateRange.endDate, true)
 
   if (!start && !end) return true
 
-  return customer.orderHistory.some((order) => {
-    const orderDate = new Date(order.orderDate)
-    if (start && orderDate < start) return false
-    if (end && orderDate > end) return false
-    return true
-  })
+  const history = Array.isArray(customer.orderHistory) ? customer.orderHistory : []
+  if (history.length > 0) {
+    return history.some((order) => isDateInRange(order.orderDate, start, end))
+  }
+
+  return isDateInRange(customer.lastOrderDate, start, end)
+    || isDateInRange(customer.firstPurchaseDate, start, end)
 }
 
 function matchesSpendRange(customer, minSpend = '', maxSpend = '') {
@@ -127,4 +137,46 @@ export function hasActiveCustomerFilters({
     || minSpend !== ''
     || maxSpend !== '',
   )
+}
+
+export function normalizeCustomerListFilters({
+  search = '',
+  segment = CUSTOMER_SEGMENTS.ALL,
+  startDate = '',
+  endDate = '',
+  minSpend = '',
+  maxSpend = '',
+} = {}) {
+  return {
+    search: String(search ?? '').trim(),
+    segment: segment === CUSTOMER_SEGMENTS.NEW_THIS_MONTH
+      ? CUSTOMER_SEGMENTS.NEW_THIS_MONTH
+      : CUSTOMER_SEGMENTS.ALL,
+    startDate: String(startDate ?? '').trim(),
+    endDate: String(endDate ?? '').trim(),
+    minSpend: String(minSpend ?? '').trim(),
+    maxSpend: String(maxSpend ?? '').trim(),
+  }
+}
+
+export function buildCustomersQueryParams(filters = {}) {
+  const normalized = normalizeCustomerListFilters(filters)
+  const params = {}
+
+  if (normalized.search) params.search = normalized.search
+  if (normalized.segment !== CUSTOMER_SEGMENTS.ALL) params.segment = normalized.segment
+  if (normalized.startDate) params.start_date = normalized.startDate
+  if (normalized.endDate) params.end_date = normalized.endDate
+
+  if (normalized.minSpend !== '' && !Number.isNaN(Number(normalized.minSpend))) {
+    params.min_spend = normalized.minSpend
+  }
+  if (normalized.maxSpend !== '' && !Number.isNaN(Number(normalized.maxSpend))) {
+    params.max_spend = normalized.maxSpend
+  }
+
+  const page = Number(filters.page)
+  if (Number.isFinite(page) && page > 0) params.page = page
+
+  return params
 }

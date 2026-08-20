@@ -241,40 +241,50 @@ export function extractCheckoutPreviewItems(preview) {
 }
 
 function resolveCartLinePricing(record, quantity) {
-  const unitPrice = toNumber(firstValue(record.unit_price, record.price))
-  const discountAmount = toNumber(record.discount_amount)
+  const unitPrice = toNumber(firstValue(record.unit_price, record.price, record.regular_price))
   const qty = Math.max(1, Number(quantity) || 1)
-  const hasSaleDiscount = discountAmount != null && discountAmount > 0
+  const unitDiscount = toNumber(firstValue(
+    record.unit_price_discount,
+    record.discount,
+    record.variant?.discount,
+    record.product?.discount,
+  ))
+  const catalogSale = toNumber(firstValue(
+    record.regular_discount_price,
+    record.discounted_price,
+    record.discount_price,
+    record.variant?.regular_discount_price,
+    record.variant?.discount_price,
+    record.product?.regular_discount_price,
+    record.product?.discount_price,
+  ))
+  const namedSaleOrOff = toNumber(record.discount_amount)
 
-  // discount_amount is the per-unit sale price → line total = discount_amount × quantity
-  if (hasSaleDiscount) {
-    const displaySubtotal = discountAmount * qty
-    const compareAt = unitPrice != null && unitPrice > discountAmount
-      ? unitPrice
-      : toNumber(firstValue(record.compare_at, record.original_price))
-    const listLineTotal = unitPrice != null ? unitPrice * qty : null
-    const lineSavings = listLineTotal != null && listLineTotal > displaySubtotal
-      ? listLineTotal - displaySubtotal
-      : null
-
-    return {
-      price: discountAmount,
-      compareAt,
-      displaySubtotal,
-      lineSavings,
-    }
+  let paidUnit = unitPrice ?? 0
+  if (unitDiscount != null && unitDiscount > 0 && unitPrice != null && unitDiscount < unitPrice) {
+    paidUnit = unitPrice - unitDiscount
+  } else if (catalogSale != null && catalogSale > 0 && unitPrice != null && catalogSale < unitPrice) {
+    paidUnit = catalogSale
+  } else if (namedSaleOrOff != null && namedSaleOrOff > 0 && unitPrice != null && namedSaleOrOff < unitPrice) {
+    paidUnit = namedSaleOrOff > unitPrice * 0.5
+      ? namedSaleOrOff
+      : unitPrice - namedSaleOrOff
   }
 
-  // No discount — line total = unit_price × quantity
-  const price = unitPrice ?? 0
-  const displaySubtotal = price * qty
-  const compareAt = toNumber(firstValue(record.compare_at, record.original_price))
+  const compareAt = unitPrice != null && unitPrice > paidUnit
+    ? unitPrice
+    : toNumber(firstValue(record.compare_at, record.original_price))
+  const displaySubtotal = paidUnit * qty
+  const listLineTotal = unitPrice != null ? unitPrice * qty : null
+  const lineSavings = listLineTotal != null && listLineTotal > displaySubtotal
+    ? listLineTotal - displaySubtotal
+    : null
 
   return {
-    price,
+    price: paidUnit,
     compareAt,
     displaySubtotal,
-    lineSavings: null,
+    lineSavings,
   }
 }
 

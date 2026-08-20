@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowLeft, RefreshCw, UserRound } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router'
 import { useDispatch } from 'react-redux'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
@@ -12,7 +12,7 @@ import OrderTable from '../../components/orders/OrderTable'
 import UpdateOrderStatusModal from '../../components/orders/UpdateOrderStatusModal'
 import { DELIVERY_STATUSES, ORDERS_PAGE_SIZE, STATUS_FILTERS, SUMMARY_FILTERS } from '../../constants/orders'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
-import { useCustomers } from '../../hooks/useCustomers'
+import { useCustomers, useCustomer } from '../../hooks/useCustomers'
 import { useUpdateOrderDeliveryStatusMutation } from '../../hooks/useVendorOrderMutations'
 import { useUserOrders, useVendorOrders } from '../../hooks/useVendorOrders'
 import notify from '../../lib/notify'
@@ -23,7 +23,7 @@ import {
   groupOrdersByOrderNumber,
   paginateOrders,
 } from '../../utils/orderCatalogFilters'
-import { normalizeVendorOrdersList } from '../../utils/normalizeVendorOrders'
+import { normalizeVendorOrdersList, explodeVendorOrdersForCatalog } from '../../utils/normalizeVendorOrders'
 import { setTotalOrders } from '../../store/slices/vendorMetricsSlice'
 
 function parseUserOrderFilters(searchParams) {
@@ -55,9 +55,12 @@ export default function Orders() {
   const isCustomerOrdersView = Boolean(customerId)
 
   const { data: customers = [] } = useCustomers()
+  const { data: customerProfile } = useCustomer(customerId)
   const customerContext = useMemo(
-    () => customers.find((customer) => customer.id === customerId) ?? null,
-    [customers, customerId],
+    () => customerProfile
+      ?? customers.find((customer) => customer.id === customerId)
+      ?? null,
+    [customerProfile, customers, customerId],
   )
 
   const vendorOrdersQuery = useVendorOrders()
@@ -74,7 +77,7 @@ export default function Orders() {
 
   const orders = useMemo(() => {
     const raw = isCustomerOrdersView ? userOrdersQuery.data : vendorOrdersQuery.data
-    return normalizeVendorOrdersList(raw ?? [])
+    return explodeVendorOrdersForCatalog(normalizeVendorOrdersList(raw ?? []))
   }, [isCustomerOrdersView, userOrdersQuery.data, vendorOrdersQuery.data])
 
   const summary = useMemo(() => getOrderCatalogSummary(orders), [orders])
@@ -142,9 +145,11 @@ export default function Orders() {
     }
   }
 
+  const customerName = customerContext?.name || orders[0]?.customer?.name
+  const customerEmail = customerContext?.email || orders[0]?.customer?.email
   const pageTitle = isCustomerOrdersView
-    ? customerContext
-      ? `Orders — ${customerContext.name}`
+    ? customerName
+      ? `Orders — ${customerName}`
       : 'Customer orders'
     : 'Orders'
 
@@ -158,63 +163,42 @@ export default function Orders() {
     <DashboardLayout pageTitle={pageTitle}>
       <div className="page-enter space-y-5">
         {isLoading ? (
-          <OrderCatalogLoader
-            showSummary={!isCustomerOrdersView}
-            showCustomerBanner={isCustomerOrdersView}
-          />
+          <OrderCatalogLoader showSummary showHeaderAction={isCustomerOrdersView} />
         ) : (
           <>
-            {isCustomerOrdersView ? (
-              customerContext ? (
-                <div className="overflow-hidden rounded-2xl border border-brand/15 bg-linear-to-r from-brand-light/30 via-white to-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-                  <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex min-w-0 items-start gap-4">
-                      <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-brand text-white shadow-[0_8px_24px_rgba(199,59,45,0.25)]">
-                        <UserRound className="size-5" strokeWidth={2} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-brand/80">
-                          Customer orders
-                        </p>
-                        <h1 className="mt-0.5 text-2xl font-bold text-slate-950">
-                          Orders by {customerContext.name}
-                        </h1>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Viewing {orders.length} product{orders.length === 1 ? '' : 's'} purchased by this customer.
-                        </p>
-                        <p className="mt-1 truncate text-xs text-slate-500">{customerContext.email}</p>
-                        {hasApiFilters && (
-                          <p className="mt-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
-                            Filtered by date or spend from customer filters
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <Link
-                      to="/customers"
-                      className="inline-flex shrink-0 cursor-pointer items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand"
-                    >
-                      <ArrowLeft className="size-4" />
-                      Back to customers
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
-                  <p className="text-sm text-slate-600">Customer not found.</p>
-                  <Link to="/customers" className="mt-4 inline-flex text-sm font-bold text-brand hover:underline">
-                    Back to customers
-                  </Link>
-                </div>
-              )
-            ) : (
-              <div>
-                <h1 className="text-2xl font-bold text-slate-950">Orders</h1>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold text-slate-950">
+                  {isCustomerOrdersView
+                    ? customerName
+                      ? `Orders by ${customerName}`
+                      : 'Customer orders'
+                    : 'Orders'}
+                </h1>
                 <p className="mt-1 text-sm text-slate-500">
-                  View and manage products customers have purchased from your store.
+                  {isCustomerOrdersView
+                    ? 'View and manage products this customer purchased from your store.'
+                    : 'View and manage products customers have purchased from your store.'}
                 </p>
+                {isCustomerOrdersView && customerEmail ? (
+                  <p className="mt-1 truncate text-xs text-slate-500">{customerEmail}</p>
+                ) : null}
+                {isCustomerOrdersView && hasApiFilters ? (
+                  <p className="mt-2 inline-flex rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                    Filtered by date or spend from customer filters
+                  </p>
+                ) : null}
               </div>
-            )}
+              {isCustomerOrdersView ? (
+                <Link
+                  to="/customers"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)] sm:self-auto"
+                >
+                  <ArrowLeft className="size-4" />
+                  Back to customers
+                </Link>
+              ) : null}
+            </div>
 
             {isError ? (
           <div className="mx-auto max-w-md space-y-5 rounded-2xl border border-slate-200 bg-white py-16 text-center">
@@ -236,15 +220,13 @@ export default function Orders() {
               Retry
             </button>
           </div>
-            ) : isCustomerOrdersView && !customerContext ? null : (
+            ) : (
               <>
-                {!isCustomerOrdersView && (
-                  <OrderSummaryCards
-                    summary={summary}
-                    activeFilter={activeSummaryFilter}
-                    onFilterChange={handleSummaryFilterChange}
-                  />
-                )}
+                <OrderSummaryCards
+                  summary={summary}
+                  activeFilter={activeSummaryFilter}
+                  onFilterChange={handleSummaryFilterChange}
+                />
 
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
                   <div className="border-b border-slate-100 px-5 py-4">

@@ -126,6 +126,7 @@ export function mergeOrderGroup(orders) {
       image: order.image,
       quantity: order.quantity,
       unitPrice: order.unitPrice,
+      comparePrice: order.comparePrice ?? order.items?.[0]?.comparePrice ?? null,
       totalPrice: order.totalAmount,
       variantLabel: order.items?.[0]?.variantLabel ?? null,
       deliveryStatus: order.deliveryStatus,

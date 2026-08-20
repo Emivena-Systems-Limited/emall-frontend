@@ -292,15 +292,13 @@ export default function OrderDetails() {
                   }
                   singleLine
                 />
-              ) : (
-                <DetailRow label="Discount" value={formatMoney(localOrder.discount)} singleLine />
-              )}
+              ) : null}
               <DetailRow label="Delivery Fee" value={formatMoney(localOrder.deliveryFee)} singleLine />
               {localOrder.taxTotal > 0 ? (
                 <DetailRow label="Tax" value={formatMoney(localOrder.taxTotal)} singleLine />
               ) : null}
               <DetailRow
-                label="Total Amount"
+                label="Total Paid"
                 value={<span className="text-base font-bold text-slate-950">{formatMoney(localOrder.totalAmount)}</span>}
                 singleLine
               />

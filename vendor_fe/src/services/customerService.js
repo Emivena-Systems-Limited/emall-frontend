@@ -1,11 +1,7 @@
 import apiClient from '../lib/apiClient'
 import { CUSTOMER_ENDPOINTS } from '../constants/customers'
-import {
-  getCustomerById as getMockCustomerById,
-  getCustomerSummaryFromCatalog,
-  MOCK_VENDOR_CUSTOMERS,
-} from '../mocks/customerMockData'
-import { filterCustomerCatalog, paginateCustomers } from '../utils/customerCatalogFilters'
+import { getCustomerSummaryFromCatalog, MOCK_VENDOR_CUSTOMERS } from '../mocks/customerMockData'
+import { buildCustomersQueryParams } from '../utils/customerCatalogFilters'
 import {
   extractVendorCustomerList,
   extractVendorCustomersPagination,
@@ -23,31 +19,20 @@ function delay(ms = MOCK_DELAY_MS) {
   })
 }
 
-function buildPaginatedResponse(customers, { page = 1, pageSize = 10 } = {}) {
-  const pagination = paginateCustomers(customers, { page, pageSize })
-
-  return {
-    data: pagination.items,
-    current_page: pagination.page,
-    per_page: pagination.pageSize,
-    total: pagination.totalItems,
-    last_page: pagination.pageCount,
-  }
-}
-
-async function fetchCustomersPage(page = 1) {
-  const { data } = await apiClient.get(CUSTOMER_ENDPOINTS.LIST, { params: { page } })
+async function fetchCustomersPage(filters = {}, page = 1) {
+  const params = buildCustomersQueryParams({ ...filters, page })
+  const { data } = await apiClient.get(CUSTOMER_ENDPOINTS.LIST, { params })
   assertApiSuccess(data)
 
   if (import.meta.env.DEV) {
-    console.info('[customers] GET', CUSTOMER_ENDPOINTS.LIST, { page }, data)
+    console.info('[customers] GET', CUSTOMER_ENDPOINTS.LIST, params, data)
   }
 
   return data
 }
 
-export async function getCustomers({ page = 1 } = {}) {
-  const firstResponse = await fetchCustomersPage(page)
+export async function getCustomers(filters = {}) {
+  const firstResponse = await fetchCustomersPage(filters, 1)
   const customers = normalizeVendorCustomersList(extractVendorCustomerList(firstResponse))
   const { lastPage } = extractVendorCustomersPagination(firstResponse)
 
@@ -56,7 +41,7 @@ export async function getCustomers({ page = 1 } = {}) {
   }
 
   const remainingPages = await Promise.all(
-    Array.from({ length: lastPage - 1 }, (_, index) => fetchCustomersPage(index + 2)),
+    Array.from({ length: lastPage - 1 }, (_, index) => fetchCustomersPage(filters, index + 2)),
   )
 
   return [
@@ -101,36 +86,6 @@ export async function getCustomer(customerId) {
   return normalizeVendorCustomerRecord(record)
 }
 
-// TODO: Integrate customer search API — currently filters mock data locally.
-export async function searchCustomers({
-  search = '',
-  segment,
-  orderDateRange,
-  minSpend = '',
-  maxSpend = '',
-  page = 1,
-  pageSize = 10,
-} = {}) {
-  await delay()
-
-  if (import.meta.env.DEV) {
-    console.info('[customers] GET (mock)', CUSTOMER_ENDPOINTS.SEARCH, {
-      search,
-      segment,
-      orderDateRange,
-      minSpend,
-      maxSpend,
-      page,
-    })
-  }
-
-  const filtered = filterCustomerCatalog(MOCK_VENDOR_CUSTOMERS, {
-    search,
-    segment,
-    orderDateRange,
-    minSpend,
-    maxSpend,
-  })
-
-  return buildPaginatedResponse(filtered, { page, pageSize })
+export async function searchCustomers(filters = {}) {
+  return getCustomers(filters)
 }

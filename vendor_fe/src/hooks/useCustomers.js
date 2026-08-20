@@ -1,21 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
 import { getCustomer, getCustomers, getCustomerStats } from '../services/customerService'
+import { normalizeCustomerListFilters } from '../utils/customerCatalogFilters'
 
 const STALE_TIME = 60 * 1000
 
 export const customerQueryKeys = {
   all: ['vendor-customers'],
-  list: () => [...customerQueryKeys.all, 'list'],
+  list: (filters = {}) => [...customerQueryKeys.all, 'list', normalizeCustomerListFilters(filters)],
   stats: () => [...customerQueryKeys.all, 'stats'],
   detail: (customerId) => [...customerQueryKeys.all, 'detail', customerId],
 }
 
-// TODO: Refine field mapping once customer API response shape is confirmed.
-export function useCustomers() {
+export function useCustomers(filters = {}) {
+  const queryFilters = normalizeCustomerListFilters(filters)
+
   return useQuery({
-    queryKey: customerQueryKeys.list(),
-    queryFn: () => getCustomers(),
+    queryKey: customerQueryKeys.list(queryFilters),
+    queryFn: () => getCustomers(queryFilters),
     staleTime: STALE_TIME,
+    placeholderData: (previous) => previous,
   })
 }
 

@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { ChevronRight } from 'lucide-react'
 import { accountOverviewStatistics } from '../accountNavigation'
 import { useOrdersQuery } from '../../../hooks/useOrdersQuery'
-import { extractOrdersPagination, normalizeOrdersResponse } from '../../../utils/normalizeOrders'
+import { extractOrdersPagination, isOrderAwaitingDelivery, normalizeOrdersResponse } from '../../../utils/normalizeOrders'
 
 export default function AccountStatisticCards() {
   const ordersQuery = useOrdersQuery()
@@ -18,13 +18,7 @@ export default function AccountStatisticCards() {
         }
 
         if (item.label === 'Pending Deliveries') {
-          const pending = orders.filter((order) => {
-            const deliveryStatus = String(order.deliveryStatus ?? '').toLowerCase()
-            return deliveryStatus === 'pending delivery'
-              || deliveryStatus === 'being prepared'
-              || deliveryStatus === 'shipped'
-              || deliveryStatus === 'out for delivery'
-          }).length
+          const pending = orders.filter((order) => isOrderAwaitingDelivery(order)).length
           return { ...item, value: String(pending) }
         }
 

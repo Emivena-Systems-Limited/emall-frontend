@@ -98,7 +98,6 @@ function getDiscountPercent(product, variation, price, compareAt) {
   const explicit = firstValue(
     product.discount_percent,
     product.discountPercentage,
-    product.discount,
     getMetadataValue(metadata, 'percent_off'),
     getMetadataValue(metadata, 'discount_percent'),
     getMetadataValue(variationMetadata, 'percent_off'),
@@ -106,7 +105,7 @@ function getDiscountPercent(product, variation, price, compareAt) {
   )
   if (explicit !== undefined) {
     const explicitDiscount = toNumber(explicit, null)
-    return explicitDiscount > 0 ? explicitDiscount : null
+    if (explicitDiscount > 0 && explicitDiscount < 100) return explicitDiscount
   }
   if (compareAt != null && compareAt > price && price > 0) {
     return calculateDisplayDiscountPercent(compareAt, price)

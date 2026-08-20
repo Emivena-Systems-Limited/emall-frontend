@@ -170,39 +170,98 @@ function isUsableCatalogPrice(value) {
   return Number.isFinite(num) && num > 0
 }
 
-function resolveCatalogListPrice(record, firstVariant, context, meta = {}) {
+function toCatalogMoney(value) {
+  return isUsableCatalogPrice(value) ? Number(value) : null
+}
+
+function resolveNamedDiscountAmount(record = {}, fallback = {}) {
   const candidates = [
-    context.price,
-    record.regular_price,
-    record.price,
-    firstVariant?.regular_price,
-    firstVariant?.price,
+    record.discount,
+    record.unit_price_discount,
+    fallback.discount,
+    fallback.savingsAmount,
   ]
 
   for (const candidate of candidates) {
-    if (isUsableCatalogPrice(candidate)) return Number(candidate)
+    const amount = Number(candidate)
+    if (Number.isFinite(amount) && amount > 0) return amount
   }
 
   return 0
 }
 
-function resolveCatalogSalePrice(record, firstVariant, context, regularPrice, meta = {}) {
-  const candidates = [
-    context.salePrice,
-    record.regular_discount_price,
-    record.discount_price,
-    firstVariant?.regular_discount_price,
-    firstVariant?.discount_price,
-  ]
+/**
+ * Catalog prices: `discount` is amount off the list/regular price.
+ * Example: regular 7000, discount 200 → customer pays 6800.
+ */
+export function resolveRecordCatalogPricing(record = {}, fallback = {}) {
+  const namedDiscount = resolveNamedDiscountAmount(record, fallback)
+  const catalogList = toCatalogMoney(
+    record.regular_price
+    ?? record.price
+    ?? fallback.listPrice
+    ?? fallback.paidPrice,
+  ) ?? 0
+  const catalogSale = toCatalogMoney(
+    record.regular_discount_price
+    ?? record.discounted_price
+    ?? record.discount_price
+    ?? fallback.salePrice,
+  )
 
-  for (const candidate of candidates) {
-    if (!isUsableCatalogPrice(candidate)) continue
-    const sale = Number(candidate)
-    if (regularPrice > 0 && sale >= regularPrice) continue
-    return sale
+  if (namedDiscount > 0 && catalogList > namedDiscount) {
+    const derivedSale = catalogList - namedDiscount
+    if (catalogSale != null && catalogSale > 0 && catalogSale < catalogList) {
+      const saleAgreesWithDiscount = Math.abs(catalogSale - derivedSale) < 0.05
+      return {
+        listPrice: catalogList,
+        salePrice: saleAgreesWithDiscount ? catalogSale : derivedSale,
+        discountAmount: namedDiscount,
+      }
+    }
+
+    return {
+      listPrice: catalogList,
+      salePrice: derivedSale,
+      discountAmount: namedDiscount,
+    }
   }
 
-  return null
+  if (catalogSale != null && catalogList > catalogSale) {
+    return {
+      listPrice: catalogList,
+      salePrice: catalogSale,
+      discountAmount: catalogList - catalogSale,
+    }
+  }
+
+  const listPrice = catalogList
+  return {
+    listPrice,
+    salePrice: listPrice,
+    discountAmount: 0,
+  }
+}
+
+function resolveCatalogPricing(record, firstVariant, context, meta = {}) {
+  const productPricing = resolveRecordCatalogPricing(record, {
+    paidPrice: toCatalogMoney(context.price),
+    listPrice: toCatalogMoney(context.price),
+    salePrice: toCatalogMoney(context.salePrice),
+    discount: toCatalogMoney(meta.savings_amount),
+    savingsAmount: toCatalogMoney(meta.savings_amount),
+  })
+
+  if (productPricing.discountAmount > 0 || !firstVariant) {
+    return productPricing
+  }
+
+  return resolveRecordCatalogPricing(firstVariant, {
+    paidPrice: productPricing.salePrice,
+    listPrice: productPricing.listPrice,
+    salePrice: productPricing.salePrice,
+    discount: productPricing.discountAmount,
+  })
 }
 
 export function extractProductRecord(body) {
@@ -263,10 +322,10 @@ export function toCatalogProduct(record, context = {}) {
   const meta = metadataArrayToMap(record.metadata)
   const brandName = resolveBrandName(record, context)
 
-  const regularPrice = resolveCatalogListPrice(record, firstVariant, context, meta)
-  const rawSalePrice = resolveCatalogSalePrice(record, firstVariant, context, regularPrice, meta)
-  const salePrice = rawSalePrice ?? regularPrice
-  const hasDiscount = rawSalePrice != null && rawSalePrice > 0 && rawSalePrice < regularPrice
+  const pricing = resolveCatalogPricing(record, firstVariant, context, meta)
+  const regularPrice = pricing.listPrice
+  const salePrice = pricing.salePrice
+  const hasDiscount = pricing.discountAmount > 0 && salePrice > 0 && salePrice < regularPrice
 
   return {
     id: record.id,
@@ -289,8 +348,10 @@ export function toCatalogProduct(record, context = {}) {
     listPrice: regularPrice,
     price: salePrice,
     hasDiscount,
-    discountPercent: hasDiscount ? Number(meta.percent_off ?? 0) : 0,
-    savingsAmount: hasDiscount ? Number(meta.savings_amount ?? 0) : 0,
+    discountPercent: hasDiscount
+      ? ((regularPrice - salePrice) / regularPrice) * 100
+      : 0,
+    savingsAmount: hasDiscount ? pricing.discountAmount : 0,
     shippingWeight: meta.shipping_weight ? Number(meta.shipping_weight) : null,
     shippingLength: meta.shipping_length ? Number(meta.shipping_length) : null,
     shippingWidth: meta.shipping_width ? Number(meta.shipping_width) : null,

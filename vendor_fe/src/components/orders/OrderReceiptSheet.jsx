@@ -184,7 +184,7 @@ const OrderReceiptSheet = forwardRef(function OrderReceiptSheet({ order, storeNa
               </div>
             ) : null}
             <div className="receipt-sheet__total-row receipt-sheet__grand-total">
-              <dt>Total</dt>
+              <dt>Total paid</dt>
               <dd>{formatMoney(order.totalAmount)}</dd>
             </div>
           </dl>

@@ -25,6 +25,7 @@ import notify from '../../lib/notify'
 import { formatItemWeight, formatPackageDimensions, getMetadataValue, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsEntries, mapKeyDetailsFromRecord, sortKeyDetailEntries } from '../../utils/productMetadata'
 import { normalizeProductDescription } from '../../utils/productDescriptionHtml'
 import { calculateDisplayDiscountPercent } from '../../utils/productPricing'
+import { resolveRecordCatalogPricing } from '../../utils/normalizeProducts'
 import { readImageUrlDimensions } from '../../utils/productImageUtils'
 import { DESCRIPTIVE_IMAGE_LANDSCAPE_RATIO_THRESHOLD, MAX_DESCRIPTIVE_IMAGE_COUNT } from '../../constants/products'
 import {
@@ -333,6 +334,7 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     regularPrice: product?.regularPrice ?? 0,
     salePrice: product?.salePrice ?? product?.regularPrice ?? 0,
     hasDiscount: Boolean(product?.hasDiscount),
+    savingsAmount: Number(product?.savingsAmount ?? 0),
   }
 }
 
@@ -1227,16 +1229,18 @@ export default function ProductStorefrontPreview({
 
   const displayPriceInfo = useMemo(() => {
     if (activeVariant) {
-      const variantListPrice = toNumber(activeVariant.regular_price ?? activeVariant.price)
-      const variantSalePrice = toNumber(
-        activeVariant.regular_discount_price ?? activeVariant.discount_price,
-      )
-
-      const hasVariantSale = variantSalePrice > 0 && variantListPrice > variantSalePrice
-      const price = hasVariantSale ? variantSalePrice : variantListPrice
-      const compareAt = hasVariantSale ? variantListPrice : null
+      const pricing = resolveRecordCatalogPricing(activeVariant, {
+        paidPrice: preview.salePrice,
+        listPrice: preview.regularPrice,
+        salePrice: preview.salePrice,
+        discount: preview.savingsAmount,
+        savingsAmount: preview.savingsAmount,
+      })
+      const hasVariantSale = pricing.discountAmount > 0 && pricing.salePrice < pricing.listPrice
+      const price = hasVariantSale ? pricing.salePrice : pricing.listPrice
+      const compareAt = hasVariantSale ? pricing.listPrice : null
       const discountPercent = hasVariantSale
-        ? calculateDisplayDiscountPercent(variantListPrice, variantSalePrice)
+        ? calculateDisplayDiscountPercent(pricing.listPrice, pricing.salePrice)
         : null
 
       return { price, compareAt, discountPercent }

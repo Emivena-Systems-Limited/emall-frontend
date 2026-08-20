@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion'
 import {
   Bike,
-  Box,
   Check,
   ClipboardList,
   Package,
@@ -12,10 +11,8 @@ import { buildOrderTrackingSteps } from '../../utils/normalizeOrders'
 
 const stepIcons = {
   placed: ClipboardList,
-  confirmed: Box,
-  preparing: RefreshCw,
-  ready: Package,
-  out_for_delivery: Bike,
+  processing: RefreshCw,
+  shipped: Bike,
   delivered: Check,
 }
 
@@ -23,6 +20,12 @@ const STATUS_ICON_PX = 40
 const STATUS_ICON_HALF = STATUS_ICON_PX / 2
 
 function stepCircleClass(step, isStatus) {
+  if (step.partial) {
+    return isStatus
+      ? 'bg-amber-500 text-white ring-4 ring-amber-200/80'
+      : 'bg-amber-500 text-white'
+  }
+
   if (!isStatus) {
     return step.reached
       ? 'bg-auth-primary text-white'
@@ -83,7 +86,11 @@ export default function OrderTrackingTimeline({
       <h3 className={`${isStatus ? 'text-base font-bold text-slate-950' : 'text-lg font-bold text-slate-950'}`}>
         Order Status
       </h3>
-      {!isStatus ? (
+      {tracking.summary ? (
+        <p className={`${isStatus ? 'mt-1 text-xs' : 'mt-1 text-sm'} font-medium text-slate-600`}>
+          {tracking.summary}
+        </p>
+      ) : !isStatus ? (
         <p className="mt-1 text-sm text-slate-500">Follow your order from placement to delivery.</p>
       ) : null}
 

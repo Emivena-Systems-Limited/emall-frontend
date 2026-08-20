@@ -9,7 +9,6 @@ import {
   X,
 } from 'lucide-react'
 import { DEFAULT_ORDER_DATE_RANGE } from '../../constants/customers'
-import { MOCK_CUSTOMERS_REFERENCE_DATE } from '../../mocks/customerMockData'
 
 function toDateInputValue(date) {
   const year = date.getFullYear()
@@ -19,7 +18,7 @@ function toDateInputValue(date) {
 }
 
 function getReferenceDate() {
-  return new Date(MOCK_CUSTOMERS_REFERENCE_DATE)
+  return new Date()
 }
 
 const ORDER_DATE_PRESETS = [

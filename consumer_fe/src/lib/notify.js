@@ -1,22 +1,38 @@
 import { toast } from 'sonner'
 
+function isOtpExpiredMessage(message) {
+  return /otp.*not available|not available.*otp|otp.*expired|expired.*otp|verification code.*expired/i.test(message)
+}
+
+function isOtpDuplicateMessage(message) {
+  if (/orders_status_check|relation "orders"|insert into "?orders"?/i.test(message)) {
+    return false
+  }
+
+  return /otp_verifications|verification code is already being processed|otp.*already (active|pending|exists)/i.test(message)
+}
+
+function isInternalDatabaseMessage(message) {
+  return /SQLSTATE|duplicate key value|check constraint|violates check|insert into|Connection:/i.test(message)
+}
+
 const getErrorMessage = (error, fallback = 'Something went wrong') => {
   if (typeof error === 'string') return error
   const responseData = error?.response?.data
   const nestedData = responseData?.data
-  const status = error?.response?.status
 
   const cleanMessage = (message) => {
     if (!message) return ''
-    if (/otp.*not available|not available.*otp|otp.*expired|expired.*otp|verification code.*expired/i.test(message)) {
+
+    if (isOtpExpiredMessage(message)) {
       return 'Your OTP has expired. Please request a new one.'
     }
 
-    if (/SQLSTATE|duplicate key value|constraint|insert into|Connection:/i.test(message)) {
-      if (status >= 500) {
-        return 'A verification code is already being processed. Please wait a moment, then request a new code.'
-      }
+    if (isOtpDuplicateMessage(message)) {
+      return 'A verification code is already being processed. Please wait a moment, then request a new code.'
+    }
 
+    if (isInternalDatabaseMessage(message)) {
       return fallback
     }
 
@@ -34,6 +50,7 @@ const getErrorMessage = (error, fallback = 'Something went wrong') => {
   if (responseData?.message) return cleanMessage(responseData.message)
   if (nestedData?.message) return cleanMessage(nestedData.message)
 
+  const status = error?.response?.status
   if (
     !status &&
     (/network error|failed to fetch/i.test(error?.message ?? '') ||

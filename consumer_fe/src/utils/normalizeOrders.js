@@ -43,22 +43,192 @@ function formatOrderDate(value) {
   }).format(date)
 }
 
-export function formatDeliveryStatus(status) {
-  const raw = String(status ?? '').trim().replace(/_/g, ' ').toLowerCase()
-  if (!raw) return ''
+const DELIVERY_TOKEN_ALIASES = {
+  pending: 'pending',
+  pending_delivery: 'pending',
+  ordered: 'pending',
+  processing: 'processing',
+  confirmed: 'processing',
+  order_confirmed: 'processing',
+  preparing: 'processing',
+  shipped: 'shipped',
+  out_for_delivery: 'shipped',
+  ready_for_shipment: 'shipped',
+  ready_for_shipping: 'shipped',
+  delivered: 'delivered',
+  cancelled: 'cancelled',
+  canceled: 'cancelled',
+  refunded: 'refunded',
+  partially_delivered: 'partially_delivered',
+  partially_shipped: 'partially_shipped',
+}
 
-  const labels = {
-    pending: 'Pending Delivery',
-    'pending delivery': 'Pending Delivery',
-    processing: 'Being prepared',
-    shipped: 'Shipped',
-    'out for delivery': 'Out for delivery',
-    delivered: 'Delivered',
-    cancelled: 'Cancelled',
-    canceled: 'Cancelled',
+const DELIVERY_STATUS_LABELS = {
+  pending: 'Pending Delivery',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
+  partially_delivered: 'Partially Delivered',
+  partially_shipped: 'Partially Shipped',
+}
+
+export function toRecordList(value) {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== 'object') return []
+
+  const keys = Object.keys(value)
+  if (!keys.length || !keys.every((key) => /^\d+$/.test(key))) return []
+
+  return keys
+    .sort((a, b) => Number(a) - Number(b))
+    .map((key) => value[key])
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+}
+
+export function extractOrderItems(record) {
+  return toRecordList(record?.items ?? record?.order_items ?? record?.line_items)
+}
+
+export function normalizeDeliveryToken(status) {
+  const token = String(status ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+
+  if (!token) return ''
+  if (DELIVERY_TOKEN_ALIASES[token]) return DELIVERY_TOKEN_ALIASES[token]
+  if (token.includes('ready') && token.includes('ship')) return 'shipped'
+  return token
+}
+
+export function formatDeliveryStatus(status) {
+  const token = normalizeDeliveryToken(status) || 'pending'
+  return DELIVERY_STATUS_LABELS[token] ?? token.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+export function isOrderItemDelivered(item) {
+  return normalizeDeliveryToken(item?.delivery_status) === 'delivered'
+}
+
+export function canReviewOrderItem(item) {
+  return isOrderItemDelivered(item)
+}
+
+export function canReturnOrderItem(item) {
+  return isOrderItemDelivered(item)
+}
+
+export function findReviewableOrderItem(order, { itemId, productName } = {}) {
+  const items = extractOrderItems(order?.raw ?? order)
+  if (!items.length) return null
+
+  if (itemId) {
+    const match = items.find((item) => String(item.id ?? '') === String(itemId))
+    if (match) return match
   }
 
-  return labels[raw] ?? raw.replace(/\b\w/g, (char) => char.toUpperCase())
+  if (productName) {
+    const needle = String(productName).trim().toLowerCase()
+    const match = items.find((item) => String(item.product_name ?? item.name ?? '').trim().toLowerCase() === needle)
+    if (match) return match
+  }
+
+  return items.length === 1 ? items[0] : null
+}
+
+function emptyFulfillmentCounts() {
+  return {
+    pending: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0,
+    refunded: 0,
+  }
+}
+
+function buildFulfillmentSummary(counts, total, token) {
+  const itemWord = total === 1 ? 'item' : 'items'
+
+  if (token === 'partially_delivered') {
+    return `${counts.delivered} of ${total} ${itemWord} delivered`
+  }
+
+  if (token === 'partially_shipped') {
+    return `${counts.shipped} of ${total} ${itemWord} shipped`
+  }
+
+  if (counts.processing && counts.pending) {
+    return `${counts.processing} processing · ${counts.pending} pending`
+  }
+
+  if (counts.cancelled && counts.delivered && counts.cancelled + counts.delivered === total) {
+    return `${counts.delivered} delivered · ${counts.cancelled} cancelled`
+  }
+
+  return ''
+}
+
+function resolveHeadlineDeliveryToken(tokens, counts) {
+  const unique = [...new Set(tokens)]
+  if (!unique.length) return 'pending'
+  if (unique.length === 1) return unique[0]
+
+  const active = tokens.filter((token) => token !== 'cancelled' && token !== 'refunded')
+  if (!active.length) return counts.cancelled >= counts.refunded ? 'cancelled' : 'refunded'
+  if (active.every((token) => token === 'delivered')) return 'delivered'
+  if (counts.delivered > 0) return 'partially_delivered'
+  if (counts.shipped > 0 && counts.pending + counts.processing > 0) return 'partially_shipped'
+  if (active.every((token) => token === 'shipped')) return 'shipped'
+  if (counts.processing > 0) return 'processing'
+  return 'pending'
+}
+
+export function resolveOrderFulfillment(record) {
+  const fallback = normalizeDeliveryToken(record?.delivery_status) || 'pending'
+  const items = extractOrderItems(record)
+  const itemTokens = items.length
+    ? items.map((item) => normalizeDeliveryToken(item?.delivery_status) || fallback)
+    : [fallback]
+
+  const counts = emptyFulfillmentCounts()
+  for (const token of itemTokens) {
+    if (token in counts) counts[token] += 1
+    else counts.pending += 1
+  }
+
+  const token = resolveHeadlineDeliveryToken(itemTokens, counts)
+  const mixed = new Set(itemTokens).size > 1
+
+  return {
+    token,
+    label: formatDeliveryStatus(token),
+    mixed,
+    counts,
+    total: itemTokens.length,
+    itemTokens,
+    summary: buildFulfillmentSummary(counts, itemTokens.length, token),
+  }
+}
+
+export function orderMatchesDeliveryFilter(order, filter) {
+  if (filter === 'All Orders') return true
+
+  const headline = order.deliveryStatus || 'Pending Delivery'
+  if (headline === filter) return true
+
+  if (filter === 'Delivered' || filter === 'Cancelled' || filter === 'Refunded') {
+    return false
+  }
+
+  return (order.fulfillment?.itemTokens ?? []).some((token) => formatDeliveryStatus(token) === filter)
+}
+
+export function isOrderAwaitingDelivery(order) {
+  const token = order.fulfillment?.token
+  return token !== 'delivered' && token !== 'cancelled' && token !== 'refunded'
 }
 
 function formatOrderStatus(record) {
@@ -68,7 +238,8 @@ function formatOrderStatus(record) {
   const normalized = raw.replace(/_/g, ' ').toLowerCase()
   const labels = {
     ordered: 'Ordered',
-    confirmed: 'Order Confirmed',
+    confirmed: 'Processing',
+    'order confirmed': 'Processing',
     processing: 'Processing',
     preparing: 'Processing',
     pending: 'Pending',
@@ -103,6 +274,8 @@ function resolvePrimaryImage(images = []) {
 
 function resolveItemImage(item) {
   return resolvePrimaryImage(item?.variant?.images)
+    || resolvePrimaryImage(item?.product?.images)
+    || resolvePrimaryImage(item?.images)
 }
 
 export function resolveOrderItemImage(item) {
@@ -161,7 +334,8 @@ export function extractOrdersList(response) {
   ]
 
   for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate
+    const list = toRecordList(candidate)
+    if (list.length) return list
   }
 
   return []
@@ -186,18 +360,24 @@ export function extractOrdersPagination(response) {
 }
 
 export function normalizeOrderRecord(record) {
-  const items = toArray(record?.items)
+  const items = extractOrderItems(record)
   const itemCount = items.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0) || items.length
+  const fulfillment = resolveOrderFulfillment(record)
+  const totals = getOrderTotals(record)
 
   return {
     id: firstValue(record.order_number, record.id, record.order_id),
     status: formatOrderStatus(record),
-    deliveryStatus: formatDeliveryStatus(record.delivery_status),
-    date: formatOrderDate(record.created_at ?? record.updated_at ?? record.ordered_at ?? record.date),
+    deliveryStatus: fulfillment.label,
+    paymentStatus: record.payment_status ? formatPaymentStatus(record.payment_status) : '',
+    fulfillment,
+    date: formatOrderDate(record.paid_at ?? record.created_at ?? record.updated_at ?? record.ordered_at ?? record.date),
     title: buildOrderTitle(items, record),
     delivery: resolveDeliveryLabel(record),
     items: itemCount || items.length,
-    amount: Number(record.grand_total ?? record.total ?? record.amount ?? record.subtotal ?? 0),
+    amount: totals.grandTotal,
+    listSubtotal: totals.subtotal,
+    discountTotal: totals.discountTotal,
     images: resolveOrderImages(items),
     raw: record,
   }
@@ -269,39 +449,79 @@ export function resolveOrderItemVariantLabel(item) {
   return firstValue(variant?.variant_name, variant?.value)
 }
 
-export function resolveOrderItemComparePrice(item) {
-  const unitPrice = Number(item?.unit_price ?? item?.sale_price ?? 0)
-  const compareAt = Number(
-    item?.compare_at_price
-      ?? item?.compare_at
-      ?? item?.original_unit_price
-      ?? item?.list_price
-      ?? item?.regular_price
-      ?? item?.variant?.compare_at_price
-      ?? item?.variant?.compare_at
-      ?? item?.variant?.list_price
-      ?? item?.product?.compare_at_price
-      ?? item?.product?.original_price
-      ?? item?.product?.list_price
-      ?? 0,
-  )
+function resolveItemDiscountAmount(item) {
+  const quantity = Math.max(1, Number(item?.quantity) || 1)
+  const unitDiscount = Number(item?.unit_price_discount ?? 0)
+  if (Number.isFinite(unitDiscount) && unitDiscount > 0) return unitDiscount
 
-  return compareAt > unitPrice ? compareAt : null
+  const lineDiscount = Number(item?.total_discount_amount ?? 0)
+  if (Number.isFinite(lineDiscount) && lineDiscount > 0) return lineDiscount / quantity
+
+  const named = Number(
+    item?.discount
+    ?? item?.variant?.discount
+    ?? item?.product?.discount
+    ?? 0,
+  )
+  return Number.isFinite(named) && named > 0 ? named : 0
+}
+
+function resolveItemCatalogSale(item) {
+  const sale = Number(
+    item?.regular_discount_price
+    ?? item?.discounted_price
+    ?? item?.discount_price
+    ?? item?.variant?.regular_discount_price
+    ?? item?.variant?.discount_price
+    ?? item?.product?.regular_discount_price
+    ?? item?.product?.discount_price
+    ?? 0,
+  )
+  return Number.isFinite(sale) && sale > 0 ? sale : null
+}
+
+export function resolveOrderItemComparePrice(item) {
+  const listUnit = Number(item?.unit_price ?? item?.sale_price ?? item?.regular_price ?? 0)
+  const pricing = resolveOrderItemPricing(item)
+  return pricing.comparePrice != null && pricing.comparePrice > pricing.unitPrice
+    ? pricing.comparePrice
+    : (listUnit > pricing.unitPrice ? listUnit : null)
 }
 
 export function resolveOrderItemPricing(item) {
   const quantity = Math.max(1, Number(item?.quantity) || 1)
-  const unitPrice = Number(item?.unit_price ?? item?.sale_price ?? 0)
-  const comparePrice = resolveOrderItemComparePrice(item)
-  const lineTotal = Number(item?.total_price ?? unitPrice * quantity)
+  const listUnit = Number(
+    item?.unit_price
+    ?? item?.regular_price
+    ?? item?.list_price
+    ?? item?.variant?.regular_price
+    ?? item?.product?.regular_price
+    ?? item?.sale_price
+    ?? 0,
+  )
+  const unitDiscount = resolveItemDiscountAmount(item)
+  const catalogSale = resolveItemCatalogSale(item)
+  const discountedFromAmount = unitDiscount > 0 && unitDiscount < listUnit
+    ? Math.max(0, listUnit - unitDiscount)
+    : null
+  const paidUnit = discountedFromAmount
+    ?? (catalogSale != null && catalogSale < listUnit ? catalogSale : listUnit)
+  const comparePrice = listUnit > paidUnit ? listUnit : null
+  const discountTotal = Math.max(0, (comparePrice ?? paidUnit) - paidUnit) * quantity
+  const discountedLineTotal = paidUnit * quantity
+  const rawLineTotal = Number(item?.total_price)
+  const lineTotal = discountTotal > 0
+    ? discountedLineTotal
+    : (Number.isFinite(rawLineTotal) && rawLineTotal > 0 ? rawLineTotal : discountedLineTotal)
   const compareLineTotal = comparePrice != null ? comparePrice * quantity : null
 
   return {
-    unitPrice,
+    unitPrice: paidUnit,
     comparePrice,
     lineTotal,
-    compareLineTotal,
-    onSale: comparePrice != null,
+    compareLineTotal: compareLineTotal != null && compareLineTotal > lineTotal ? compareLineTotal : null,
+    discountTotal,
+    onSale: Boolean(comparePrice && comparePrice > paidUnit) || discountTotal > 0,
   }
 }
 
@@ -330,39 +550,40 @@ export function resolveOrderItemStoreName(item) {
 }
 
 export function getOrderTotals(record) {
+  const items = extractOrderItems(record)
+  const itemRows = items.map(resolveOrderItemPricing)
+  const itemsPayable = itemRows.reduce((sum, row) => sum + row.lineTotal, 0)
+  const itemsList = itemRows.reduce((sum, row) => sum + (row.compareLineTotal ?? row.lineTotal), 0)
+  const itemsDiscount = itemRows.reduce((sum, row) => sum + Number(row.discountTotal || 0), 0)
+
+  const deliveryFee = Number(record?.delivery_fee ?? 0)
+  const taxTotal = Number(record?.tax_total ?? 0)
+  const namedDiscount = Number(record?.total_discount_amount ?? record?.discount_total ?? 0)
+  const namedGrand = Number(record?.grand_total ?? record?.total ?? 0)
+  const namedSubtotal = Number(record?.subtotal ?? 0)
+
+  const discountTotal = Math.max(namedDiscount, itemsDiscount)
+  const derivedPayable = Math.max(0, itemsPayable + deliveryFee + taxTotal)
+  const grandLooksUndiscounted = namedGrand > 0 && discountTotal > 0 && namedGrand >= itemsList
+  const grandTotal = grandLooksUndiscounted || namedGrand <= 0
+    ? derivedPayable
+    : namedGrand
+  const payableGoods = Math.max(0, grandTotal - deliveryFee - taxTotal)
+  const derivedList = payableGoods + discountTotal
+  const subtotal = items.length > 0
+    ? Math.max(itemsList, derivedList)
+    : (namedSubtotal > 0 ? namedSubtotal : derivedList)
+
   return {
-    subtotal: Number(record?.subtotal ?? 0),
-    discountTotal: Number(record?.discount_total ?? 0),
-    deliveryFee: Number(record?.delivery_fee ?? 0),
-    taxTotal: Number(record?.tax_total ?? 0),
-    grandTotal: Number(record?.grand_total ?? record?.total ?? 0),
+    subtotal,
+    discountTotal,
+    deliveryFee,
+    taxTotal,
+    grandTotal,
   }
 }
 
-const NON_CANCELLABLE_DELIVERY_STATUSES = new Set([
-  'ready_for_shipment',
-  'ready_for_shipping',
-  'ready for shipment',
-  'ready for shipping',
-  'shipped',
-  'out_for_delivery',
-  'out for delivery',
-  'delivered',
-  'cancelled',
-  'canceled',
-])
-
-const NON_CANCELLABLE_ORDER_STATUSES = new Set([
-  'ready_for_shipment',
-  'ready_for_shipping',
-  'ready for shipment',
-  'ready for shipping',
-  'shipped',
-  'delivered',
-  'cancelled',
-  'canceled',
-  'refunded',
-])
+const CANCELLABLE_ORDER_STATUSES = new Set(['ordered', 'pending', 'pending_payment'])
 
 function normalizeStatusToken(value) {
   return String(value ?? '')
@@ -372,25 +593,20 @@ function normalizeStatusToken(value) {
 }
 
 export function resolveOrderApiId(record) {
-  return firstValue(record?.id, record?.order_id)
+  return firstValue(record?.order_id, record?.id)
 }
 
 export function canCancelOrder(record) {
   if (!record) return false
 
-  const deliveryStatus = normalizeStatusToken(record.delivery_status)
-  const orderStatus = normalizeStatusToken(record.status)
-
+  const orderStatus = normalizeStatusToken(record.status) || 'ordered'
   if (orderStatus === 'cancelled' || orderStatus === 'canceled') return false
-  if (NON_CANCELLABLE_DELIVERY_STATUSES.has(deliveryStatus.replace(/_/g, ' '))) return false
-  if (NON_CANCELLABLE_DELIVERY_STATUSES.has(deliveryStatus)) return false
-  if (NON_CANCELLABLE_ORDER_STATUSES.has(orderStatus.replace(/_/g, ' '))) return false
-  if (NON_CANCELLABLE_ORDER_STATUSES.has(orderStatus)) return false
-  if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) return false
-  if (orderStatus.includes('ready') && orderStatus.includes('ship')) return false
+  if (!CANCELLABLE_ORDER_STATUSES.has(orderStatus)) return false
 
-  const cancellableOrderStatuses = new Set(['ordered', 'processing', 'confirmed', 'preparing'])
-  return cancellableOrderStatuses.has(orderStatus)
+  const fulfillment = resolveOrderFulfillment(record)
+  if (fulfillment.token === 'cancelled' || fulfillment.token === 'refunded') return false
+
+  return fulfillment.itemTokens.every((token) => token === 'pending')
 }
 
 export function getOrderCancellationBlockReason(record) {
@@ -401,99 +617,92 @@ export function getOrderCancellationBlockReason(record) {
   }
 
   const orderUiStatus = formatOrderStatus(record)
-  const deliveryUiStatus = formatDeliveryStatus(record.delivery_status)
+  const fulfillment = resolveOrderFulfillment(record)
 
-  if (orderUiStatus === 'Cancelled' || deliveryUiStatus === 'Cancelled') {
+  if (orderUiStatus === 'Cancelled' || fulfillment.token === 'cancelled') {
     return 'This order has already been cancelled.'
   }
 
-  if (deliveryUiStatus === 'Delivered' || orderUiStatus === 'Delivered') {
+  if (fulfillment.token === 'delivered') {
     return 'Delivered orders cannot be cancelled online.'
   }
 
-  if (deliveryUiStatus === 'Out for delivery' || orderUiStatus === 'Out for Delivery') {
+  if (fulfillment.token === 'partially_delivered' || fulfillment.token === 'partially_shipped') {
+    return 'Some items in this order have already started fulfillment and can no longer be cancelled online.'
+  }
+
+  if (fulfillment.token === 'shipped') {
     return 'This order is already on its way and can no longer be cancelled.'
   }
 
-  const deliveryStatus = normalizeStatusToken(record.delivery_status)
-  if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) {
-    return 'Your order is ready for shipment and can no longer be cancelled online.'
+  if (orderUiStatus === 'Processing' || fulfillment.token === 'processing') {
+    return 'This order is already being processed and can no longer be cancelled online.'
   }
 
-  return 'This order has moved past processing and can no longer be cancelled online.'
+  return 'This order is no longer pending and can no longer be cancelled online.'
 }
 
 const TRACKING_STEP_DEFS = [
   { key: 'placed', title: 'Order placed' },
-  { key: 'confirmed', title: 'Confirmed' },
-  { key: 'preparing', title: 'Preparing' },
-  { key: 'ready', title: 'Ready for shipment' },
-  { key: 'out_for_delivery', title: 'Out for delivery' },
+  { key: 'processing', title: 'Processing' },
+  { key: 'shipped', title: 'Shipped' },
   { key: 'delivered', title: 'Delivered' },
 ]
 
 const COMPACT_TRACKING_STEP_DEFS = [
   { key: 'placed', title: 'Order Placed' },
-  { key: 'confirmed', title: 'Confirmed' },
-  { key: 'preparing', title: 'Preparing' },
-  { key: 'out_for_delivery', title: 'Out For Delivery' },
+  { key: 'processing', title: 'Processing' },
+  { key: 'shipped', title: 'Shipped' },
   { key: 'delivered', title: 'Delivered' },
 ]
 
-function resolveCompactTrackingStepIndex(record) {
-  const deliveryStatus = normalizeStatusToken(record?.delivery_status)
+function resolveTrackingProgress(record) {
+  const fulfillment = resolveOrderFulfillment(record)
   const orderStatus = normalizeStatusToken(record?.status)
 
-  if (orderStatus === 'cancelled' || orderStatus === 'canceled' || deliveryStatus === 'cancelled' || deliveryStatus === 'canceled') {
-    return -1
+  if (
+    fulfillment.token === 'cancelled'
+    || orderStatus === 'cancelled'
+    || orderStatus === 'canceled'
+  ) {
+    return { currentIndex: -1, partial: false, fulfillment }
   }
 
-  if (deliveryStatus === 'delivered' || orderStatus === 'delivered') return 4
-  if (deliveryStatus === 'out_for_delivery' || deliveryStatus === 'shipped') return 3
-  if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) return 3
-  if (orderStatus === 'preparing' || orderStatus === 'processing' || deliveryStatus === 'processing') return 2
-  if (orderStatus === 'confirmed') return 1
-
-  return 1
-}
-
-function resolveTrackingStepIndex(record) {
-  const deliveryStatus = normalizeStatusToken(record?.delivery_status)
-  const orderStatus = normalizeStatusToken(record?.status)
-
-  if (orderStatus === 'cancelled' || orderStatus === 'canceled' || deliveryStatus === 'cancelled' || deliveryStatus === 'canceled') {
-    return -1
+  if (fulfillment.token === 'delivered') return { currentIndex: 3, partial: false, fulfillment }
+  if (fulfillment.token === 'partially_delivered') return { currentIndex: 3, partial: true, fulfillment }
+  if (fulfillment.token === 'shipped' || fulfillment.token === 'partially_shipped') {
+    return { currentIndex: 2, partial: fulfillment.token === 'partially_shipped', fulfillment }
   }
+  if (fulfillment.token === 'processing') return { currentIndex: 1, partial: fulfillment.mixed, fulfillment }
 
-  if (deliveryStatus === 'delivered' || orderStatus === 'delivered') return 5
-  if (deliveryStatus === 'out_for_delivery' || deliveryStatus === 'shipped') return 4
-  if (deliveryStatus.includes('ready') && deliveryStatus.includes('ship')) return 3
-  if (orderStatus === 'preparing' || orderStatus === 'processing' || deliveryStatus === 'processing') return 2
-  if (orderStatus === 'confirmed') return 1
-
-  return 1
+  return { currentIndex: 0, partial: false, fulfillment }
 }
 
 export function buildOrderTrackingSteps(record, options = {}) {
   const compact = options.compact === true
   const stepDefs = compact ? COMPACT_TRACKING_STEP_DEFS : TRACKING_STEP_DEFS
-  const currentIndex = compact ? resolveCompactTrackingStepIndex(record) : resolveTrackingStepIndex(record)
+  const { currentIndex, partial, fulfillment } = resolveTrackingProgress(record)
   const lastIndex = stepDefs.length - 1
 
   if (currentIndex < 0) {
     return {
       cancelled: true,
-      steps: stepDefs.map((step) => ({ ...step, done: false, active: false, reached: false })),
+      mixed: false,
+      summary: '',
+      steps: stepDefs.map((step) => ({ ...step, done: false, active: false, reached: false, partial: false })),
     }
   }
 
   return {
     cancelled: false,
+    mixed: fulfillment.mixed,
+    summary: fulfillment.summary,
     steps: stepDefs.map((step, index) => ({
       ...step,
-      done: index < currentIndex || currentIndex === lastIndex,
-      active: index === currentIndex && currentIndex < lastIndex,
+      done: index < currentIndex || (currentIndex === lastIndex && !partial),
+      active: index === currentIndex,
       reached: index <= currentIndex,
+      partial: Boolean(partial && index === currentIndex),
     })),
   }
 }
@@ -501,8 +710,9 @@ export function buildOrderTrackingSteps(record, options = {}) {
 export function formatEstimatedDelivery(record) {
   if (!record) return null
 
-  const deliveryStatus = normalizeStatusToken(record.delivery_status)
-  if (deliveryStatus === 'delivered') return 'Delivered'
+  const fulfillment = resolveOrderFulfillment(record)
+  if (fulfillment.token === 'delivered') return 'Delivered'
+  if (fulfillment.token === 'partially_delivered' || fulfillment.token === 'partially_shipped') return null
 
   const base = record.estimated_delivery_at ?? record.expected_delivery_at ?? record.created_at
   if (!base) return null

@@ -1,7 +1,16 @@
-import { Link } from 'react-router'
+import { useEffect } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { Bell, CircleHelp, CreditCard, RotateCcw, Settings, Store } from 'lucide-react'
 import AccountSectionShell from './AccountSectionShell'
 import { accountSectionMeta } from './accountNavigation'
+import { notify } from '../../lib/notify'
+import { useOrdersQuery } from '../../hooks/useOrdersQuery'
+import {
+  canReturnOrderItem,
+  findOrderById,
+  findReviewableOrderItem,
+  normalizeOrdersResponse,
+} from '../../utils/normalizeOrders'
 
 const sectionIcons = {
   returns: RotateCcw,
@@ -46,6 +55,38 @@ function AccountComingSoonPanel({ sectionId, actionLabel, actionHref }) {
 }
 
 export function AccountReturnsPanel() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = new URLSearchParams(location.search)
+  const requestedOrderId = params.get('order')
+  const requestedItemId = params.get('item')
+  const requestedProduct = params.get('product')
+  const ordersQuery = useOrdersQuery({ enabled: Boolean(requestedOrderId) })
+
+  useEffect(() => {
+    if (!requestedOrderId) return
+    if (ordersQuery.isPending) return
+
+    const orders = normalizeOrdersResponse(ordersQuery.data)
+    const matchedOrder = findOrderById(orders, requestedOrderId)
+    const item = findReviewableOrderItem(matchedOrder, {
+      itemId: requestedItemId,
+      productName: requestedProduct,
+    })
+
+    if (!item || !canReturnOrderItem(item)) {
+      notify.info('You can return an item after it has been delivered.')
+      navigate(matchedOrder ? `/account/orders/${matchedOrder.id}` : '/account/orders', { replace: true })
+    }
+  }, [
+    navigate,
+    ordersQuery.data,
+    ordersQuery.isPending,
+    requestedItemId,
+    requestedOrderId,
+    requestedProduct,
+  ])
+
   return <AccountComingSoonPanel sectionId="returns" actionLabel="View orders" actionHref="/account/orders" />
 }
 

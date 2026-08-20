@@ -115,6 +115,32 @@ export function normalizePreviewTotals(preview) {
   }
 }
 
+/**
+ * Checkout success / order payloads:
+ * subtotal = list price, total_discount_amount = savings, grand_total = amount paid.
+ */
+export function normalizeOrderMoneyTotals(record) {
+  const listSubtotal = toAmount(record?.subtotal ?? record?.list_subtotal) ?? 0
+  const discountTotal = toAmount(
+    record?.total_discount_amount
+    ?? record?.discount_total
+    ?? record?.discount_amount,
+  ) ?? 0
+  const deliveryFee = toAmount(record?.delivery_fee) ?? 0
+  const taxTotal = toAmount(record?.tax_total ?? record?.tax) ?? 0
+  const namedGrand = toAmount(record?.grand_total ?? record?.total)
+  const derivedPayable = Math.max(0, listSubtotal - discountTotal + deliveryFee + taxTotal)
+  const grandLooksUndiscounted = namedGrand != null && discountTotal > 0 && namedGrand >= listSubtotal
+
+  return {
+    listSubtotal,
+    discountTotal,
+    payableTotal: grandLooksUndiscounted || namedGrand == null ? derivedPayable : namedGrand,
+    deliveryFee,
+    taxTotal,
+  }
+}
+
 export function computeCartOrderTotals(items = []) {
   const selectedItems = items.filter((item) => item.selected !== false)
 

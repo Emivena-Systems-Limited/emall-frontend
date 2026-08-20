@@ -58,6 +58,37 @@ function pickRootPrice(...candidates) {
   return null
 }
 
+function resolveAmountOff(product, variation = null) {
+  const metadata = toArray(product?.metadata)
+  const variationMetadata = toArray(variation?.metadata)
+  const candidates = [
+    variation?.unit_price_discount,
+    variation?.discount,
+    product?.unit_price_discount,
+    getMetadataValue(variationMetadata, 'savings_amount'),
+    getMetadataValue(metadata, 'savings_amount'),
+    product?.discount,
+  ]
+
+  for (const candidate of candidates) {
+    const amount = toNumber(candidate, null)
+    if (amount != null && amount > 0 && amount < 100000) {
+      const percentOff = toNumber(
+        firstValue(
+          product?.discount_percent,
+          getMetadataValue(metadata, 'percent_off'),
+          getMetadataValue(metadata, 'discount_percent'),
+        ),
+        null,
+      )
+      if (percentOff != null && Math.abs(amount - percentOff) < 0.05) continue
+      return amount
+    }
+  }
+
+  return 0
+}
+
 /** Resolve list/sale prices from product fields with metadata fallback. */
 export function resolveProductDisplayPrices(product, variation = null) {
   const metadata = toArray(product?.metadata)
@@ -72,7 +103,7 @@ export function resolveProductDisplayPrices(product, variation = null) {
     getMetadataValue(metadata, 'regular_price'),
   )
 
-  const salePrice = pickRootPrice(
+  const catalogSale = pickRootPrice(
     variation?.regular_discount_price,
     variation?.discount_price,
     product?.regular_discount_price,
@@ -84,15 +115,24 @@ export function resolveProductDisplayPrices(product, variation = null) {
     getMetadataValue(metadata, 'sale_price'),
   )
 
-  const price = salePrice ?? listPrice ?? 0
-  const compareAt = listPrice != null && salePrice != null && listPrice > salePrice ? listPrice : null
+  const amountOff = resolveAmountOff(product, variation)
+  let salePrice = catalogSale
 
-  return { price, compareAt, listPrice, salePrice }
+  if (amountOff > 0 && listPrice != null && listPrice > amountOff) {
+    const derivedSale = listPrice - amountOff
+    if (salePrice == null || salePrice <= 0 || salePrice >= listPrice) {
+      salePrice = derivedSale
+    }
+  }
+
+  const hasSale = salePrice != null && listPrice != null && salePrice > 0 && salePrice < listPrice
+  const price = hasSale ? salePrice : (listPrice ?? salePrice ?? 0)
+  const compareAt = hasSale ? listPrice : null
+
+  return { price, compareAt, listPrice, salePrice: hasSale ? salePrice : null }
 }
 
 export function extractSlimVariants(product) {
-  const fallbackPrices = resolveProductDisplayPrices(product)
-
   return toArray(product.variants || product.variations).map((variant) => {
     const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
     const attributes = variant.attributes && typeof variant.attributes === 'object'
@@ -112,18 +152,9 @@ export function extractSlimVariants(product) {
         attributes.Storage,
       )
 
-    const variationMetadata = toArray(variant.metadata)
-
     return {
       id: variant.id,
-      price: pickRootPrice(
-        variant.regular_discount_price,
-        variant.discount_price,
-        variant.sale_price,
-        variant.price,
-        getMetadataValue(variationMetadata, 'sale_price'),
-        getMetadataValue(variationMetadata, 'discount_price'),
-      ) ?? resolveProductDisplayPrices(product, variant).price ?? fallbackPrices.price,
+      price: resolveProductDisplayPrices(product, variant).price,
       color: color ? String(color) : null,
       size: size ? String(size) : null,
       variantName: variant.variant_name ? String(variant.variant_name) : null,

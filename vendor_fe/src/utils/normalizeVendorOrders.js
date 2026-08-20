@@ -43,7 +43,7 @@ function normalizeDeliveryStatus(record) {
   const deliveryStatus = normalizeToken(record?.delivery_status)
   if (!deliveryStatus) return 'pending'
 
-  if (deliveryStatus === 'pending') return 'pending'
+  if (deliveryStatus === 'pending' || deliveryStatus === 'ordered') return 'pending'
   if (
     deliveryStatus === 'processing'
     || deliveryStatus === 'order_confirmed'
@@ -80,6 +80,11 @@ export function resolvePaymentRecord(record) {
     return payments[0]
   }
 
+  const parentOrder = record.order && typeof record.order === 'object' ? record.order : null
+  if (parentOrder?.payment && typeof parentOrder.payment === 'object' && !Array.isArray(parentOrder.payment)) {
+    return parentOrder.payment
+  }
+
   return null
 }
 
@@ -93,7 +98,10 @@ function normalizePaymentStatus(record) {
     return mapPaymentStatusToken(raw)
   }
 
-  return mapPaymentStatusToken(normalizeToken(record?.payment_status))
+  return mapPaymentStatusToken(normalizeToken(
+    record?.payment_status
+    ?? record?.order?.payment_status
+  ))
 }
 
 function normalizePaymentMethod(record) {
@@ -220,43 +228,100 @@ function resolveVariantLabel(item) {
   return firstValue(variant?.variant_name, variant?.value) || null
 }
 
-function resolveComparePrice(item, unitPrice) {
-  const normalizedUnitPrice = Number(unitPrice)
-  if (!Number.isFinite(normalizedUnitPrice) || normalizedUnitPrice <= 0) return null
+function resolveUnitDiscount(item) {
+  const unitDiscount = Number(item?.unit_price_discount ?? 0)
+  if (Number.isFinite(unitDiscount) && unitDiscount > 0) return unitDiscount
 
-  const regularPrice = Number(
-    item?.variant?.regular_price
-    ?? item?.product?.regular_price
-    ?? item?.compare_at_price
-    ?? item?.list_price
+  const quantity = Math.max(1, Number(item?.quantity) || 1)
+  const lineDiscount = Number(item?.total_discount_amount ?? 0)
+  if (Number.isFinite(lineDiscount) && lineDiscount > 0) return lineDiscount / quantity
+
+  const namedDiscount = Number(
+    item?.discount
+    ?? item?.variant?.discount
+    ?? item?.product?.discount
     ?? 0,
   )
+  return Number.isFinite(namedDiscount) && namedDiscount > 0 ? namedDiscount : 0
+}
 
-  if (regularPrice > normalizedUnitPrice) return regularPrice
-
-  const discountPrice = Number(
-    item?.variant?.discount_price
+function resolveCatalogSalePrice(item) {
+  const sale = Number(
+    item?.regular_discount_price
+    ?? item?.discounted_price
+    ?? item?.discount_price
+    ?? item?.variant?.regular_discount_price
+    ?? item?.variant?.discount_price
     ?? item?.product?.regular_discount_price
     ?? item?.product?.discount_price
     ?? 0,
   )
+  return Number.isFinite(sale) && sale > 0 ? sale : null
+}
 
-  if (
-    regularPrice > 0
-    && discountPrice > 0
-    && discountPrice < regularPrice
-    && normalizedUnitPrice <= discountPrice
-  ) {
-    return regularPrice
-  }
+function resolveComparePrice(item, paidUnitPrice, listUnitPrice) {
+  const paid = Number(paidUnitPrice)
+  const list = Number(listUnitPrice)
+  if (Number.isFinite(list) && Number.isFinite(paid) && list > paid) return list
 
-  return null
+  const catalogCompare = [
+    item?.compare_at_price,
+    item?.compare_at,
+    item?.original_unit_price,
+    item?.list_price,
+    item?.variant?.compare_at_price,
+    item?.variant?.list_price,
+    item?.variant?.regular_price,
+    item?.product?.compare_at_price,
+    item?.product?.original_price,
+    item?.product?.list_price,
+    item?.product?.regular_price,
+  ]
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > paid)
+
+  return catalogCompare ?? null
+}
+
+function resolveItemsMoney(items) {
+  return items.reduce(
+    (totals, item) => {
+      const quantity = Math.max(1, Number(item.quantity) || 1)
+      const paid = Number(item.totalPrice ?? item.unitPrice * quantity) || 0
+      const compare = Number(item.comparePrice)
+      const list = Number.isFinite(compare) && compare > Number(item.unitPrice)
+        ? compare * quantity
+        : paid
+
+      totals.paid += paid
+      totals.list += list
+      return totals
+    },
+    { paid: 0, list: 0 },
+  )
+}
+
+function resolveNamedDiscount(record) {
+  const lineDiscount = Number(record?.total_discount_amount)
+  if (Number.isFinite(lineDiscount) && lineDiscount > 0) return lineDiscount
+
+  const named = Number(record?.discount_total ?? record?.discount_amount ?? record?.discount ?? 0)
+  return Number.isFinite(named) && named > 0 ? named : 0
 }
 
 function normalizeOrderItem(item, index, orderRecord = null) {
   const quantity = Math.max(1, Number(item?.quantity) || 1)
-  const unitPrice = resolveOrderItemUnitPrice(item)
-  const totalPrice = Number(item?.total_price ?? unitPrice * quantity)
+  const listUnit = resolveOrderItemUnitPrice(item)
+  const unitDiscount = resolveUnitDiscount(item)
+  const catalogSale = resolveCatalogSalePrice(item)
+  const paidUnit = unitDiscount > 0 && unitDiscount < listUnit
+    ? Math.max(0, listUnit - unitDiscount)
+    : (catalogSale != null && catalogSale < listUnit ? catalogSale : listUnit)
+  const rawTotal = Number(item?.total_price)
+  const discountedTotal = paidUnit * quantity
+  const totalPrice = paidUnit < listUnit
+    ? discountedTotal
+    : (Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : discountedTotal)
   const product = item?.product ?? {}
   const variant = item?.variant ?? {}
   const brand = product?.brand_id ?? product?.brand ?? {}
@@ -269,9 +334,9 @@ function normalizeOrderItem(item, index, orderRecord = null) {
     sku: firstValue(item?.sku, variant?.sku, product?.sku, '—'),
     image: resolveItemImage(item),
     quantity,
-    unitPrice,
+    unitPrice: paidUnit,
     totalPrice,
-    comparePrice: resolveComparePrice(item, unitPrice),
+    comparePrice: resolveComparePrice(item, paidUnit, listUnit),
     variantLabel: resolveVariantLabel(item),
     variantName: firstValue(variant?.variant_name),
     brandName: firstValue(brand?.brand_name, brand?.name),
@@ -391,7 +456,14 @@ function normalizeCustomer(record) {
 }
 
 function normalizeDelivery(record) {
-  const shipping = record?.shipping_address ?? record?.delivery_address ?? record?.delivery ?? {}
+  const parentOrder = record?.order && typeof record.order === 'object' ? record.order : null
+  const shipping = record?.shipping_address
+    ?? record?.delivery_address
+    ?? record?.delivery
+    ?? parentOrder?.shipping_address
+    ?? parentOrder?.delivery_address
+    ?? parentOrder?.delivery
+    ?? {}
 
   const street = [shipping?.address_line_1, shipping?.address_line_2].filter(Boolean).join(', ')
 
@@ -445,21 +517,31 @@ function timestampFromUlid(value) {
 }
 
 function resolveOrderDate(record) {
+  const parentOrder = record?.order && typeof record.order === 'object' ? record.order : null
+
   return firstValue(
     record?.created_at,
     record?.ordered_at,
     record?.order_date,
     record?.placed_at,
+    parentOrder?.created_at,
+    parentOrder?.ordered_at,
+    parentOrder?.order_date,
     record?.payment?.paid_at,
+    parentOrder?.payment?.paid_at,
     record?.point_in_time,
-    timestampFromUlid(firstValue(record?.order_id, record?.id)),
+    timestampFromUlid(firstValue(record?.order_id, parentOrder?.id, record?.id)),
   )
 }
 
 function resolveDeliveryMethod(record) {
+  const parentOrder = record?.order && typeof record.order === 'object' ? record.order : null
+
   return firstValue(
     record?.delivery_method,
     record?.shipping_method,
+    parentOrder?.delivery_method,
+    parentOrder?.shipping_method,
   )
 }
 
@@ -472,14 +554,41 @@ export function normalizeVendorOrderRecord(record) {
   const items = lineItems.map((item, index) => normalizeOrderItem(item, index, record))
   const primaryItem = items[0] ?? null
 
+  const parentOrder = record?.order && typeof record.order === 'object' ? record.order : null
   const itemId = isLineItem ? firstValue(record?.id, record?.order_item_id, primaryItem?.id) : firstValue(primaryItem?.id)
   const parentOrderId = isLineItem
-    ? firstValue(record?.order_id, record?.orderId)
+    ? firstValue(record?.order_id, record?.orderId, parentOrder?.id)
     : firstValue(record?.id, record?.order_id)
   const apiId = itemId || parentOrderId
-  const orderNumber = formatOrderNumber(firstValue(record?.order_number, record?.reference, parentOrderId, apiId))
+  const orderNumber = formatOrderNumber(firstValue(
+    record?.order_number,
+    parentOrder?.order_number,
+    record?.reference,
+    parentOrder?.reference,
+    parentOrderId,
+    apiId,
+  ))
   const itemsTotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0)
-  const recordTotal = Number(record?.grand_total ?? record?.total ?? record?.total_amount ?? record?.total_price ?? 0)
+  const itemsMoney = resolveItemsMoney(items)
+  const itemsDiscount = Math.max(0, itemsMoney.list - itemsMoney.paid)
+  const namedDiscount = resolveNamedDiscount(record)
+  const discount = itemsDiscount > 0 ? itemsDiscount : namedDiscount
+  const deliveryFee = Number(record?.delivery_fee ?? record?.shipping_fee ?? parentOrder?.delivery_fee ?? 0)
+  const taxTotal = Number(record?.tax_total ?? parentOrder?.tax_total ?? 0)
+  const recordTotal = Number(
+    record?.grand_total
+    ?? record?.total
+    ?? record?.total_amount
+    ?? record?.total_price
+    ?? parentOrder?.grand_total
+    ?? parentOrder?.total
+    ?? 0,
+  )
+  const derivedPayable = itemsMoney.paid + deliveryFee + taxTotal
+  const totalLooksUndiscounted = recordTotal > 0 && discount > 0 && recordTotal >= itemsMoney.list
+  const totalAmount = (discount > 0 && itemsMoney.paid > 0 && (totalLooksUndiscounted || recordTotal <= 0))
+    ? derivedPayable
+    : (recordTotal || derivedPayable || itemsTotal)
   const deliveryStatus = deriveDeliveryStatusFromItems(items, normalizeDeliveryStatus(record))
   const hasExplicitOrderStatus = Boolean(normalizeToken(record?.status ?? record?.order_status))
   const orderStatus = hasExplicitOrderStatus
@@ -500,13 +609,14 @@ export function normalizeVendorOrderRecord(record) {
     sku: firstValue(primaryItem?.sku, record?.sku),
     image: primaryItem?.image ?? '',
     quantity: Number(primaryItem?.quantity ?? record?.quantity ?? 0),
-    unitPrice: Number(primaryItem?.unitPrice ?? record?.unit_price ?? 0),
+    unitPrice: Number(primaryItem?.unitPrice ?? 0),
+    comparePrice: primaryItem?.comparePrice ?? null,
     productsCount: resolveProductsCount(items, record),
-    subtotal: Number(record?.subtotal ?? itemsTotal),
-    deliveryFee: Number(record?.delivery_fee ?? record?.shipping_fee ?? 0),
-    discount: Number(record?.discount_total ?? record?.discount ?? 0),
-    taxTotal: Number(record?.tax_total ?? 0),
-    totalAmount: recordTotal || itemsTotal,
+    subtotal: itemsMoney.list || Number(record?.subtotal ?? parentOrder?.subtotal ?? itemsTotal),
+    deliveryFee,
+    discount,
+    taxTotal,
+    totalAmount,
     paymentStatus: normalizePaymentStatus(record),
     paymentMethod: normalizePaymentMethod(record),
     transactionReference: resolveTransactionReference(record),
@@ -545,6 +655,10 @@ export function extractVendorOrderList(body) {
     payload?.orders,
     payload?.items,
     payload?.results,
+    payload?.data?.orders,
+    payload?.data?.data,
+    envelope?.orders,
+    body?.data?.orders,
   ]
 
   for (const nested of nestedLists) {
@@ -599,6 +713,39 @@ export function extractVendorOrderRecord(body) {
 
 export function normalizeVendorOrdersList(records) {
   return toArray(records).map(normalizeVendorOrderRecord).filter(Boolean)
+}
+
+export function explodeVendorOrdersForCatalog(orders) {
+  return toArray(orders).flatMap((order) => {
+    if (!order) return []
+
+    const items = toArray(order.items)
+    if (items.length <= 1) return [order]
+
+    return items.map((item, index) => {
+      const quantity = Math.max(1, Number(item.quantity) || 1)
+      const unitPrice = Number(item.unitPrice ?? 0)
+      const totalAmount = Number(item.totalPrice ?? unitPrice * quantity)
+
+      return {
+        ...order,
+        id: item.id || `${order.orderId || order.id}-${index + 1}`,
+        itemId: item.id || order.itemId,
+        productId: item.productId || order.productId,
+        variantId: item.variantId || order.variantId,
+        productName: item.productName || order.productName,
+        sku: item.sku || order.sku,
+        image: item.image || order.image,
+        quantity,
+        unitPrice,
+        comparePrice: item.comparePrice ?? order.comparePrice ?? null,
+        totalAmount,
+        productsCount: quantity,
+        deliveryStatus: item.deliveryStatus || order.deliveryStatus,
+        items: [item],
+      }
+    })
+  })
 }
 
 function matchesOrderIdentity(order, target) {
@@ -663,6 +810,7 @@ export function buildVendorOrderReceipt(rows, fallback = null) {
       sku: row.sku || '—',
       quantity: Math.max(1, Number(row.quantity) || 1),
       unitPrice: Number(row.unitPrice || 0),
+      comparePrice: row.comparePrice ?? null,
       totalPrice: Number(row.totalAmount || 0),
       variantLabel: null,
       deliveryStatus: row.deliveryStatus,
@@ -670,15 +818,17 @@ export function buildVendorOrderReceipt(rows, fallback = null) {
   })
 
   const itemsTotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0)
+  const itemsMoney = resolveItemsMoney(items)
+  const itemsDiscount = Math.max(0, itemsMoney.list - itemsMoney.paid)
 
   return {
     ...first,
     items,
     productsCount: items.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0),
-    subtotal: itemsTotal,
-    totalAmount: itemsTotal,
+    subtotal: itemsMoney.list || itemsTotal,
+    totalAmount: itemsMoney.paid || itemsTotal,
     deliveryFee: Number(first.deliveryFee || 0),
-    discount: Number(first.discount || 0),
+    discount: itemsDiscount > 0 ? itemsDiscount : Number(first.discount || 0),
     taxTotal: Number(first.taxTotal || 0),
   }
 }

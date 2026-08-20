@@ -139,7 +139,7 @@ export function getCustomerById(customerId) {
 }
 
 export function getCustomerSummaryFromCatalog(customers) {
-  const now = new Date(MOCK_CUSTOMERS_REFERENCE_DATE)
+  const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
   return {

@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router'
 import { ChevronDown, Layers3, Package } from 'lucide-react'
 import ProductThumbnail from '../dashboard/ProductThumbnail'
 import { mergeOrderGroup } from '../../utils/orderCatalogFilters'
+import { buildViewProductPath } from '../../utils/orderProductNavigation'
+import { mergeOrderNavigationState, resolveOrdersReturnTo } from '../../utils/orderNavigation'
 import OrderActionsMenu from './OrderActionsMenu'
 import OrderIdTooltip from './OrderIdTooltip'
+import OrderItemPrice from './OrderItemPrice'
 import PaymentStatusBadge from './PaymentStatusBadge'
 import DeliveryStatusBadge from './DeliveryStatusBadge'
 
@@ -25,8 +29,31 @@ function formatOrderDate(value) {
   })
 }
 
-function formatMoney(amount) {
-  return `GH₵ ${Number(amount).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`
+function ProductNameLink({ order, className }) {
+  const location = useLocation()
+  const name = order.productName || 'Product'
+  const productId = order.productId || order.items?.[0]?.productId
+  const orderId = order.orderId || order.id
+  const ordersReturnTo = resolveOrdersReturnTo(location)
+
+  if (!productId) {
+    return (
+      <p className={className} title={name}>
+        {name}
+      </p>
+    )
+  }
+
+  return (
+    <Link
+      to={buildViewProductPath(productId, orderId)}
+      state={mergeOrderNavigationState(location.state, { returnTo: ordersReturnTo })}
+      title={name}
+      className={`transition-colors hover:text-brand ${className}`}
+    >
+      {name}
+    </Link>
+  )
 }
 
 function extraProductCount(order) {
@@ -39,6 +66,31 @@ function resolveGroupQuantity(orders) {
 
 function resolveGroupTotal(orders) {
   return orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0)
+}
+
+function resolveOrderCompareUnit(order) {
+  const compare = Number(order?.comparePrice ?? order?.items?.[0]?.comparePrice)
+  const unit = Number(order?.unitPrice)
+  return Number.isFinite(compare) && compare > unit ? compare : null
+}
+
+function resolveOrderCompareTotal(order) {
+  const unitCompare = resolveOrderCompareUnit(order)
+  if (unitCompare == null) return null
+  return unitCompare * Math.max(1, Number(order.quantity) || 1)
+}
+
+function resolveGroupCompareTotal(orders) {
+  const list = orders.reduce((sum, order) => {
+    const compare = resolveOrderCompareTotal(order)
+    return sum + (compare ?? Number(order.totalAmount || 0))
+  }, 0)
+  const paid = resolveGroupTotal(orders)
+  return list > paid ? list : null
+}
+
+function resolveOrderVariantLabel(order) {
+  return order?.items?.[0]?.variantLabel || order?.items?.[0]?.variantName || ''
 }
 
 function uniqueStatuses(orders, key) {
@@ -117,14 +169,18 @@ function StackedThumbnails({ orders }) {
 
 function ProductSummary({ order }) {
   const extra = extraProductCount(order)
+  const variantLabel = resolveOrderVariantLabel(order)
 
   return (
     <div className="flex min-w-0 max-w-[18rem] items-center gap-3">
       <ProductThumbnail src={order.image} alt={order.productName} />
       <div className="min-w-0 flex-1 overflow-hidden">
-        <p className="truncate font-semibold text-slate-900" title={order.productName}>
-          {order.productName || 'Product'}
-        </p>
+        <ProductNameLink order={order} className="block truncate font-semibold text-slate-900" />
+        {variantLabel ? (
+          <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={variantLabel}>
+            {variantLabel}
+          </p>
+        ) : null}
         <p className="mt-0.5 truncate font-mono text-[11px] text-slate-400">SKU {order.sku || '—'}</p>
         {extra > 0 ? (
           <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
@@ -137,19 +193,19 @@ function ProductSummary({ order }) {
 }
 
 function OrderItemCard({ order, onUpdateDeliveryStatus }) {
-  const variantLabel = order.items?.[0]?.variantLabel || order.items?.[0]?.variantName
+  const variantLabel = resolveOrderVariantLabel(order)
 
   return (
-    <article className="rounded-xl border border-brand/10 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-white">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+    <article className="min-w-0 overflow-hidden rounded-xl border border-brand/10 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-white">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden">
           <ProductThumbnail src={order.image} alt={order.productName} />
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="truncate text-sm font-bold text-slate-900" title={order.productName}>
-              {order.productName || 'Product'}
-            </p>
+          <div className="min-w-0 max-w-[18rem] flex-1 overflow-hidden">
+            <ProductNameLink order={order} className="block truncate text-sm font-bold text-slate-900" />
             {variantLabel ? (
-              <p className="mt-0.5 truncate text-xs font-medium text-slate-500">{variantLabel}</p>
+              <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={variantLabel}>
+                {variantLabel}
+              </p>
             ) : null}
             <p className="mt-0.5 truncate font-mono text-[11px] text-slate-400">SKU {order.sku || '—'}</p>
           </div>
@@ -162,9 +218,9 @@ function OrderItemCard({ order, onUpdateDeliveryStatus }) {
           <span className="rounded-lg bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
             Qty {order.quantity || 1}
           </span>
-          <span className="text-xs text-slate-500">{formatMoney(order.unitPrice)} each</span>
+          <OrderItemPrice amount={order.unitPrice} compareAmount={resolveOrderCompareUnit(order)} align="left" />
         </div>
-        <p className="text-sm font-bold tabular-nums text-slate-900">{formatMoney(order.totalAmount)}</p>
+        <OrderItemPrice amount={order.totalAmount} compareAmount={resolveOrderCompareTotal(order)} />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -233,7 +289,7 @@ function GroupedOrderMobileCard({
             <p className="truncate text-xs text-slate-500">{first.customer.phone}</p>
           ) : null}
           <p className="text-xs text-slate-500">
-            {formatMoney(resolveGroupTotal(orders))} · Qty {resolveGroupQuantity(orders)}
+            Qty {resolveGroupQuantity(orders)}
           </p>
         </div>
 
@@ -242,6 +298,10 @@ function GroupedOrderMobileCard({
             <GroupDeliveryBadge orders={orders} />
             <GroupPaymentBadge orders={orders} />
           </div>
+          <OrderItemPrice
+            amount={resolveGroupTotal(orders)}
+            compareAmount={resolveGroupCompareTotal(orders)}
+          />
         </div>
       </div>
 
@@ -263,6 +323,7 @@ function GroupedOrderMobileCard({
 
 function OrderMobileCard({ order, onUpdateDeliveryStatus }) {
   const extra = extraProductCount(order)
+  const variantLabel = resolveOrderVariantLabel(order)
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -270,9 +331,12 @@ function OrderMobileCard({ order, onUpdateDeliveryStatus }) {
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <ProductThumbnail src={order.image} alt={order.productName} />
           <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="truncate text-sm font-bold text-slate-900" title={order.productName}>
-              {order.productName || 'Product'}
-            </p>
+            <ProductNameLink order={order} className="block truncate text-sm font-bold text-slate-900" />
+            {variantLabel ? (
+              <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={variantLabel}>
+                {variantLabel}
+              </p>
+            ) : null}
             <p className="mt-0.5 truncate font-mono text-[11px] text-slate-400">SKU {order.sku || '—'}</p>
             <div className="mt-1">
               <OrderIdTooltip value={order.orderNumber} />
@@ -292,7 +356,7 @@ function OrderMobileCard({ order, onUpdateDeliveryStatus }) {
           <p className="truncate text-xs text-slate-500">{order.customer.email}</p>
         ) : null}
         <p className="text-xs text-slate-500">
-          {formatMoney(order.unitPrice)} · Qty {order.quantity || 1}
+          Qty {order.quantity || 1}
           {extra > 0 ? ` · +${extra} more product${extra === 1 ? '' : 's'}` : ''}
         </p>
       </div>
@@ -302,7 +366,10 @@ function OrderMobileCard({ order, onUpdateDeliveryStatus }) {
           <DeliveryStatusBadge status={order.deliveryStatus} />
           <PaymentStatusBadge status={order.paymentStatus} />
         </div>
-        <p className="whitespace-nowrap text-sm font-bold text-slate-900">{formatMoney(order.totalAmount)}</p>
+        <OrderItemPrice
+          amount={order.totalAmount}
+          compareAmount={resolveOrderCompareTotal(order)}
+        />
       </div>
     </article>
   )
@@ -323,12 +390,12 @@ function SingleOrderRow({ order, onUpdateDeliveryStatus }) {
       <td className="px-5 py-4">
         <CustomerCell customer={order.customer} />
       </td>
-      <td className="whitespace-nowrap px-5 py-4 tabular-nums text-slate-800">
-        {formatMoney(order.unitPrice)}
+      <td className="whitespace-nowrap px-5 py-4">
+        <OrderItemPrice amount={order.unitPrice} compareAmount={resolveOrderCompareUnit(order)} />
       </td>
       <td className="whitespace-nowrap px-5 py-4 tabular-nums">{order.quantity || 1}</td>
-      <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">
-        {formatMoney(order.totalAmount)}
+      <td className="whitespace-nowrap px-5 py-4">
+        <OrderItemPrice amount={order.totalAmount} compareAmount={resolveOrderCompareTotal(order)} />
       </td>
       <td className="whitespace-nowrap px-5 py-4">
         <PaymentStatusBadge status={order.paymentStatus} />
@@ -397,9 +464,12 @@ function GroupedOrderRows({
               <div className="flex shrink-0 items-start gap-3">
                 <div className="text-right">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Order total</p>
-                  <p className="mt-0.5 text-base font-bold tabular-nums text-slate-950">
-                    {formatMoney(resolveGroupTotal(orders))}
-                  </p>
+                  <div className="mt-0.5">
+                    <OrderItemPrice
+                      amount={resolveGroupTotal(orders)}
+                      compareAmount={resolveGroupCompareTotal(orders)}
+                    />
+                  </div>
                   <p className="mt-0.5 text-xs text-slate-500">Qty {resolveGroupQuantity(orders)}</p>
                 </div>
                 <OrderActionsMenu
@@ -442,7 +512,7 @@ function GroupedOrderRows({
               <p className="text-[10px] font-bold uppercase tracking-wide text-brand/70">
                 Ordered products
               </p>
-              <div className="grid gap-3">
+              <div className="grid min-w-0 gap-3">
                 {orders.map((order) => (
                   <OrderItemCard
                     key={order.id}

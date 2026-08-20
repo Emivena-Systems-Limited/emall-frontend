@@ -36,7 +36,8 @@ import {
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
 import { formatCartItemOptions, enrichCartItemsForDisplay, extractCheckoutPreviewItems, resolveCartItemDisplayImage } from '../utils/normalizeCart'
-import { normalizePreviewTotals, computeCartOrderTotals, calculateOrderTotal } from '../utils/checkoutTotals'
+import { normalizePreviewTotals, computeCartOrderTotals, calculateOrderTotal, normalizeOrderMoneyTotals } from '../utils/checkoutTotals'
+import { resolveOrderItemPricing } from '../utils/normalizeOrders'
 import {
   GHANA_LOCATIONS,
   LOCATION_OTHER_VALUE,
@@ -1356,10 +1357,39 @@ function formatOrderAddress(address) {
 
   return {
     name: [address.first_name, address.last_name].filter(Boolean).join(' '),
-    line1: address.address_line_1 ?? '',
-    location: [address.city_or_town, address.region].filter(Boolean).join(', '),
+    line1: [address.address_line_1, address.address_line_2].filter(Boolean).join(', '),
+    location: [address.city_or_town, address.region, address.country].filter(Boolean).join(', '),
     phone: address.phone_number ?? '',
   }
+}
+
+function normalizeSuccessItems(order, checkoutItems = []) {
+  const apiItems = Array.isArray(order?.items) ? order.items : []
+  if (apiItems.length > 0) {
+    return apiItems.map((item, index) => {
+      const pricing = resolveOrderItemPricing(item)
+      return {
+        id: item.id ?? `api-item-${index}`,
+        name: item.product_name ?? item.name ?? 'Item',
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        unitPrice: pricing.unitPrice,
+        totalPrice: pricing.lineTotal,
+        comparePrice: pricing.comparePrice,
+      }
+    })
+  }
+
+  return (checkoutItems ?? []).map((item, index) => {
+    const quantity = Math.max(1, Number(item.quantity) || 1)
+    const unitPrice = Number(item.price ?? 0)
+    return {
+      id: item.id ?? `checkout-item-${index}`,
+      name: item.name ?? 'Item',
+      quantity,
+      unitPrice,
+      totalPrice: Number(item.displaySubtotal ?? unitPrice * quantity),
+    }
+  })
 }
 
 function OrderAddressCard({ title, address }) {
@@ -1376,18 +1406,20 @@ function OrderAddressCard({ title, address }) {
   )
 }
 
-function OrderSuccessScreen({ order }) {
+function OrderSuccessScreen({ order, checkoutTotals, checkoutItems = [] }) {
   const orderNumber = resolveOrderNumber(order)
-  const orderedAt = formatOrderDate(order?.point_in_time ?? order?.created_at)
-  const items = Array.isArray(order?.items) ? order.items : []
+  const orderedAt = formatOrderDate(order?.paid_at ?? order?.point_in_time ?? order?.created_at)
+  const items = normalizeSuccessItems(order, checkoutItems)
   const shippingAddress = formatOrderAddress(order?.shipping_address)
   const billingAddress = formatOrderAddress(order?.billing_address)
+  const apiTotals = normalizeOrderMoneyTotals(order)
+  const paymentStatus = String(order?.payment_status ?? '').trim().toLowerCase()
 
-  const subtotal = Number(order?.subtotal ?? 0)
-  const discountTotal = Number(order?.discount_total ?? order?.discount ?? 0)
-  const deliveryFee = Number(order?.delivery_fee ?? 0)
-  const taxTotal = Number(order?.tax_total ?? order?.tax ?? 0)
-  const grandTotal = Number(order?.grand_total ?? order?.total ?? 0)
+  const subtotal = Number(apiTotals.listSubtotal || checkoutTotals?.listSubtotal || 0)
+  const discountTotal = Number(apiTotals.discountTotal || checkoutTotals?.discountTotal || 0)
+  const deliveryFee = Number(apiTotals.deliveryFee || checkoutTotals?.deliveryFee || 0)
+  const taxTotal = Number(apiTotals.taxTotal || checkoutTotals?.tax || 0)
+  const grandTotal = Number(apiTotals.payableTotal || checkoutTotals?.payableTotal || 0)
 
   return (
     <section className="mx-auto max-w-2xl space-y-5">
@@ -1409,6 +1441,15 @@ function OrderSuccessScreen({ order }) {
               <span className="font-bold text-slate-950">#{orderNumber}</span>
             </div>
           ) : null}
+          {paymentStatus === 'paid' ? (
+            <div className="inline-flex items-center rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
+              Paid
+            </div>
+          ) : paymentStatus ? (
+            <div className="inline-flex items-center rounded-xl bg-slate-50 px-4 py-2.5 text-sm font-semibold capitalize text-slate-700">
+              {paymentStatus.replaceAll('_', ' ')}
+            </div>
+          ) : null}
           {orderedAt ? (
             <div className="inline-flex items-center rounded-xl bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
               {orderedAt}
@@ -1417,55 +1458,62 @@ function OrderSuccessScreen({ order }) {
         </div>
       </div>
 
-      {items.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white px-5 py-5 sm:px-6">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Order Items</h2>
-          <div className="mt-3 divide-y divide-slate-100">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">{item.product_name}</p>
-                  <p className="text-xs text-slate-500">
-                    Qty {item.quantity} · {formatCheckoutAmount(item.unit_price)} each
+      <div className="rounded-xl border border-slate-200 bg-white px-5 py-5 sm:px-6">
+        {items.length > 0 ? (
+          <>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Order Items</h2>
+            <div className="mt-3 divide-y divide-slate-100">
+              {items.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
+                    <p className="text-xs text-slate-500">
+                      Qty {item.quantity} · {formatCheckoutAmount(item.unitPrice)} each
+                      {item.comparePrice != null && item.comparePrice > item.unitPrice ? (
+                        <span className="ml-1 text-slate-400 line-through">
+                          {formatCheckoutAmount(item.comparePrice)}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-bold text-slate-950">
+                    {formatCheckoutAmount(item.totalPrice)}
                   </p>
                 </div>
-                <p className="shrink-0 text-sm font-bold text-slate-950">
-                  {formatCheckoutAmount(item.total_price)}
-                </p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
+        ) : null}
 
-          <dl className="mt-3 space-y-2 border-t border-slate-200 pt-4 text-sm">
+        <dl className={`space-y-2 text-sm ${items.length > 0 ? 'mt-3 border-t border-slate-200 pt-4' : ''}`}>
+          <div className="flex items-center justify-between">
+            <dt className="text-slate-600">Subtotal</dt>
+            <dd className="font-semibold text-slate-900">{formatCheckoutAmount(subtotal)}</dd>
+          </div>
+          {discountTotal > 0 && (
+            <div className="flex items-center justify-between text-auth-primary">
+              <dt>Discount</dt>
+              <dd className="font-semibold">-{formatCheckoutAmount(discountTotal)}</dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <dt className="text-slate-600">Delivery</dt>
+            <dd className="font-semibold text-slate-900">
+              {deliveryFee > 0 ? formatCheckoutAmount(deliveryFee) : 'Free'}
+            </dd>
+          </div>
+          {taxTotal > 0 && (
             <div className="flex items-center justify-between">
-              <dt className="text-slate-600">Subtotal</dt>
-              <dd className="font-semibold text-slate-900">{formatCheckoutAmount(subtotal)}</dd>
+              <dt className="text-slate-600">Tax</dt>
+              <dd className="font-semibold text-slate-900">{formatCheckoutAmount(taxTotal)}</dd>
             </div>
-            {discountTotal > 0 && (
-              <div className="flex items-center justify-between text-auth-primary">
-                <dt>Discount</dt>
-                <dd className="font-semibold">-{formatCheckoutAmount(discountTotal)}</dd>
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <dt className="text-slate-600">Delivery</dt>
-              <dd className="font-semibold text-slate-900">
-                {deliveryFee > 0 ? formatCheckoutAmount(deliveryFee) : 'Free'}
-              </dd>
-            </div>
-            {taxTotal > 0 && (
-              <div className="flex items-center justify-between">
-                <dt className="text-slate-600">Tax</dt>
-                <dd className="font-semibold text-slate-900">{formatCheckoutAmount(taxTotal)}</dd>
-              </div>
-            )}
-            <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
-              <dt className="font-bold text-slate-950">Total Paid</dt>
-              <dd className="font-extrabold text-slate-950">{formatCheckoutAmount(grandTotal)}</dd>
-            </div>
-          </dl>
-        </div>
-      )}
+          )}
+          <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
+            <dt className="font-bold text-slate-950">Total Paid</dt>
+            <dd className="font-extrabold text-slate-950">{formatCheckoutAmount(grandTotal)}</dd>
+          </div>
+        </dl>
+      </div>
 
       {(shippingAddress || billingAddress) && (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -1524,6 +1572,8 @@ export default function CheckoutPage() {
   const [couponMessage, setCouponMessage] = useState('')
   const [orderStatus, setOrderStatus] = useState('idle')
   const [placedOrder, setPlacedOrder] = useState(null)
+  const [placedTotals, setPlacedTotals] = useState(null)
+  const [placedItems, setPlacedItems] = useState([])
   const hasInitializedDeliveryAddress = useRef(false)
   const [isDeliveryAddressReady, setIsDeliveryAddressReady] = useState(false)
   const [isBillingAddressReady, setIsBillingAddressReady] = useState(false)
@@ -2139,6 +2189,20 @@ export default function CheckoutPage() {
         : placeCheckoutOrder(buildCheckoutPayload(activeAddress, activeBillingAddress))
       const [response] = await Promise.all([orderPromise, minProcessingDelay])
 
+      setPlacedTotals({
+        listSubtotal: orderListSubtotal,
+        discountTotal: orderDiscountTotal,
+        payableTotal: orderTotal,
+        deliveryFee: feeTotals.deliveryFee,
+        tax: feeTotals.tax,
+      })
+      setPlacedItems(items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        displaySubtotal: item.displaySubtotal,
+      })))
       setPlacedOrder(response)
       setOrderStatus('success')
       if (isBuyNowMode) {
@@ -2157,7 +2221,11 @@ export default function CheckoutPage() {
       <main className="bg-white py-7 sm:py-8">
         <Container>
           {orderStatus === 'success' ? (
-            <OrderSuccessScreen order={placedOrder} />
+            <OrderSuccessScreen
+              order={placedOrder}
+              checkoutTotals={placedTotals}
+              checkoutItems={placedItems}
+            />
           ) : items.length === 0 && !isCheckoutDataLoading ? (
             <section className="rounded-xl border border-slate-200 bg-white px-5 py-14 text-center">
               <h1 className="text-2xl font-semibold text-slate-950">Checkout</h1>

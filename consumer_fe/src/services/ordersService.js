@@ -2,7 +2,7 @@ import apiClient from '../lib/apiClient'
 
 export const ORDERS_ENDPOINTS = {
   LIST: '/orders/orders',
-  cancel: (orderId) => `/orders/orders/${orderId}/cancel`,
+  cancel: (orderId) => `/orders/${orderId}/cancel`,
 }
 
 function assertApiSuccess(data) {
@@ -37,7 +37,11 @@ export async function cancelOrder(orderId) {
     throw new Error('Order id is required to cancel an order')
   }
 
-  const { data } = await apiClient.post(ORDERS_ENDPOINTS.cancel(id), {}, {
+  if (import.meta.env.DEV) {
+    console.info('[orders] POST', ORDERS_ENDPOINTS.cancel(id))
+  }
+
+  const { data } = await apiClient.patch(ORDERS_ENDPOINTS.cancel(id), {}, {
     skipAuthLogout: true,
   })
   assertApiSuccess(data)

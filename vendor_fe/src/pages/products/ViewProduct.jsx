@@ -83,11 +83,11 @@ export default function ViewProduct() {
               Retry
             </button>
             <Link
-              to="/products"
+              to={orderId ? ordersReturnTo : '/products'}
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
             >
               <ArrowLeft className="size-4" />
-              Back to products
+              {orderId ? ordersReturnLabel : 'Back to products'}
             </Link>
           </div>
         </div>
@@ -139,7 +139,11 @@ export default function ViewProduct() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
             to={orderId ? ordersReturnTo : '/products'}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800"
+            className={
+              orderId
+                ? 'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand'
+                : 'inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800'
+            }
           >
             <ArrowLeft className="size-4" />
             {orderId ? ordersReturnLabel : 'All Products'}

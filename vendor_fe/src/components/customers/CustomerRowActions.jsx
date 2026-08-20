@@ -4,23 +4,16 @@ import { Eye, MoreHorizontal, Printer, ShoppingBag } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import { getCustomerOrdersRoute } from '../../constants/customers'
 
-function CustomerMenuAction({ icon: Icon, tone, label, helper, onClick }) {
+function CustomerMenuAction({ icon: Icon, label, onClick }) {
   return (
     <button
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="group flex w-full cursor-pointer items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
+      className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
     >
-      <span
-        className={`flex size-9 shrink-0 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-[1.03] ${tone}`}
-      >
-        <Icon className="size-4" strokeWidth={2} />
-      </span>
-      <span className="min-w-0 flex-1 pt-0.5">
-        <span className="block text-sm font-semibold text-slate-900">{label}</span>
-        <span className="mt-0.5 block text-xs leading-snug text-slate-500">{helper}</span>
-      </span>
+      <Icon className="size-4 shrink-0 text-slate-500" strokeWidth={2} />
+      {label}
     </button>
   )
 }
@@ -67,38 +60,32 @@ export default function CustomerRowActions({
         open={open}
         onClose={close}
         triggerRef={triggerRef}
-        menuWidth={280}
-        className="overflow-hidden py-0 shadow-[0_20px_50px_rgba(15,23,42,0.14)]"
+        menuWidth={260}
+        className="overflow-hidden py-0 shadow-[0_16px_40px_rgba(15,23,42,0.12)]"
       >
-        <div className="border-b border-slate-100 bg-linear-to-b from-slate-50 to-white px-4 py-3">
+        <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white px-4 py-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
             Customer actions
           </p>
           <p className="mt-1 truncate text-sm font-bold text-slate-950">{customer.name}</p>
         </div>
 
-        <div className="py-1.5">
+        <div className="py-1">
           {!hideViewDetails && (
             <CustomerMenuAction
               icon={Eye}
-              tone="bg-cyan-50 text-cyan-700 ring-cyan-100"
               label="View details"
-              helper="See contact info, order history, and reviews."
               onClick={() => run(() => navigate(`/customers/${customer.id}`))}
             />
           )}
           <CustomerMenuAction
             icon={ShoppingBag}
-            tone="bg-violet-50 text-violet-700 ring-violet-100"
             label="View orders"
-            helper="See all orders placed by this customer."
             onClick={() => run(() => navigate(getCustomerOrdersRoute(customer.id, orderFilters)))}
           />
           <CustomerMenuAction
             icon={Printer}
-            tone="bg-slate-100 text-slate-700 ring-slate-200"
             label="Print"
-            helper="Generate a printable customer profile and order summary."
             onClick={() => run(() => onPrint(customer))}
           />
         </div>

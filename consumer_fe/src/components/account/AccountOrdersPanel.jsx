@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import {
+  ArrowRight,
   ChevronRight,
   Grid2X2,
   List,
@@ -8,6 +9,7 @@ import {
   Package,
   Search,
   ShoppingBag,
+  Truck,
 } from 'lucide-react'
 import { useCancelOrderMutation } from '../../hooks/useCancelOrderMutation'
 import { useOrdersQuery } from '../../hooks/useOrdersQuery'
@@ -17,32 +19,23 @@ import {
   findOrderById,
   formatOrderNumber,
   normalizeOrdersResponse,
+  orderMatchesDeliveryFilter,
   resolveOrderApiId,
 } from '../../utils/normalizeOrders'
 import CancelOrderModal from './CancelOrderModal'
 import OrderDetailsView from './OrderDetailsView'
 
-const orderStatusFilters = ['All Orders', 'Ordered', 'Order Confirmed', 'Processing', 'Delivered', 'Cancelled']
-
-const statusStyles = {
-  Ordered: 'bg-amber-50 text-amber-700',
-  'Order Confirmed': 'bg-sky-50 text-sky-700',
-  Processing: 'bg-blue-50 text-blue-700',
-  Delivered: 'bg-emerald-50 text-emerald-700',
-  Cancelled: 'bg-red-50 text-red-600',
-  Shipped: 'bg-violet-50 text-violet-700',
-  'Out for Delivery': 'bg-amber-50 text-amber-700',
-  Refunded: 'bg-slate-100 text-slate-700',
-  Pending: 'bg-amber-50 text-amber-700',
-}
+const orderStatusFilters = ['All Orders', 'Pending Delivery', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
 
 const deliveryStatusStyles = {
   'Pending Delivery': 'bg-amber-50 text-amber-700',
-  'Being prepared': 'bg-sky-50 text-sky-700',
+  Processing: 'bg-sky-50 text-sky-700',
   Shipped: 'bg-violet-50 text-violet-700',
-  'Out for delivery': 'bg-amber-50 text-amber-700',
+  'Partially Shipped': 'bg-violet-50 text-violet-700',
   Delivered: 'bg-emerald-50 text-emerald-700',
+  'Partially Delivered': 'bg-teal-50 text-teal-700',
   Cancelled: 'bg-red-50 text-red-600',
+  Refunded: 'bg-slate-100 text-slate-700',
 }
 
 const currency = new Intl.NumberFormat('en-GH', {
@@ -82,50 +75,63 @@ function ProductStack({ images = [], remaining = 0, compact = false }) {
 }
 
 function OrderStatusBadges({ order }) {
-  const orderStyle = statusStyles[order.status] ?? 'bg-slate-100 text-slate-700'
-  const deliveryStyle = deliveryStatusStyles[order.deliveryStatus] ?? 'bg-slate-100 text-slate-600'
+  const deliveryStatus = order.deliveryStatus || 'Pending Delivery'
+  const deliveryStyle = deliveryStatusStyles[deliveryStatus] ?? 'bg-slate-100 text-slate-600'
+  const summary = order.fulfillment?.summary
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${orderStyle}`}>{order.status}</span>
-      {order.deliveryStatus ? (
-        <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${deliveryStyle}`}>{order.deliveryStatus}</span>
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-2">
+      <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${deliveryStyle}`}>
+        {deliveryStatus}
+      </span>
+      {summary ? (
+        <span className="text-[0.65rem] font-medium text-slate-500">{summary}</span>
       ) : null}
-    </div>
+    </span>
   )
 }
 
 function OrderActions({ order, onOpen, onTrack, onCancel, viewMode }) {
-  const inProgressStatuses = ['Ordered', 'Order Confirmed', 'Processing']
+  const deliveryStatus = order.deliveryStatus || 'Pending Delivery'
+  const inProgressStatuses = ['Pending Delivery', 'Processing', 'Shipped', 'Partially Shipped', 'Partially Delivered']
+  const isCancelled = deliveryStatus === 'Cancelled' || order.status === 'Cancelled'
   const canTrack = viewMode === 'cards'
-    ? inProgressStatuses.includes(order.status) || order.status === 'Cancelled'
-    : inProgressStatuses.includes(order.status) || order.status === 'Delivered'
-  const showInfo = viewMode === 'list' && order.status === 'Cancelled'
+    ? inProgressStatuses.includes(deliveryStatus) || isCancelled
+    : inProgressStatuses.includes(deliveryStatus) || deliveryStatus === 'Delivered'
+  const showInfo = viewMode === 'list' && isCancelled
   const cancellable = viewMode === 'list' && canCancelOrder(order.raw)
   const isCompact = viewMode === 'cards'
 
+  const actionClass = isCompact ? 'px-4 py-2 text-xs' : 'px-5 py-2.5 text-xs'
+
   return (
     <div className={`flex w-full ${isCompact ? 'sm:w-auto' : 'flex-col gap-2 sm:w-auto sm:items-end'}`}>
-      <div className={`flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end ${isCompact ? '' : ''}`}>
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
         {canTrack ? (
           <button
             type="button"
             onClick={() => onTrack(order)}
-            className={`flex-1 rounded-full bg-slate-500 font-bold text-white transition hover:bg-slate-600 sm:flex-none ${
-              isCompact ? 'px-4 py-2 text-xs' : 'px-4 py-2.5 text-xs'
-            }`}
+            className={`group/track inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white font-bold text-slate-700 shadow-[0_4px_12px_-6px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:translate-y-0 sm:flex-none ${actionClass}`}
           >
+            <Truck className="size-3.5 shrink-0 text-slate-500 transition-colors group-hover/track:text-slate-700" strokeWidth={2.2} aria-hidden />
             Track order
           </button>
         ) : null}
         <button
           type="button"
           onClick={() => onOpen(order.id)}
-          className={`flex-1 rounded-full font-bold transition sm:flex-none ${
-            isCompact ? 'px-5 py-2 text-xs' : 'px-5 py-2.5 text-xs'
-          } ${showInfo ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-auth-primary text-white hover:bg-auth-primary-hover'}`}
+          className={`group/details inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full font-bold transition-all hover:-translate-y-px active:translate-y-0 sm:flex-none ${actionClass} ${
+            showInfo
+              ? 'border border-slate-200 bg-slate-100 text-slate-700 hover:border-slate-300 hover:bg-slate-200'
+              : 'bg-auth-primary text-white shadow-[0_10px_20px_-8px_rgba(199,59,45,0.65)] ring-1 ring-white/20 hover:bg-auth-primary-hover hover:shadow-[0_14px_24px_-8px_rgba(199,59,45,0.75)]'
+          }`}
         >
           {showInfo ? 'View Info' : 'View Details'}
+          <ArrowRight
+            className="size-3.5 shrink-0 transition-transform duration-200 group-hover/details:translate-x-0.5"
+            strokeWidth={2.4}
+            aria-hidden
+          />
         </button>
       </div>
       {cancellable && onCancel ? (
@@ -170,6 +176,11 @@ function OrderCard({ order, onOpen, onTrack, onCancel }) {
             {order.items} {order.items === 1 ? 'Item' : 'Items'} • Total Amount
           </p>
           <p className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">{currency.format(order.amount)}</p>
+          {order.discountTotal > 0 ? (
+            <p className="mt-0.5 text-[0.7rem] font-semibold text-auth-primary">
+              Saved {currency.format(order.discountTotal)}
+            </p>
+          ) : null}
         </div>
         <OrderActions order={order} onOpen={onOpen} onTrack={onTrack} onCancel={onCancel} viewMode="cards" />
       </div>
@@ -203,6 +214,11 @@ function OrderListRow({ order, onOpen, onTrack, onCancel }) {
               {order.items} {order.items === 1 ? 'Item' : 'Items'} • Total Amount
             </p>
             <p className="mt-1 text-xl font-bold tracking-tight text-slate-950">{currency.format(order.amount)}</p>
+            {order.discountTotal > 0 ? (
+              <p className="mt-0.5 text-[0.7rem] font-semibold text-auth-primary">
+                Saved {currency.format(order.discountTotal)}
+              </p>
+            ) : null}
           </div>
           <div className="md:col-span-2 lg:col-span-1">
             <OrderActions order={order} onOpen={onOpen} onTrack={onTrack} onCancel={onCancel} viewMode="list" />
@@ -416,7 +432,7 @@ function OrdersList({ ordersQuery, onCancelRequest }) {
   const visibleOrders = useMemo(
     () =>
       orders.filter((order) => {
-        const matchesStatus = filter === 'All Orders' || order.status === filter
+        const matchesStatus = orderMatchesDeliveryFilter(order, filter)
         const needle = search.trim().toLowerCase()
         return matchesStatus && (!needle || `${order.id} ${order.title} ${order.delivery}`.toLowerCase().includes(needle))
       }),

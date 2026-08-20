@@ -39,6 +39,7 @@ import {
 import { normalizeProductDescription } from '../utils/productDescriptionHtml'
 import { mapKeyDetailsEntries, mapKeyDetailsToObject } from '../utils/productKeyDetails'
 import { calculateDisplayDiscountPercent } from '../utils/productPricing'
+import { resolveProductDisplayPrices } from '../utils/extractProductVariantFacets'
 import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
@@ -1976,23 +1977,9 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   }, [activeVariant, product])
 
   const displayPriceInfo = useMemo(() => {
-    if (activeVariant) {
-      const variantListPrice = toNumber(activeVariant.regular_price ?? activeVariant.price)
-      const variantSalePrice = toNumber(
-        activeVariant.regular_discount_price ?? activeVariant.discount_price,
-      )
-      const hasVariantSale = variantSalePrice > 0 && variantListPrice > variantSalePrice
-      const price = hasVariantSale ? variantSalePrice : variantListPrice
-      const compareAt = hasVariantSale ? variantListPrice : null
-      const discountPercent = hasVariantSale
-        ? calculateDisplayDiscountPercent(variantListPrice, variantSalePrice)
-        : null
-
-      return { price, compareAt, discountPercent }
-    }
-
-    const price = product?.price ?? 0
-    const compareAt = product?.compareAt ?? null
+    const pricing = resolveProductDisplayPrices(product, activeVariant)
+    const price = pricing.price ?? 0
+    const compareAt = pricing.compareAt ?? null
     const discountPercent = compareAt != null && compareAt > price && price > 0
       ? calculateDisplayDiscountPercent(compareAt, price)
       : product?.discountPercent ?? null

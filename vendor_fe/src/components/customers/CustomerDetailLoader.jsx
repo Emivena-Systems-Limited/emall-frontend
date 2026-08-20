@@ -118,12 +118,12 @@ export default function CustomerDetailLoader() {
     <div className="page-enter space-y-5" aria-busy="true" aria-label="Loading customer details">
       <CatalogLoaderBar label="Loading customer details" />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-3">
-          <SkeletonBlock className="h-8 w-48" />
-          <SkeletonBlock className="h-4 w-36" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SkeletonBlock className="h-8 w-48" />
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <SkeletonBlock className="h-10 w-44 rounded-xl" />
+          <SkeletonBlock className="size-10 rounded-lg" />
         </div>
-        <SkeletonBlock className="h-10 w-36 rounded-xl" />
       </div>
 
       <ProfileHeaderSkeleton />

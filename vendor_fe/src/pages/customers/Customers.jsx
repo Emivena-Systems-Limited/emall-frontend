@@ -29,28 +29,69 @@ export default function Customers() {
   const [searchParams] = useSearchParams()
   const segment = resolveCustomerSegment(searchParams)
 
-  const { data: customers = [], isLoading, isError, error, refetch, isFetching } = useCustomers()
-
   const [searchInput, setSearchInput] = useState('')
   const debouncedSearch = useDebouncedValue(searchInput, 300)
   const [orderDateRange, setOrderDateRange] = useState(DEFAULT_ORDER_DATE_RANGE)
   const [minSpend, setMinSpend] = useState('')
   const [maxSpend, setMaxSpend] = useState('')
+  const debouncedMinSpend = useDebouncedValue(minSpend, 300)
+  const debouncedMaxSpend = useDebouncedValue(maxSpend, 300)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [page, setPage] = useState(1)
 
-  const summary = useMemo(() => getCustomerSummaryFromCatalog(customers), [customers])
+  const catalogQuery = useCustomers()
+  const listFilters = useMemo(
+    () => ({
+      search: debouncedSearch,
+      segment,
+      startDate: orderDateRange.startDate,
+      endDate: orderDateRange.endDate,
+      minSpend: debouncedMinSpend,
+      maxSpend: debouncedMaxSpend,
+    }),
+    [
+      debouncedSearch,
+      segment,
+      orderDateRange.startDate,
+      orderDateRange.endDate,
+      debouncedMinSpend,
+      debouncedMaxSpend,
+    ],
+  )
+  const listQuery = useCustomers(listFilters)
+
+  const catalogCustomers = catalogQuery.data ?? []
+  const listedCustomers = listQuery.data ?? []
+  const {
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = listQuery
+
+  const summary = useMemo(
+    () => getCustomerSummaryFromCatalog(catalogCustomers),
+    [catalogCustomers],
+  )
 
   const filteredCustomers = useMemo(
     () =>
-      filterCustomerCatalog(customers, {
+      filterCustomerCatalog(listedCustomers, {
         search: debouncedSearch,
         segment,
         orderDateRange,
-        minSpend,
-        maxSpend,
+        minSpend: debouncedMinSpend,
+        maxSpend: debouncedMaxSpend,
       }),
-    [customers, debouncedSearch, segment, orderDateRange, minSpend, maxSpend],
+    [
+      listedCustomers,
+      debouncedSearch,
+      segment,
+      orderDateRange,
+      debouncedMinSpend,
+      debouncedMaxSpend,
+    ],
   )
 
   const pagination = useMemo(
@@ -59,15 +100,18 @@ export default function Customers() {
   )
 
   const drawerFilterCount = countCustomerDrawerFilters({ orderDateRange, minSpend, maxSpend })
-  const hasCustomers = customers.length > 0
+  const hasCustomers = catalogCustomers.length > 0 || listedCustomers.length > 0
   const isNewThisMonthView = segment === CUSTOMER_SEGMENTS.NEW_THIS_MONTH
   const hasSearchQuery = debouncedSearch.trim().length > 0
   const isSearchPending = searchInput.trim() !== debouncedSearch.trim()
+    || minSpend !== debouncedMinSpend
+    || maxSpend !== debouncedMaxSpend
   const emptyVariant = hasSearchQuery ? 'search' : 'filter'
+  const showPageLoader = isLoading && catalogCustomers.length === 0 && listedCustomers.length === 0
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, segment, orderDateRange, minSpend, maxSpend])
+  }, [debouncedSearch, segment, orderDateRange, debouncedMinSpend, debouncedMaxSpend])
 
   useEffect(() => {
     if (isError) {
@@ -91,9 +135,9 @@ export default function Customers() {
   return (
     <DashboardLayout pageTitle="Customers">
       <div className="page-enter space-y-5">
-        {isLoading ? (
+        {showPageLoader ? (
           <CustomerCatalogLoader />
-        ) : isError ? (
+        ) : isError && listedCustomers.length === 0 && catalogCustomers.length === 0 ? (
           <div className="mx-auto max-w-md space-y-5 rounded-2xl border border-slate-200 bg-white py-16 text-center">
             <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
               <AlertTriangle className="size-6" />
