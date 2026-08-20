@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
+    optimizeDeps: {
+      include: ['jspdf'],
+    },
     server: {
       proxy: {
         '/api': {

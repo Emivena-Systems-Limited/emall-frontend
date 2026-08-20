@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useDispatch, useSelector } from 'react-redux'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -20,6 +20,15 @@ import { clearGuestCartId, selectGuestCartId } from '../../store/slices/cartSlic
 import { persistor } from '../../store/store'
 import { clearAuthOtpSession } from '../../utils/authOtpSession'
 import { isValidGuestCartId } from '../../utils/guestCartId'
+import {
+  getBuyNowAuthLocationState,
+  readBuyNowItem,
+  shouldResumeBuyNowAfterAuth,
+} from '../../utils/buyNowItem'
+import {
+  continueBuyNowAfterAuthWithHold,
+  getBuyNowResumePath,
+} from '../../utils/continueBuyNow'
 
 export default function VerifyOtpPage() {
   const navigate = useNavigate()
@@ -27,26 +36,36 @@ export default function VerifyOtpPage() {
   const dispatch = useDispatch()
   const guestCartId = useSelector(selectGuestCartId)
   const session = useAuthOtpSession()
-  const flow = useAuthOtpFlow(session)
+  const sessionRef = useRef(session)
+  if (session) sessionRef.current = session
+  const activeSession = session ?? sessionRef.current
+  const flow = useAuthOtpFlow(activeSession)
 
   const [otp, setOtp] = useState('')
   const [hasError, setHasError] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [verifyStage, setVerifyStage] = useState('otp')
   const verifyOtpMutation = useVerifyOtpMutation()
   const resendOtpMutation = useResendOtpMutation()
 
-  if (!session) {
+  if (!activeSession && !isVerifying) {
     const fallbackPath = location.pathname.startsWith('/register') ? '/register' : '/login'
     return <Navigate to={fallbackPath} replace />
   }
 
-  const { method, contact, displayContact, profile, redirectTo } = session
+  const { method, contact, displayContact, profile, redirectTo, buyNow } = activeSession ?? {}
+  const buyNowItem = shouldResumeBuyNowAfterAuth({ buyNow, from: redirectTo }, redirectTo)
+    ? readBuyNowItem()
+    : null
   const backPath = flow === AUTH_FLOW.REGISTER ? '/register' : '/login'
   const backLabel = flow === AUTH_FLOW.REGISTER ? 'Back to registration' : 'Back to login'
 
   const handleExit = () => {
     clearAuthOtpSession()
-    navigate(backPath, { replace: true })
+    navigate(backPath, {
+      replace: true,
+      state: buyNowItem ? getBuyNowAuthLocationState() : undefined,
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -76,9 +95,25 @@ export default function VerifyOtpPage() {
         applicationToken: data.applicationToken,
       }))
       dispatch(clearGuestCartId())
-      clearAuthOtpSession()
       await persistor.persist()
-      navigate(redirectTo || '/', { replace: true })
+
+      const resumeBuyNow = Boolean(buyNowItem)
+      if (resumeBuyNow) {
+        setVerifyStage('order')
+        try {
+          await continueBuyNowAfterAuthWithHold()
+        } catch (error) {
+          notify.fromError(error, 'Signed in. We’ll retry starting Buy Now at checkout.')
+        }
+        setVerifyStage('checkout')
+      }
+
+      const nextPath = resumeBuyNow ? getBuyNowResumePath() : (redirectTo || '/')
+      if (resumeBuyNow) {
+        await new Promise((resolve) => window.setTimeout(resolve, 350))
+      }
+      navigate(nextPath, { replace: true })
+      clearAuthOtpSession()
     } catch (error) {
       setHasError(true)
       setIsVerifying(false)
@@ -120,11 +155,25 @@ export default function VerifyOtpPage() {
               transition={{ duration: 0.3 }}
             >
               <OtpVerifyingLoader
-                title={flow === AUTH_FLOW.REGISTER ? 'Verifying account' : 'Verifying OTP'}
+                title={
+                  verifyStage === 'checkout'
+                    ? 'Taking you to checkout'
+                    : verifyStage === 'order'
+                      ? 'Preparing your order'
+                      : flow === AUTH_FLOW.REGISTER
+                        ? 'Verifying account'
+                        : 'Verifying OTP'
+                }
                 subtitle={
-                  flow === AUTH_FLOW.REGISTER
-                    ? 'Verifying your account, this will just take a moment'
-                    : 'Verifying your OTP, this will just take a moment'
+                  verifyStage === 'checkout'
+                    ? 'Buy Now is ready. This will just take a moment.'
+                    : verifyStage === 'order'
+                      ? (buyNowItem?.name
+                        ? `Starting Buy Now for ${buyNowItem.name}`
+                        : 'Starting your Buy Now checkout')
+                      : flow === AUTH_FLOW.REGISTER
+                        ? 'Verifying your account, this will just take a moment'
+                        : 'Verifying your OTP, this will just take a moment'
                 }
               />
             </motion.div>
@@ -147,8 +196,15 @@ export default function VerifyOtpPage() {
                   {displayContact}
                 </p>
                 <p className="auth-body mt-2 text-slate-400">
-                  Do not share with anyone · Code expires in {OTP_EXPIRY_MINUTES} minutes
+                  {buyNowItem
+                    ? 'After this code, we’ll start Buy Now and take you to checkout.'
+                    : `Do not share with anyone · Code expires in ${OTP_EXPIRY_MINUTES} minutes`}
                 </p>
+                {buyNowItem ? (
+                  <p className="auth-body mt-1 text-slate-400">
+                    Do not share with anyone · Code expires in {OTP_EXPIRY_MINUTES} minutes
+                  </p>
+                ) : null}
               </div>
 
               <form onSubmit={handleSubmit} className="mt-4 space-y-4 sm:mt-5">

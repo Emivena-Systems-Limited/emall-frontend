@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 
 const ringVariants = {
   animate: (index) => ({
@@ -50,23 +50,31 @@ export default function OtpVerifyingLoader({
         />
       </div>
 
-      <motion.h1
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.35 }}
-        className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl"
-      >
-        {title}
-      </motion.h1>
+      <AnimatePresence mode="wait">
+        <motion.h1
+          key={title}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl"
+        >
+          {title}
+        </motion.h1>
+      </AnimatePresence>
 
-      <motion.p
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.18, duration: 0.35 }}
-        className="mt-1.5 text-xs text-auth-muted sm:mt-2 sm:text-sm"
-      >
-        {subtitle}
-      </motion.p>
+      <AnimatePresence mode="wait">
+        <motion.p
+          key={subtitle}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-1.5 text-xs text-auth-muted sm:mt-2 sm:text-sm"
+        >
+          {subtitle}
+        </motion.p>
+      </AnimatePresence>
 
       <div className="mt-5 flex items-center gap-2 max-[740px]:mt-4 sm:mt-6">
         {[0, 1, 2].map((index) => (

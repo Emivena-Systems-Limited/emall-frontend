@@ -12,7 +12,10 @@ export default function ProtectedRoute({ children, redirectTo = '/', viaLogin = 
 
   if (!isAuthenticated) {
     if (viaLogin) {
-      return <Navigate to="/login" state={{ from: location.pathname }} replace />
+      return <Navigate to="/login" state={{
+        from: location.pathname,
+        ...(location.pathname === '/checkout/buy-now' ? { intent: 'buy-now' } : {}),
+      }} replace />
     }
     return <Navigate to={redirectTo} replace />
   }

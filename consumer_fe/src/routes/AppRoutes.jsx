@@ -24,11 +24,9 @@ const guestOnly = (page) => (
 )
 
 const authVerify = (page) => (
-  <GuestOnlyRoute>
-    <AuthVerifyRoute>
-      {page}
-    </AuthVerifyRoute>
-  </GuestOnlyRoute>
+  <AuthVerifyRoute>
+    {page}
+  </AuthVerifyRoute>
 )
 
 const authRequired = (page) => (

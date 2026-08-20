@@ -115,12 +115,17 @@ export function normalizePreviewTotals(preview) {
   }
 }
 
+function amountsClose(left, right) {
+  return left != null && right != null && Math.abs(left - right) < 0.05
+}
+
 /**
- * Checkout success / order payloads:
- * subtotal = list price, total_discount_amount = savings, grand_total = amount paid.
+ * Checkout success / order payloads.
+ * Cart checkout: subtotal = list, grand_total = amount paid.
+ * Buy Now place-order: subtotal = net, grand_total = list (subtotal + discount).
  */
 export function normalizeOrderMoneyTotals(record) {
-  const listSubtotal = toAmount(record?.subtotal ?? record?.list_subtotal) ?? 0
+  const namedSubtotal = toAmount(record?.subtotal ?? record?.list_subtotal) ?? 0
   const discountTotal = toAmount(
     record?.total_discount_amount
     ?? record?.discount_total
@@ -129,11 +134,30 @@ export function normalizeOrderMoneyTotals(record) {
   const deliveryFee = toAmount(record?.delivery_fee) ?? 0
   const taxTotal = toAmount(record?.tax_total ?? record?.tax) ?? 0
   const namedGrand = toAmount(record?.grand_total ?? record?.total)
-  const derivedPayable = Math.max(0, listSubtotal - discountTotal + deliveryFee + taxTotal)
-  const grandLooksUndiscounted = namedGrand != null && discountTotal > 0 && namedGrand >= listSubtotal
+  const derivedPayable = Math.max(0, namedSubtotal - discountTotal + deliveryFee + taxTotal)
+
+  const grandLooksLikeList = namedGrand != null
+    && discountTotal > 0
+    && amountsClose(namedGrand, namedSubtotal + discountTotal)
+
+  if (grandLooksLikeList) {
+    return {
+      listSubtotal: namedGrand,
+      discountTotal,
+      payableTotal: Math.max(0, namedSubtotal + deliveryFee + taxTotal),
+      deliveryFee,
+      taxTotal,
+    }
+  }
+
+  const grandLooksLikePayable = namedGrand != null && amountsClose(namedGrand, derivedPayable)
+  const grandLooksUndiscounted = namedGrand != null
+    && discountTotal > 0
+    && namedGrand >= namedSubtotal
+    && !grandLooksLikePayable
 
   return {
-    listSubtotal,
+    listSubtotal: namedSubtotal,
     discountTotal,
     payableTotal: grandLooksUndiscounted || namedGrand == null ? derivedPayable : namedGrand,
     deliveryFee,

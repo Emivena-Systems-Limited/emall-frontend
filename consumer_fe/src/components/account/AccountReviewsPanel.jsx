@@ -23,6 +23,17 @@ import homeImage from '../../assets/images/categories/home_and_kitchen.png'
 import decorImage from '../../assets/images/categories/home_decor.jpg'
 import kitchenImage from '../../assets/images/categories/kitchen_utensils.jpg'
 import { notify } from '../../lib/notify'
+import { useOrdersQuery } from '../../hooks/useOrdersQuery'
+import {
+  extractOrderItems,
+  findOrderById,
+  normalizeOrdersResponse,
+  resolveOrderItemImage,
+  resolveOrderItemProductHref,
+  resolveOrderItemVariantLabel,
+} from '../../utils/normalizeOrders'
+import { resolveBackendMediaUrl } from '../../utils/resolveBackendMediaUrl'
+import { readReviewOrderItem } from '../../utils/reviewRouteState'
 import {
   useEligibleReviewItemsQuery,
   useReviewMutations,
@@ -88,12 +99,204 @@ const statusTone = {
   'Not Approved': 'bg-red-50 text-red-700 ring-red-200',
 }
 
+function firstMediaUrl(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) {
+    const primary = value.find((entry) => entry?.is_primary) ?? value[0]
+    return firstMediaUrl(primary)
+  }
+  if (typeof value === 'object') {
+    return String(
+      value.image_url ?? value.url ?? value.src ?? value.path ?? value.thumbnail ?? '',
+    ).trim()
+  }
+  return ''
+}
+
+function resolveReviewProductImage(record) {
+  if (!record) return ''
+
+  const product = record.product ?? record.product_variant?.product ?? {}
+  const variant = record.product_variant ?? record.variant ?? {}
+  const candidates = [
+    record.product_image,
+    record.product_image_url,
+    record.image_url,
+    variant.primary_image,
+    variant.images,
+    variant.image_url,
+    variant.image,
+    record.images,
+    product.primary_image,
+    product.images,
+    product.product_images,
+    product.image_url,
+    product.image,
+    resolveOrderItemImage(record),
+  ]
+
+  for (const candidate of candidates) {
+    const url = firstMediaUrl(candidate)
+    if (url) return resolveBackendMediaUrl(url)
+  }
+
+  return ''
+}
+
+function asText(value) {
+  if (value == null) return ''
+  if (typeof value === 'string' || typeof value === 'number') return String(value).trim()
+  return ''
+}
+
+function resolveReviewVariantLabel(record) {
+  if (!record) return ''
+
+  const fromOrderItem = resolveOrderItemVariantLabel(record)
+  if (fromOrderItem) return fromOrderItem
+
+  const variant = asRecord(record.product_variant) ?? asRecord(record.variant)
+  if (variant) {
+    const fromNested = resolveOrderItemVariantLabel({ variant })
+    if (fromNested) return fromNested
+  }
+
+  const value = asText(variant?.value)
+    || asText(variant?.variant_name)
+    || asText(record.variant_name)
+  const attribute = asText(variant?.attribute) || asText(variant?.attribute_name)
+  if (attribute && value && value.toLowerCase() !== 'default') return `${attribute}: ${value}`
+  if (value && !['default', 'standard', '[object object]'].includes(value.toLowerCase())) return value
+
+  return asText(record.sku) || asText(variant?.sku)
+}
+
+function asRecord(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : null
+}
+
+function firstProductToken(...values) {
+  for (const value of values) {
+    const nested = asRecord(value)
+    if (nested) {
+      const fromObject = firstProductToken(nested.slug, nested.id, nested.product_id, nested.productId)
+      if (fromObject) return fromObject
+      continue
+    }
+    const token = String(value ?? '').trim().replace(/^\//, '')
+    if (!token || /\s/.test(token)) continue
+    if (token.toLowerCase() === 'null' || token.toLowerCase() === 'undefined') continue
+    return token
+  }
+  return ''
+}
+
+function firstProductId(...values) {
+  for (const value of values) {
+    const nested = asRecord(value)
+    if (nested) {
+      const fromObject = firstProductId(nested.id, nested.product_id, nested.productId)
+      if (fromObject) return fromObject
+      continue
+    }
+    const token = firstProductToken(value)
+    if (token) return token
+  }
+  return ''
+}
+
+function eligibleItemIds(item) {
+  return [
+    item?.id,
+    item?.order_item_id,
+    item?.orderItemId,
+    item?.item_id,
+    asRecord(item?.order_item)?.id,
+  ]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+}
+
+function matchesEligibleItem(item, targetId) {
+  if (!targetId) return false
+  return eligibleItemIds(item).includes(String(targetId))
+}
+
+function resolveReviewProductHref(record, fallbackId = '') {
+  const sources = [record, asRecord(record)?.order_item, asRecord(record)?.item].filter(Boolean)
+  for (const source of sources) {
+    const nestedProduct = asRecord(source.product)
+      ?? asRecord(asRecord(source.product_variant)?.product)
+      ?? asRecord(asRecord(source.variant)?.product)
+      ?? {}
+    const slug = firstProductToken(
+      nestedProduct.slug,
+      source.product_slug,
+      source.slug,
+      asRecord(source.product_variant)?.slug,
+    )
+    if (slug) return `/${slug}`
+
+    const id = firstProductToken(
+      source.product_id,
+      source.productId,
+      nestedProduct.id,
+      nestedProduct.product_id,
+      asRecord(source.product_variant)?.product_id,
+      asRecord(source.variant)?.product_id,
+      typeof source.product === 'string' ? source.product : '',
+      fallbackId,
+    )
+    if (id) return `/${id}`
+  }
+
+  const fallback = firstProductToken(fallbackId)
+  return fallback ? `/${fallback}` : ''
+}
+
+function findMatchingOrderItem(orders, { itemId, productName, orderRef } = {}) {
+  const list = Array.isArray(orders) ? orders : []
+  const scoped = orderRef ? [findOrderById(list, orderRef)].filter(Boolean) : []
+  const search = scoped.length ? scoped : list
+
+  for (const order of search) {
+    const items = extractOrderItems(order?.raw ?? order)
+    if (itemId) {
+      const match = items.find((item) => matchesEligibleItem(item, itemId))
+      if (match) return match
+    }
+    if (productName) {
+      const needle = String(productName).trim().toLowerCase()
+      const match = items.find((item) => {
+        const name = String(item.product_name ?? item.name ?? item.product?.name ?? '').trim().toLowerCase()
+        return name && name === needle
+      })
+      if (match) return match
+    }
+  }
+
+  return null
+}
+
+function ReviewProductThumb({ src, alt, className }) {
+  if (!src) {
+    return (
+      <span className={`flex items-center justify-center bg-slate-100 text-slate-400 ${className}`}>
+        <ShoppingBag className="size-1/3 max-h-10 max-w-10" strokeWidth={1.6} aria-hidden="true" />
+      </span>
+    )
+  }
+
+  return <img src={src} alt={alt} className={className} />
+}
+
 function normalizeApiReview(item, index) {
   if (!item) return null
 
   const id = String(item.id || item.review_id || item._id || `RV-${1040 + index}`)
-  const product = item.product_name || item.productName || item.product?.name || item.product || 'Purchased Item'
-  const variant = item.variant || item.product_variant || item.product?.variant || 'Standard'
+  const product = item.product_name || item.productName || item.product?.name || (typeof item.product === 'string' ? item.product : '') || 'Purchased Item'
+  const variant = resolveReviewVariantLabel(item) || 'Standard'
   const order = item.order_number || item.orderNumber || item.order_id || item.orderId || 'ORD-20483'
 
   let date = item.created_at || item.createdAt || item.date || 'Recent'
@@ -118,24 +321,8 @@ function normalizeApiReview(item, index) {
     else status = status.charAt(0).toUpperCase() + status.slice(1)
   }
 
-  const productImages = Array.isArray(item.product?.images) ? item.product.images : []
-  const primaryProductImage =
-    productImages.find((entry) => entry?.is_primary) ?? productImages[0]
-  const nestedPrimaryImage = item.product?.primary_image
-  const image =
-    item.image_url ||
-    item.imageUrl ||
-    item.image ||
-    item.product_image?.image_url ||
-    (typeof nestedPrimaryImage === 'string'
-      ? nestedPrimaryImage
-      : nestedPrimaryImage?.image_url ?? nestedPrimaryImage?.url) ||
-    primaryProductImage?.image_url ||
-    primaryProductImage?.url ||
-    item.product?.image_url ||
-    item.product?.image ||
-    kitchenImage
-  const productSlug = item.product?.slug || item.product_slug || null
+  const image = resolveReviewProductImage(item)
+  const productHref = resolveReviewProductHref(item)
 
   return {
     id,
@@ -148,7 +335,7 @@ function normalizeApiReview(item, index) {
     body,
     status,
     image,
-    productHref: productSlug ? `/${productSlug}` : null,
+    productHref: productHref || null,
     raw: item,
   }
 }
@@ -397,29 +584,33 @@ function ReviewsList() {
           visible.map((review) => (
             <article
               key={review.id}
-              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.04)] transition hover:border-auth-primary/25 sm:p-5"
+              className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-[0_8px_28px_rgba(15,23,42,0.04)] transition hover:border-auth-primary/25 sm:px-4 sm:py-3.5"
             >
-              <div className="flex flex-col gap-5 xl:flex-row">
-                <div className="flex min-w-0 gap-4 xl:w-64 xl:shrink-0">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                <div className="flex min-w-0 items-center gap-3 xl:w-72 xl:shrink-0">
                   {review.productHref ? (
                     <Link to={review.productHref} className="shrink-0">
-                      <img
-                        src={review.image}
-                        alt={review.product}
-                        className="size-20 rounded-xl border border-slate-100 object-cover sm:size-24"
-                      />
+                      <span className="flex size-16 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50 p-1.5 sm:size-[4.25rem]">
+                        <ReviewProductThumb
+                          src={review.image}
+                          alt={review.product}
+                          className={review.image ? 'max-h-full max-w-full object-contain' : 'flex size-full items-center justify-center'}
+                        />
+                      </span>
                     </Link>
                   ) : (
-                    <img
-                      src={review.image}
-                      alt={review.product}
-                      className="size-20 shrink-0 rounded-xl border border-slate-100 object-cover sm:size-24"
-                    />
+                    <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50 p-1.5 sm:size-[4.25rem]">
+                      <ReviewProductThumb
+                        src={review.image}
+                        alt={review.product}
+                        className={review.image ? 'max-h-full max-w-full object-contain' : 'flex size-full items-center justify-center'}
+                      />
+                    </span>
                   )}
                   <div className="min-w-0">
                     <h3
                       title={review.product}
-                      className="line-clamp-3 font-bold leading-6 text-slate-950"
+                      className="line-clamp-2 text-sm font-bold leading-5 text-slate-950"
                     >
                       {review.productHref ? (
                         <Link to={review.productHref} className="hover:text-auth-primary hover:underline">
@@ -427,32 +618,34 @@ function ReviewsList() {
                         </Link>
                       ) : review.product}
                     </h3>
-                    <p className="mt-1 text-xs text-slate-500">{review.variant}</p>
-                    <p className="mt-3 text-[0.68rem] font-semibold text-slate-500">
+                    {typeof review.variant === 'string' && review.variant && review.variant !== 'Standard' ? (
+                      <p className="mt-0.5 text-xs text-slate-500">{review.variant}</p>
+                    ) : null}
+                    <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">
                       Order #{review.order}
                     </p>
-                    <p className="mt-1 text-[0.68rem] text-slate-400">Reviewed {review.date}</p>
+                    <p className="mt-0.5 text-[0.68rem] text-slate-400">Reviewed {review.date}</p>
                   </div>
                 </div>
-                <div className="min-w-0 flex-1 border-t border-slate-100 pt-4 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
-                  <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0 flex-1 border-t border-slate-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Stars rating={review.rating} />
                     <span className="text-sm font-bold text-slate-700">{review.rating}.0</span>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-[0.68rem] font-bold ring-1 ring-inset ${
+                      className={`rounded-full px-2.5 py-0.5 text-[0.68rem] font-bold ring-1 ring-inset ${
                         statusTone[review.status] ?? statusTone.Published
                       }`}
                     >
                       {review.status}
                     </span>
                   </div>
-                  <h4 className="mt-3 font-bold text-slate-950">{review.title}</h4>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{review.body}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <h4 className="mt-1.5 text-sm font-bold text-slate-950">{review.title}</h4>
+                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{review.body}</p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setViewing(review)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
                     >
                       <Eye className="size-3.5" />
                       View Review
@@ -460,7 +653,7 @@ function ReviewsList() {
                     <button
                       type="button"
                       onClick={() => navigate(`/account/reviews/${review.id}/edit`)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-red-50 hover:text-auth-primary"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-red-50 hover:text-auth-primary"
                     >
                       <FilePenLine className="size-3.5" />
                       Edit Review
@@ -468,7 +661,7 @@ function ReviewsList() {
                     <button
                       type="button"
                       onClick={() => setDeleting(review)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-red-50 hover:text-auth-primary"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-red-50 hover:text-auth-primary"
                     >
                       <Trash2 className="size-3.5" />
                       Delete Review
@@ -511,7 +704,11 @@ function ReviewsList() {
             {viewing.status}
           </span>
           <div className="mt-5 flex items-center gap-4">
-            <img src={viewing.image} alt="" className="size-20 rounded-xl object-cover" />
+            <ReviewProductThumb
+              src={viewing.image}
+              alt={viewing.product}
+              className="size-20 rounded-xl object-cover"
+            />
             <div>
               <h3 className="text-xl font-bold text-slate-950">{viewing.product}</h3>
               <p className="mt-1 text-sm text-slate-500">{viewing.variant}</p>
@@ -605,10 +802,12 @@ function LeaveReview({ reviewId }) {
   const inputRef = useRef(null)
   const params = new URLSearchParams(location.search)
   const editing = Boolean(reviewId)
+  const routedOrderItem = readReviewOrderItem(location)
 
   const { data: reviewData, isLoading: isLoadingReview } = useReviewQuery(reviewId)
   const { data: eligibleItems = [], isLoading: isLoadingEligible } =
     useEligibleReviewItemsQuery({ enabled: !editing })
+  const { data: ordersPayload } = useOrdersQuery({ enabled: !editing })
   const { createMutation, updateMutation, deleteMediaMutation, isSubmitting } = useReviewMutations({
     onSaved: () => navigate('/account/reviews'),
   })
@@ -618,7 +817,10 @@ function LeaveReview({ reviewId }) {
     [reviewData],
   )
 
-  const requestedOrderItemId = params.get('order_item_id') ?? params.get('item') ?? ''
+  const requestedOrderItemId = params.get('order_item_id')
+    ?? params.get('item')
+    ?? String(routedOrderItem?.id ?? routedOrderItem?.order_item_id ?? '')
+  const itemAlreadySelected = Boolean(routedOrderItem) || Boolean(requestedOrderItemId)
   const [orderItemId, setOrderItemId] = useState(requestedOrderItemId)
 
   const [rating, setRating] = useState(existing?.rating ?? 0)
@@ -645,9 +847,15 @@ function LeaveReview({ reviewId }) {
   const hasEligibleItems =
     editing ||
     eligibleItems.length > 0 ||
+    Boolean(routedOrderItem) ||
     Boolean(params.get('product')) ||
     Boolean(params.get('order_item_id')) ||
     Boolean(params.get('item'))
+
+  const orders = useMemo(
+    () => normalizeOrdersResponse(ordersPayload),
+    [ordersPayload],
+  )
 
   const effectiveOrderItemId = orderItemId || String(
     eligibleItems[0]?.id ?? eligibleItems[0]?.order_item_id ?? '',
@@ -655,23 +863,75 @@ function LeaveReview({ reviewId }) {
 
   const selectedEligibleItem = useMemo(
     () =>
-      eligibleItems.find(
-        (item) => String(item.id ?? item.order_item_id) === String(effectiveOrderItemId),
-      ) ?? null,
-    [effectiveOrderItemId, eligibleItems],
+      eligibleItems.find((item) => matchesEligibleItem(item, effectiveOrderItemId))
+      ?? (orderItemId ? null : eligibleItems[0] ?? null)
+      ?? null,
+    [effectiveOrderItemId, eligibleItems, orderItemId],
   )
 
-  const eligibleProduct = selectedEligibleItem?.product ?? selectedEligibleItem?.product_variant?.product
-  const productId = String(
-    selectedEligibleItem?.product_id ??
-      eligibleProduct?.id ??
-      selectedEligibleItem?.product_variant?.product_id ??
-      params.get('product_id') ??
-      '',
+  const matchedOrderItem = useMemo(
+    () =>
+      findMatchingOrderItem(orders, {
+        itemId: effectiveOrderItemId || requestedOrderItemId,
+        productName: params.get('product'),
+        orderRef: params.get('order'),
+      }),
+    [effectiveOrderItemId, orders, requestedOrderItemId, location.search],
   )
-  const product = existing?.product ?? eligibleProduct?.name ?? params.get('product') ?? 'Purchased item'
-  const order = existing?.order ?? selectedEligibleItem?.order_number ?? selectedEligibleItem?.order?.order_number ?? params.get('order') ?? 'Order'
-  const image = existing?.image ?? eligibleProduct?.primary_image?.image_url ?? eligibleProduct?.images?.[0]?.image_url ?? kitchenImage
+
+  const reviewSourceItem = selectedEligibleItem
+    ?? (matchesEligibleItem(routedOrderItem, effectiveOrderItemId) ? routedOrderItem : null)
+    ?? matchedOrderItem
+    ?? routedOrderItem
+
+  const eligibleProduct = asRecord(reviewSourceItem?.product)
+    ?? asRecord(reviewSourceItem?.product_variant?.product)
+    ?? asRecord(reviewSourceItem?.variant?.product)
+  const productId = firstProductId(
+    reviewSourceItem?.product_id,
+    reviewSourceItem?.productId,
+    eligibleProduct,
+    typeof reviewSourceItem?.product === 'string' ? reviewSourceItem.product : '',
+    reviewSourceItem?.product_variant?.product_id,
+    reviewSourceItem?.variant?.product_id,
+    params.get('product_id'),
+  )
+  const product = existing?.product
+    || reviewSourceItem?.product_name
+    || eligibleProduct?.name
+    || (typeof reviewSourceItem?.product === 'string' ? reviewSourceItem.product : '')
+    || params.get('product')
+    || 'Purchased item'
+  const variantLabel = existing?.variant && existing.variant !== 'Standard'
+    ? existing.variant
+    : resolveReviewVariantLabel(reviewSourceItem)
+  const order = existing?.order
+    ?? reviewSourceItem?.order_number
+    ?? reviewSourceItem?.order?.order_number
+    ?? location.state?.orderId
+    ?? params.get('order')
+    ?? 'Order'
+  const image = existing?.image || resolveReviewProductImage(reviewSourceItem)
+  const productHref = existing?.productHref
+    || resolveReviewProductHref(reviewSourceItem, productId)
+    || resolveOrderItemProductHref(reviewSourceItem)
+    || resolveReviewProductHref(existing?.raw, productId)
+    || (firstProductToken(params.get('slug')) ? `/${firstProductToken(params.get('slug'))}` : '')
+    || (firstProductToken(params.get('product_id')) ? `/${firstProductToken(params.get('product_id'))}` : '')
+  const purchasedDate = existing?.date && existing.date !== 'Recent'
+    ? existing.date
+    : (() => {
+        const raw = reviewSourceItem?.delivered_at
+          ?? reviewSourceItem?.created_at
+          ?? reviewSourceItem?.order?.created_at
+          ?? reviewSourceItem?.order?.placed_at
+        if (!raw || Number.isNaN(Date.parse(raw))) return ''
+        return new Date(raw).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+      })()
   const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent']
 
   const addFiles = (files) => {
@@ -757,24 +1017,26 @@ function LeaveReview({ reviewId }) {
           {editing ? 'Edit Review' : 'Write a Review'}
         </span>
       </nav>
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-auth-primary"
-      >
-        <ArrowLeft className="size-4" />
-        Back
-      </button>
-      <div className="mt-5">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-auth-primary">
-          Customer feedback
-        </p>
-        <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-          {editing ? 'Edit Your Review' : 'Write a Review'}
-        </h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Share your experience to help other customers make better choices.
-        </p>
+      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-auth-primary">
+            Customer feedback
+          </p>
+          <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
+            {editing ? 'Edit Your Review' : 'Write a Review'}
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">
+            Share your experience to help other customers make better choices.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+        >
+          <ArrowLeft className="size-4" />
+          Back
+        </button>
       </div>
 
       {!hasEligibleItems && !isLoadingEligible ? (
@@ -788,7 +1050,7 @@ function LeaveReview({ reviewId }) {
           noValidate
           className="space-y-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-7"
         >
-          {!editing ? (
+          {!editing && !itemAlreadySelected ? (
             <label className="block">
               <span className="text-sm font-bold text-slate-900">
                 Delivered Item <span className="text-auth-primary">*</span>
@@ -810,10 +1072,16 @@ function LeaveReview({ reviewId }) {
                 <option value="">
                   {isLoadingEligible ? 'Loading eligible items…' : 'Select an item'}
                 </option>
-                {eligibleItems.map((item) => {
-                  const id = String(item.id ?? item.order_item_id ?? '')
-                  const itemProduct = item.product ?? item.product_variant?.product
-                  const label = itemProduct?.name ?? item.product_name ?? `Order item ${id}`
+                {eligibleItems.map((item, index) => {
+                  const ids = eligibleItemIds(item)
+                  const id = ids.includes(String(effectiveOrderItemId))
+                    ? String(effectiveOrderItemId)
+                    : (ids[0] ?? `eligible-${index}`)
+                  const itemProduct = asRecord(item.product) ?? asRecord(item.product_variant?.product)
+                  const label = itemProduct?.name
+                    || item.product_name
+                    || (typeof item.product === 'string' ? item.product : '')
+                    || `Order item ${id}`
                   return <option key={id} value={id}>{label}</option>
                 })}
               </select>
@@ -823,6 +1091,8 @@ function LeaveReview({ reviewId }) {
                 </span>
               ) : null}
             </label>
+          ) : !editing && errors.orderItem ? (
+            <p className="text-xs font-semibold text-red-600">{errors.orderItem}</p>
           ) : isLoadingReview ? (
             <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
           ) : null}
@@ -1069,32 +1339,42 @@ function LeaveReview({ reviewId }) {
           </div>
         </form>
 
-        <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.04)] xl:sticky xl:top-5">
+        <aside className="relative z-10 h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.04)] xl:sticky xl:top-5">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">
             Reviewing
           </p>
-          <img
-            src={image}
-            alt=""
-            className="mt-4 aspect-square w-full rounded-2xl bg-slate-50 object-cover"
-          />
-          <h3 className="mt-4 text-lg font-bold text-slate-950">{product}</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            {existing?.variant ?? 'Color: Eternal Green · Storage: 256GB'}
-          </p>
+          <div className="mt-4 flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3">
+            <ReviewProductThumb
+              src={image}
+              alt={product}
+              className={image ? 'max-h-full max-w-full object-contain' : 'flex size-full items-center justify-center bg-transparent'}
+            />
+          </div>
+          {productHref ? (
+            <Link to={productHref} className="mt-4 block hover:text-auth-primary">
+              <h3 className="text-lg font-bold text-slate-950">{product}</h3>
+            </Link>
+          ) : (
+            <h3 className="mt-4 text-lg font-bold text-slate-950">{product}</h3>
+          )}
+          {typeof variantLabel === 'string' && variantLabel ? (
+            <p className="mt-1 text-sm text-slate-500">{variantLabel}</p>
+          ) : null}
           <dl className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs">
             <div className="flex justify-between gap-3">
               <dt className="text-slate-500">Order number</dt>
               <dd className="font-bold text-slate-800">#{order}</dd>
             </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-slate-500">Purchased</dt>
-              <dd className="font-bold text-slate-800">12 July 2026</dd>
-            </div>
+            {purchasedDate ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Purchased</dt>
+                <dd className="font-bold text-slate-800">{purchasedDate}</dd>
+              </div>
+            ) : null}
           </dl>
           <Link
-            to="/wireless-head-set-ylgRZ8"
-            className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-auth-primary hover:underline"
+            to={productHref || '/'}
+            className="relative z-10 mt-5 inline-flex cursor-pointer items-center gap-1 text-xs font-bold text-auth-primary hover:underline"
           >
             View Product Details
             <ChevronRight className="size-3.5" />

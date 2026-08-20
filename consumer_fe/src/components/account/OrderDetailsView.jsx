@@ -1,5 +1,7 @@
 import { Link } from 'react-router'
-import { ChevronRight, Download, Minus, Package, Plus, Star } from 'lucide-react'
+import { useState } from 'react'
+import { useSelector } from 'react-redux'
+import { ChevronRight, Download, Loader2, Minus, Package, Plus, Star } from 'lucide-react'
 import { formatCediPriceParts } from '../../utils/formatCurrency'
 import {
   canReturnOrderItem,
@@ -18,6 +20,8 @@ import {
   resolveOrderItemVendorReviewCount,
 } from '../../utils/normalizeOrders'
 import { notify } from '../../lib/notify'
+import { downloadOrderInvoice } from '../../utils/downloadOrderInvoice'
+import { buildLeaveReviewLink } from '../../utils/reviewRouteState'
 import OrderManagePanel from './OrderManagePanel'
 import OrderTrackingTimeline from './OrderTrackingTimeline'
 
@@ -92,12 +96,12 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
   const variantLabel = resolveOrderItemVariantLabel(item)
   const storeName = resolveOrderItemStoreName(item)
   const reviewCount = resolveOrderItemVendorReviewCount(item)
-  const productHref = resolveOrderItemProductHref(item)
+  const productHref = resolveOrderItemProductHref(item) || '/'
   const productName = item.product_name ?? item.name ?? 'Product'
   const { unitPrice, comparePrice, lineTotal, compareLineTotal } = resolveOrderItemPricing(item)
   const canReview = canReviewOrderItem(item)
   const canReturn = canReturnOrderItem(item)
-  const reviewHref = `/account/reviews/new?product=${encodeURIComponent(productName)}&order=${encodeURIComponent(orderId)}${item.id ? `&item=${encodeURIComponent(item.id)}` : ''}`
+  const reviewLink = buildLeaveReviewLink({ item, orderId })
   const returnHref = `/account/returns?product=${encodeURIComponent(productName)}&order=${encodeURIComponent(orderId)}${item.id ? `&item=${encodeURIComponent(item.id)}` : ''}`
 
   return (
@@ -155,7 +159,11 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
               </Link>
             ) : null}
             {canReview ? (
-              <Link to={reviewHref} className="underline underline-offset-2 hover:text-auth-primary">
+              <Link
+                to={reviewLink.to}
+                state={reviewLink.state}
+                className="underline underline-offset-2 hover:text-auth-primary"
+              >
                 Leave Review
               </Link>
             ) : null}
@@ -186,6 +194,8 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
 }
 
 export default function OrderDetailsView({ order, onCancelRequest }) {
+  const user = useSelector((state) => state.auth.user)
+  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false)
   const raw = order.raw ?? {}
   const items = extractOrderItems(raw)
   const totals = getOrderTotals(raw)
@@ -196,8 +206,17 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
   const paymentStatus = order.paymentStatus
   const paymentStyle = paymentStatusStyles[paymentStatus] ?? 'bg-slate-100 text-slate-600'
 
-  const handleDownloadInvoice = () => {
-    notify.info('Invoice download will be available soon.')
+  const handleDownloadInvoice = async () => {
+    if (isDownloadingInvoice) return
+    setIsDownloadingInvoice(true)
+    try {
+      await downloadOrderInvoice(order, { customer: user })
+      notify.success('Invoice downloaded')
+    } catch (error) {
+      notify.fromError(error, 'Unable to download invoice')
+    } finally {
+      setIsDownloadingInvoice(false)
+    }
   }
 
   return (
@@ -256,10 +275,15 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
           <button
             type="button"
             onClick={handleDownloadInvoice}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-auth-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-auth-primary-hover sm:text-sm"
+            disabled={isDownloadingInvoice}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-auth-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-auth-primary-hover disabled:cursor-wait disabled:opacity-70 sm:text-sm"
           >
-            <Download className="size-4" aria-hidden />
-            Download Invoice
+            {isDownloadingInvoice ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <Download className="size-4" aria-hidden />
+            )}
+            {isDownloadingInvoice ? 'Preparing invoice…' : 'Download Invoice'}
           </button>
         </div>
       </header>

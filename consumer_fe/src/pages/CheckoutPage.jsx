@@ -26,7 +26,14 @@ import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import SearchableSelect from '../components/auth/SearchableSelect'
 import { notify } from '../lib/notify'
-import { getCheckoutPreview, placeBuyNowOrder, placeCheckoutOrder } from '../services/checkoutService'
+import {
+  buildBuyNowInitiatePayload,
+  getBuyNowInitiateKey,
+  getCheckoutPreview,
+  initiateBuyNow,
+  placeBuyNowOrder,
+  placeCheckoutOrder,
+} from '../services/checkoutService'
 import {
   createUserAddress,
   deleteUserAddress,
@@ -48,7 +55,14 @@ import {
   validateGhanaPhone,
   validatePersonName,
 } from '../utils/validateGhanaPhone'
-import { clearBuyNowItem, readBuyNowItem, saveBuyNowItem } from '../utils/buyNowItem'
+import {
+  clearBuyNowItem,
+  getBuyNowCheckoutSessionId,
+  isBuyNowSessionCurrent,
+  readBuyNowItem,
+  saveBuyNowItem,
+  withBuyNowSession,
+} from '../utils/buyNowItem'
 import { getAddressList } from '../utils/userAddressHelpers'
 import Images from '../utils/Images'
 
@@ -488,18 +502,6 @@ function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, 
 
 function buildCheckoutPayload(shippingAddress, billingAddress) {
   return {
-    shipping_address_id: shippingAddress.id,
-    billing_address_id: billingAddress.id,
-  }
-}
-
-// "Buy Now" has no backend cart to key off of, so the single item's
-// product/variant/quantity is sent alongside the addresses.
-function buildBuyNowCheckoutPayload(item, shippingAddress, billingAddress) {
-  return {
-    product_id: item.productId,
-    product_variant_id: item.variantId ?? null,
-    quantity: Math.max(1, Number(item.quantity) || 1),
     shipping_address_id: shippingAddress.id,
     billing_address_id: billingAddress.id,
   }
@@ -1382,12 +1384,14 @@ function normalizeSuccessItems(order, checkoutItems = []) {
   return (checkoutItems ?? []).map((item, index) => {
     const quantity = Math.max(1, Number(item.quantity) || 1)
     const unitPrice = Number(item.price ?? 0)
+    const comparePrice = Number(item.compareAt ?? item.comparePrice)
     return {
       id: item.id ?? `checkout-item-${index}`,
       name: item.name ?? 'Item',
       quantity,
       unitPrice,
       totalPrice: Number(item.displaySubtotal ?? unitPrice * quantity),
+      comparePrice: Number.isFinite(comparePrice) && comparePrice > unitPrice ? comparePrice : null,
     }
   })
 }
@@ -1414,6 +1418,8 @@ function OrderSuccessScreen({ order, checkoutTotals, checkoutItems = [] }) {
   const billingAddress = formatOrderAddress(order?.billing_address)
   const apiTotals = normalizeOrderMoneyTotals(order)
   const paymentStatus = String(order?.payment_status ?? '').trim().toLowerCase()
+  const deliveryStatus = String(order?.delivery_status ?? '').trim().toLowerCase()
+  const statusChip = paymentStatus || (deliveryStatus === 'ordered' ? 'ordered' : '')
 
   const subtotal = Number(apiTotals.listSubtotal || checkoutTotals?.listSubtotal || 0)
   const discountTotal = Number(apiTotals.discountTotal || checkoutTotals?.discountTotal || 0)
@@ -1441,13 +1447,17 @@ function OrderSuccessScreen({ order, checkoutTotals, checkoutItems = [] }) {
               <span className="font-bold text-slate-950">#{orderNumber}</span>
             </div>
           ) : null}
-          {paymentStatus === 'paid' ? (
+          {statusChip === 'paid' ? (
             <div className="inline-flex items-center rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
               Paid
             </div>
-          ) : paymentStatus ? (
+          ) : statusChip === 'ordered' ? (
+            <div className="inline-flex items-center rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
+              Ordered
+            </div>
+          ) : statusChip ? (
             <div className="inline-flex items-center rounded-xl bg-slate-50 px-4 py-2.5 text-sm font-semibold capitalize text-slate-700">
-              {paymentStatus.replaceAll('_', ' ')}
+              {statusChip.replaceAll('_', ' ')}
             </div>
           ) : null}
           {orderedAt ? (
@@ -1575,13 +1585,54 @@ export default function CheckoutPage() {
   const [placedTotals, setPlacedTotals] = useState(null)
   const [placedItems, setPlacedItems] = useState([])
   const hasInitializedDeliveryAddress = useRef(false)
+  const buyNowInitiateKeyRef = useRef(null)
   const [isDeliveryAddressReady, setIsDeliveryAddressReady] = useState(false)
   const [isBillingAddressReady, setIsBillingAddressReady] = useState(false)
+  const [isInitiatingBuyNow, setIsInitiatingBuyNow] = useState(false)
 
   if (buyNowModeActive !== isBuyNowMode) {
     setBuyNowModeActive(isBuyNowMode)
     setBuyNowItem(isBuyNowMode ? readBuyNowItem() : null)
   }
+
+  useEffect(() => {
+    if (!isBuyNowMode || !isAuthenticated || !buyNowItem) return
+
+    let payload
+    try {
+      payload = buildBuyNowInitiatePayload(buyNowItem)
+    } catch {
+      return
+    }
+
+    const initiateKey = getBuyNowInitiateKey(payload)
+    if (isBuyNowSessionCurrent(buyNowItem, initiateKey)) return
+    if (buyNowInitiateKeyRef.current === initiateKey) return
+
+    buyNowInitiateKeyRef.current = initiateKey
+    let cancelled = false
+    setIsInitiatingBuyNow(true)
+
+    initiateBuyNow(payload)
+      .then((response) => {
+        if (cancelled) return
+        const next = withBuyNowSession(buyNowItem, initiateKey, response)
+        saveBuyNowItem(next)
+        setBuyNowItem(next)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        buyNowInitiateKeyRef.current = null
+        notify.fromError(error, 'Unable to start Buy Now')
+      })
+      .finally(() => {
+        if (!cancelled) setIsInitiatingBuyNow(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isBuyNowMode, isAuthenticated, buyNowItem])
 
   const previewQuery = useQuery({
     queryKey: ['checkout-preview'],
@@ -1824,6 +1875,7 @@ export default function CheckoutPage() {
   )
 
   const previewTotals = normalizePreviewTotals(previewQuery.data)
+  const buyNowSessionTotals = isBuyNowMode ? buyNowItem?.buyNowSession : null
   const feeTotals = {
     tax: previewTotals.tax ?? 0,
     deliveryFee: previewTotals.deliveryFee ?? 0,
@@ -1831,9 +1883,18 @@ export default function CheckoutPage() {
     couponDiscount,
   }
   const orderItemCount = previewTotals.itemCount ?? orderAmounts.itemCount ?? items.length
-  const orderListSubtotal = orderAmounts.listSubtotal || previewTotals.listSubtotal || previewTotals.subtotal || 0
-  const orderDiscountTotal = orderAmounts.discountTotal || previewTotals.discount || 0
-  const orderPayableTotal = orderAmounts.payableTotal || previewTotals.payableTotal || Math.max(0, orderListSubtotal - orderDiscountTotal)
+  const sessionSubtotal = Number(buyNowSessionTotals?.subtotal)
+  const sessionDiscount = Number(buyNowSessionTotals?.total_discount_amount)
+  const sessionTotal = Number(buyNowSessionTotals?.total)
+  const orderListSubtotal = Number.isFinite(sessionSubtotal) && sessionSubtotal > 0
+    ? sessionSubtotal
+    : (orderAmounts.listSubtotal || previewTotals.listSubtotal || previewTotals.subtotal || 0)
+  const orderDiscountTotal = Number.isFinite(sessionDiscount)
+    ? sessionDiscount
+    : (orderAmounts.discountTotal || previewTotals.discount || 0)
+  const orderPayableTotal = Number.isFinite(sessionTotal) && sessionTotal > 0
+    ? sessionTotal
+    : (orderAmounts.payableTotal || previewTotals.payableTotal || Math.max(0, orderListSubtotal - orderDiscountTotal))
   const orderTotal = calculateOrderTotal(orderPayableTotal, feeTotals)
 
   const hasAddress = [
@@ -1853,6 +1914,7 @@ export default function CheckoutPage() {
     if (selectedPayment !== 'card') return true
     return Object.keys(validateCardFields(cardDetails)).length === 0
   }, [selectedPayment, cardDetails])
+  const buyNowSessionId = getBuyNowCheckoutSessionId(buyNowItem)
   const canPlaceOrder = (
     items.length > 0
     && selectedPayment
@@ -1860,6 +1922,8 @@ export default function CheckoutPage() {
     && hasSavedDeliveryAddress
     && hasSavedBillingAddress
     && isCardPaymentValid
+    && !(isBuyNowMode && isInitiatingBuyNow)
+    && !(isBuyNowMode && !buyNowSessionId)
   )
 
   // Buy Now has no cart line to update on the backend — quantity edits just
@@ -1867,7 +1931,13 @@ export default function CheckoutPage() {
   const handleBuyNowQuantityChange = (_itemId, quantity) => {
     setBuyNowItem((current) => {
       if (!current) return current
-      const next = { ...current, quantity: Math.max(1, Number(quantity) || 1) }
+      const next = {
+        ...current,
+        quantity: Math.max(1, Number(quantity) || 1),
+        buyNowInitiatedKey: null,
+        checkoutSessionId: null,
+        buyNowSession: null,
+      }
       saveBuyNowItem(next)
       return next
     })
@@ -2178,15 +2248,22 @@ export default function CheckoutPage() {
 
     if (!canPlaceOrder) return
 
+    const buyNowSessionId = isBuyNowMode ? getBuyNowCheckoutSessionId(buyNowItem) : null
+    if (isBuyNowMode && !buyNowSessionId) {
+      notify.error('Your Buy Now session is still starting. Please wait a moment and try again.')
+      return
+    }
+
     setOrderStatus('processing')
 
     try {
       // No real payment gateway yet — simulate processing time so the
       // overlay doesn't just flash if the API responds instantly.
       const minProcessingDelay = new Promise((resolve) => setTimeout(resolve, 1800))
+      const addressesPayload = buildCheckoutPayload(activeAddress, activeBillingAddress)
       const orderPromise = isBuyNowMode
-        ? placeBuyNowOrder(buildBuyNowCheckoutPayload(items[0], activeAddress, activeBillingAddress))
-        : placeCheckoutOrder(buildCheckoutPayload(activeAddress, activeBillingAddress))
+        ? placeBuyNowOrder(buyNowSessionId, addressesPayload)
+        : placeCheckoutOrder(addressesPayload)
       const [response] = await Promise.all([orderPromise, minProcessingDelay])
 
       setPlacedTotals({
@@ -2201,6 +2278,7 @@ export default function CheckoutPage() {
         name: item.name,
         quantity: item.quantity,
         price: item.price,
+        compareAt: item.compareAt,
         displaySubtotal: item.displaySubtotal,
       })))
       setPlacedOrder(response)
@@ -2360,13 +2438,18 @@ export default function CheckoutPage() {
                     type="button"
                     onClick={handlePlaceOrder}
                     disabled={!canPlaceOrder || orderStatus === 'processing'}
-                    aria-busy={orderStatus === 'processing'}
+                    aria-busy={orderStatus === 'processing' || (isBuyNowMode && isInitiatingBuyNow)}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-auth-primary px-5 py-4 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {orderStatus === 'processing' ? (
                         <>
                           <Loader2 className="size-4 animate-spin" aria-hidden />
                           Processing…
+                        </>
+                      ) : isBuyNowMode && isInitiatingBuyNow ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" aria-hidden />
+                          Preparing…
                         </>
                       ) : (
                         'Place Order'

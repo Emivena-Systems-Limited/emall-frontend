@@ -31,7 +31,18 @@ import { addToWishlist, getUserWishlist, removeFromWishlist } from '../services/
 import { useCartActions } from '../hooks/useCartActions'
 import { useOptionalMiniCart } from '../context/MiniCartContext'
 import { buildCartItem, isProductInCart, selectCartItems } from '../store/slices/cartSlice'
-import { saveBuyNowItem } from '../utils/buyNowItem'
+import {
+  getBuyNowAuthLocationState,
+  markBuyNowAuthPending,
+  saveBuyNowItem,
+  withBuyNowSession,
+} from '../utils/buyNowItem'
+import {
+  buildBuyNowInitiatePayload,
+  getBuyNowInitiateKey,
+  initiateBuyNow,
+} from '../services/checkoutService'
+import { hasBackendProductId } from '../utils/normalizeCart'
 import {
   formatProductCondition,
   sortKeyDetailEntries,
@@ -365,6 +376,7 @@ function ProductInfoPanel({
 }) {
   const [quantity, setQuantity] = useState(1)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const [isBuyingNow, setIsBuyingNow] = useState(false)
   const [addedToCartOpen, setAddedToCartOpen] = useState(false)
   const [addedToCartSnapshot, setAddedToCartSnapshot] = useState(null)
   const [trustInfoOpen, setTrustInfoOpen] = useState(null)
@@ -497,25 +509,42 @@ function ProductInfoPanel({
     }
   }
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
+    if (isBuyingNow) return
+
     if (hasSelectableVariants && !activeVariant?.id) {
       notify.error('Please select a product option before continuing.')
       return
     }
 
-    // Buy Now skips the cart entirely — the item is held client-side and
-    // handed straight to the (single-item) checkout flow once the shopper is
-    // authenticated, rather than going through addToCart/the cart API.
     const { product: cartProduct, options: cartOptions } = buildCartArgs()
     const buyNowItem = buildCartItem(cartProduct, cartOptions)
-    saveBuyNowItem(buyNowItem)
+    const productId = buyNowItem.productId ?? buyNowItem.product_id
 
-    if (!isAuthenticated) {
-      navigate('/login', { state: { from: '/checkout/buy-now' } })
+    if (!hasBackendProductId(productId)) {
+      notify.error('This product cannot be purchased yet.')
       return
     }
 
-    navigate('/checkout/buy-now')
+    saveBuyNowItem(buyNowItem)
+
+    if (!isAuthenticated) {
+      markBuyNowAuthPending()
+      navigate('/login', { state: getBuyNowAuthLocationState() })
+      return
+    }
+
+    setIsBuyingNow(true)
+    try {
+      const payload = buildBuyNowInitiatePayload(buyNowItem)
+      const response = await initiateBuyNow(payload)
+      saveBuyNowItem(withBuyNowSession(buyNowItem, getBuyNowInitiateKey(payload), response))
+      navigate('/checkout/buy-now')
+    } catch (error) {
+      notify.fromError(error, 'Unable to start Buy Now')
+    } finally {
+      setIsBuyingNow(false)
+    }
   }
 
   return (
@@ -663,11 +692,19 @@ function ProductInfoPanel({
       <div className="mt-4 grid gap-2 min-[420px]:grid-cols-2 sm:gap-3">
         <button
           type="button"
-          disabled={outOfStock}
+          disabled={outOfStock || isBuyingNow}
           onClick={handleBuyNow}
-          className="rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
+          aria-busy={isBuyingNow}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Buy Now
+          {isBuyingNow ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Starting...
+            </>
+          ) : (
+            'Buy Now'
+          )}
         </button>
         <button
           type="button"
@@ -1759,14 +1796,19 @@ export default function ProductDetailsPage() {
     for (const sec of sections) {
       const list = landingData[sec]
       if (Array.isArray(list)) {
-        const found = list.find((p) => p && p.slug === slug && isProductActive(p))
+        const found = list.find((p) => (
+          p
+          && isProductActive(p)
+          && (p.slug === slug || String(p.id ?? p.product_id ?? '') === String(slug))
+        ))
         if (found) return found
       }
     }
     return null
   }, [landingData, slug])
 
-  const apiProductId = landingProduct?.id ?? null
+  const routeProductId = hasBackendProductId(slug) ? slug : null
+  const apiProductId = landingProduct?.id ?? routeProductId
 
   const {
     data: apiProduct,
@@ -1787,7 +1829,7 @@ export default function ProductDetailsPage() {
     staleTime: 60 * 1000,
   })
 
-  const isWaitingForLanding = !landingData && (isLandingPending || isLandingFetching)
+  const isWaitingForLanding = !routeProductId && !landingData && (isLandingPending || isLandingFetching)
   const isWaitingForProductDetails = Boolean(apiProductId)
     && !apiProduct
     && !isProductError

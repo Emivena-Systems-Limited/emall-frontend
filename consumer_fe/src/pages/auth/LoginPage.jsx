@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import AuthLayout from '../../components/auth/AuthLayout'
 import AuthHomeLink from '../../components/auth/AuthHomeLink'
 import AuthTabs from '../../components/auth/AuthTabs'
+import BuyNowAuthResume from '../../components/auth/BuyNowAuthResume'
 import EmailInput from '../../components/auth/EmailInput'
 import FormField from '../../components/auth/FormField'
 import {
@@ -16,6 +17,12 @@ import notify from '../../lib/notify'
 import { useRequestOtpMutation } from '../../hooks/useAuthMutations'
 import { AUTH_METHODS, AUTH_FLOW } from '../../constants/auth'
 import { saveAuthOtpSession } from '../../utils/authOtpSession'
+import {
+  BUY_NOW_CHECKOUT_PATH,
+  getBuyNowAuthLocationState,
+  readBuyNowItem,
+  shouldResumeBuyNowAfterAuth,
+} from '../../utils/buyNowItem'
 import {
   formatGhanaPhoneDisplay,
   normalizeGhanaPhone,
@@ -38,7 +45,12 @@ const LOGIN_FIELD_ORDER = {
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const buyNowItem = shouldResumeBuyNowAfterAuth(location.state, location.state?.from)
+    ? readBuyNowItem()
+    : null
   const redirectTo = location.state?.from
+    || (buyNowItem ? BUY_NOW_CHECKOUT_PATH : undefined)
+  const buyNowAuthState = buyNowItem ? getBuyNowAuthLocationState() : undefined
   const [activeTab, setActiveTab] = useState('email')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -46,6 +58,11 @@ export default function LoginPage() {
   const [emailError, setEmailError] = useState('')
   const requestOtpMutation = useRequestOtpMutation()
   const isSubmitting = requestOtpMutation.isPending
+
+  const handleCancelBuyNow = () => {
+    notify.info('Purchase cancelled. You can still sign in to shop.')
+    navigate('/login', { replace: true, state: {} })
+  }
 
   const handlePhoneChange = (value) => {
     const local = normalizeGhanaPhone(value)
@@ -138,6 +155,7 @@ export default function LoginPage() {
         contact,
         displayContact,
         ...(redirectTo ? { redirectTo } : {}),
+        ...(buyNowItem ? { buyNow: true, redirectTo: BUY_NOW_CHECKOUT_PATH } : {}),
       }
       saveAuthOtpSession(otpSession)
 
@@ -153,13 +171,15 @@ export default function LoginPage() {
     <AuthLayout>
       <motion.div {...formHeaderMotion} className="text-center">
         <p className="auth-subheading font-medium tracking-wide text-auth-muted">
-          Welcome back
+          {buyNowItem ? 'Almost yours' : 'Welcome back'}
         </p>
         <h1 className="auth-heading mt-1.5 font-bold tracking-tight text-slate-900">
-          Login to your account
+          {buyNowItem ? 'Sign in to buy now' : 'Login to your account'}
         </h1>
         <p className="auth-body mx-auto mt-1.5 max-w-sm leading-relaxed text-slate-500">
-          Sign in with your phone number or email to continue shopping.
+          {buyNowItem
+            ? 'Verify with a code and we’ll take you straight to checkout for the item you’re holding.'
+            : 'Sign in with your phone number or email to continue shopping.'}
         </p>
       </motion.div>
 
@@ -169,6 +189,11 @@ export default function LoginPage() {
         animate="visible"
         className="mt-4 sm:mt-5"
       >
+        {buyNowItem ? (
+          <div className="-mt-1">
+            <BuyNowAuthResume item={buyNowItem} onCancel={handleCancelBuyNow} />
+          </div>
+        ) : null}
         <FormField name="tabs">
           <AuthTabs
             activeTab={activeTab}
@@ -230,7 +255,11 @@ export default function LoginPage() {
               whileTap={{ scale: 0.985 }}
               className="mt-2 w-full rounded-xl bg-auth-primary py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3 min-[1800px]:py-4 min-[1800px]:text-base"
             >
-              {isSubmitting ? 'Sending code…' : 'Login'}
+              {isSubmitting
+                ? 'Sending code…'
+                : buyNowItem
+                  ? 'Send code & continue'
+                  : 'Login'}
             </motion.button>
           </motion.div>
         </form>
@@ -242,14 +271,17 @@ export default function LoginPage() {
           Don&apos;t have an account?{' '}
           <Link
             to="/register"
-            state={redirectTo ? { from: redirectTo } : undefined}
+            state={buyNowAuthState ?? (redirectTo ? { from: redirectTo } : undefined)}
             className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
           >
             Register
           </Link>
         </motion.p>
 
-        <AuthHomeLink />
+        <AuthHomeLink
+          to={buyNowItem?.href || '/'}
+          label={buyNowItem ? 'Back to product' : 'Back to home'}
+        />
       </motion.div>
     </AuthLayout>
   )

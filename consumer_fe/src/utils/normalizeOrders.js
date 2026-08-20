@@ -430,27 +430,32 @@ export function formatPaymentStatus(status) {
 }
 
 export function resolveOrderItemVariantLabel(item) {
-  const variant = item?.variant
-  const attributes = variant?.attributes ?? variant?.attribute_values
+  const variant = item?.variant ?? item?.product_variant
+  const attributes = variant?.attributes ?? variant?.attribute_values ?? item?.attributes
+
+  const scalar = (value) => {
+    if (value == null || typeof value === 'object') return ''
+    return String(value).trim()
+  }
 
   if (Array.isArray(attributes) && attributes.length) {
     return attributes
       .map((entry) => {
-        if (typeof entry === 'string') return entry
-        const name = entry?.name ?? entry?.attribute ?? entry?.label
-        const value = entry?.value ?? entry?.option
+        if (typeof entry === 'string') return entry.trim()
+        const name = scalar(entry?.name ?? entry?.attribute ?? entry?.label)
+        const value = scalar(entry?.value ?? entry?.option)
         if (name && value) return `${name}: ${value}`
-        return value ?? name
+        return value || name
       })
       .filter(Boolean)
-      .join(' ')
+      .join(' · ')
   }
 
-  if (variant?.attribute && variant?.value) {
-    return `${variant.attribute}: ${variant.value}`
-  }
+  const attribute = scalar(variant?.attribute ?? variant?.attribute_name)
+  const value = scalar(variant?.value ?? variant?.option)
+  if (attribute && value) return `${attribute}: ${value}`
 
-  return firstValue(variant?.variant_name, variant?.value)
+  return scalar(variant?.variant_name) || value
 }
 
 function resolveItemDiscountAmount(item) {
@@ -736,8 +741,19 @@ export function formatEstimatedDelivery(record) {
 }
 
 export function resolveOrderItemProductHref(item) {
-  const slug = item?.product?.slug ?? item?.product_slug
+  const slug = String(item?.product?.slug ?? item?.product_slug ?? '').trim().replace(/^\//, '')
   if (slug) return `/${slug}`
-  if (item?.product_id) return `/products?highlight=${item.product_id}`
-  return '/'
+
+  const id = String(
+    item?.product_id
+    ?? item?.productId
+    ?? item?.product?.id
+    ?? item?.product?.product_id
+    ?? item?.product_variant?.product_id
+    ?? item?.variant?.product_id
+    ?? '',
+  ).trim()
+  if (id) return `/${id}`
+
+  return ''
 }

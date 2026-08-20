@@ -13,6 +13,7 @@ import {
 import AuthLayout from '../../components/auth/AuthLayout'
 import AuthHomeLink from '../../components/auth/AuthHomeLink'
 import FormField from '../../components/auth/FormField'
+import BuyNowAuthResume from '../../components/auth/BuyNowAuthResume'
 import {
   formActionsMotion,
   formHeaderMotion,
@@ -30,6 +31,12 @@ import {
 } from '../../hooks/useAuthMutations'
 import { AUTH_FLOW, AUTH_METHODS } from '../../constants/auth'
 import { saveAuthOtpSession } from '../../utils/authOtpSession'
+import {
+  BUY_NOW_CHECKOUT_PATH,
+  getBuyNowAuthLocationState,
+  readBuyNowItem,
+  shouldResumeBuyNowAfterAuth,
+} from '../../utils/buyNowItem'
 import {
   GENDER_OPTIONS,
   GHANA_LOCATIONS,
@@ -79,13 +86,23 @@ const initialForm = {
 export default function RegisterPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const buyNowItem = shouldResumeBuyNowAfterAuth(location.state, location.state?.from)
+    ? readBuyNowItem()
+    : null
   const redirectTo = location.state?.from
+    || (buyNowItem ? BUY_NOW_CHECKOUT_PATH : undefined)
+  const buyNowAuthState = buyNowItem ? getBuyNowAuthLocationState() : undefined
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [termsError, setTermsError] = useState('')
   const registerUserMutation = useRegisterUserMutation()
   const isSubmitting = registerUserMutation.isPending
+
+  const handleCancelBuyNow = () => {
+    notify.info('Purchase cancelled. You can still create an account to shop.')
+    navigate('/register', { replace: true, state: {} })
+  }
 
   const cityOptions = useMemo(
     () => getCityOptionsByRegion(form.region),
@@ -285,6 +302,7 @@ export default function RegisterPage() {
         displayContact: profile.email,
         profile,
         ...(redirectTo ? { redirectTo } : {}),
+        ...(buyNowItem ? { buyNow: true, redirectTo: BUY_NOW_CHECKOUT_PATH } : {}),
       }
       saveAuthOtpSession(otpSession)
 
@@ -300,15 +318,19 @@ export default function RegisterPage() {
     <AuthLayout wide>
       <motion.div {...formHeaderMotion} className="text-center">
         <p className="auth-subheading font-medium tracking-wide text-auth-muted">
-          Let&apos;s get you started
+          {buyNowItem ? 'Finish your purchase' : "Let's get you started"}
         </p>
         <h1 className="auth-heading mt-1.5 font-bold tracking-tight text-slate-900">
-          Register your account
+          {buyNowItem ? 'Create an account to buy now' : 'Register your account'}
         </h1>
         <p className="auth-body mx-auto mt-1.5 max-w-md leading-relaxed text-slate-500">
-          Create your EZ-Stores account to shop, track orders, and checkout faster.
+          {buyNowItem
+            ? 'Create your EZ-Stores account, verify with a code, and we’ll start checkout for the item you’re holding.'
+            : 'Create your EZ-Stores account to shop, track orders, and checkout faster.'}
         </p>
       </motion.div>
+
+      <BuyNowAuthResume item={buyNowItem} onCancel={handleCancelBuyNow} />
 
       <form onSubmit={handleSubmit} className="mt-4 space-y-4 sm:mt-5">
         <motion.div
@@ -468,7 +490,11 @@ export default function RegisterPage() {
               whileTap={{ scale: 0.985 }}
               className="mt-4 w-full rounded-xl bg-auth-primary py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3 min-[1800px]:py-4 min-[1800px]:text-base"
             >
-              {isSubmitting ? 'Creating account…' : 'Continue'}
+              {isSubmitting
+                ? 'Creating account…'
+                : buyNowItem
+                  ? 'Create account & continue'
+                  : 'Continue'}
             </motion.button>
           </motion.div>
         </form>
@@ -480,14 +506,17 @@ export default function RegisterPage() {
           Already have an account?{' '}
           <Link
             to="/login"
-            state={redirectTo ? { from: redirectTo } : undefined}
+            state={buyNowAuthState ?? (redirectTo ? { from: redirectTo } : undefined)}
             className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
           >
             Login
           </Link>
         </motion.p>
 
-        <AuthHomeLink />
+        <AuthHomeLink
+          to={buyNowItem?.href || '/'}
+          label={buyNowItem ? 'Back to product' : 'Back to home'}
+        />
     </AuthLayout>
   )
 }
