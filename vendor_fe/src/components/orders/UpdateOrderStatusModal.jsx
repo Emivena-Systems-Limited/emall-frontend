@@ -14,12 +14,12 @@ function isComingSoonStatus(status) {
 
 function getDeliveryStatusOptions(currentStatus) {
   const options = [...VENDOR_UPDATABLE_DELIVERY_STATUSES]
+  if (currentStatus && !options.includes(currentStatus) && !isComingSoonStatus(currentStatus)) {
+    options.push(currentStatus)
+  }
   VENDOR_COMING_SOON_DELIVERY_STATUSES.forEach((status) => {
     if (!options.includes(status)) options.push(status)
   })
-  if (currentStatus && !options.includes(currentStatus)) {
-    options.unshift(currentStatus)
-  }
   return options
 }
 

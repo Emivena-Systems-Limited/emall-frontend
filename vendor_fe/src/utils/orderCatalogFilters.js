@@ -113,6 +113,18 @@ export function getOrderCatalogSummary(orders) {
   }
 }
 
+export function sortCatalogOrders(orders) {
+  return [...orders].sort((a, b) => {
+    const aPending = resolveDeliveryStatus(a) === 'pending' ? 0 : 1
+    const bPending = resolveDeliveryStatus(b) === 'pending' ? 0 : 1
+    if (aPending !== bPending) return aPending - bPending
+
+    const aTime = Date.parse(a?.orderDate ?? '') || 0
+    const bTime = Date.parse(b?.orderDate ?? '') || 0
+    return bTime - aTime
+  })
+}
+
 function resolveOrderGroupKey(order) {
   const orderId = String(order?.orderId ?? '').trim()
   if (orderId) return `id:${orderId.toLowerCase()}`

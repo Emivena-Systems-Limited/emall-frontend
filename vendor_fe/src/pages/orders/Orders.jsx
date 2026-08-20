@@ -21,8 +21,8 @@ import {
   filterOrderCatalog,
   getActiveSummaryFilter,
   getOrderCatalogSummary,
-  groupOrdersByOrderNumber,
   paginateOrders,
+  sortCatalogOrders,
 } from '../../utils/orderCatalogFilters'
 import { normalizeVendorOrdersList, explodeVendorOrdersForCatalog } from '../../utils/normalizeVendorOrders'
 import { setTotalOrders } from '../../store/slices/vendorMetricsSlice'
@@ -89,18 +89,13 @@ export default function Orders() {
   const summary = useMemo(() => getOrderCatalogSummary(orders), [orders])
 
   const filteredOrders = useMemo(
-    () => filterOrderCatalog(orders, { search, statusFilter, dateRange }),
+    () => sortCatalogOrders(filterOrderCatalog(orders, { search, statusFilter, dateRange })),
     [orders, search, statusFilter, dateRange],
   )
 
-  const groupedOrders = useMemo(
-    () => groupOrdersByOrderNumber(filteredOrders),
-    [filteredOrders],
-  )
-
   const pagination = useMemo(
-    () => paginateOrders(groupedOrders, { page, pageSize: ORDERS_PAGE_SIZE }),
-    [groupedOrders, page],
+    () => paginateOrders(filteredOrders, { page, pageSize: ORDERS_PAGE_SIZE }),
+    [filteredOrders, page],
   )
 
   const activeSummaryFilter = getActiveSummaryFilter(statusFilter) ?? SUMMARY_FILTERS.ALL
@@ -262,7 +257,7 @@ export default function Orders() {
                       title={isCustomerOrdersView ? 'No orders from this customer' : preset.title}
                       description={emptyDescription}
                     />
-                  ) : groupedOrders.length === 0 ? (
+                  ) : filteredOrders.length === 0 ? (
                     <EmptyState
                       icon={preset.icon}
                       title="No matching orders"
@@ -303,7 +298,7 @@ export default function Orders() {
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         onClearFilters={handleClearDrawerFilters}
-        resultCount={groupedOrders.length}
+        resultCount={filteredOrders.length}
       />
 
       <UpdateOrderStatusModal

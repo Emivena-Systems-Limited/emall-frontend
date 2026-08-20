@@ -33,16 +33,24 @@ function navigateWithListPayment(navigate, path, order, { returnTo } = {}) {
   navigate(path, state ? { state } : undefined)
 }
 
-function OrderMenuAction({ icon: Icon, label, onClick }) {
+function OrderMenuAction({ icon: Icon, label, hint, disabled, onClick }) {
   return (
     <button
       type="button"
       role="menuitem"
+      disabled={disabled}
       onClick={onClick}
-      className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
+      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-semibold transition-colors focus-visible:outline-none ${
+        disabled
+          ? 'cursor-not-allowed text-slate-400'
+          : 'cursor-pointer text-slate-800 hover:bg-slate-50 focus-visible:bg-slate-50'
+      }`}
     >
-      <Icon className="size-4 shrink-0 text-slate-500" strokeWidth={2} />
-      {label}
+      <Icon className={`size-4 shrink-0 ${disabled ? 'text-slate-300' : 'text-slate-500'}`} strokeWidth={2} />
+      <span className="min-w-0">
+        <span className="block">{label}</span>
+        {hint ? <span className="mt-0.5 block text-[11px] font-medium text-slate-400">{hint}</span> : null}
+      </span>
     </button>
   )
 }

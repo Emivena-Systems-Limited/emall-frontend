@@ -127,6 +127,7 @@ export const DEFAULT_ORDER_DATE_RANGE = {
 
 /** Delivery statuses vendors may set via PUT /api/orders/{id}/update/delivery-status */
 export const VENDOR_UPDATABLE_DELIVERY_STATUSES = [
+  'pending',
   'processing',
   'shipped',
   'delivered',
