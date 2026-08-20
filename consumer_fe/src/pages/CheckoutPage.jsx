@@ -2319,7 +2319,7 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
-                <OrderTotal
+              <OrderTotal
                   itemCount={orderItemCount}
                   listSubtotal={orderListSubtotal}
                   discountTotal={orderDiscountTotal}
@@ -2328,23 +2328,27 @@ export default function CheckoutPage() {
                 />
               </div>
 
-              <OrderSummary
-                items={displayItems}
-                onQuantityChange={isBuyNowMode ? handleBuyNowQuantityChange : updateQuantity}
-                onDelete={isBuyNowMode ? handleBuyNowDelete : deleteItem}
-              />
+              <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
+                <div className="order-1 lg:col-start-1 lg:row-start-2">
+                  <PaymentDetails
+                    selectedPayment={selectedPayment}
+                    onSelectPayment={handleSelectPayment}
+                    cardDetails={cardDetails}
+                    cardErrors={cardErrors}
+                    onCardChange={handleCardChange}
+                    onCardBlur={handleCardBlur}
+                  />
+                </div>
 
-              <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
-                <PaymentDetails
-                  selectedPayment={selectedPayment}
-                  onSelectPayment={handleSelectPayment}
-                  cardDetails={cardDetails}
-                  cardErrors={cardErrors}
-                  onCardChange={handleCardChange}
-                  onCardBlur={handleCardBlur}
-                />
+                <div className="order-2 lg:col-span-2 lg:row-start-1">
+                  <OrderSummary
+                    items={displayItems}
+                    onQuantityChange={isBuyNowMode ? handleBuyNowQuantityChange : updateQuantity}
+                    onDelete={isBuyNowMode ? handleBuyNowDelete : deleteItem}
+                  />
+                </div>
 
-                <aside className="min-w-0 space-y-5">
+                <aside className="order-3 min-w-0 space-y-5 lg:col-start-2 lg:row-start-2">
                   <PromoCode
                     coupon={coupon}
                     onCouponChange={setCoupon}

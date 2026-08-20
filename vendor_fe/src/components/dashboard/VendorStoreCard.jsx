@@ -1,35 +1,43 @@
 import { useState } from 'react'
-import { BadgeCheck } from 'lucide-react'
-import { isVendorVerified } from '../../utils/vendorAuth'
+import { Link } from 'react-router'
 
-function formatVendorId(user) {
-  const id = user?.vendor_id ?? user?.id
-  if (!id) return '—'
-  return `VND-${String(id).padStart(5, '0')}`
+function getAccountName(user) {
+  return user?.admin_full_name?.trim()
+    || user?.store_name
+    || user?.business_name
+    || 'Vendor'
 }
 
-function StoreLogo({ user, collapsed }) {
+function getAccountSubtitle(user) {
+  return user?.email
+    || user?.role
+    || user?.vendor_role
+    || user?.store_name
+    || ''
+}
+
+function AccountAvatar({ user, collapsed }) {
   const [hasError, setHasError] = useState(false)
-  const logoUrl = user?.store_logo ?? user?.logo_url ?? user?.logo
-  const storeName = user?.store_name ?? 'Store'
-  const initial = (storeName[0] ?? 'S').toUpperCase()
-  const sizeClass = collapsed ? 'size-9' : 'size-11'
+  const logoUrl = user?.store_logo ?? user?.logo_url ?? user?.logo ?? user?.avatar
+  const name = getAccountName(user)
+  const initial = (name[0] ?? 'V').toUpperCase()
+  const sizeClass = collapsed ? 'size-9' : 'size-9'
 
   if (logoUrl && !hasError) {
     return (
       <img
         src={logoUrl}
-        alt={`${storeName} logo`}
+        alt=""
         onError={() => setHasError(true)}
-        className={`${sizeClass} shrink-0 rounded-xl object-cover ring-2 ring-white/15`}
+        className={`${sizeClass} shrink-0 rounded-full object-cover`}
       />
     )
   }
 
   return (
     <span
-      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white ring-2 ring-white/15`}
-      aria-hidden={Boolean(logoUrl)}
+      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-bold text-white`}
+      aria-hidden
     >
       {initial}
     </span>
@@ -37,43 +45,33 @@ function StoreLogo({ user, collapsed }) {
 }
 
 export default function VendorStoreCard({ user, collapsed }) {
-  const storeName = user?.store_name ?? 'Your Store'
-  const isVerified = isVendorVerified(user)
-  const vendorId = formatVendorId(user)
+  const name = getAccountName(user)
+  const subtitle = getAccountSubtitle(user)
 
   if (collapsed) {
     return (
-      <div
-        className="group relative mb-2 flex justify-center px-2 py-2"
-        title={`${storeName} · ${vendorId}`}
+      <Link
+        to="/profile"
+        title={name}
+        className="mb-1 flex justify-center rounded-xl px-1 py-1.5 transition-colors hover:bg-white/10"
       >
-        <StoreLogo user={user} collapsed />
-        {isVerified && (
-          <span className="absolute bottom-1 right-1 flex size-4 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-[#1a1a2e]">
-            <BadgeCheck className="size-2.5 text-white" strokeWidth={2.5} />
-          </span>
-        )}
-      </div>
+        <AccountAvatar user={user} collapsed />
+      </Link>
     )
   }
 
   return (
-    <article className="mb-2 rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-      <div className="flex items-start gap-3">
-        <StoreLogo user={user} collapsed={false} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-white">{storeName}</p>
-          <p className="mt-0.5 truncate text-[10px] font-medium text-white/45">
-            ID: {vendorId}
-          </p>
-          {isVerified && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300 ring-1 ring-emerald-400/25">
-              <BadgeCheck className="size-3" strokeWidth={2.5} />
-              Verified
-            </span>
-          )}
-        </div>
-      </div>
-    </article>
+    <Link
+      to="/profile"
+      className="mb-1 flex items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-white/10"
+    >
+      <AccountAvatar user={user} collapsed={false} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-white">{name}</span>
+        {subtitle ? (
+          <span className="mt-0.5 block truncate text-[11px] text-white/45">{subtitle}</span>
+        ) : null}
+      </span>
+    </Link>
   )
 }

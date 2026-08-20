@@ -250,12 +250,19 @@ export default function CategoriesMegaMenu({ open, onClose }) {
 
   return (
     <>
-      {open && (
-        <div
-          aria-hidden="true"
-          className="fixed inset-0 z-40 hidden bg-slate-900/20 backdrop-blur-[1px] lg:block"
-        />
-      )}
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            key="mega-overlay"
+            aria-hidden="true"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: panelEase }}
+            className="fixed inset-0 z-40 hidden bg-slate-900/20 backdrop-blur-[1px] lg:block"
+          />
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {open && (
@@ -264,10 +271,10 @@ export default function CategoriesMegaMenu({ open, onClose }) {
             role="dialog"
             aria-modal="true"
             aria-label="Browse categories"
-            initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6, transition: { duration: 0.12, ease: panelEase } }}
-            transition={{ duration: 0.18, ease: panelEase }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.22, ease: panelEase }}
             className="pointer-events-none absolute inset-x-0 top-full z-[120] hidden lg:block"
           >
             <Container className="pointer-events-none py-0">

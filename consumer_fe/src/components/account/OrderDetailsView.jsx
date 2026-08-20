@@ -2,7 +2,6 @@ import { Link } from 'react-router'
 import { ChevronRight, Download, Minus, Package, Plus, Star } from 'lucide-react'
 import { formatCediPriceParts } from '../../utils/formatCurrency'
 import {
-  canCancelOrder,
   canReturnOrderItem,
   canReviewOrderItem,
   extractOrderItems,
@@ -192,7 +191,6 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
   const totals = getOrderTotals(raw)
   const estimatedDelivery = formatEstimatedDelivery(raw)
   const deliveryIsFree = totals.deliveryFee <= 0
-  const cancellable = canCancelOrder(raw)
   const orderNumber = formatOrderNumber(order.id, { withHash: true })
   const fulfillmentSummary = order.fulfillment?.summary
   const paymentStatus = order.paymentStatus
@@ -263,15 +261,6 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
             <Download className="size-4" aria-hidden />
             Download Invoice
           </button>
-          {cancellable ? (
-            <button
-              type="button"
-              onClick={() => onCancelRequest(order)}
-              className="inline-flex items-center justify-center rounded-lg bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-200 sm:text-sm"
-            >
-              Cancel Request
-            </button>
-          ) : null}
         </div>
       </header>
 

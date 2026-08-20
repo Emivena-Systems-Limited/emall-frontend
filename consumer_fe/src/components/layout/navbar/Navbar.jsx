@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Menu, X } from 'lucide-react'
 import Container from '../Container'
 import StoreLogo from '../StoreLogo'
@@ -6,30 +7,16 @@ import NavbarAuthLinks from './NavbarAuthLinks'
 import NavbarCartButton from './NavbarCartButton'
 import NavbarCategoriesButton from './NavbarCategoriesButton'
 import NavbarSearch from './NavbarSearch'
-import MobileNavPanel from './MobileNavPanel'
 import MobileCategoriesPanel from './MobileCategoriesPanel'
 import CategoriesMegaMenu from './CategoriesMegaMenu'
 
 export default function Navbar({ cartCount = 0 }) {
-  const [menuOpen, setMenuOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
 
-  const closeMenu = () => setMenuOpen(false)
   const closeCategories = () => setCategoriesOpen(false)
 
-  const toggleMenu = () => {
-    setCategoriesOpen(false)
-    setMenuOpen((prev) => !prev)
-  }
-
   const toggleCategories = () => {
-    setMenuOpen(false)
     setCategoriesOpen((prev) => !prev)
-  }
-
-  const openCategories = () => {
-    setMenuOpen(false)
-    setCategoriesOpen(true)
   }
 
   useEffect(() => {
@@ -56,34 +43,41 @@ export default function Navbar({ cartCount = 0 }) {
       <div className="relative z-[110] bg-auth-primary">
         <Container>
           {/* Mobile + tablet top row */}
-          <div className="flex items-center gap-2.5 py-2 lg:hidden">
+          <div className="relative z-20 flex items-center gap-1.5 py-2 lg:hidden">
+            <button
+              type="button"
+              data-categories-toggle
+              aria-expanded={categoriesOpen}
+              aria-controls="mobile-categories-panel"
+              aria-label={categoriesOpen ? 'Close categories' : 'Open categories'}
+              onClick={toggleCategories}
+              className="relative inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-white transition-colors hover:bg-white/10"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={categoriesOpen ? 'close' : 'menu'}
+                  initial={{ opacity: 0, rotate: -90, scale: 0.7 }}
+                  animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                  exit={{ opacity: 0, rotate: 90, scale: 0.7 }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex"
+                >
+                  {categoriesOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+                </motion.span>
+              </AnimatePresence>
+            </button>
+
             <StoreLogo variant="light" showText size="sm" className="min-w-0 flex-1" />
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <NavbarCartButton count={cartCount} />
-              <button
-                type="button"
-                aria-expanded={menuOpen}
-                aria-controls="mobile-nav-panel"
-                aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-                onClick={toggleMenu}
-                className="inline-flex size-9 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
-              >
-                {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-              </button>
+              <NavbarAuthLinks compact />
             </div>
           </div>
 
-          {/* Mobile + tablet search + categories row */}
-          <div className="flex flex-col gap-2 pb-2 lg:hidden">
+          {/* Mobile + tablet search row */}
+          <div className="pb-2 lg:hidden">
             <NavbarSearch compact onFocus={categoriesOpen ? closeCategories : undefined} />
-            <NavbarCategoriesButton
-              mode="dropdown"
-              fullWidth
-              isOpen={categoriesOpen}
-              onToggle={toggleCategories}
-              panelId="mobile-categories-panel"
-            />
           </div>
 
           {/* Desktop row */}
@@ -110,12 +104,6 @@ export default function Navbar({ cartCount = 0 }) {
 
       <CategoriesMegaMenu open={categoriesOpen} onClose={closeCategories} />
       <MobileCategoriesPanel open={categoriesOpen} onClose={closeCategories} />
-      <MobileNavPanel
-        open={menuOpen}
-        onClose={closeMenu}
-        onOpenCategories={openCategories}
-        cartCount={cartCount}
-      />
     </header>
   )
 }

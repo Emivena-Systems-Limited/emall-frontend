@@ -171,9 +171,12 @@ function buildFulfillmentSummary(counts, total, token) {
   return ''
 }
 
-function resolveHeadlineDeliveryToken(tokens, counts) {
+function resolveHeadlineDeliveryToken(tokens, counts, orderStatusToken = '') {
+  if (orderStatusToken === 'cancelled') return 'cancelled'
+  if (orderStatusToken === 'refunded') return 'refunded'
+
   const unique = [...new Set(tokens)]
-  if (!unique.length) return 'pending'
+  if (!unique.length) return orderStatusToken || 'pending'
   if (unique.length === 1) return unique[0]
 
   const active = tokens.filter((token) => token !== 'cancelled' && token !== 'refunded')
@@ -187,7 +190,8 @@ function resolveHeadlineDeliveryToken(tokens, counts) {
 }
 
 export function resolveOrderFulfillment(record) {
-  const fallback = normalizeDeliveryToken(record?.delivery_status) || 'pending'
+  const orderStatusToken = normalizeDeliveryToken(record?.status ?? record?.order_status)
+  const fallback = normalizeDeliveryToken(record?.delivery_status) || orderStatusToken || 'pending'
   const items = extractOrderItems(record)
   const itemTokens = items.length
     ? items.map((item) => normalizeDeliveryToken(item?.delivery_status) || fallback)
@@ -199,7 +203,7 @@ export function resolveOrderFulfillment(record) {
     else counts.pending += 1
   }
 
-  const token = resolveHeadlineDeliveryToken(itemTokens, counts)
+  const token = resolveHeadlineDeliveryToken(itemTokens, counts, orderStatusToken)
   const mixed = new Set(itemTokens).size > 1
 
   return {

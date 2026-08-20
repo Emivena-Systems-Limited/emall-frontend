@@ -8,7 +8,6 @@ import {
   BadgePercent,
   Box,
   Check,
-  CheckCircle2,
   ImagePlus,
   Info,
   Layers3,
@@ -854,6 +853,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
   const [valuesError, setValuesError] = useState('')
   const [openValueIds, setOpenValueIds] = useState(() => new Set())
   const [customPriceIds, setCustomPriceIds] = useState(() => new Set())
+  const [choosingNextType, setChoosingNextType] = useState(false)
   const savedValuesRef = useRef(null)
   const optionTypePickerRef = useRef(null)
 
@@ -886,41 +886,60 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
     })
   }
 
-  const resetBuildingForm = () => {
-    setBuildingAttribute('')
+  const activateGroup = (attribute) => {
+    const next = String(attribute ?? '').trim()
+    if (!next) return
+    if (next.toLowerCase() !== activeAttribute.toLowerCase()) {
+      setValueInput('')
+      setValuesError('')
+    }
+    setBuildingAttribute(next)
     setShowCustomAttribute(false)
-    setValueInput('')
+    setChoosingNextType(false)
     setAttributeError('')
-    setValuesError('')
   }
 
-  const handleDoneWithAttribute = () => {
-    resetBuildingForm()
+  const handleAddAnotherOptionType = () => {
+    setChoosingNextType(true)
+    setShowCustomAttribute(false)
+    setAttributeError('')
+    setValuesError('')
+    setBuildingAttribute('')
+    setValueInput('')
     scrollToSavedVariationValues(optionTypePickerRef.current)
   }
 
-  const addValue = (rawValue) => {
+  const resolveAttributeName = (attributeName) => (
+    typeof attributeName === 'string' && attributeName.trim()
+      ? attributeName.trim()
+      : activeAttribute
+  )
+
+  const addValue = (rawValue, attributeName = activeAttribute) => {
     const trimmed = rawValue.trim()
     if (!trimmed) return
-    if (!activeAttribute) {
+    const attribute = String(attributeName ?? '').trim()
+    if (!attribute) {
       setAttributeError('Choose or enter an option type to continue')
       return
     }
 
     const key = trimmed.toLowerCase()
     const existingIndex = groups.findIndex(
-      (group) => group.attribute.toLowerCase() === activeAttribute.toLowerCase(),
+      (group) => group.attribute.toLowerCase() === attribute.toLowerCase(),
     )
     const existingValuesLower = existingIndex >= 0
       ? new Set(groups[existingIndex].values.map((item) => item.value.toLowerCase()))
       : new Set()
     if (existingValuesLower.has(key)) {
-      setValuesError(`"${trimmed}" was already added for ${activeAttribute}`)
+      setValuesError(`"${trimmed}" was already added for ${attribute}`)
       return
     }
 
     setAttributeError('')
     setValuesError('')
+    setBuildingAttribute(attribute)
+    setChoosingNextType(false)
 
     const newValue = createVariantValue(trimmed)
 
@@ -932,7 +951,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
     } else {
       formik.setFieldValue('variations', [
         ...groups,
-        { id: createVariantGroupId(), attribute: activeAttribute, values: [newValue] },
+        { id: createVariantGroupId(), attribute, values: [newValue] },
       ])
     }
     formik.setFieldError('variations', undefined)
@@ -940,20 +959,21 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
     scrollToSavedVariationValues(savedValuesRef.current)
   }
 
-  const commitValueInput = () => {
+  const commitValueInput = (attributeName) => {
     if (!valueInput.trim()) return
+    const target = resolveAttributeName(attributeName)
     if (valueInput.includes(',')) {
-      parseMultiValues(valueInput).forEach(addValue)
+      parseMultiValues(valueInput).forEach((entry) => addValue(entry, target))
     } else {
-      addValue(valueInput)
+      addValue(valueInput, target)
     }
     setValueInput('')
   }
 
-  const handleValueInputKeyDown = (event) => {
+  const handleValueInputKeyDown = (event, attributeName = activeAttribute) => {
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault()
-      commitValueInput()
+      commitValueInput(attributeName)
     }
   }
 
@@ -1025,33 +1045,51 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
       >
         <CardStepHeader
           step={1}
-          title="Add option types & values"
-          subtitle="Pick an option type (Color, Size, Material…), then type each value — Black, Red, Blue — and fill in its details right on the card."
+          title={choosingNextType ? 'Choose the next option type' : 'Add option types & values'}
+          subtitle={
+            choosingNextType
+              ? 'Pick Color, Size, or your own type. Your existing options stay open below so you can still add more values to them.'
+              : 'Pick an option type (Color, Size, Material…), then type each value — Black, Red, Blue — and fill in its details right on the card.'
+          }
         />
 
-        <AttributeTypePicker
-          value={buildingAttribute}
-          showCustom={showCustomAttribute}
-          onSelectPreset={(preset) => {
-            setShowCustomAttribute(false)
-            setBuildingAttribute(preset)
-            setAttributeError('')
-          }}
-          onToggleCustom={() => {
-            setShowCustomAttribute(true)
-            if (isPresetAttribute(buildingAttribute)) setBuildingAttribute('')
-          }}
-          onCloseCustom={() => {
-            setShowCustomAttribute(false)
-            setBuildingAttribute('')
-          }}
-          onCustomChange={(event) => {
-            setBuildingAttribute(event.target.value)
-            setAttributeError('')
-          }}
-          onCustomBlur={() => {}}
-          error={attributeError}
-        />
+        {choosingNextType ? (
+          <div className="mb-4 rounded-xl border border-brand/20 bg-brand-light/70 px-4 py-3">
+            <p className="text-sm font-bold text-slate-900">What do you want to add next?</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              Select a type below to start it. To add more values to an existing type, use the input under that type in the list.
+            </p>
+          </div>
+        ) : null}
+
+        <div className={choosingNextType ? 'rounded-xl ring-2 ring-brand/30 ring-offset-2' : ''}>
+          <AttributeTypePicker
+            value={buildingAttribute}
+            showCustom={showCustomAttribute}
+            onSelectPreset={(preset) => {
+              setShowCustomAttribute(false)
+              setBuildingAttribute(preset)
+              setChoosingNextType(false)
+              setValueInput('')
+              setAttributeError('')
+            }}
+            onToggleCustom={() => {
+              setShowCustomAttribute(true)
+              setChoosingNextType(false)
+              if (isPresetAttribute(buildingAttribute)) setBuildingAttribute('')
+            }}
+            onCloseCustom={() => {
+              setShowCustomAttribute(false)
+              setBuildingAttribute(activeGroup?.attribute ?? '')
+            }}
+            onCustomChange={(event) => {
+              setBuildingAttribute(event.target.value)
+              setAttributeError('')
+            }}
+            onCustomBlur={() => {}}
+            error={attributeError}
+          />
+        </div>
         {attributeError && <p className="mt-2 text-xs font-semibold text-red-600">{attributeError}</p>}
 
         {activeAttribute && !activeGroupHasValues ? (
@@ -1065,13 +1103,13 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                 value={valueInput}
                 onChange={(event) => setValueInput(event.target.value)}
                 onKeyDown={handleValueInputKeyDown}
-                onBlur={commitValueInput}
+                onBlur={() => commitValueInput(activeAttribute)}
                 placeholder={getSingleVariantValuePlaceholder(activeAttribute)}
                 className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
               />
               <button
                 type="button"
-                onClick={commitValueInput}
+                onClick={() => commitValueInput(activeAttribute)}
                 disabled={!valueInput.trim()}
                 className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1100,7 +1138,9 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                   <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
                     {groups.length} option type{groups.length !== 1 ? 's' : ''} · {totalValues} value{totalValues !== 1 ? 's' : ''}
                   </p>
-                  <p className="text-[11px] text-slate-400">Fill in photo, price & stock for each value below</p>
+                  <p className="text-[11px] text-slate-400">
+                    Fill in photo, price & stock for each value. Each type keeps its own add-value field.
+                  </p>
                 </div>
               </div>
               <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80">
@@ -1146,12 +1186,23 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
               return (
                 <div key={group.id} className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                      <AttributeIcon attribute={group.attribute} className="size-3.5" />
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                      {group.attribute}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => activateGroup(group.attribute)}
+                      aria-label={`Add more ${group.attribute} values`}
+                      className={`flex min-w-0 items-center gap-3 rounded-lg text-left transition-colors ${
+                        isActiveGroup ? 'text-brand' : 'text-slate-400 hover:text-slate-700'
+                      }`}
+                    >
+                      <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
+                        isActiveGroup ? 'bg-brand-light text-brand' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        <AttributeIcon attribute={group.attribute} className="size-3.5" />
+                      </span>
+                      <span className="text-xs font-bold uppercase tracking-widest">
+                        {group.attribute}
+                      </span>
+                    </button>
                     <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200/80">
                       {groupReady}/{group.values.length} ready
                     </span>
@@ -1166,34 +1217,42 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                     </button>
                   </div>
 
-                  {isActiveGroup ? (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                      <div className="space-y-3 px-4 py-4 sm:px-5">{cards}</div>
-                      <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
-                        <VariantGroupActionBar
-                          attribute={group.attribute}
-                          valueInput={valueInput}
-                          onValueInputChange={(event) => setValueInput(event.target.value)}
-                          onValueInputKeyDown={handleValueInputKeyDown}
-                          onCommitValue={commitValueInput}
-                          valuesError={valuesError}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleDoneWithAttribute}
-                          className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-brand bg-white px-4 py-3 text-sm font-bold text-brand shadow-sm transition-colors hover:bg-brand-light"
-                        >
-                          <CheckCircle2 className="size-4" />
-                          Done with {group.attribute} — add a different option type
-                        </button>
-                      </div>
+                  <div className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+                    isActiveGroup ? 'border-brand/30' : 'border-slate-200'
+                  }`}>
+                    <div className="space-y-3 px-4 py-4 sm:px-5">{cards}</div>
+                    <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
+                      <VariantGroupActionBar
+                        attribute={group.attribute}
+                        valueInput={isActiveGroup ? valueInput : ''}
+                        onValueInputFocus={() => activateGroup(group.attribute)}
+                        onValueInputChange={(event) => {
+                          activateGroup(group.attribute)
+                          setValueInput(event.target.value)
+                        }}
+                        onValueInputKeyDown={(event) => handleValueInputKeyDown(event, group.attribute)}
+                        onCommitValue={() => commitValueInput(group.attribute)}
+                        valuesError={isActiveGroup ? valuesError : ''}
+                      />
                     </div>
-                  ) : (
-                    <div className="space-y-3">{cards}</div>
-                  )}
+                  </div>
                 </div>
               )
             })}
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleAddAnotherOptionType}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-brand bg-white px-4 py-3 text-sm font-bold text-brand shadow-sm transition-colors hover:bg-brand-light"
+              >
+                <Plus className="size-4" />
+                Add Color, Size, or another option
+              </button>
+              <p className="text-center text-[11px] leading-relaxed text-slate-400">
+                Starts a new option type above. Existing types stay open so you can keep adding values to them.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-b from-slate-50/80 to-white px-6 py-10 text-center">
@@ -1840,25 +1899,28 @@ export function ProductListingForm({
     <DashboardLayout pageTitle={isEditMode ? 'Edit Product' : 'Add Product'}>
       <div className="page-enter space-y-5">
         <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
-          <Link
-            to="/products"
-            className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
-          >
-            <ArrowLeft className="size-4" />
-            Back to products
-          </Link>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">
-              {isEditMode ? 'Edit listing' : 'New listing'}
-            </p>
-            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-              {isEditMode ? 'Edit product' : 'Add a product'}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-              {isEditMode
-                ? 'Update photos, pricing, and product details. Changes are saved to your live catalogue.'
-                : 'Create a complete listing with clear photos and accurate pricing so customers find and trust your product.'}
-            </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">
+                {isEditMode ? 'Edit listing' : 'New listing'}
+              </p>
+              <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+                {isEditMode ? 'Edit product' : 'Add a product'}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+                {isEditMode
+                  ? 'Update photos, pricing, and product details. Changes are saved to your live catalogue.'
+                  : 'Create a complete listing with clear photos and accurate pricing so customers find and trust your product.'}
+              </p>
+            </div>
+
+            <Link
+              to="/products"
+              className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+            >
+              <ArrowLeft className="size-4" />
+              Back to products
+            </Link>
           </div>
         </section>
 

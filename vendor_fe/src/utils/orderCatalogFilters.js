@@ -23,7 +23,39 @@ function matchesStatusFilter(order, statusFilter) {
     return deliveryStatus === 'shipped'
   }
 
+  if (statusFilter === STATUS_FILTERS.CANCELLED) {
+    return deliveryStatus === 'cancelled'
+  }
+
   return deliveryStatus === statusFilter
+}
+
+function parseDateBoundary(value, endOfDay = false) {
+  if (!value) return null
+
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return null
+
+  if (endOfDay) {
+    date.setHours(23, 59, 59, 999)
+  }
+
+  return date
+}
+
+function matchesDateRange(order, dateRange = {}) {
+  const start = parseDateBoundary(dateRange.startDate)
+  const end = parseDateBoundary(dateRange.endDate, true)
+  if (!start && !end) return true
+
+  const raw = order?.orderDate
+  if (!raw) return false
+
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return false
+  if (start && date < start) return false
+  if (end && date > end) return false
+  return true
 }
 
 function matchesSearch(order, search) {
@@ -55,13 +87,19 @@ function matchesCustomerFilter(order, customerEmail) {
 
 export function filterOrderCatalog(
   orders,
-  { search = '', statusFilter = STATUS_FILTERS.ALL, customerEmail = null } = {},
+  {
+    search = '',
+    statusFilter = STATUS_FILTERS.ALL,
+    customerEmail = null,
+    dateRange = { startDate: '', endDate: '' },
+  } = {},
 ) {
   return orders.filter(
     (order) =>
       matchesStatusFilter(order, statusFilter)
       && matchesSearch(order, search)
-      && matchesCustomerFilter(order, customerEmail),
+      && matchesCustomerFilter(order, customerEmail)
+      && matchesDateRange(order, dateRange),
   )
 }
 

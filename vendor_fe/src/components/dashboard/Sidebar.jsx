@@ -89,28 +89,36 @@ function SidebarInner({ collapsed, onToggle, onMobileClose, isMobile = false }) 
 
   return (
     <div className={`flex h-full flex-col bg-[#1a1a2e] transition-[width] duration-300 ease-in-out ${effectiveCollapsed ? 'w-[68px]' : 'w-64'}`}>
-      <div className={`flex h-16 shrink-0 items-center border-b border-white/8 ${effectiveCollapsed ? 'justify-center px-3' : 'justify-between px-4'}`}>
-        <div className={`flex items-center ${effectiveCollapsed ? 'justify-center' : 'shrink-0 pr-1'}`}>
-          <img
-            src={Images.brand.logoWhite}
-            alt="EZ-Mall Vendor"
-            className={
-              effectiveCollapsed
-                ? 'h-10 w-auto max-w-none object-contain object-left'
-                : 'h-12 w-auto max-w-none object-contain object-left'
-            }
-          />
-        </div>
+      <div
+        className={`flex h-16 shrink-0 items-center border-b border-white/8 ${
+          effectiveCollapsed ? 'justify-center px-1.5' : 'justify-between px-4'
+        }`}
+      >
+        {!effectiveCollapsed ? (
+          <div className="flex shrink-0 items-center pr-1">
+            <img
+              src={Images.brand.logoWhite}
+              alt="EZ-Mall Vendor"
+              className="h-12 w-auto max-w-none object-contain object-left"
+            />
+          </div>
+        ) : null}
 
         {!isMobile && (
           <button
             type="button"
             onClick={onToggle}
+            aria-expanded={!effectiveCollapsed}
+            aria-label={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={effectiveCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
-            className="hidden size-7 cursor-pointer items-center justify-center rounded-lg text-white/35 transition-colors hover:bg-white/10 hover:text-white lg:flex"
+            className={`hidden cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-white/10 hover:text-white lg:flex ${
+              effectiveCollapsed
+                ? 'size-9 text-white/80'
+                : 'size-7 text-white/35'
+            }`}
           >
             {effectiveCollapsed
-              ? <ChevronRight className="size-3.5" />
+              ? <ChevronRight className="size-4" strokeWidth={2.25} />
               : <ChevronLeft className="size-3.5" />
             }
           </button>

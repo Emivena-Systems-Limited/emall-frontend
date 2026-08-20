@@ -305,7 +305,7 @@ export default function AddVariantFlow({
               className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-xs font-bold text-brand transition-colors hover:text-brand-hover"
             >
               <Plus className="size-3.5" />
-              Add a different option type
+              Add Color, Size, or another option
             </button>
           </div>
         ) : (

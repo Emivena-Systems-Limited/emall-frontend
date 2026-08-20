@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Grid2X2,
   List,
-  Loader2,
   Package,
   Search,
   ShoppingBag,
@@ -15,7 +14,6 @@ import { useCancelOrderMutation } from '../../hooks/useCancelOrderMutation'
 import { useOrdersQuery } from '../../hooks/useOrdersQuery'
 import { notify } from '../../lib/notify'
 import {
-  canCancelOrder,
   findOrderById,
   formatOrderNumber,
   normalizeOrdersResponse,
@@ -91,63 +89,53 @@ function OrderStatusBadges({ order }) {
   )
 }
 
-function OrderActions({ order, onOpen, onTrack, onCancel, viewMode }) {
+function OrderActions({ order, onOpen, onTrack, viewMode }) {
   const deliveryStatus = order.deliveryStatus || 'Pending Delivery'
   const inProgressStatuses = ['Pending Delivery', 'Processing', 'Shipped', 'Partially Shipped', 'Partially Delivered']
   const isCancelled = deliveryStatus === 'Cancelled' || order.status === 'Cancelled'
-  const canTrack = viewMode === 'cards'
-    ? inProgressStatuses.includes(deliveryStatus) || isCancelled
-    : inProgressStatuses.includes(deliveryStatus) || deliveryStatus === 'Delivered'
+  const canTrack = !isCancelled && (
+    viewMode === 'cards'
+      ? inProgressStatuses.includes(deliveryStatus)
+      : inProgressStatuses.includes(deliveryStatus) || deliveryStatus === 'Delivered'
+  )
   const showInfo = viewMode === 'list' && isCancelled
-  const cancellable = viewMode === 'list' && canCancelOrder(order.raw)
   const isCompact = viewMode === 'cards'
 
   const actionClass = isCompact ? 'px-4 py-2 text-xs' : 'px-5 py-2.5 text-xs'
 
   return (
-    <div className={`flex w-full ${isCompact ? 'sm:w-auto' : 'flex-col gap-2 sm:w-auto sm:items-end'}`}>
-      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-        {canTrack ? (
-          <button
-            type="button"
-            onClick={() => onTrack(order)}
-            className={`group/track inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white font-bold text-slate-700 shadow-[0_4px_12px_-6px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:translate-y-0 sm:flex-none ${actionClass}`}
-          >
-            <Truck className="size-3.5 shrink-0 text-slate-500 transition-colors group-hover/track:text-slate-700" strokeWidth={2.2} aria-hidden />
-            Track order
-          </button>
-        ) : null}
+    <div className={`flex w-full flex-wrap items-center gap-2 ${isCompact ? 'sm:w-auto' : 'sm:w-auto sm:justify-end'}`}>
+      {canTrack ? (
         <button
           type="button"
-          onClick={() => onOpen(order.id)}
-          className={`group/details inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full font-bold transition-all hover:-translate-y-px active:translate-y-0 sm:flex-none ${actionClass} ${
-            showInfo
-              ? 'border border-slate-200 bg-slate-100 text-slate-700 hover:border-slate-300 hover:bg-slate-200'
-              : 'bg-auth-primary text-white shadow-[0_10px_20px_-8px_rgba(199,59,45,0.65)] ring-1 ring-white/20 hover:bg-auth-primary-hover hover:shadow-[0_14px_24px_-8px_rgba(199,59,45,0.75)]'
-          }`}
+          onClick={() => onTrack(order)}
+          className={`group/track inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white font-bold text-slate-700 shadow-[0_4px_12px_-6px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:translate-y-0 sm:flex-none ${actionClass}`}
         >
-          {showInfo ? 'View Info' : 'View Details'}
-          <ArrowRight
-            className="size-3.5 shrink-0 transition-transform duration-200 group-hover/details:translate-x-0.5"
-            strokeWidth={2.4}
-            aria-hidden
-          />
-        </button>
-      </div>
-      {cancellable && onCancel ? (
-        <button
-          type="button"
-          onClick={() => onCancel(order)}
-          className="self-end text-xs font-bold text-red-600 transition hover:text-red-700 hover:underline"
-        >
-          Cancel order
+          <Truck className="size-3.5 shrink-0 text-slate-500 transition-colors group-hover/track:text-slate-700" strokeWidth={2.2} aria-hidden />
+          Track order
         </button>
       ) : null}
+      <button
+        type="button"
+        onClick={() => onOpen(order.id)}
+        className={`group/details inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full font-bold transition-all hover:-translate-y-px active:translate-y-0 sm:flex-none ${actionClass} ${
+          showInfo
+            ? 'border border-slate-200 bg-slate-100 text-slate-700 hover:border-slate-300 hover:bg-slate-200'
+            : 'bg-auth-primary text-white shadow-[0_10px_20px_-8px_rgba(199,59,45,0.65)] ring-1 ring-white/20 hover:bg-auth-primary-hover hover:shadow-[0_14px_24px_-8px_rgba(199,59,45,0.75)]'
+        }`}
+      >
+        {showInfo ? 'View Info' : 'View Details'}
+        <ArrowRight
+          className="size-3.5 shrink-0 transition-transform duration-200 group-hover/details:translate-x-0.5"
+          strokeWidth={2.4}
+          aria-hidden
+        />
+      </button>
     </div>
   )
 }
 
-function OrderCard({ order, onOpen, onTrack, onCancel }) {
+function OrderCard({ order, onOpen, onTrack }) {
   const orderNumber = formatOrderNumber(order.id, { withHash: true })
 
   return (
@@ -182,13 +170,13 @@ function OrderCard({ order, onOpen, onTrack, onCancel }) {
             </p>
           ) : null}
         </div>
-        <OrderActions order={order} onOpen={onOpen} onTrack={onTrack} onCancel={onCancel} viewMode="cards" />
+        <OrderActions order={order} onOpen={onOpen} onTrack={onTrack} viewMode="cards" />
       </div>
     </article>
   )
 }
 
-function OrderListRow({ order, onOpen, onTrack, onCancel }) {
+function OrderListRow({ order, onOpen, onTrack }) {
   const orderNumber = formatOrderNumber(order.id, { withHash: true })
 
   return (
@@ -221,7 +209,7 @@ function OrderListRow({ order, onOpen, onTrack, onCancel }) {
             ) : null}
           </div>
           <div className="md:col-span-2 lg:col-span-1">
-            <OrderActions order={order} onOpen={onOpen} onTrack={onTrack} onCancel={onCancel} viewMode="list" />
+            <OrderActions order={order} onOpen={onOpen} onTrack={onTrack} viewMode="list" />
           </div>
         </div>
       </div>
@@ -229,11 +217,146 @@ function OrderListRow({ order, onOpen, onTrack, onCancel }) {
   )
 }
 
-function OrdersLoadingState() {
+function SkeletonBlock({ className = '' }) {
+  return <div className={`rounded bg-slate-200 ${className}`} />
+}
+
+function OrderCardSkeleton() {
   return (
-    <section className="mt-5 flex min-h-64 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-14 text-center">
-      <Loader2 className="size-8 animate-spin text-auth-primary" aria-hidden />
-      <p className="mt-4 text-sm font-semibold text-slate-700">Loading your orders…</p>
+    <article className="min-w-0 overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white px-5 py-3.5 sm:px-6 sm:py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <SkeletonBlock className="h-4 w-32" />
+            <SkeletonBlock className="h-6 w-24 rounded-full" />
+          </div>
+          <SkeletonBlock className="h-3 w-20" />
+        </div>
+      </div>
+      <div className="mt-3.5 flex min-w-0 items-center gap-3 sm:gap-4">
+        <div className="flex shrink-0 items-center">
+          <SkeletonBlock className="size-14 rounded-lg" />
+          <SkeletonBlock className="-ml-3 size-14 rounded-lg ring-4 ring-white" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-2 border-l border-slate-100 pl-4">
+          <SkeletonBlock className="h-4 w-4/5 max-w-56" />
+          <SkeletonBlock className="h-3 w-2/5 max-w-36" />
+        </div>
+      </div>
+      <div className="mt-3.5 flex flex-col items-start gap-2.5 border-t border-slate-100 pt-3.5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <SkeletonBlock className="h-3 w-28" />
+          <SkeletonBlock className="h-6 w-24" />
+        </div>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <SkeletonBlock className="h-9 flex-1 rounded-full sm:w-28 sm:flex-none" />
+          <SkeletonBlock className="h-9 flex-1 rounded-full sm:w-32 sm:flex-none" />
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function OrdersListSkeleton() {
+  return (
+    <div className="animate-pulse" aria-busy="true" aria-label="Loading orders">
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 sm:mt-6 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="hidden min-w-0 flex-1 gap-2 sm:flex">
+            {['w-20', 'w-32', 'w-24', 'w-20', 'w-24', 'w-24'].map((width, index) => (
+              <SkeletonBlock key={index} className={`h-8 shrink-0 rounded-full ${width}`} />
+            ))}
+          </div>
+          <SkeletonBlock className="h-9 w-full rounded-xl sm:hidden" />
+          <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+            <SkeletonBlock className="hidden h-9 w-40 rounded-xl sm:block" />
+            <SkeletonBlock className="h-11 w-[5.25rem] rounded-xl" />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 sm:gap-5 md:grid-cols-2">
+        {Array.from({ length: 4 }, (_, index) => (
+          <OrderCardSkeleton key={index} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OrderDetailsSkeleton() {
+  return (
+    <section className="animate-pulse space-y-6" aria-busy="true" aria-label="Loading order details">
+      <div className="flex items-center gap-2">
+        <SkeletonBlock className="h-4 w-12" />
+        <SkeletonBlock className="size-3.5 rounded-full" />
+        <SkeletonBlock className="h-4 w-16" />
+        <SkeletonBlock className="size-3.5 rounded-full" />
+        <SkeletonBlock className="h-4 w-28" />
+      </div>
+
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-3">
+          <SkeletonBlock className="h-7 w-48 sm:h-8" />
+          <div className="flex gap-2">
+            <SkeletonBlock className="h-6 w-24 rounded-full" />
+            <SkeletonBlock className="h-6 w-20 rounded-full" />
+          </div>
+          <SkeletonBlock className="h-4 w-56" />
+        </div>
+        <SkeletonBlock className="h-10 w-40 rounded-lg" />
+      </header>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+              <SkeletonBlock className="size-9 rounded-full" />
+              <SkeletonBlock className="h-2.5 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="hidden h-11 bg-slate-100 sm:block" />
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index} className="flex items-center gap-3 border-t border-slate-100 px-4 py-5 first:border-t-0 sm:first:border-t">
+            <SkeletonBlock className="size-16 shrink-0 rounded-lg" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <SkeletonBlock className="h-4 w-3/5 max-w-64" />
+              <SkeletonBlock className="h-3 w-28" />
+              <SkeletonBlock className="h-5 w-20 rounded-full" />
+            </div>
+            <div className="hidden space-y-2 sm:block">
+              <SkeletonBlock className="h-4 w-16" />
+              <SkeletonBlock className="h-3 w-10" />
+            </div>
+          </div>
+        ))}
+        <div className="space-y-3 border-t border-slate-200 px-4 py-4">
+          <div className="flex justify-between">
+            <SkeletonBlock className="h-3.5 w-20" />
+            <SkeletonBlock className="h-3.5 w-16" />
+          </div>
+          <div className="flex justify-between">
+            <SkeletonBlock className="h-3.5 w-16" />
+            <SkeletonBlock className="h-3.5 w-12" />
+          </div>
+          <div className="flex justify-between border-t border-slate-100 pt-3">
+            <SkeletonBlock className="h-4 w-24" />
+            <SkeletonBlock className="h-5 w-20" />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <SkeletonBlock className="h-4 w-36" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <SkeletonBlock className="h-16 rounded-xl" />
+          <SkeletonBlock className="h-16 rounded-xl" />
+        </div>
+      </div>
     </section>
   )
 }
@@ -414,7 +537,7 @@ function OrdersToolbar({ filter, onFilterChange, viewMode, onViewModeChange }) {
   )
 }
 
-function OrdersList({ ordersQuery, onCancelRequest }) {
+function OrdersList({ ordersQuery }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('All Orders')
   const [search, setSearch] = useState('')
@@ -469,7 +592,9 @@ function OrdersList({ ordersQuery, onCancelRequest }) {
           <h2 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Orders</h2>
           <p className="mt-2 text-sm text-slate-500">Track, view and manage all your orders in one place.</p>
         </div>
-        {orders.length > 0 ? (
+        {ordersQuery.isPending ? (
+          <div className="h-10 w-full animate-pulse rounded-full bg-slate-200 lg:max-w-md" aria-hidden />
+        ) : orders.length > 0 ? (
           <label className="flex h-10 w-full min-w-0 items-center gap-2.5 rounded-full border border-slate-200 bg-white px-3.5 shadow-[0_6px_24px_rgba(15,23,42,0.05)] sm:px-4 lg:max-w-md">
             <Search className="size-3.5 shrink-0 text-slate-500" />
             <span className="sr-only">Search orders</span>
@@ -484,7 +609,7 @@ function OrdersList({ ordersQuery, onCancelRequest }) {
       </div>
 
       {ordersQuery.isPending ? (
-        <OrdersLoadingState />
+        <OrdersListSkeleton />
       ) : ordersQuery.isError ? (
         <OrdersErrorState
           message={ordersQuery.error?.message}
@@ -510,7 +635,6 @@ function OrdersList({ ordersQuery, onCancelRequest }) {
                     order={order}
                     onOpen={(orderId) => navigate(`/account/orders/${orderId}`)}
                     onTrack={openOrderTracking}
-                    onCancel={onCancelRequest}
                   />
                 ) : (
                   <OrderListRow
@@ -518,7 +642,6 @@ function OrdersList({ ordersQuery, onCancelRequest }) {
                     order={order}
                     onOpen={(orderId) => navigate(`/account/orders/${orderId}`)}
                     onTrack={openOrderTracking}
-                    onCancel={onCancelRequest}
                   />
                 )
               ))}
@@ -551,7 +674,7 @@ function OrderDetails({ id, ordersQuery, onCancelRequest }) {
   }, [id])
 
   if (ordersQuery.isPending) {
-    return <OrdersLoadingState />
+    return <OrderDetailsSkeleton />
   }
 
   if (ordersQuery.isError) {
@@ -625,7 +748,7 @@ export default function AccountOrdersPanel() {
           onCancelRequest={setCancelTarget}
         />
       ) : (
-        <OrdersList ordersQuery={ordersQuery} onCancelRequest={setCancelTarget} />
+        <OrdersList ordersQuery={ordersQuery} />
       )}
 
       <CancelOrderModal

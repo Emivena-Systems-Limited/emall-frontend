@@ -1,5 +1,6 @@
 import { getSubcategoryFallbacksForParent } from '../constants/categorySubcategoryFallbacks'
 import { sortParentCategoriesForDisplay } from './buildCategoryDepartments'
+import { getCategoryImage } from './categoryDisplay'
 import { getSubcategoriesForParent } from './normalizeCategories'
 
 function buildSubcategoryLinks(parentSlug, children = []) {
@@ -36,6 +37,7 @@ export function buildNavbarCategoryMenuItems(parentCategories = []) {
       id: slug,
       label: parent.name,
       href: `/categories/${slug}`,
+      image: getCategoryImage(parent),
       subcategories: buildSubcategoryLinks(slug, children),
       featuredTitle: `FEATURED ${(parent.name ?? slug).toUpperCase()}`,
       featured: [],

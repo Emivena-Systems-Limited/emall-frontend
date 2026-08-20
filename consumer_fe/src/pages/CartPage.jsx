@@ -6,7 +6,7 @@ import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import { formatCedi } from '../utils/formatCurrency'
 import { calculateOrderTotal, computeCartOrderTotals } from '../utils/checkoutTotals'
-import { selectCartItems, selectCartSyncStatus, selectGuestCartId } from '../store/slices/cartSlice'
+import { selectCartItems, selectCartSyncStatus, selectGuestCartId, selectSavedCartItems } from '../store/slices/cartSlice'
 import { useCartActions } from '../hooks/useCartActions'
 import { useAuthenticatedCart } from '../hooks/useAuthenticatedCart'
 import { useGuestCart } from '../hooks/useGuestCart'
@@ -15,6 +15,7 @@ import { notify } from '../lib/notify'
 import { formatCartItemOptions, resolveCartItemDisplayImage } from '../utils/normalizeCart'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
 import { SavedItemsFloatingTrigger, SavedItemsTrigger } from '../components/cart/SavedItemsDrawer'
+import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
 
 const clampQuantity = (value) => Math.max(1, value)
 
@@ -105,6 +106,7 @@ function CartItemRow({
   saved = false,
   showSaveForLater = true,
   readOnlyQuantity = false,
+  selectable = true,
 }) {
   const optionLabel = formatCartItemOptions(item)
   const displayImage = resolveCartItemDisplayImage(item)
@@ -113,13 +115,15 @@ function CartItemRow({
   return (
     <article className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-4 last:border-b-0 sm:px-4 lg:px-5 lg:py-5">
       <div className="flex min-w-0 items-start gap-3 sm:items-center">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={(event) => onSelect(event.target.checked)}
-          aria-label={`Select ${item.name}`}
-          className="mt-1 size-3.5 shrink-0 rounded border-slate-300 text-auth-primary focus:ring-auth-primary lg:mt-0"
-        />
+        {selectable ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onSelect(event.target.checked)}
+            aria-label={`Select ${item.name}`}
+            className="mt-1 size-3.5 shrink-0 rounded border-slate-300 text-auth-primary focus:ring-auth-primary lg:mt-0"
+          />
+        ) : null}
         <Link to={productHref} className="shrink-0">
           <img
             src={displayImage}
@@ -192,6 +196,7 @@ function ItemTable({
   saved = false,
   showSaveForLater = true,
   readOnlyQuantity = false,
+  selectable = true,
   clearLabel,
   onClear,
 }) {
@@ -215,6 +220,7 @@ function ItemTable({
             saved={saved}
             showSaveForLater={showSaveForLater}
             readOnlyQuantity={readOnlyQuantity}
+            selectable={selectable}
             selected={selectedIds.has(item.id)}
             onSelect={(checked) => onSelect(item.id, checked)}
             onQuantityChange={(quantity) => onQuantityChange(item.id, quantity)}
@@ -436,6 +442,44 @@ function DeliveryModal({ open, onClose, onProceedCheckout }) {
   )
 }
 
+function MobileSavedItemsSection({ cartHasItems }) {
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const savedItems = useSelector(selectSavedCartItems)
+  const { restoreSavedItem, deleteSaved, clearSaved } = useCartActions()
+
+  if (!isAuthenticated) return null
+  if (savedItems.length === 0 && !cartHasItems) return null
+
+  if (savedItems.length === 0) {
+    return (
+      <div className="lg:hidden">
+        <CartSavedItemsEmptyState />
+      </div>
+    )
+  }
+
+  return (
+    <div className="lg:hidden">
+      <ItemTable
+        title="Saved items"
+        subtitle="Items you saved for later"
+        items={savedItems}
+        saved
+        selectable={false}
+        showSaveForLater
+        readOnlyQuantity
+        selectedIds={new Set()}
+        onSelect={() => {}}
+        onQuantityChange={() => {}}
+        onDelete={deleteSaved}
+        onSave={restoreSavedItem}
+        clearLabel="Clear saved items"
+        onClear={clearSaved}
+      />
+    </div>
+  )
+}
+
 export default function CartPage() {
   const navigate = useNavigate()
   const items = useSelector(selectCartItems)
@@ -496,7 +540,7 @@ export default function CartPage() {
     navigate('/checkout')
   }
 
-  const savedItemsTrigger = <SavedItemsTrigger />
+  const savedItemsTrigger = <SavedItemsTrigger className="hidden lg:inline-flex" />
   const elevateSavedFab = items.length > 0 && selectedItems.length > 0
 
   return (
@@ -517,6 +561,7 @@ export default function CartPage() {
                 </div>
                 <EmptyCartState />
               </section>
+              <MobileSavedItemsSection cartHasItems={false} />
             </div>
           ) : (
             <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8">
@@ -535,17 +580,20 @@ export default function CartPage() {
                 />
               </div>
 
-              <CartSummary
-                itemCount={orderAmounts.itemCount}
-                listSubtotal={orderAmounts.listSubtotal}
-                discountTotal={orderAmounts.discountTotal}
-                totals={orderTotals}
-                total={orderTotal}
-                isLoadingTotals={false}
-                hasSelectedItems={selectedItems.length > 0}
-                onOpenDelivery={() => setDeliveryOpen(true)}
-                onProceedCheckout={handleProceedCheckout}
-              />
+              <div className="min-w-0 space-y-6">
+                <CartSummary
+                  itemCount={orderAmounts.itemCount}
+                  listSubtotal={orderAmounts.listSubtotal}
+                  discountTotal={orderAmounts.discountTotal}
+                  totals={orderTotals}
+                  total={orderTotal}
+                  isLoadingTotals={false}
+                  hasSelectedItems={selectedItems.length > 0}
+                  onOpenDelivery={() => setDeliveryOpen(true)}
+                  onProceedCheckout={handleProceedCheckout}
+                />
+                <MobileSavedItemsSection cartHasItems />
+              </div>
             </div>
           )}
 

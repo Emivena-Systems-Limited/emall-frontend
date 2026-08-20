@@ -9,6 +9,7 @@ export default function VariantGroupActionBar({
   attribute,
   valueInput = '',
   onValueInputChange,
+  onValueInputFocus,
   onValueInputKeyDown,
   onCommitValue,
   valuesError = '',
@@ -31,6 +32,7 @@ export default function VariantGroupActionBar({
             type="text"
             value={valueInput}
             onChange={onValueInputChange}
+            onFocus={onValueInputFocus}
             onKeyDown={onValueInputKeyDown}
             onBlur={onCommitValue}
             placeholder={getSingleVariantValuePlaceholder(attribute)}

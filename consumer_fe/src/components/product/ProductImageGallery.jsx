@@ -206,8 +206,18 @@ export default function ProductImageGallery({
     })
   }, [])
 
+  const dismissHoverZoom = () => {
+    if (!supportsHoverZoom) return
+    hoverZoomPausedRef.current = true
+    setHoverZoom(null)
+  }
+
   const handleMouseEnter = (event) => {
     if (!supportsHoverZoom) return
+    if (event.target.closest('[data-gallery-action]')) {
+      dismissHoverZoom()
+      return
+    }
     hoverZoomPausedRef.current = false
     lastPointerRef.current = { x: event.clientX, y: event.clientY }
     updateHoverZoom(event.clientX, event.clientY)
@@ -237,10 +247,7 @@ export default function ProductImageGallery({
   }
 
   const handleHoverWheel = () => {
-    if (!supportsHoverZoom) return
-    // Let the browser scroll the page; just hide the zoom overlay.
-    hoverZoomPausedRef.current = true
-    setHoverZoom(null)
+    dismissHoverZoom()
   }
 
   useEffect(() => {
@@ -519,6 +526,15 @@ export default function ProductImageGallery({
         )}
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end gap-2 p-3 sm:p-4">
+          <div
+            data-gallery-action
+            className="pointer-events-auto flex gap-2"
+            onMouseEnter={dismissHoverZoom}
+            onMouseMove={(event) => event.stopPropagation()}
+            onMouseLeave={() => {
+              hoverZoomPausedRef.current = false
+            }}
+          >
           {onShare && (
             <button
               type="button"
@@ -527,7 +543,7 @@ export default function ProductImageGallery({
                 onShare()
               }}
               aria-label="Share product"
-              className="pointer-events-auto flex size-10 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:text-auth-primary hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95"
+              className="flex size-10 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:text-auth-primary hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95"
             >
               <Share2 className="size-4" strokeWidth={2.2} />
             </button>
@@ -542,7 +558,7 @@ export default function ProductImageGallery({
               title={isWishlisted ? 'Item already in wishlist' : 'Add to wishlist'}
               aria-label={isWishlisted ? 'Item already in wishlist' : 'Add to wishlist'}
               aria-pressed={isWishlisted}
-              className={`pointer-events-auto flex size-10 items-center justify-center rounded-full bg-white/95 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95 ${
+              className={`flex size-10 items-center justify-center rounded-full bg-white/95 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95 ${
                 isWishlisted
                   ? 'text-auth-primary'
                   : 'text-slate-700 hover:text-auth-primary'
@@ -554,6 +570,7 @@ export default function ProductImageGallery({
               />
             </button>
           )}
+          </div>
         </div>
       </div>
 

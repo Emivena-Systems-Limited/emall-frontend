@@ -6,11 +6,12 @@ import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import EmptyState from '../../components/dashboard/EmptyState'
 import OrderCatalogLoader from '../../components/orders/OrderCatalogLoader'
 import OrderCatalogToolbar from '../../components/orders/OrderCatalogToolbar'
+import OrderFiltersDrawer, { countOrderDrawerFilters } from '../../components/orders/OrderFiltersDrawer'
 import OrderPagination from '../../components/orders/OrderPagination'
 import OrderSummaryCards from '../../components/orders/OrderSummaryCards'
 import OrderTable from '../../components/orders/OrderTable'
 import UpdateOrderStatusModal from '../../components/orders/UpdateOrderStatusModal'
-import { DELIVERY_STATUSES, ORDERS_PAGE_SIZE, STATUS_FILTERS, SUMMARY_FILTERS } from '../../constants/orders'
+import { DELIVERY_STATUSES, DEFAULT_ORDER_DATE_RANGE, ORDERS_PAGE_SIZE, STATUS_FILTERS, SUMMARY_FILTERS } from '../../constants/orders'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import { useCustomers, useCustomer } from '../../hooks/useCustomers'
 import { useUpdateOrderDeliveryStatusMutation } from '../../hooks/useVendorOrderMutations'
@@ -71,6 +72,11 @@ export default function Orders() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(STATUS_FILTERS.ALL)
+  const [dateRange, setDateRange] = useState(() => ({
+    startDate: searchParams.get('start_date') || DEFAULT_ORDER_DATE_RANGE.startDate,
+    endDate: searchParams.get('end_date') || DEFAULT_ORDER_DATE_RANGE.endDate,
+  }))
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [statusTarget, setStatusTarget] = useState(null)
   const updateDeliveryStatus = useUpdateOrderDeliveryStatusMutation()
@@ -83,8 +89,8 @@ export default function Orders() {
   const summary = useMemo(() => getOrderCatalogSummary(orders), [orders])
 
   const filteredOrders = useMemo(
-    () => filterOrderCatalog(orders, { search, statusFilter }),
-    [orders, search, statusFilter],
+    () => filterOrderCatalog(orders, { search, statusFilter, dateRange }),
+    [orders, search, statusFilter, dateRange],
   )
 
   const groupedOrders = useMemo(
@@ -99,12 +105,14 @@ export default function Orders() {
 
   const activeSummaryFilter = getActiveSummaryFilter(statusFilter) ?? SUMMARY_FILTERS.ALL
   const preset = EMPTY_STATE_PRESETS.orders
+  const drawerFilterCount = countOrderDrawerFilters({ statusFilter, dateRange })
   const hasOrders = orders.length > 0
+  const hasCatalogFilters = Boolean(search.trim() || drawerFilterCount > 0)
   const hasApiFilters = hasUserOrderApiFilters(userOrderFilters)
 
   useEffect(() => {
     setPage(1)
-  }, [search, statusFilter, customerId, userOrderFilters])
+  }, [search, statusFilter, dateRange, customerId, userOrderFilters])
 
   useEffect(() => {
     if (isError) {
@@ -124,6 +132,11 @@ export default function Orders() {
 
   const handleStatusFilterChange = (nextFilter) => {
     setStatusFilter(nextFilter)
+  }
+
+  const handleClearDrawerFilters = () => {
+    setStatusFilter(STATUS_FILTERS.ALL)
+    setDateRange(DEFAULT_ORDER_DATE_RANGE)
   }
 
   const handleDeliveryStatusChange = async (order, nextStatus) => {
@@ -233,8 +246,13 @@ export default function Orders() {
                     <OrderCatalogToolbar
                       search={search}
                       onSearchChange={setSearch}
+                      onOpenFilters={() => setFiltersOpen(true)}
+                      activeFilterCount={drawerFilterCount}
                       statusFilter={statusFilter}
                       onStatusFilterChange={handleStatusFilterChange}
+                      dateRange={dateRange}
+                      onDateRangeChange={setDateRange}
+                      onClearFilters={handleClearDrawerFilters}
                     />
                   </div>
 
@@ -243,6 +261,16 @@ export default function Orders() {
                       icon={preset.icon}
                       title={isCustomerOrdersView ? 'No orders from this customer' : preset.title}
                       description={emptyDescription}
+                    />
+                  ) : groupedOrders.length === 0 ? (
+                    <EmptyState
+                      icon={preset.icon}
+                      title="No matching orders"
+                      description={
+                        hasCatalogFilters
+                          ? 'Nothing matched your search, status, or date range. Try adjusting your filters.'
+                          : 'No orders to display.'
+                      }
                     />
                   ) : (
                     <>
@@ -266,6 +294,17 @@ export default function Orders() {
           </>
         )}
       </div>
+
+      <OrderFiltersDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        statusFilter={statusFilter}
+        onStatusFilterChange={handleStatusFilterChange}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        onClearFilters={handleClearDrawerFilters}
+        resultCount={groupedOrders.length}
+      />
 
       <UpdateOrderStatusModal
         open={Boolean(statusTarget)}

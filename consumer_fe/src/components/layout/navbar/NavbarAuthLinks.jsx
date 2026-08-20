@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useDispatch, useSelector } from 'react-redux'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Loader2, LogOut, Package, UserRound } from 'lucide-react'
 import notify from '../../../lib/notify'
 import { useLogoutMutation } from '../../../hooks/useAuthMutations'
@@ -8,7 +9,56 @@ import { logout } from '../../../store/slices/authSlice'
 import { persistor } from '../../../store/store'
 import { clearAuthOtpSession } from '../../../utils/authOtpSession'
 
-export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
+const dropdownEase = [0.16, 1, 0.3, 1]
+
+function AccountDropdownPanel({ open, onClose, onLogout, isLoggingOut }) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 6, scale: 0.98 }}
+          transition={{ duration: 0.2, ease: dropdownEase }}
+          className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-56 origin-top-right rounded-lg border border-slate-200 bg-white py-2 text-slate-700 shadow-xl"
+        >
+          <Link
+            to="/account"
+            onClick={onClose}
+            className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-slate-50"
+          >
+            <UserRound className="size-4 text-auth-primary" />
+            My Account
+          </Link>
+          <Link
+            to="/account/orders"
+            onClick={onClose}
+            className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-slate-50"
+          >
+            <Package className="size-4 text-auth-primary" />
+            My Orders
+          </Link>
+          <button
+            type="button"
+            onClick={onLogout}
+            disabled={isLoggingOut}
+            aria-busy={isLoggingOut}
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-80"
+          >
+            {isLoggingOut ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <LogOut className="size-4" />
+            )}
+            {isLoggingOut ? 'Logging out…' : 'Logout'}
+          </button>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  )
+}
+
+export default function NavbarAuthLinks({ stacked = false, compact = false, onNavigate }) {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const logoutMutation = useLogoutMutation()
@@ -40,6 +90,34 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
   }
 
   if (isAuthenticated) {
+    if (compact) {
+      return (
+        <div className="relative">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={displayName}
+            disabled={isLoggingOut}
+            onClick={() => setOpen((prev) => !prev)}
+            className="inline-flex size-9 items-center justify-center rounded-full bg-white text-auth-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-80"
+          >
+            {isLoggingOut ? (
+              <Loader2 className="size-4.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <UserRound className="size-4.5" />
+            )}
+          </button>
+
+          <AccountDropdownPanel
+            open={open}
+            onClose={() => setOpen(false)}
+            onLogout={handleLogout}
+            isLoggingOut={isLoggingOut}
+          />
+        </div>
+      )
+    }
+
     if (stacked) {
       return (
         <div className="flex flex-col gap-2">
@@ -90,44 +168,29 @@ export default function NavbarAuthLinks({ stacked = false, onNavigate }) {
             <UserRound className="size-4" />
           </span>
           <span className="min-w-0 flex-1 truncate text-left">{displayName}</span>
-          <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`size-3.5 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
 
-        {open ? (
-          <div className="absolute right-0 top-[calc(100%+0.75rem)] w-56 rounded-lg border border-slate-200 bg-white py-2 text-slate-700 shadow-xl">
-            <Link
-              to="/account"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-slate-50"
-            >
-              <UserRound className="size-4 text-auth-primary" />
-              My Account
-            </Link>
-            <Link
-              to="/account/orders"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-slate-50"
-            >
-              <Package className="size-4 text-auth-primary" />
-              My Orders
-            </Link>
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              aria-busy={isLoggingOut}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-80"
-            >
-              {isLoggingOut ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <LogOut className="size-4" />
-              )}
-              {isLoggingOut ? 'Logging out…' : 'Logout'}
-            </button>
-          </div>
-        ) : null}
+        <AccountDropdownPanel
+          open={open}
+          onClose={() => setOpen(false)}
+          onLogout={handleLogout}
+          isLoggingOut={isLoggingOut}
+        />
       </div>
+    )
+  }
+
+  if (compact) {
+    return (
+      <Link
+        to="/login"
+        aria-label="Sign in"
+        onClick={onNavigate}
+        className="inline-flex size-9 items-center justify-center rounded-full bg-white text-auth-primary transition-opacity hover:opacity-90"
+      >
+        <UserRound className="size-4.5" />
+      </Link>
     )
   }
 

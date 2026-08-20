@@ -40,7 +40,7 @@ import {
 } from './categoryLocalAssets'
 
 const brand = {
-  favicon: '/favicon.svg',
+  favicon: '/favicon.png',
   iconsSprite: '/icons.svg',
 }
 

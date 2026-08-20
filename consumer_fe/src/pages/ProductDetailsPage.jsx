@@ -730,7 +730,7 @@ function KeyDetails({ product, activeSku }) {
 
   return (
     <>
-      <section className="relative min-w-0 h-full bg-white p-4 sm:p-6">
+      <section className="relative min-w-0 bg-white p-4 sm:p-6">
         <h2 className="text-base font-bold text-slate-950">Key Details</h2>
         <dl className="mt-3 space-y-2.5 text-sm leading-5 text-slate-700">
           {visibleEntries.map(([key, value]) => (
@@ -760,12 +760,114 @@ function KeyDetails({ product, activeSku }) {
   )
 }
 
+function ReviewsEmptyState({ productName, onWriteReview, fillHeight }) {
+  const prompts = [
+    { label: 'Quality', hint: 'Feel, finish, and how it lasts' },
+    { label: 'Delivery', hint: 'Speed, packing, and condition' },
+    { label: 'Value', hint: 'Whether it earned the price' },
+  ]
+
+  return (
+    <div
+      className={`relative mt-4 flex flex-col overflow-hidden rounded-xl ${
+        fillHeight ? 'min-h-0 flex-1' : 'min-h-80'
+      }`}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-slate-50 via-white to-slate-50" />
+      <div className="pointer-events-none absolute -right-12 -top-16 size-44 rounded-full bg-amber-100/80 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-10 -left-10 size-40 rounded-full bg-red-50 blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-8 top-10 h-px bg-linear-to-r from-transparent via-amber-200/80 to-transparent" />
+
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 text-center sm:px-5">
+        <span className="inline-flex items-stretch overflow-hidden border border-slate-300 text-[0.625rem] leading-none">
+          <span className="bg-slate-950 px-2 py-1.5 font-bold tabular-nums text-white">0</span>
+          <span className="bg-white px-2 py-1.5 font-semibold text-slate-600">reviews so far</span>
+        </span>
+
+        <p className="mt-4 text-5xl font-black tracking-tight text-slate-200 sm:text-6xl">0.0</p>
+        <p className="mt-1 text-[0.625rem] font-semibold uppercase tracking-[0.16em] text-slate-400">
+          Awaiting its first rating
+        </p>
+
+        <div className="mt-4 flex items-center justify-center gap-1" aria-hidden="true">
+          {Array.from({ length: 5 }, (_, index) => (
+            <Star
+              key={index}
+              className="size-7 drop-shadow-sm sm:size-8"
+              fill={STAR_EMPTY_FILL}
+              strokeWidth={0}
+            />
+          ))}
+        </div>
+
+        <h3 className="mt-4 text-sm font-extrabold tracking-tight text-slate-950">
+          Be the first voice on this product
+        </h3>
+        {productName ? (
+          <p className="mt-1 line-clamp-2 max-w-[17rem] text-xs font-semibold text-slate-500">
+            {productName}
+          </p>
+        ) : null}
+        <p className="mt-2 max-w-[19rem] text-[0.6875rem] leading-5 text-slate-500">
+          Shoppers are waiting to hear how it holds up in real life. A clear explanation goes a long way.
+        </p>
+
+        <button
+          type="button"
+          onClick={onWriteReview}
+          className="mt-4 inline-flex items-center justify-center rounded-full bg-auth-primary px-5 py-2.5 text-xs font-bold text-white shadow-[0_10px_20px_-12px_rgba(199,59,45,0.7)] transition hover:bg-auth-primary-hover"
+        >
+          Write the first review
+        </button>
+
+        <div className="mt-5 grid w-full max-w-sm grid-cols-3 gap-2">
+          {prompts.map((prompt) => (
+            <div
+              key={prompt.label}
+              className="rounded-lg border border-slate-200/80 bg-white/90 px-2 py-2.5 shadow-[0_1px_0_rgba(15,23,42,0.03)]"
+            >
+              <p className="text-[0.625rem] font-bold text-slate-800">{prompt.label}</p>
+              <p className="mt-1 text-[0.5rem] leading-3.5 text-slate-500">{prompt.hint}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-auto space-y-2 px-4 pb-4" aria-hidden="true">
+        {[0.5, 0.28, 0.12].map((opacity, index) => (
+          <div
+            key={index}
+            className="flex gap-2.5 rounded-lg border border-slate-100 bg-white/90 px-3 py-2.5"
+            style={{ opacity }}
+          >
+            <span className="size-7 shrink-0 rounded-full bg-linear-to-br from-slate-200 to-slate-100" />
+            <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-20 rounded-full bg-slate-200" />
+                <span className="h-1.5 w-10 rounded-full bg-slate-100" />
+              </div>
+              <span className="flex gap-0.5">
+                {Array.from({ length: 5 }, (_, star) => (
+                  <Star key={star} className="size-2.5" fill={STAR_EMPTY_FILL} strokeWidth={0} />
+                ))}
+              </span>
+              <span className="block h-1.5 w-full rounded-full bg-slate-100" />
+              <span className="block h-1.5 w-2/3 rounded-full bg-slate-100" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ReviewSummary({ product, fillHeight = false }) {
   const navigate = useNavigate()
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const [showAllReviews, setShowAllReviews] = useState(false)
   const reviews = product.reviews ?? []
   const visibleReviews = reviews.slice(0, 3)
+  const hasReviews = product.reviewCount > 0 || reviews.length > 0
 
   const handleWriteReview = () => {
     const destination = '/account/reviews/new'
@@ -783,18 +885,18 @@ function ReviewSummary({ product, fillHeight = false }) {
     >
       <div className="shrink-0" data-review-header>
         <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
-        <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
-        <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
-        <button
-          className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
-          type="button"
-          onClick={handleWriteReview}
-        >
-          Write a customer review
-        </button>
-
-        {product.reviewCount > 0 ? (
+        {hasReviews ? (
           <>
+            <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
+            <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
+            <button
+              className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
+              type="button"
+              onClick={handleWriteReview}
+            >
+              Write a customer review
+            </button>
+
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <span className="text-sm font-extrabold text-slate-950">{product.reviewCount.toLocaleString()} reviews | {product.rating.toFixed(1)}</span>
               <Stars rating={product.rating} size="size-3" />
@@ -814,56 +916,64 @@ function ReviewSummary({ product, fillHeight = false }) {
                 </div>
               ))}
             </div>
-          </>
-        ) : (
-          <p className="mt-4 text-xs text-slate-500">No ratings yet for this product.</p>
-        )}
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          {['Nice', 'Perfect Fitting', 'Comfy'].map((tag) => (
-            <span key={tag} className="rounded-full bg-slate-100 px-3 py-1 text-[0.625rem] font-semibold text-slate-600">
-              {tag}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div
-        data-review-list
-        className={`space-y-3 ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}
-      >
-        {visibleReviews.map((review) => (
-          <article key={review.id} data-review-card className="border-t border-slate-200 pt-3">
-            <div className="flex items-start gap-2">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-pink-600 text-xs font-bold text-white">
-                {review.name.charAt(0)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-xs font-bold text-slate-950">{review.name}</h3>
-                  <span className="text-[0.5625rem] text-slate-500">on {review.date}</span>
-                </div>
-                <Stars rating={review.rating} size="size-3" />
-                <p className="mt-1 wrap-break-word text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
-              </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {['Nice', 'Perfect Fitting', 'Comfy'].map((tag) => (
+                <span key={tag} className="rounded-full bg-slate-100 px-3 py-1 text-[0.625rem] font-semibold text-slate-600">
+                  {tag}
+                </span>
+              ))}
             </div>
-          </article>
-        ))}
+          </>
+        ) : null}
       </div>
 
-      {reviews.length > 3 && (
-        <div
-          data-review-footer
-          className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}
-        >
-          <button
-            type="button"
-            onClick={() => setShowAllReviews(true)}
-            className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
+      {hasReviews ? (
+        <>
+          <div
+            data-review-list
+            className={`space-y-3 ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}
           >
-            See All Reviews
-          </button>
-        </div>
+            {visibleReviews.map((review) => (
+              <article key={review.id} data-review-card className="border-t border-slate-200 pt-3">
+                <div className="flex items-start gap-2">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-pink-600 text-xs font-bold text-white">
+                    {review.name.charAt(0)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-xs font-bold text-slate-950">{review.name}</h3>
+                      <span className="text-[0.5625rem] text-slate-500">on {review.date}</span>
+                    </div>
+                    <Stars rating={review.rating} size="size-3" />
+                    <p className="mt-1 wrap-break-word text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {reviews.length > 3 && (
+            <div
+              data-review-footer
+              className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAllReviews(true)}
+                className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
+              >
+                See All Reviews
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <ReviewsEmptyState
+          productName={product.title ?? product.name}
+          onWriteReview={handleWriteReview}
+          fillHeight={fillHeight}
+        />
       )}
 
       <ProductReviewsModal
@@ -2054,28 +2164,26 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     <SiteLayout>
       <main className="bg-[#f2f2f2] py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
-            <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-              <ProductGallery
-                product={product}
-                activeImage={displayActiveImage}
-                setActiveImage={setActiveImage}
-                onShare={() => shareProduct(product)}
-                onWishlist={handleWishlistToggle}
-                isWishlisted={isWishlisted}
-              />
-            </div>
-
-            <div className="order-3 flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-2 lg:h-full">
-              <div className="min-w-0 lg:flex-1">
-                <KeyDetails product={product} activeSku={activeSku} />
+          <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-start">
+            <div className="contents lg:sticky lg:top-14 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
+              <div className="order-1 min-w-0">
+                <ProductGallery
+                  product={product}
+                  activeImage={displayActiveImage}
+                  setActiveImage={setActiveImage}
+                  onShare={() => shareProduct(product)}
+                  onWishlist={handleWishlistToggle}
+                  isWishlisted={isWishlisted}
+                />
               </div>
-              <div className="mt-auto min-w-0">
+
+              <div className="order-3 flex min-w-0 flex-col gap-4">
+                <KeyDetails product={product} activeSku={activeSku} />
                 <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
               </div>
             </div>
 
-            <div className="order-2 flex min-w-0 flex-col gap-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-full" data-product-sidebar>
+            <div className="order-2 flex min-w-0 flex-col gap-3" data-product-sidebar>
               <ProductInfoPanel
                 product={product}
                 selectedColor={selectedColor}
@@ -2090,9 +2198,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
               />
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <ReviewSummary product={product} fillHeight />
-              </div>
+              <ReviewSummary product={product} />
             </div>
           </section>
 

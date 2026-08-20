@@ -18,7 +18,24 @@ function formatOrderNumber(value) {
   return raw ? raw.toUpperCase() : '—'
 }
 
+function resolveCancelledOrRefundedStatus(record) {
+  const parentOrder = record?.order && typeof record.order === 'object' ? record.order : null
+  const token = normalizeToken(
+    record?.status
+    ?? record?.order_status
+    ?? parentOrder?.status
+    ?? parentOrder?.order_status,
+  )
+
+  if (token === 'cancelled' || token === 'canceled') return 'cancelled'
+  if (token === 'refunded') return 'refunded'
+  return ''
+}
+
 function normalizeOrderStatus(record) {
+  const closed = resolveCancelledOrRefundedStatus(record)
+  if (closed === 'cancelled' || closed === 'refunded') return closed
+
   const orderStatus = normalizeToken(record?.status ?? record?.order_status)
   if (!orderStatus) return 'ordered'
 
@@ -40,6 +57,9 @@ function normalizeOrderStatus(record) {
 }
 
 function normalizeDeliveryStatus(record) {
+  const closed = resolveCancelledOrRefundedStatus(record)
+  if (closed) return closed
+
   const deliveryStatus = normalizeToken(record?.delivery_status)
   if (!deliveryStatus) return 'pending'
 
@@ -344,10 +364,13 @@ function normalizeOrderItem(item, index, orderRecord = null) {
     fulfillmentChannel: firstValue(product?.fulfillment_channel),
     productSlug: firstValue(product?.slug),
     orderStatus: normalizeOrderStatus({
-      status: item?.status ?? item?.order_status ?? item?.item_status ?? orderRecord?.status,
+      status: item?.status ?? item?.order_status ?? item?.item_status ?? orderRecord?.status ?? orderRecord?.order_status,
+      order: orderRecord?.order,
     }),
     deliveryStatus: normalizeDeliveryStatus({
       delivery_status: item?.delivery_status ?? orderRecord?.delivery_status,
+      status: item?.status ?? item?.item_status ?? orderRecord?.status ?? orderRecord?.order_status,
+      order: orderRecord?.order,
     }),
   }
 }
@@ -589,11 +612,13 @@ export function normalizeVendorOrderRecord(record) {
   const totalAmount = (discount > 0 && itemsMoney.paid > 0 && (totalLooksUndiscounted || recordTotal <= 0))
     ? derivedPayable
     : (recordTotal || derivedPayable || itemsTotal)
-  const deliveryStatus = deriveDeliveryStatusFromItems(items, normalizeDeliveryStatus(record))
-  const hasExplicitOrderStatus = Boolean(normalizeToken(record?.status ?? record?.order_status))
-  const orderStatus = hasExplicitOrderStatus
-    ? deriveOrderStatusFromItems(items, normalizeOrderStatus(record))
-    : (ORDER_STATUS_ROLLUP.includes(deliveryStatus) ? deliveryStatus : deriveOrderStatusFromItems(items, normalizeOrderStatus(record)))
+  const closed = resolveCancelledOrRefundedStatus(record)
+  const deliveryStatus = closed || deriveDeliveryStatusFromItems(items, normalizeDeliveryStatus(record))
+  const hasExplicitOrderStatus = Boolean(normalizeToken(record?.status ?? record?.order_status ?? record?.order?.status ?? record?.order?.order_status))
+  const orderStatus = closed
+    || (hasExplicitOrderStatus
+      ? deriveOrderStatusFromItems(items, normalizeOrderStatus(record))
+      : (ORDER_STATUS_ROLLUP.includes(deliveryStatus) ? deliveryStatus : deriveOrderStatusFromItems(items, normalizeOrderStatus(record))))
 
   return {
     id: apiId || orderNumber,
@@ -741,7 +766,10 @@ export function explodeVendorOrdersForCatalog(orders) {
         comparePrice: item.comparePrice ?? order.comparePrice ?? null,
         totalAmount,
         productsCount: quantity,
-        deliveryStatus: item.deliveryStatus || order.deliveryStatus,
+        deliveryStatus:
+          order.deliveryStatus === 'cancelled' || order.deliveryStatus === 'refunded'
+            ? order.deliveryStatus
+            : (item.deliveryStatus || order.deliveryStatus),
         items: [item],
       }
     })

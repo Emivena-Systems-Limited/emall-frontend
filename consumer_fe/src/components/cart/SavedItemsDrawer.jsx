@@ -149,7 +149,7 @@ export function SavedItemsFloatingTrigger({ elevateForMobileBar = false }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 12, scale: 0.94 }}
           transition={{ duration: 0.22, ease: drawerEase }}
-          className={`fixed left-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_10px_28px_-8px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/5 transition-colors hover:border-auth-primary hover:text-auth-primary sm:left-6 ${
+          className={`fixed left-4 z-50 hidden items-center gap-2 rounded-full border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_10px_28px_-8px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/5 transition-colors hover:border-auth-primary hover:text-auth-primary sm:left-6 lg:inline-flex ${
             elevateForMobileBar ? 'bottom-24 lg:bottom-8' : 'bottom-6 lg:bottom-8'
           }`}
         >

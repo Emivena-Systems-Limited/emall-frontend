@@ -29,6 +29,11 @@ export const ORDER_STATUSES = {
     className: 'bg-rose-50 text-rose-800 ring-rose-200/80',
     dot: 'bg-rose-500',
   },
+  cancelled: {
+    label: 'Cancelled',
+    className: 'bg-rose-50 text-rose-800 ring-rose-200/80',
+    dot: 'bg-rose-500',
+  },
 }
 
 export const PAYMENT_STATUSES = {
@@ -93,6 +98,7 @@ export const STATUS_FILTERS = {
   PROCESSING: 'processing',
   SHIPPED: 'shipped',
   DELIVERED: 'delivered',
+  CANCELLED: 'cancelled',
   REFUNDED: 'refunded',
 }
 
@@ -110,8 +116,14 @@ export const STATUS_FILTER_TABS = [
   { key: STATUS_FILTERS.PROCESSING, label: 'Processing' },
   { key: STATUS_FILTERS.SHIPPED, label: 'Shipped' },
   { key: STATUS_FILTERS.DELIVERED, label: 'Delivered' },
+  { key: STATUS_FILTERS.CANCELLED, label: 'Cancelled' },
   { key: STATUS_FILTERS.REFUNDED, label: 'Refunded' },
 ]
+
+export const DEFAULT_ORDER_DATE_RANGE = {
+  startDate: '',
+  endDate: '',
+}
 
 /** Delivery statuses vendors may set via PUT /api/orders/{id}/update/delivery-status */
 export const VENDOR_UPDATABLE_DELIVERY_STATUSES = [
