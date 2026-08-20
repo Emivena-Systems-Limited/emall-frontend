@@ -130,8 +130,9 @@ export const VENDOR_UPDATABLE_DELIVERY_STATUSES = [
   'processing',
   'shipped',
   'delivered',
-  'refunded',
 ]
+
+export const VENDOR_COMING_SOON_DELIVERY_STATUSES = ['refunded']
 
 export const ORDERS_PAGE_SIZE = 10
 

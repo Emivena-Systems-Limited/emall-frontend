@@ -3,16 +3,29 @@ import { createPortal } from 'react-dom'
 import { Loader2 } from 'lucide-react'
 import {
   DELIVERY_STATUSES,
+  VENDOR_COMING_SOON_DELIVERY_STATUSES,
   VENDOR_UPDATABLE_DELIVERY_STATUSES,
 } from '../../constants/orders'
 import DeliveryStatusBadge from './DeliveryStatusBadge'
 
+function isComingSoonStatus(status) {
+  return VENDOR_COMING_SOON_DELIVERY_STATUSES.includes(status)
+}
+
 function getDeliveryStatusOptions(currentStatus) {
   const options = [...VENDOR_UPDATABLE_DELIVERY_STATUSES]
+  VENDOR_COMING_SOON_DELIVERY_STATUSES.forEach((status) => {
+    if (!options.includes(status)) options.push(status)
+  })
   if (currentStatus && !options.includes(currentStatus)) {
     options.unshift(currentStatus)
   }
   return options
+}
+
+function statusOptionLabel(status) {
+  const label = DELIVERY_STATUSES[status]?.label ?? status.replaceAll('_', ' ')
+  return isComingSoonStatus(status) ? `${label} (Coming soon)` : label
 }
 
 export default function UpdateOrderStatusModal({
@@ -103,8 +116,12 @@ export default function UpdateOrderStatusModal({
               className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:cursor-not-allowed disabled:opacity-60"
             >
               {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {DELIVERY_STATUSES[status]?.label ?? status.replaceAll('_', ' ')}
+                <option
+                  key={status}
+                  value={status}
+                  disabled={isComingSoonStatus(status) && status !== currentStatus}
+                >
+                  {statusOptionLabel(status)}
                 </option>
               ))}
             </select>
@@ -123,7 +140,7 @@ export default function UpdateOrderStatusModal({
           <button
             type="button"
             onClick={() => onConfirm(order, selectedStatus)}
-            disabled={isLoading || !hasChange}
+            disabled={isLoading || !hasChange || isComingSoonStatus(selectedStatus)}
             className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading && <Loader2 className="size-4 animate-spin" />}
