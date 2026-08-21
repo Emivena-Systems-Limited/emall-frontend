@@ -128,7 +128,7 @@ function CartItemRow({
           <img
             src={displayImage}
             alt={item.name}
-            className="size-16 rounded-md border border-slate-200 object-cover sm:size-20"
+            className="size-16 rounded-md border border-slate-200 bg-slate-50 object-contain p-0.5 sm:size-20"
           />
         </Link>
         <div className="min-w-0 flex-1 overflow-hidden">

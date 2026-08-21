@@ -1,9 +1,10 @@
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { ChevronRight, Download, Loader2, Minus, Package, Plus, Star } from 'lucide-react'
+import { ChevronRight, Download, Loader2, Package, Star } from 'lucide-react'
 import { formatCediPriceParts } from '../../utils/formatCurrency'
 import {
+  buildBuyAgainCartArgs,
   canReturnOrderItem,
   canReviewOrderItem,
   extractOrderItems,
@@ -22,6 +23,8 @@ import {
 import { notify } from '../../lib/notify'
 import { downloadOrderInvoice } from '../../utils/downloadOrderInvoice'
 import { buildLeaveReviewLink } from '../../utils/reviewRouteState'
+import { useCartActions } from '../../hooks/useCartActions'
+import { hasBackendProductId } from '../../utils/normalizeCart'
 import OrderManagePanel from './OrderManagePanel'
 import OrderTrackingTimeline from './OrderTrackingTimeline'
 
@@ -92,6 +95,9 @@ function OrderTablePrice({ amountGhs, compareAmountGhs, align = 'center' }) {
 }
 
 function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
+  const navigate = useNavigate()
+  const { addToCart } = useCartActions()
+  const [isBuyingAgain, setIsBuyingAgain] = useState(false)
   const image = resolveOrderItemImage(item)
   const variantLabel = resolveOrderItemVariantLabel(item)
   const storeName = resolveOrderItemStoreName(item)
@@ -103,6 +109,28 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
   const canReturn = canReturnOrderItem(item)
   const reviewLink = buildLeaveReviewLink({ item, orderId })
   const returnHref = `/account/returns?product=${encodeURIComponent(productName)}&order=${encodeURIComponent(orderId)}${item.id ? `&item=${encodeURIComponent(item.id)}` : ''}`
+
+  const handleBuyAgain = async () => {
+    if (isBuyingAgain) return
+
+    const cartArgs = buildBuyAgainCartArgs(item)
+    const productId = cartArgs?.options?.productId ?? cartArgs?.product?.backendId
+
+    if (!cartArgs || !hasBackendProductId(productId)) {
+      notify.error('This product cannot be added to cart yet.')
+      return
+    }
+
+    setIsBuyingAgain(true)
+    try {
+      const added = await addToCart(cartArgs.product, cartArgs.options)
+      if (added) {
+        navigate('/cart')
+      }
+    } finally {
+      setIsBuyingAgain(false)
+    }
+  }
 
   return (
     <article className={`grid grid-cols-1 gap-3 border-b border-slate-200 py-5 last:border-b-0 sm:items-center ${tableColumns}`}>
@@ -150,9 +178,14 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
             </div>
           ) : null}
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5 text-xs text-slate-900">
-            <Link to={productHref} className="underline underline-offset-2 hover:text-auth-primary">
-              Buy Again
-            </Link>
+            <button
+              type="button"
+              onClick={handleBuyAgain}
+              disabled={isBuyingAgain}
+              className="underline underline-offset-2 hover:text-auth-primary disabled:cursor-wait disabled:opacity-60"
+            >
+              {isBuyingAgain ? 'Adding…' : 'Buy Again'}
+            </button>
             {canReturn ? (
               <Link to={returnHref} className="underline underline-offset-2 hover:text-auth-primary">
                 Return Item
@@ -178,11 +211,7 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
 
       <div className={`flex items-center justify-between sm:justify-center ${tableCellPadding}`}>
         <span className="text-xs font-semibold text-slate-500 sm:hidden">Quantity</span>
-        <div className="inline-flex items-center gap-3 rounded-full bg-slate-100 px-3 py-1.5">
-          <Minus className="size-3.5 text-slate-500" aria-hidden />
-          <span className="min-w-4 text-center text-sm font-bold tabular-nums text-auth-primary">{Math.max(1, Number(item.quantity) || 1)}</span>
-          <Plus className="size-3.5 text-auth-primary" aria-hidden />
-        </div>
+        <span className="text-sm font-bold tabular-nums text-slate-950">{Math.max(1, Number(item.quantity) || 1)}</span>
       </div>
 
       <div className={`flex items-center justify-between sm:justify-end ${tableCellPadding}`}>

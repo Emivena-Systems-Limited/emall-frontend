@@ -58,6 +58,7 @@ export default function OrderSummaryCards({ summary, activeFilter, onFilterChang
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
       {cards.map(({ key, label, helper, icon: Icon, tone }) => {
         const isActive = activeFilter === key
+        const needsAttention = key === SUMMARY_FILTERS.PENDING && Number(values[key]) > 0
 
         return (
           <button
@@ -65,26 +66,39 @@ export default function OrderSummaryCards({ summary, activeFilter, onFilterChang
             type="button"
             onClick={() => onFilterChange(key)}
             className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
-              isActive
-                ? 'border-brand/30 bg-brand-light/20 shadow-[0_8px_20px_rgba(199,59,45,0.06)] ring-1 ring-brand/20'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+              needsAttention
+                ? 'border-orange-300 bg-orange-50 shadow-[0_8px_22px_rgba(249,115,22,0.12)] ring-1 ring-orange-200 border-l-[5px] border-l-orange-500'
+                : isActive
+                  ? 'border-brand/30 bg-brand-light/20 shadow-[0_8px_20px_rgba(199,59,45,0.06)] ring-1 ring-brand/20'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ${tone}`}>
+              <span
+                className={`relative flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ${
+                  needsAttention ? 'bg-orange-100 text-orange-600 ring-orange-200' : tone
+                }`}
+              >
+                {needsAttention ? (
+                  <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-orange-500 ring-2 ring-white" />
+                ) : null}
                 <Icon className="size-4" strokeWidth={2} />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
-                  <p className="font-sans text-xl font-bold leading-none text-slate-950">{values[key]}</p>
-                  {isActive && (
-                    <span className="rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                      Filtered
+                  <p className={`font-sans text-xl font-bold leading-none ${needsAttention ? 'text-orange-600' : 'text-slate-950'}`}>
+                    {values[key]}
+                  </p>
+                  {needsAttention && !isActive ? (
+                    <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                      Action needed
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <p className="mt-1 truncate text-xs font-semibold text-slate-800">{label}</p>
-                <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-500">{helper}</p>
+                <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-500">
+                  {needsAttention ? 'Handle these first' : helper}
+                </p>
               </div>
             </div>
           </button>

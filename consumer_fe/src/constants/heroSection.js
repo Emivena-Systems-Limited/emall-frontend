@@ -27,8 +27,8 @@ export const authenticatedQuickActions = [
   { id: 'stores', label: 'All Stores', href: '/stores', icon: 'store' },
   { id: 'deals', label: 'Todays Deals', href: '/promotions?filter=todays-deals', icon: 'deals' },
   { id: 'clearance', label: 'Clearance', href: '/promotions?filter=clearance', icon: 'clearance' },
-  { id: 'wishlist', label: 'Wishlist', href: '/wishlist', icon: 'wishlist' },
-  { id: 'orders', label: 'My Orders', href: '/orders', icon: 'orders' },
+  { id: 'wishlist', label: 'Wishlist', href: '/account/wishlist', icon: 'wishlist' },
+  { id: 'orders', label: 'My Orders', href: '/account/orders', icon: 'orders' },
 ]
 
 export const guestQuickActions = [

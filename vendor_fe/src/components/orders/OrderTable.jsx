@@ -27,7 +27,8 @@ function formatOrderDate(value) {
 }
 
 function isPendingDelivery(order) {
-  return (order?.deliveryStatus ?? 'pending') === 'pending'
+  const status = String(order?.deliveryStatus ?? 'pending').trim().toLowerCase().replace(/\s+/g, '_')
+  return status === 'pending' || status === 'pending_delivery' || status === 'ordered'
 }
 
 function ProductNameLink({ order, className }) {
@@ -127,7 +128,7 @@ function OrderMobileCard({ order, onUpdateDeliveryStatus }) {
     <article
       className={`rounded-xl border bg-white p-4 shadow-sm ${
         pending
-          ? 'border-slate-200 border-l-[5px] border-l-brand'
+          ? 'border-slate-200 border-l-[5px] border-l-brand shadow-[inset_5px_0_0_0_var(--color-brand)]'
           : 'border-slate-200'
       }`}
     >
@@ -183,8 +184,12 @@ function OrderRow({ order, onUpdateDeliveryStatus }) {
   const pending = isPendingDelivery(order)
 
   return (
-    <tr className={`text-sm text-slate-700 ${pending ? 'bg-brand-light/25' : ''}`}>
-      <td className={`w-[18rem] max-w-[18rem] overflow-hidden px-5 py-4 ${pending ? 'border-l-[5px] border-brand' : 'border-l-[5px] border-transparent'}`}>
+    <tr className={`text-sm text-slate-700 ${
+      pending ? 'bg-brand-light/25 shadow-[inset_5px_0_0_0_var(--color-brand)]' : ''
+    }`}>
+      <td className={`w-[18rem] max-w-[18rem] overflow-hidden px-5 py-4 ${
+        pending ? 'border-l-[5px] border-l-brand' : 'border-l-[5px] border-l-transparent'
+      }`}>
         <ProductSummary order={order} />
       </td>
       <td className="whitespace-nowrap px-5 py-4">

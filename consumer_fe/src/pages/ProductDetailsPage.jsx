@@ -20,6 +20,7 @@ import KeyDetailsModal from '../components/product/KeyDetailsModal'
 import ProductDetailsSkeleton from '../components/product/ProductDetailsSkeleton'
 import ProductReviewsModal from '../components/product/ProductReviewsModal'
 import ImageLightbox from '../components/shared/ImageLightbox'
+import VendorReviewReply, { normalizeVendorReviewReply } from '../components/shared/VendorReviewReply'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
@@ -190,13 +191,10 @@ function formatStockAvailability(stockCount, lowStockThreshold = 10) {
 }
 
 function ProductGallery({ product, activeImage, setActiveImage, onShare, onWishlist, isWishlisted }) {
-  const images = useMemo(() => {
-    const gallery = (product.gallery ?? []).filter(Boolean)
-    if (activeImage && !gallery.includes(activeImage)) {
-      return [activeImage, ...gallery]
-    }
-    return gallery
-  }, [product.gallery, activeImage])
+  const images = useMemo(
+    () => (product.gallery ?? []).filter(Boolean),
+    [product.gallery],
+  )
 
   return (
     <ProductImageGallery
@@ -229,11 +227,13 @@ function ColorSwatches({ product, selected, onSelect }) {
               isSameVariantOption(selected, color) ? 'border-auth-primary ring-1 ring-auth-primary' : 'border-slate-200'
             }`}
           >
-            <img
-              src={product.colorImages?.[color] ?? product.gallery[(index + 1) % product.gallery.length]}
-              alt=""
-              className="aspect-square w-full object-cover"
-            />
+            <span className="block aspect-square w-full overflow-hidden bg-slate-50">
+              <img
+                src={product.colorImages?.[color] ?? product.gallery[(index + 1) % product.gallery.length]}
+                alt=""
+                className="size-full object-contain"
+              />
+            </span>
             <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{color}</span>
           </button>
         ))}
@@ -288,11 +288,13 @@ function VariantImageGroup({ label, values, images = {}, selected, onSelect, fal
                 : 'border-slate-200'
             }`}
           >
-            <img
-              src={images[value] ?? fallbackGallery[(index + 1) % fallbackGallery.length]}
-              alt=""
-              className="aspect-square w-full object-cover"
-            />
+            <span className="block aspect-square w-full overflow-hidden bg-slate-50">
+              <img
+                src={images[value] ?? fallbackGallery[(index + 1) % fallbackGallery.length]}
+                alt=""
+                className="size-full object-contain"
+              />
+            </span>
             <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{value}</span>
           </button>
         ))}
@@ -354,11 +356,87 @@ async function shareProduct(product) {
   }
 }
 
-const fallbackRatingDistribution = [
-  { label: 'Small', value: 7 },
-  { label: 'True to size', value: 88 },
-  { label: 'Large', value: 4 },
+const STAR_DISTRIBUTION_ROWS = [
+  { stars: 5, label: '5 stars' },
+  { stars: 4, label: '4 stars' },
+  { stars: 3, label: '3 stars' },
 ]
+
+function parseStarPercents(distribution) {
+  if (!distribution || typeof distribution !== 'object') return null
+
+  const pick = (stars) => {
+    if (Array.isArray(distribution)) {
+      const row = distribution.find((item) => {
+        if (!item || typeof item !== 'object') return false
+        const value = toNumber(item.stars ?? item.star ?? item.rating, Number.NaN)
+        const label = String(item.label ?? item.name ?? '').toLowerCase()
+        return value === stars || label.includes(`${stars} star`) || label === String(stars)
+      })
+      if (!row) return null
+      if (row.percentage != null || row.percent != null) return toNumber(row.percentage ?? row.percent, 0)
+      if (row.value != null) return toNumber(row.value, 0)
+      return null
+    }
+
+    const nested = distribution[stars] ?? distribution[String(stars)]
+    if (nested && typeof nested === 'object') {
+      const value = toNumber(nested.percentage ?? nested.percent ?? nested.value, Number.NaN)
+      return Number.isFinite(value) ? value : null
+    }
+
+    const word = stars === 5 ? 'five' : stars === 4 ? 'four' : 'three'
+    const keys = [
+      `${stars}_star`,
+      `${stars}_stars`,
+      `${stars}_star_percent`,
+      `${stars}_percent`,
+      `star_${stars}`,
+      `stars_${stars}`,
+      word,
+      `${word}_star`,
+      `${word}_stars`,
+    ]
+
+    for (const key of keys) {
+      if (distribution[key] != null && typeof distribution[key] !== 'object') {
+        return toNumber(distribution[key], 0)
+      }
+    }
+
+    if (typeof nested === 'number' || typeof nested === 'string') return toNumber(nested, 0)
+    return null
+  }
+
+  const five = pick(5)
+  const four = pick(4)
+  const three = pick(3)
+  if (five == null && four == null && three == null) return null
+
+  return {
+    5: Math.min(100, Math.max(0, five ?? 0)),
+    4: Math.min(100, Math.max(0, four ?? 0)),
+    3: Math.min(100, Math.max(0, three ?? 0)),
+  }
+}
+
+function buildStarRatingDistribution(reviews, distribution) {
+  const list = Array.isArray(reviews) ? reviews : []
+  const total = list.length
+
+  if (total > 0) {
+    return STAR_DISTRIBUTION_ROWS.map(({ stars, label }) => {
+      const count = list.filter((review) => Math.round(toNumber(review.rating, 0)) === stars).length
+      return { label, value: Math.round((count / total) * 100) }
+    })
+  }
+
+  const apiPercents = parseStarPercents(distribution)
+  return STAR_DISTRIBUTION_ROWS.map(({ stars, label }) => ({
+    label,
+    value: apiPercents ? apiPercents[stars] : 0,
+  }))
+}
 
 function ProductInfoPanel({
   product,
@@ -797,6 +875,63 @@ function KeyDetails({ product, activeSku }) {
   )
 }
 
+function ReviewGhostCard({ opacity = 1 }) {
+  return (
+    <div
+      className="flex gap-2.5 rounded-lg border border-slate-100 bg-white/90 px-3 py-2.5"
+      style={{ opacity }}
+      aria-hidden="true"
+    >
+      <span className="size-7 shrink-0 rounded-full bg-linear-to-br from-slate-200 to-slate-100" />
+      <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-20 rounded-full bg-slate-200" />
+          <span className="h-1.5 w-10 rounded-full bg-slate-100" />
+        </div>
+        <span className="flex gap-0.5">
+          {Array.from({ length: 5 }, (_, star) => (
+            <Star key={star} className="size-2.5" fill={STAR_EMPTY_FILL} strokeWidth={0} />
+          ))}
+        </span>
+        <span className="block h-1.5 w-full rounded-full bg-slate-100" />
+        <span className="block h-1.5 w-2/3 rounded-full bg-slate-100" />
+      </div>
+    </div>
+  )
+}
+
+function ReviewGhostList({ count = 3, className = '', fade = false }) {
+  return (
+    <div className={`space-y-2 ${className}`} aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <ReviewGhostCard
+          key={index}
+          opacity={fade ? Math.max(0.12, 0.5 - index * 0.16) : 1}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ReviewGhostFiller() {
+  return (
+    <div
+      className="relative mt-4 hidden min-h-0 flex-1 overflow-hidden lg:block"
+      aria-hidden="true"
+      style={{
+        WebkitMaskImage: 'linear-gradient(to bottom, #000 50%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, #000 50%, transparent 100%)',
+      }}
+    >
+      <div className="absolute inset-x-0 top-0 space-y-2">
+        {Array.from({ length: 24 }, (_, index) => (
+          <ReviewGhostCard key={index} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ReviewsEmptyState({ productName, onWriteReview, fillHeight }) {
   const prompts = [
     { label: 'Quality', hint: 'Feel, finish, and how it lasts' },
@@ -807,7 +942,7 @@ function ReviewsEmptyState({ productName, onWriteReview, fillHeight }) {
   return (
     <div
       className={`relative mt-4 flex flex-col overflow-hidden rounded-xl ${
-        fillHeight ? 'min-h-0 flex-1' : 'min-h-80'
+        fillHeight ? 'min-h-80 lg:min-h-0 lg:flex-1' : 'min-h-80'
       }`}
     >
       <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-slate-50 via-white to-slate-50" />
@@ -870,30 +1005,7 @@ function ReviewsEmptyState({ productName, onWriteReview, fillHeight }) {
         </div>
       </div>
 
-      <div className="relative z-10 mt-auto space-y-2 px-4 pb-4" aria-hidden="true">
-        {[0.5, 0.28, 0.12].map((opacity, index) => (
-          <div
-            key={index}
-            className="flex gap-2.5 rounded-lg border border-slate-100 bg-white/90 px-3 py-2.5"
-            style={{ opacity }}
-          >
-            <span className="size-7 shrink-0 rounded-full bg-linear-to-br from-slate-200 to-slate-100" />
-            <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-20 rounded-full bg-slate-200" />
-                <span className="h-1.5 w-10 rounded-full bg-slate-100" />
-              </div>
-              <span className="flex gap-0.5">
-                {Array.from({ length: 5 }, (_, star) => (
-                  <Star key={star} className="size-2.5" fill={STAR_EMPTY_FILL} strokeWidth={0} />
-                ))}
-              </span>
-              <span className="block h-1.5 w-full rounded-full bg-slate-100" />
-              <span className="block h-1.5 w-2/3 rounded-full bg-slate-100" />
-            </div>
-          </div>
-        ))}
-      </div>
+      <ReviewGhostList fade count={3} className="relative z-10 mt-auto px-4 pb-4" />
     </div>
   )
 }
@@ -918,7 +1030,7 @@ function ReviewSummary({ product, fillHeight = false }) {
   return (
     <section
       id="reviews"
-      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-70 flex-1 flex-col' : ''}`}
+      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-0 flex-col lg:h-full lg:flex-1' : ''}`}
     >
       <div className="shrink-0" data-review-header>
         <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
@@ -944,12 +1056,12 @@ function ReviewSummary({ product, fillHeight = false }) {
 
             <div className="mt-5 space-y-2">
               {product.ratingDistribution.map((row) => (
-                <div key={row.label} className="grid grid-cols-[4.5rem_1fr_2rem] items-center gap-3 text-[0.625rem] text-slate-600">
+                <div key={row.label} className="grid grid-cols-[3.75rem_1fr_2.25rem] items-center gap-3 text-[0.625rem] text-slate-600">
                   <span className="truncate">{row.label}</span>
                   <span className="h-1.5 overflow-hidden rounded-full bg-slate-200">
                     <span className="block h-full rounded-full bg-slate-950" style={{ width: `${row.value}%` }} />
                   </span>
-                  <span className="text-right">{row.value}%</span>
+                  <span className="text-right tabular-nums">{row.value}%</span>
                 </div>
               ))}
             </div>
@@ -967,10 +1079,7 @@ function ReviewSummary({ product, fillHeight = false }) {
 
       {hasReviews ? (
         <>
-          <div
-            data-review-list
-            className={`space-y-3 ${fillHeight ? 'mt-4 min-h-0 flex-1' : 'mt-4'}`}
-          >
+          <div data-review-list className="mt-4 space-y-3">
             {visibleReviews.map((review) => (
               <article key={review.id} data-review-card className="border-t border-slate-200 pt-3">
                 <div className="flex items-start gap-2">
@@ -984,6 +1093,11 @@ function ReviewSummary({ product, fillHeight = false }) {
                     </div>
                     <Stars rating={review.rating} size="size-3" />
                     <p className="mt-1 wrap-break-word text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
+                    <VendorReviewReply
+                      reply={review.vendorReply}
+                      compact
+                      vendorName={product.storeName}
+                    />
                   </div>
                 </div>
               </article>
@@ -991,10 +1105,7 @@ function ReviewSummary({ product, fillHeight = false }) {
           </div>
 
           {reviews.length > 3 && (
-            <div
-              data-review-footer
-              className={`text-center ${fillHeight ? 'mt-auto shrink-0 pt-4' : 'mt-5'}`}
-            >
+            <div data-review-footer className="mt-5 shrink-0 text-center">
               <button
                 type="button"
                 onClick={() => setShowAllReviews(true)}
@@ -1004,6 +1115,8 @@ function ReviewSummary({ product, fillHeight = false }) {
               </button>
             </div>
           )}
+
+          {fillHeight ? <ReviewGhostFiller /> : null}
         </>
       ) : (
         <ReviewsEmptyState
@@ -1016,6 +1129,7 @@ function ReviewSummary({ product, fillHeight = false }) {
       <ProductReviewsModal
         open={showAllReviews}
         productName={product.title ?? product.name}
+        vendorName={product.storeName}
         reviews={reviews}
         averageRating={product.rating}
         onClose={() => setShowAllReviews(false)}
@@ -1591,6 +1705,7 @@ function normalizeProductReviews(apiProduct) {
     images: toArray(review.media ?? review.review_media ?? review.attachments ?? review.images)
       .map((media) => media?.url ?? media?.image_url ?? media?.file_url ?? media?.path)
       .filter(Boolean),
+    vendorReply: normalizeVendorReviewReply(review),
   }))
 
   return reviews
@@ -1642,12 +1757,14 @@ function normalizeApiProductDetails(apiProduct) {
   const colorImages = {}
   const colors = []
   const otherVariantGroups = {}
+  const variantImageUrls = new Set()
 
   variants.forEach((variant) => {
     const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
     const normalizedKey = String(attributeKey ?? '').trim().toLowerCase()
     const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
     const varImage = resolveVariantImageUrl(variant)
+    if (varImage) variantImageUrls.add(varImage)
 
     if ((normalizedKey === 'color' || normalizedKey === 'colour') && valueText) {
       if (!colors.includes(valueText)) colors.push(valueText)
@@ -1679,11 +1796,13 @@ function normalizeApiProductDetails(apiProduct) {
     }
   })
 
-  variants.forEach((variant) => {
-    const url = resolveVariantImageUrl(variant)
-    if (url) galleryUrls.push(url)
-  })
-  const uniqueGallery = [...new Set(galleryUrls)].slice(0, MAX_GALLERY_IMAGES)
+  // Thumbnail carousel uses product images only — variant shots stay on the main viewer.
+  let uniqueGallery = [...new Set(galleryUrls)]
+    .filter((url) => !variantImageUrls.has(url))
+    .slice(0, MAX_GALLERY_IMAGES)
+  if (uniqueGallery.length === 0 && core.image) {
+    uniqueGallery = [core.image]
+  }
 
   const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, group]) => ({
     key,
@@ -1767,11 +1886,10 @@ function normalizeApiProductDetails(apiProduct) {
       Condition: condition || 'Not specified',
       Category: categoryName,
     },
-    ratingDistribution: [
-      { label: 'Small', value: toNumber(apiProduct.rating_small, fallbackRatingDistribution[0].value) },
-      { label: 'True to size', value: toNumber(apiProduct.rating_true_to_size, fallbackRatingDistribution[1].value) },
-      { label: 'Large', value: toNumber(apiProduct.rating_large, fallbackRatingDistribution[2].value) },
-    ],
+    ratingDistribution: buildStarRatingDistribution(
+      reviews,
+      apiProduct.rating_distribution ?? apiProduct.ratingDistribution,
+    ),
     rating,
     reviewCount,
     reviews,
@@ -2008,6 +2126,8 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const [localWishlisted, setLocalWishlisted] = useState(false)
+  const [localWishlistItemId, setLocalWishlistItemId] = useState('')
+  const [isTogglingWishlist, setIsTogglingWishlist] = useState(false)
 
   const { data: wishlistItems = [] } = useQuery({
     queryKey: ['user-wishlist'],
@@ -2029,16 +2149,42 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     }) ?? null
   }, [wishlistItems, apiProduct, product])
 
+  const wishlistEntryId = String(
+    currentWishlistItem?.id
+    ?? currentWishlistItem?.wishlist_id
+    ?? currentWishlistItem?.wishlist_item_id
+    ?? localWishlistItemId
+    ?? '',
+  ).trim()
+
   const isWishlisted = Boolean(currentWishlistItem || localWishlisted)
 
   const handleWishlistToggle = async () => {
-    if (isWishlisted) {
-      notify.info('Item already in wishlist')
+    if (isTogglingWishlist) return
+
+    if (!isAuthenticated) {
+      notify.error('Please sign in to manage your wishlist')
       return
     }
 
-    if (!isAuthenticated) {
-      notify.error('Please sign in to add items to your wishlist')
+    if (isWishlisted) {
+      if (!wishlistEntryId) {
+        notify.error('Unable to remove this item from your wishlist')
+        return
+      }
+
+      setIsTogglingWishlist(true)
+      try {
+        await removeFromWishlist(wishlistEntryId)
+        setLocalWishlisted(false)
+        setLocalWishlistItemId('')
+        await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
+        notify.success('Removed from wishlist')
+      } catch (err) {
+        notify.fromError(err, 'Failed to remove item from wishlist')
+      } finally {
+        setIsTogglingWishlist(false)
+      }
       return
     }
 
@@ -2048,8 +2194,13 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
       product_variant_id: activeVariant?.id ? String(activeVariant.id).trim() : null,
     }
 
+    setIsTogglingWishlist(true)
     try {
-      await addToWishlist(payload)
+      const result = await addToWishlist(payload)
+      const addedId = String(
+        result?.id ?? result?.wishlist_id ?? result?.wishlist_item_id ?? result?.data?.id ?? '',
+      ).trim()
+      setLocalWishlistItemId(addedId)
       setLocalWishlisted(true)
       await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
       notify.success('Added to wishlist')
@@ -2061,6 +2212,8 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
           err?.response?.data ? JSON.stringify(err.response.data) : err?.message || err,
         )
       }
+    } finally {
+      setIsTogglingWishlist(false)
     }
   }
 
@@ -2206,7 +2359,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     <SiteLayout>
       <main className="bg-[#f2f2f2] py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
-          <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-start">
+          <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
             <div className="contents lg:sticky lg:top-14 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
               <div className="order-1 min-w-0">
                 <ProductGallery
@@ -2225,7 +2378,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
               </div>
             </div>
 
-            <div className="order-2 flex min-w-0 flex-col gap-3" data-product-sidebar>
+            <div className="order-2 flex h-full min-w-0 flex-col gap-3" data-product-sidebar>
               <ProductInfoPanel
                 product={product}
                 selectedColor={selectedColor}
@@ -2240,7 +2393,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
               />
-              <ReviewSummary product={product} />
+              <ReviewSummary product={product} fillHeight />
             </div>
           </section>
 

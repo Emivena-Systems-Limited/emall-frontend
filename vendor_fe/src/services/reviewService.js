@@ -4,6 +4,7 @@ import {
   EMPTY_REVIEWS_SUMMARY,
   EMPTY_REVIEWS_SUMMARY_PREVIOUS,
   REVIEW_ENDPOINTS,
+  REVIEWS_CATALOG_PAGE_SIZE,
 } from '../constants/reviews'
 import {
   buildReviewsQueryParams,
@@ -37,6 +38,34 @@ export async function getVendorReviews(filters = {}) {
   return normalized
 }
 
+const MAX_REVIEW_CATALOG_PAGES = 30
+
+export async function getAllVendorReviews() {
+  const firstPage = await getVendorReviews({
+    page: 1,
+    perPage: REVIEWS_CATALOG_PAGE_SIZE,
+  })
+  const items = [...firstPage.items]
+  const lastPage = Math.min(Math.max(1, firstPage.totalPages || 1), MAX_REVIEW_CATALOG_PAGES)
+
+  if (lastPage <= 1) return items
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: lastPage - 1 }, (_, index) =>
+      getVendorReviews({
+        page: index + 2,
+        perPage: REVIEWS_CATALOG_PAGE_SIZE,
+      }),
+    ),
+  )
+
+  remainingPages.forEach((page) => {
+    items.push(...page.items)
+  })
+
+  return items
+}
+
 export async function getVendorReviewsSummary() {
   const { data } = await apiClient.get(REVIEW_ENDPOINTS.SUMMARY)
   assertApiSuccess(data)
@@ -58,7 +87,7 @@ export async function getVendorReviewsSummary() {
   return normalized
 }
 
-export async function replyToVendorReview(review, text) {
+export async function replyToVendorReview(review, text, { isEdit = false } = {}) {
   const source = review && typeof review === 'object' ? review : { review_id: review }
   const id = String(source.review_id ?? source.reviewId ?? source.id ?? '').trim()
   const bodyText = String(text ?? '').trim()
@@ -79,7 +108,7 @@ export async function replyToVendorReview(review, text) {
   assertApiSuccess(data)
 
   if (import.meta.env.DEV) {
-    console.info('[reviews] POST', endpoint, body, data)
+    console.info('[reviews]', isEdit ? 'POST (edit reply)' : 'POST', endpoint, body, data)
   }
 
   const payload = extractVendorReplyPayload(data)

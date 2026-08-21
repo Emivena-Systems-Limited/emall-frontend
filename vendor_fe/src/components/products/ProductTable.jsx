@@ -37,11 +37,13 @@ function ProductStatusBadge({ status }) {
 function ProductThumbnail({ product }) {
   if (product.image) {
     return (
-      <img
-        src={product.image}
-        alt={product.name}
-        className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-      />
+      <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-0.5 ring-1 ring-slate-200">
+        <img
+          src={product.image}
+          alt={product.name}
+          className="size-full object-contain"
+        />
+      </span>
     )
   }
 

@@ -1,4 +1,7 @@
 export const REVIEWS_PAGE_SIZE = 8
+export const INSIGHTS_PAGE_SIZE = 3
+export const REVIEWED_PRODUCTS_PAGE_SIZE = 8
+export const REVIEWS_CATALOG_PAGE_SIZE = 100
 
 export const REVIEW_ENDPOINTS = {
   LIST: '/api/review/product/vendor',

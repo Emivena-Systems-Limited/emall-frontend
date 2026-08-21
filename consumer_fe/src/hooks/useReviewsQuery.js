@@ -49,7 +49,10 @@ export function useReviewQuery(reviewId, options = {}) {
 export function useReviewMutations({ onSaved, onDeleted } = {}) {
   const queryClient = useQueryClient()
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['user-reviews'] })
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['user-reviews'] }),
+    queryClient.invalidateQueries({ queryKey: ['eligible-review-items'] }),
+  ])
 
   const createMutation = useMutation({
     mutationFn: ({ payload, files = [] }) => createReview(payload, files),

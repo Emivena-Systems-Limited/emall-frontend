@@ -124,9 +124,9 @@ function buildDetails(product, index) {
       'Other Spec': 'Lorem Ipsum sit d',
     },
     ratingDistribution: [
-      { label: 'Small', value: 7 },
-      { label: 'True to size', value: 88 },
-      { label: 'Large', value: 4 },
+      { label: '5 stars', value: 75 },
+      { label: '4 stars', value: 25 },
+      { label: '3 stars', value: 0 },
     ],
     reviews: reviewCards,
   }

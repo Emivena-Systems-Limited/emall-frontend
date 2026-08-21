@@ -68,11 +68,45 @@ export async function getUserReviews() {
   }))
 }
 
+function asEligibleItemList(value) {
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+      .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+  }
+
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value)
+    const looksLikeList = keys.length > 0 && keys.every((key) => /^\d+$/.test(key))
+    if (looksLikeList) return asEligibleItemList(Object.values(value))
+  }
+
+  return []
+}
+
+export function normalizeEligibleReviewItems(data) {
+  const payload = unwrap(data)
+  const direct = asEligibleItemList(payload)
+  if (direct.length) return direct
+
+  for (const candidate of [
+    payload?.eligible_items,
+    payload?.order_items,
+    payload?.items,
+    payload?.data,
+  ]) {
+    const items = asEligibleItemList(candidate)
+    if (items.length) return items
+  }
+
+  return []
+}
+
 export async function getEligibleReviewItems() {
   const { data } = await apiClient.get(REVIEWS_ENDPOINTS.ELIGIBLE_ITEMS, {
     skipAuthLogout: true,
   })
-  return normalizeList(data, ['eligible_items', 'order_items'])
+  return normalizeEligibleReviewItems(data)
 }
 
 export async function getProductReviews(productId) {

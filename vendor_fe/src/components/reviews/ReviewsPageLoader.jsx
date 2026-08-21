@@ -79,10 +79,14 @@ function ProductInsightsSkeleton() {
               <SkeletonBlock className="size-7 rounded-lg" />
               <SkeletonBlock className="h-3.5 w-24" />
             </div>
-            <div className="space-y-2">
+            <div className="grid min-h-[15.25rem] grid-rows-3 gap-2">
               {Array.from({ length: 3 }, (_, index) => (
                 <InsightRowSkeleton key={index} />
               ))}
+            </div>
+            <div className="mt-3 flex min-h-9 items-center justify-between border-t border-slate-200/80 pt-2.5">
+              <SkeletonBlock className="h-2.5 w-16" />
+              <SkeletonBlock className="h-7 w-20 rounded-lg" />
             </div>
           </div>
         ))}

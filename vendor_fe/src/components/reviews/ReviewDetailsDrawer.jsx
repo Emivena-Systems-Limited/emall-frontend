@@ -22,6 +22,7 @@ export default function ReviewDetailsDrawer({
   onClose,
   onSaveReply,
   startEditing = false,
+  productHref,
 }) {
   const [replyText, setReplyText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -133,7 +134,7 @@ export default function ReviewDetailsDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           {review.productId ? (
             <Link
-              to={`/products/${review.productId}/view`}
+              to={productHref || `/products/${review.productId}/view`}
               className="flex cursor-pointer items-center gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-100 transition-colors hover:bg-slate-100"
             >
               <ReviewProductImage src={review.productImage} className="size-12" />

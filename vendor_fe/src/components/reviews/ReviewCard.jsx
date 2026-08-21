@@ -7,11 +7,13 @@ import StarRating from './StarRating'
 export function ReviewProductImage({ src, className = 'size-16' }) {
   if (src) {
     return (
-      <img
-        src={src}
-        alt=""
-        className={`${className} rounded-xl object-cover ring-1 ring-slate-200`}
-      />
+      <span className={`flex ${className} shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-0.5 ring-1 ring-slate-200`}>
+        <img
+          src={src}
+          alt=""
+          className="size-full object-contain"
+        />
+      </span>
     )
   }
 
@@ -87,7 +89,7 @@ function VendorReplyPreview({ review, onEdit, canEdit }) {
   )
 }
 
-export default function ReviewCard({ review, onView, onReply }) {
+export default function ReviewCard({ review, onView, onReply, showProductLink = true }) {
   const needsReply = !review.vendorReply
   const hasRating = Number.isFinite(review.rating)
   const { canEdit, remainingCompact } = useReplyEditWindow(review)
@@ -95,7 +97,7 @@ export default function ReviewCard({ review, onView, onReply }) {
   return (
     <article className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:border-slate-300 hover:shadow-[0_16px_45px_rgba(15,23,42,0.06)] sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        {review.productId ? (
+        {showProductLink && review.productId ? (
           <Link
             to={`/products/${review.productId}/view`}
             className="shrink-0 cursor-pointer"
@@ -147,7 +149,7 @@ export default function ReviewCard({ review, onView, onReply }) {
             )}
           </div>
 
-          {review.productId ? (
+          {showProductLink && review.productId ? (
             <Link
               to={`/products/${review.productId}/view`}
               className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"

@@ -268,7 +268,11 @@ export default function Reviews() {
     }
 
     try {
-      const updated = await replyMutation.mutateAsync({ review: currentReview, text })
+      const updated = await replyMutation.mutateAsync({
+        review: currentReview,
+        text,
+        isEdit,
+      })
       const now = new Date().toISOString()
       const postedAt = rememberVendorReplyPostedAt(
         reviewId,

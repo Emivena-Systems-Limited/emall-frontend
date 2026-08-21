@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  getAllVendorReviews,
   getVendorReviews,
   getVendorReviewsSummary,
   replyToVendorReview,
@@ -10,6 +11,7 @@ const STALE_TIME = 60 * 1000
 export const reviewQueryKeys = {
   all: ['vendor-reviews'],
   list: (filters = {}) => [...reviewQueryKeys.all, 'list', filters],
+  catalog: () => [...reviewQueryKeys.all, 'catalog'],
   summary: () => [...reviewQueryKeys.all, 'summary'],
 }
 
@@ -34,6 +36,15 @@ export function useVendorReviews(filters = {}, { enabled = true } = {}) {
   })
 }
 
+export function useAllVendorReviews({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: reviewQueryKeys.catalog(),
+    queryFn: getAllVendorReviews,
+    enabled,
+    staleTime: STALE_TIME,
+  })
+}
+
 export function useVendorReviewsSummary({ enabled = true } = {}) {
   return useQuery({
     queryKey: reviewQueryKeys.summary(),
@@ -47,7 +58,8 @@ export function useReplyToVendorReviewMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ review, text }) => replyToVendorReview(review, text),
+    mutationFn: ({ review, text, isEdit = false }) =>
+      replyToVendorReview(review, text, { isEdit }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reviewQueryKeys.all })
     },

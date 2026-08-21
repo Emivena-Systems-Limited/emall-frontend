@@ -67,6 +67,26 @@ export function formatShortReviewDate(value) {
   })
 }
 
+export function formatRelativeReviewTime(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const diffMs = Date.now() - date.getTime()
+  if (diffMs < 0) return formatShortReviewDate(value)
+
+  const minutes = Math.round(diffMs / 60_000)
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+
+  const days = Math.round(hours / 24)
+  if (days < 7) return `${days}d ago`
+
+  return formatShortReviewDate(value)
+}
+
 export function getCustomerInitials(name) {
   return String(name ?? '')
     .split(' ')
@@ -286,44 +306,84 @@ export function computeTrendPercent(current, previous) {
   }
 }
 
-export function getProductInsights(reviews) {
+export function getReviewedProducts(reviews = []) {
   const map = new Map()
 
   for (const review of reviews) {
-    if (!map.has(review.productId)) {
-      map.set(review.productId, {
-        productId: review.productId,
-        productName: review.productName,
-        productImage: review.productImage,
+    const productId = String(review?.productId ?? '').trim()
+    if (!productId) continue
+
+    if (!map.has(productId)) {
+      map.set(productId, {
+        productId,
+        productName: review.productName || 'Product',
+        productImage: review.productImage || '',
         ratings: [],
         reviewCount: 0,
         pendingReplies: 0,
+        lastReviewedAt: '',
+        lastRating: null,
+        lastUnrepliedAt: '',
+        lastUnrepliedRating: null,
       })
     }
-    const entry = map.get(review.productId)
+
+    const entry = map.get(productId)
     entry.reviewCount += 1
     if (Number.isFinite(review.rating)) entry.ratings.push(review.rating)
-    if (!review.vendorReply) entry.pendingReplies += 1
+    if (!entry.productImage && review.productImage) entry.productImage = review.productImage
+    if (review.productName) entry.productName = review.productName
+
+    const reviewedAt = Date.parse(review.date)
+    const previousAt = Date.parse(entry.lastReviewedAt)
+    if (Number.isFinite(reviewedAt) && (!Number.isFinite(previousAt) || reviewedAt >= previousAt)) {
+      entry.lastReviewedAt = review.date
+      entry.lastRating = Number.isFinite(review.rating) ? review.rating : entry.lastRating
+    }
+
+    if (!review.vendorReply) {
+      entry.pendingReplies += 1
+      const previousUnrepliedAt = Date.parse(entry.lastUnrepliedAt)
+      if (Number.isFinite(reviewedAt) && (!Number.isFinite(previousUnrepliedAt) || reviewedAt >= previousUnrepliedAt)) {
+        entry.lastUnrepliedAt = review.date
+        entry.lastUnrepliedRating = Number.isFinite(review.rating) ? review.rating : entry.lastUnrepliedRating
+      }
+    }
   }
 
-  const products = Array.from(map.values()).map((entry) => ({
-    ...entry,
-    averageRating: entry.ratings.length
-      ? entry.ratings.reduce((a, b) => a + b, 0) / entry.ratings.length
-      : 0,
-  }))
+  return Array.from(map.values()).map((entry) => {
+    const averageRating = entry.ratings.length
+      ? entry.ratings.reduce((sum, rating) => sum + rating, 0) / entry.ratings.length
+      : 0
+
+    return {
+      ...entry,
+      averageRating,
+      needsAttention: averageRating < 4 || entry.pendingReplies > 0,
+    }
+  })
+}
+
+export function getProductInsights(reviews) {
+  const products = getReviewedProducts(reviews)
 
   const topRated = [...products]
-    .filter((p) => p.reviewCount >= 1)
+    .filter((product) => product.reviewCount >= 1)
     .sort((a, b) => b.averageRating - a.averageRating || b.reviewCount - a.reviewCount)
-    .slice(0, 3)
 
   const needsAttention = [...products]
-    .filter((p) => p.averageRating < 4 || p.pendingReplies > 0)
+    .filter((product) => product.averageRating < 4 || product.pendingReplies > 0)
     .sort((a, b) => a.averageRating - b.averageRating || b.pendingReplies - a.pendingReplies)
-    .slice(0, 3)
 
-  return { topRated, needsAttention }
+  const recentlyReviewed = [...products]
+    .filter((product) => product.pendingReplies > 0)
+    .sort((a, b) => {
+      const next = Date.parse(b.lastUnrepliedAt) - Date.parse(a.lastUnrepliedAt)
+      if (next !== 0) return next
+      return b.pendingReplies - a.pendingReplies
+    })
+
+  return { topRated, needsAttention, recentlyReviewed }
 }
 
 export function getUniqueProducts(reviews) {

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Image as ImageIcon, ShieldCheck, Star, X } from 'lucide-react'
 import { resolveBackendMediaUrl } from '../../utils/resolveBackendMediaUrl'
+import VendorReviewReply from '../shared/VendorReviewReply'
 
 function RatingStars({ rating }) {
   return (
@@ -16,7 +17,7 @@ function RatingStars({ rating }) {
   )
 }
 
-export default function ProductReviewsModal({ open, productName, reviews, averageRating, onClose }) {
+export default function ProductReviewsModal({ open, productName, vendorName, reviews, averageRating, onClose }) {
   useEffect(() => {
     if (!open) return undefined
     const previousOverflow = document.body.style.overflow
@@ -74,6 +75,7 @@ export default function ProductReviewsModal({ open, productName, reviews, averag
                   </div>
                   {review.title && <h4 className="mt-3 font-bold text-slate-900">{review.title}</h4>}
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{review.text}</p>
+                  <VendorReviewReply reply={review.vendorReply} vendorName={vendorName} />
                   {review.images?.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2" aria-label="Review images">
                       {review.images.map((image, imageIndex) => (

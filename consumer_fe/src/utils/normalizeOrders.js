@@ -149,14 +149,32 @@ function emptyFulfillmentCounts() {
   }
 }
 
-function buildFulfillmentSummary(counts, total, token) {
-  const itemWord = total === 1 ? 'item' : 'items'
+const DELIVERY_PROGRESS_RANK = {
+  pending: 0,
+  processing: 1,
+  shipped: 2,
+  delivered: 3,
+}
 
-  if (token === 'partially_delivered') {
+function toProgressToken(token) {
+  if (token === 'partially_delivered' || token === 'partially_shipped') return 'pending'
+  if (token in DELIVERY_PROGRESS_RANK) return token
+  return 'pending'
+}
+
+function buildFulfillmentSummary(counts, total) {
+  const itemWord = total === 1 ? 'item' : 'items'
+  const closed = (counts.cancelled ?? 0) + (counts.refunded ?? 0)
+  const activeBuckets = [counts.pending, counts.processing, counts.shipped, counts.delivered].filter((count) => count > 0)
+  const mixed = activeBuckets.length > 1 || (closed > 0 && activeBuckets.length > 0)
+
+  if (!mixed) return ''
+
+  if (counts.delivered > 0 && counts.delivered < total) {
     return `${counts.delivered} of ${total} ${itemWord} delivered`
   }
 
-  if (token === 'partially_shipped') {
+  if (counts.shipped > 0 && counts.shipped < total && counts.delivered === 0) {
     return `${counts.shipped} of ${total} ${itemWord} shipped`
   }
 
@@ -164,38 +182,44 @@ function buildFulfillmentSummary(counts, total, token) {
     return `${counts.processing} processing · ${counts.pending} pending`
   }
 
-  if (counts.cancelled && counts.delivered && counts.cancelled + counts.delivered === total) {
+  if (counts.cancelled && counts.delivered) {
     return `${counts.delivered} delivered · ${counts.cancelled} cancelled`
   }
 
-  return ''
+  const parts = []
+  if (counts.delivered) parts.push(`${counts.delivered} delivered`)
+  if (counts.shipped) parts.push(`${counts.shipped} shipped`)
+  if (counts.processing) parts.push(`${counts.processing} processing`)
+  if (counts.pending) parts.push(`${counts.pending} pending`)
+  if (counts.cancelled) parts.push(`${counts.cancelled} cancelled`)
+  return parts.length > 1 ? parts.join(' · ') : ''
 }
 
 function resolveHeadlineDeliveryToken(tokens, counts, orderStatusToken = '') {
   if (orderStatusToken === 'cancelled') return 'cancelled'
   if (orderStatusToken === 'refunded') return 'refunded'
 
-  const unique = [...new Set(tokens)]
-  if (!unique.length) return orderStatusToken || 'pending'
-  if (unique.length === 1) return unique[0]
+  if (!tokens.length) return orderStatusToken || 'pending'
 
-  const active = tokens.filter((token) => token !== 'cancelled' && token !== 'refunded')
+  const active = tokens
+    .filter((token) => token !== 'cancelled' && token !== 'refunded')
+    .map(toProgressToken)
+
   if (!active.length) return counts.cancelled >= counts.refunded ? 'cancelled' : 'refunded'
-  if (active.every((token) => token === 'delivered')) return 'delivered'
-  if (counts.delivered > 0) return 'partially_delivered'
-  if (counts.shipped > 0 && counts.pending + counts.processing > 0) return 'partially_shipped'
-  if (active.every((token) => token === 'shipped')) return 'shipped'
-  if (counts.processing > 0) return 'processing'
-  return 'pending'
+  if (active.every((token) => token === active[0])) return active[0]
+
+  const minRank = Math.min(...active.map((token) => DELIVERY_PROGRESS_RANK[token] ?? 0))
+  return ['pending', 'processing', 'shipped', 'delivered'][minRank] ?? 'pending'
 }
 
 export function resolveOrderFulfillment(record) {
   const orderStatusToken = normalizeDeliveryToken(record?.status ?? record?.order_status)
   const fallback = normalizeDeliveryToken(record?.delivery_status) || orderStatusToken || 'pending'
   const items = extractOrderItems(record)
-  const itemTokens = items.length
+  const itemTokens = (items.length
     ? items.map((item) => normalizeDeliveryToken(item?.delivery_status) || fallback)
     : [fallback]
+  ).map((token) => (token === 'partially_delivered' || token === 'partially_shipped' ? 'pending' : token))
 
   const counts = emptyFulfillmentCounts()
   for (const token of itemTokens) {
@@ -213,21 +237,14 @@ export function resolveOrderFulfillment(record) {
     counts,
     total: itemTokens.length,
     itemTokens,
-    summary: buildFulfillmentSummary(counts, itemTokens.length, token),
+    summary: buildFulfillmentSummary(counts, itemTokens.length),
   }
 }
 
 export function orderMatchesDeliveryFilter(order, filter) {
   if (filter === 'All Orders') return true
-
   const headline = order.deliveryStatus || 'Pending Delivery'
-  if (headline === filter) return true
-
-  if (filter === 'Delivered' || filter === 'Cancelled' || filter === 'Refunded') {
-    return false
-  }
-
-  return (order.fulfillment?.itemTokens ?? []).some((token) => formatDeliveryStatus(token) === filter)
+  return headline === filter
 }
 
 export function isOrderAwaitingDelivery(order) {
@@ -271,13 +288,61 @@ function buildOrderTitle(items, record) {
 
 function resolvePrimaryImage(images = []) {
   const list = toArray(images)
-  const primary = list.find((image) => image?.is_primary) ?? list[0]
+  const primary = list.find((image) => image?.is_primary || image?.isPrimary) ?? list[0]
   const url = firstValue(primary?.image_url, primary?.url, primary?.src)
   return url ? resolveBackendMediaUrl(url) : ''
 }
 
+function findItemVariant(item) {
+  const variantId = String(resolveOrderItemVariantId(item) ?? '').trim()
+  const nested = item?.variant ?? item?.product_variant ?? item?.product_variation ?? null
+
+  if (nested && typeof nested === 'object') {
+    const nestedId = String(nested.id ?? nested.product_variant_id ?? nested.variant_id ?? '').trim()
+    if (!variantId || !nestedId || nestedId === variantId) return nested
+  }
+
+  if (!variantId) return nested && typeof nested === 'object' ? nested : null
+
+  const product = item?.product ?? {}
+  const pools = [
+    product.variants,
+    product.variations,
+    product.product_variants,
+    item.variants,
+    item.product_variants,
+  ]
+
+  for (const pool of pools) {
+    if (!Array.isArray(pool)) continue
+    const match = pool.find((entry) => {
+      const id = entry?.id ?? entry?.product_variant_id ?? entry?.variant_id
+      return id != null && String(id) === variantId
+    })
+    if (match) return match
+  }
+
+  return nested && typeof nested === 'object' ? nested : null
+}
+
+function imagesForVariantId(images, variantId) {
+  if (!variantId) return []
+  return toArray(images).filter((image) => {
+    const id = image?.product_variant_id ?? image?.variant_id ?? image?.productVariantId
+    return id != null && String(id) === String(variantId)
+  })
+}
+
 function resolveItemImage(item) {
-  return resolvePrimaryImage(item?.variant?.images)
+  const variantId = String(resolveOrderItemVariantId(item) ?? '').trim()
+  const variant = findItemVariant(item)
+  const variantFlat = firstValue(variant?.image_url, variant?.image, variant?.thumbnail)
+
+  return resolvePrimaryImage(variant?.images)
+    || resolvePrimaryImage(variant?.variant_images)
+    || (variantFlat ? resolveBackendMediaUrl(variantFlat) : '')
+    || resolvePrimaryImage(imagesForVariantId(item?.product?.images, variantId))
+    || resolvePrimaryImage(imagesForVariantId(item?.images, variantId))
     || resolvePrimaryImage(item?.product?.images)
     || resolvePrimaryImage(item?.images)
 }
@@ -636,7 +701,7 @@ export function getOrderCancellationBlockReason(record) {
     return 'Delivered orders cannot be cancelled online.'
   }
 
-  if (fulfillment.token === 'partially_delivered' || fulfillment.token === 'partially_shipped') {
+  if (fulfillment.mixed && fulfillment.itemTokens.some((token) => token !== 'pending' && token !== 'cancelled' && token !== 'refunded')) {
     return 'Some items in this order have already started fulfillment and can no longer be cancelled online.'
   }
 
@@ -665,6 +730,18 @@ const COMPACT_TRACKING_STEP_DEFS = [
   { key: 'delivered', title: 'Delivered' },
 ]
 
+const TRACKING_STEP_COUNT_KEYS = {
+  placed: 'pending',
+  processing: 'processing',
+  shipped: 'shipped',
+  delivered: 'delivered',
+}
+
+function formatTrackingItemCaption(count) {
+  if (!count) return ''
+  return count === 1 ? '1 item' : `${count} items`
+}
+
 function resolveTrackingProgress(record) {
   const fulfillment = resolveOrderFulfillment(record)
   const orderStatus = normalizeStatusToken(record?.status)
@@ -678,13 +755,12 @@ function resolveTrackingProgress(record) {
   }
 
   if (fulfillment.token === 'delivered') return { currentIndex: 3, partial: false, fulfillment }
-  if (fulfillment.token === 'partially_delivered') return { currentIndex: 3, partial: true, fulfillment }
-  if (fulfillment.token === 'shipped' || fulfillment.token === 'partially_shipped') {
-    return { currentIndex: 2, partial: fulfillment.token === 'partially_shipped', fulfillment }
+  if (fulfillment.token === 'shipped') {
+    return { currentIndex: 2, partial: fulfillment.mixed, fulfillment }
   }
   if (fulfillment.token === 'processing') return { currentIndex: 1, partial: fulfillment.mixed, fulfillment }
 
-  return { currentIndex: 0, partial: false, fulfillment }
+  return { currentIndex: 0, partial: fulfillment.mixed, fulfillment }
 }
 
 export function buildOrderTrackingSteps(record, options = {}) {
@@ -698,7 +774,16 @@ export function buildOrderTrackingSteps(record, options = {}) {
       cancelled: true,
       mixed: false,
       summary: '',
-      steps: stepDefs.map((step) => ({ ...step, done: false, active: false, reached: false, partial: false })),
+      steps: stepDefs.map((step) => ({
+        ...step,
+        done: false,
+        active: false,
+        reached: false,
+        partial: false,
+        ahead: false,
+        itemCount: 0,
+        caption: '',
+      })),
     }
   }
 
@@ -706,13 +791,22 @@ export function buildOrderTrackingSteps(record, options = {}) {
     cancelled: false,
     mixed: fulfillment.mixed,
     summary: fulfillment.summary,
-    steps: stepDefs.map((step, index) => ({
-      ...step,
-      done: index < currentIndex || (currentIndex === lastIndex && !partial),
-      active: index === currentIndex,
-      reached: index <= currentIndex,
-      partial: Boolean(partial && index === currentIndex),
-    })),
+    steps: stepDefs.map((step, index) => {
+      const itemCount = fulfillment.counts?.[TRACKING_STEP_COUNT_KEYS[step.key]] ?? 0
+      const reached = index <= currentIndex
+      const ahead = Boolean(fulfillment.mixed && itemCount > 0 && index > currentIndex)
+
+      return {
+        ...step,
+        done: index < currentIndex || (currentIndex === lastIndex && !partial),
+        active: index === currentIndex,
+        reached,
+        partial: Boolean(partial && index === currentIndex),
+        ahead,
+        itemCount,
+        caption: fulfillment.mixed ? formatTrackingItemCaption(itemCount) : '',
+      }
+    }),
   }
 }
 
@@ -721,7 +815,6 @@ export function formatEstimatedDelivery(record) {
 
   const fulfillment = resolveOrderFulfillment(record)
   if (fulfillment.token === 'delivered') return 'Delivered'
-  if (fulfillment.token === 'partially_delivered' || fulfillment.token === 'partially_shipped') return null
 
   const base = record.estimated_delivery_at ?? record.expected_delivery_at ?? record.created_at
   if (!base) return null
@@ -744,16 +837,76 @@ export function resolveOrderItemProductHref(item) {
   const slug = String(item?.product?.slug ?? item?.product_slug ?? '').trim().replace(/^\//, '')
   if (slug) return `/${slug}`
 
-  const id = String(
-    item?.product_id
-    ?? item?.productId
-    ?? item?.product?.id
-    ?? item?.product?.product_id
-    ?? item?.product_variant?.product_id
-    ?? item?.variant?.product_id
-    ?? '',
-  ).trim()
+  const id = String(resolveOrderItemProductId(item) ?? '').trim()
   if (id) return `/${id}`
 
   return ''
+}
+
+export function resolveOrderItemProductId(item) {
+  return firstValue(
+    item?.product_id,
+    item?.productId,
+    item?.product?.id,
+    item?.product?.product_id,
+    item?.product_variant?.product_id,
+    item?.variant?.product_id,
+  )
+}
+
+export function resolveOrderItemVariantId(item) {
+  return firstValue(
+    item?.product_variant_id,
+    item?.variant_id,
+    item?.variantId,
+    item?.variant?.id,
+    item?.product_variant?.id,
+  )
+}
+
+export function buildBuyAgainCartArgs(item) {
+  const productId = resolveOrderItemProductId(item)
+  if (!productId) return null
+
+  const variant = item?.variant ?? item?.product_variant
+  const pricing = resolveOrderItemPricing(item)
+  const variantId = resolveOrderItemVariantId(item) || null
+  const name = firstValue(item?.product_name, item?.name, item?.product?.name, item?.product?.product_name) || 'Product'
+  const sku = firstValue(item?.sku, variant?.sku, item?.product?.sku)
+  const image = resolveOrderItemImage(item)
+  const variantLabel = resolveOrderItemVariantLabel(item)
+  const quantity = Math.max(1, Number(item?.quantity) || 1)
+
+  return {
+    product: {
+      id: productId,
+      product_id: productId,
+      backendId: productId,
+      name,
+      title: name,
+      price: pricing.unitPrice,
+      compareAt: pricing.comparePrice,
+      image,
+      sku,
+      storeName: resolveOrderItemStoreName(item),
+      href: resolveOrderItemProductHref(item) || '/cart',
+      syncable: true,
+    },
+    options: {
+      productId,
+      variantId,
+      sku,
+      quantity,
+      price: pricing.unitPrice,
+      compareAt: pricing.comparePrice,
+      image,
+      variantImage: image,
+      variant: variantLabel || 'Default',
+      size: variantLabel,
+      variantRecord: variant ?? null,
+      productRecord: item?.product ?? null,
+      syncable: true,
+      silentSuccess: true,
+    },
+  }
 }

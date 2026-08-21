@@ -23,6 +23,7 @@ import homeImage from '../../assets/images/categories/home_and_kitchen.png'
 import decorImage from '../../assets/images/categories/home_decor.jpg'
 import kitchenImage from '../../assets/images/categories/kitchen_utensils.jpg'
 import { notify } from '../../lib/notify'
+import { formatCedi } from '../../utils/formatCurrency'
 import { useOrdersQuery } from '../../hooks/useOrdersQuery'
 import {
   extractOrderItems,
@@ -30,10 +31,12 @@ import {
   normalizeOrdersResponse,
   resolveOrderItemImage,
   resolveOrderItemProductHref,
+  resolveOrderItemVariantId,
   resolveOrderItemVariantLabel,
 } from '../../utils/normalizeOrders'
 import { resolveBackendMediaUrl } from '../../utils/resolveBackendMediaUrl'
 import { readReviewOrderItem } from '../../utils/reviewRouteState'
+import VendorReviewReply, { normalizeVendorReviewReply } from '../shared/VendorReviewReply'
 import {
   useEligibleReviewItemsQuery,
   useReviewMutations,
@@ -99,11 +102,16 @@ const statusTone = {
   'Not Approved': 'bg-red-50 text-red-700 ring-red-200',
 }
 
+function isPrimaryMedia(entry) {
+  const flag = entry?.is_primary ?? entry?.isPrimary ?? entry?.primary
+  return flag === true || flag === 1 || flag === '1' || flag === 'true'
+}
+
 function firstMediaUrl(value) {
   if (!value) return ''
   if (typeof value === 'string') return value.trim()
   if (Array.isArray(value)) {
-    const primary = value.find((entry) => entry?.is_primary) ?? value[0]
+    const primary = value.find((entry) => isPrimaryMedia(entry)) ?? value[0]
     return firstMediaUrl(primary)
   }
   if (typeof value === 'object') {
@@ -114,26 +122,65 @@ function firstMediaUrl(value) {
   return ''
 }
 
+function findReviewVariant(record) {
+  const variantId = String(resolveOrderItemVariantId(record) ?? '').trim()
+  const product = asRecord(record?.product) ?? asRecord(record?.product_variant?.product) ?? {}
+  const nested = asRecord(record?.product_variant) ?? asRecord(record?.variant)
+
+  if (nested) {
+    const nestedId = String(nested.id ?? nested.product_variant_id ?? nested.variant_id ?? '').trim()
+    if (!variantId || !nestedId || nestedId === variantId) return nested
+  }
+
+  if (!variantId) return nested
+
+  const pools = [product.variants, product.variations, product.product_variants, record?.variants]
+  for (const pool of pools) {
+    if (!Array.isArray(pool)) continue
+    const match = pool.find((entry) => {
+      const id = entry?.id ?? entry?.product_variant_id ?? entry?.variant_id
+      return id != null && String(id) === variantId
+    })
+    if (match) return match
+  }
+
+  return nested
+}
+
 function resolveReviewProductImage(record) {
   if (!record) return ''
 
-  const product = record.product ?? record.product_variant?.product ?? {}
-  const variant = record.product_variant ?? record.variant ?? {}
+  const variantId = String(resolveOrderItemVariantId(record) ?? '').trim()
+  const product = asRecord(record.product) ?? asRecord(record.product_variant?.product) ?? {}
+  const variant = findReviewVariant(record)
+
+  const fromMatchedVariant = firstMediaUrl(variant?.images)
+    || firstMediaUrl(variant?.variant_images)
+    || firstMediaUrl(variant?.image_url)
+    || firstMediaUrl(variant?.image)
+  if (fromMatchedVariant) return resolveBackendMediaUrl(fromMatchedVariant)
+
+  const fromOrderItem = resolveOrderItemImage(record)
+  if (fromOrderItem) return fromOrderItem
+
+  if (variantId) {
+    const tagged = (Array.isArray(product.images) ? product.images : []).find((image) => (
+      String(image?.product_variant_id ?? image?.variant_id ?? '') === variantId
+    ))
+    const taggedUrl = firstMediaUrl(tagged)
+    if (taggedUrl) return resolveBackendMediaUrl(taggedUrl)
+  }
+
   const candidates = [
     record.product_image,
     record.product_image_url,
     record.image_url,
-    variant.primary_image,
-    variant.images,
-    variant.image_url,
-    variant.image,
     record.images,
     product.primary_image,
     product.images,
     product.product_images,
     product.image_url,
     product.image,
-    resolveOrderItemImage(record),
   ]
 
   for (const candidate of candidates) {
@@ -207,12 +254,22 @@ function firstProductId(...values) {
 }
 
 function eligibleItemIds(item) {
+  const product = asRecord(item?.product)
+  const variant = asRecord(item?.product_variant) ?? asRecord(item?.variant)
+  const productId = asText(item?.product_id) || asText(product?.id)
+  const variantId = asText(item?.product_variant_id) || asText(variant?.id)
+  const orderId = asText(item?.order_id) || asText(asRecord(item?.order)?.id)
+  const composite = [orderId, productId, variantId].filter(Boolean).join(':')
+
   return [
     item?.id,
     item?.order_item_id,
     item?.orderItemId,
     item?.item_id,
     asRecord(item?.order_item)?.id,
+    composite,
+    variantId,
+    productId,
   ]
     .map((value) => String(value ?? '').trim())
     .filter(Boolean)
@@ -221,6 +278,133 @@ function eligibleItemIds(item) {
 function matchesEligibleItem(item, targetId) {
   if (!targetId) return false
   return eligibleItemIds(item).includes(String(targetId))
+}
+
+function normalizeEligibleItemDisplay(item, index = 0) {
+  if (!item || typeof item !== 'object') return null
+
+  const product = asRecord(item.product)
+  const vendor = asRecord(product?.vendor) ?? asRecord(item.vendor) ?? asRecord(item.store)
+  const ids = eligibleItemIds(item)
+  const name = asText(item.product_name)
+    || asText(product?.name)
+    || (typeof item.product === 'string' ? item.product : '')
+    || 'Purchased item'
+  const price = Number(
+    item.discounted_price
+    ?? item.total_discounted_price
+    ?? item.unit_price
+    ?? item.total_price
+    ?? 0,
+  )
+  const compareAt = Number(item.unit_price ?? item.total_price ?? 0)
+  const variantLabel = resolveOrderItemVariantLabel(item)
+
+  return {
+    id: ids[0] ?? `eligible-${index}`,
+    ids,
+    name,
+    image: resolveReviewProductImage(item),
+    storeName: asText(vendor?.store_name)
+      || asText(vendor?.trading_name)
+      || asText(vendor?.business_name),
+    price: Number.isFinite(price) && price > 0 ? price : null,
+    compareAt: Number.isFinite(compareAt) && compareAt > price ? compareAt : null,
+    variantLabel,
+    productHref: resolveReviewProductHref(item, item.product_id || product?.id),
+    quantity: Math.max(1, Number(item.quantity) || 1),
+    raw: item,
+  }
+}
+
+function EligibleItemList({ items = [], isLoading = false, onSelect }) {
+  const [query, setQuery] = useState('')
+
+  const displays = useMemo(
+    () => items.map((item, index) => normalizeEligibleItemDisplay(item, index)).filter(Boolean),
+    [items],
+  )
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return displays
+    return displays.filter((item) => (
+      `${item.name} ${item.storeName} ${item.variantLabel}`.toLowerCase().includes(needle)
+    ))
+  }, [displays, query])
+
+  if (isLoading) {
+    return (
+      <div className="mt-7 grid gap-3 sm:grid-cols-2">
+        {[1, 2, 3, 4].map((key) => (
+          <div key={key} className="h-28 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-7">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-500">
+          {displays.length === 1
+            ? 'Select this delivered item to write your review.'
+            : `${displays.length} delivered items are ready for review. Choose one to continue.`}
+        </p>
+        {displays.length > 4 ? (
+          <label className="flex h-11 w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:max-w-72 focus-within:border-auth-primary">
+            <Search className="size-4 text-slate-400" />
+            <span className="sr-only">Search eligible items</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by product or store"
+              className="min-w-0 flex-1 text-sm outline-none"
+            />
+          </label>
+        ) : null}
+      </div>
+
+      {filtered.length ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {filtered.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelect?.(item.id)}
+              className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-[0_8px_28px_rgba(15,23,42,0.04)] transition hover:border-auth-primary/40 hover:shadow-md"
+            >
+              <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50 p-1.5 sm:size-[4.5rem]">
+                <ReviewProductThumb
+                  src={item.image}
+                  alt=""
+                  className={item.image ? 'max-h-full max-w-full object-contain' : 'flex size-full items-center justify-center'}
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="line-clamp-2 text-sm font-bold leading-5 text-slate-950">{item.name}</span>
+                {item.storeName ? (
+                  <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">
+                    Sold by <span className="font-semibold text-slate-700">{item.storeName}</span>
+                  </span>
+                ) : null}
+                {item.price != null ? (
+                  <span className="mt-1.5 block text-sm font-extrabold text-slate-950">{formatCedi(item.price)}</span>
+                ) : null}
+                <span className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-auth-primary">
+                  Write review
+                  <ChevronRight className="size-3.5" />
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-2xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500">
+          No matching items.
+        </p>
+      )}
+    </div>
+  )
 }
 
 function resolveReviewProductHref(record, fallbackId = '') {
@@ -291,13 +475,27 @@ function ReviewProductThumb({ src, alt, className }) {
   return <img src={src} alt={alt} className={className} />
 }
 
+function formatReviewOrderRef(item) {
+  const raw = asText(item?.order_number)
+    || asText(item?.orderNumber)
+    || asText(asRecord(item?.order)?.order_number)
+    || asText(asRecord(item?.order)?.number)
+  if (!raw) return ''
+  if (/^[0-9a-hjkmnp-tv-z]{26}$/i.test(raw)) return ''
+  return raw.replace(/^#/, '')
+}
+
+function canEditCustomerReview(review) {
+  return !review?.vendorReply
+}
+
 function normalizeApiReview(item, index) {
   if (!item) return null
 
   const id = String(item.id || item.review_id || item._id || `RV-${1040 + index}`)
   const product = item.product_name || item.productName || item.product?.name || (typeof item.product === 'string' ? item.product : '') || 'Purchased Item'
   const variant = resolveReviewVariantLabel(item) || 'Standard'
-  const order = item.order_number || item.orderNumber || item.order_id || item.orderId || 'ORD-20483'
+  const order = formatReviewOrderRef(item)
 
   let date = item.created_at || item.createdAt || item.date || 'Recent'
   if (date && date !== 'Recent' && !isNaN(Date.parse(date))) {
@@ -336,6 +534,7 @@ function normalizeApiReview(item, index) {
     status,
     image,
     productHref: productHref || null,
+    vendorReply: normalizeVendorReviewReply(item),
     raw: item,
   }
 }
@@ -586,31 +785,31 @@ function ReviewsList() {
               key={review.id}
               className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-[0_8px_28px_rgba(15,23,42,0.04)] transition hover:border-auth-primary/25 sm:px-4 sm:py-3.5"
             >
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                <div className="flex min-w-0 items-center gap-3 xl:w-72 xl:shrink-0">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
+                <div className="flex min-w-0 flex-col xl:w-44 xl:shrink-0">
                   {review.productHref ? (
-                    <Link to={review.productHref} className="shrink-0">
-                      <span className="flex size-16 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50 p-1.5 sm:size-[4.25rem]">
+                    <Link to={review.productHref} className="self-start">
+                      <span className="flex size-[4.75rem] items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-100 sm:size-20">
                         <ReviewProductThumb
                           src={review.image}
                           alt={review.product}
-                          className={review.image ? 'max-h-full max-w-full object-contain' : 'flex size-full items-center justify-center'}
+                          className={review.image ? 'size-full object-contain p-1.5' : 'flex size-full items-center justify-center'}
                         />
                       </span>
                     </Link>
                   ) : (
-                    <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50 p-1.5 sm:size-[4.25rem]">
+                    <span className="flex size-[4.75rem] items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-100 sm:size-20">
                       <ReviewProductThumb
                         src={review.image}
                         alt={review.product}
-                        className={review.image ? 'max-h-full max-w-full object-contain' : 'flex size-full items-center justify-center'}
+                        className={review.image ? 'size-full object-contain p-1.5' : 'flex size-full items-center justify-center'}
                       />
                     </span>
                   )}
-                  <div className="min-w-0">
+                  <div className="mt-2.5 min-w-0">
                     <h3
                       title={review.product}
-                      className="line-clamp-2 text-sm font-bold leading-5 text-slate-950"
+                      className="line-clamp-2 text-sm font-bold leading-snug text-slate-950"
                     >
                       {review.productHref ? (
                         <Link to={review.productHref} className="hover:text-auth-primary hover:underline">
@@ -619,15 +818,14 @@ function ReviewsList() {
                       ) : review.product}
                     </h3>
                     {typeof review.variant === 'string' && review.variant && review.variant !== 'Standard' ? (
-                      <p className="mt-0.5 text-xs text-slate-500">{review.variant}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500">{review.variant}</p>
                     ) : null}
-                    <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">
-                      Order #{review.order}
-                    </p>
-                    <p className="mt-0.5 text-[0.68rem] text-slate-400">Reviewed {review.date}</p>
+                    {review.date ? (
+                      <p className="mt-1 text-[0.68rem] leading-4 text-slate-400">Reviewed {review.date}</p>
+                    ) : null}
                   </div>
                 </div>
-                <div className="min-w-0 flex-1 border-t border-slate-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+                <div className="min-w-0 flex-1 border-t border-slate-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <Stars rating={review.rating} />
                     <span className="text-sm font-bold text-slate-700">{review.rating}.0</span>
@@ -641,6 +839,7 @@ function ReviewsList() {
                   </div>
                   <h4 className="mt-1.5 text-sm font-bold text-slate-950">{review.title}</h4>
                   <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{review.body}</p>
+                  <VendorReviewReply reply={review.vendorReply} compact />
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -650,14 +849,20 @@ function ReviewsList() {
                       <Eye className="size-3.5" />
                       View Review
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/account/reviews/${review.id}/edit`)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-red-50 hover:text-auth-primary"
-                    >
-                      <FilePenLine className="size-3.5" />
-                      Edit Review
-                    </button>
+                    {canEditCustomerReview(review) ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/account/reviews/${review.id}/edit`)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-red-50 hover:text-auth-primary"
+                      >
+                        <FilePenLine className="size-3.5" />
+                        Edit Review
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center rounded-lg bg-slate-50 px-2.5 py-1.5 text-[0.68rem] font-semibold text-slate-400">
+                        Editing closed after seller reply
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => setDeleting(review)}
@@ -703,12 +908,14 @@ function ReviewsList() {
           >
             {viewing.status}
           </span>
-          <div className="mt-5 flex items-center gap-4">
-            <ReviewProductThumb
-              src={viewing.image}
-              alt={viewing.product}
-              className="size-20 rounded-xl object-cover"
-            />
+          <div className="mt-5 flex items-start gap-4">
+            <span className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-100">
+              <ReviewProductThumb
+                src={viewing.image}
+                alt={viewing.product}
+                className={viewing.image ? 'size-full object-contain p-1.5' : 'flex size-full items-center justify-center'}
+              />
+            </span>
             <div>
               <h3 className="text-xl font-bold text-slate-950">{viewing.product}</h3>
               <p className="mt-1 text-sm text-slate-500">{viewing.variant}</p>
@@ -718,6 +925,7 @@ function ReviewsList() {
             <Stars rating={viewing.rating} size="size-5" />
             <h4 className="mt-3 text-lg font-bold text-slate-950">{viewing.title}</h4>
             <p className="mt-2 text-sm leading-6 text-slate-600">{viewing.body}</p>
+            <VendorReviewReply reply={viewing.vendorReply} />
           </div>
         </Dialog>
       ) : null}
@@ -817,10 +1025,17 @@ function LeaveReview({ reviewId }) {
     [reviewData],
   )
 
+  useEffect(() => {
+    if (!editing || isLoadingReview || !existing) return undefined
+    if (canEditCustomerReview(existing)) return undefined
+    notify.info('You cannot edit this review after the seller has replied.')
+    navigate('/account/reviews', { replace: true })
+    return undefined
+  }, [editing, existing, isLoadingReview, navigate])
+
   const requestedOrderItemId = params.get('order_item_id')
     ?? params.get('item')
     ?? String(routedOrderItem?.id ?? routedOrderItem?.order_item_id ?? '')
-  const itemAlreadySelected = Boolean(routedOrderItem) || Boolean(requestedOrderItemId)
   const [orderItemId, setOrderItemId] = useState(requestedOrderItemId)
 
   const [rating, setRating] = useState(existing?.rating ?? 0)
@@ -857,16 +1072,17 @@ function LeaveReview({ reviewId }) {
     [ordersPayload],
   )
 
-  const effectiveOrderItemId = orderItemId || String(
-    eligibleItems[0]?.id ?? eligibleItems[0]?.order_item_id ?? '',
-  )
+  const effectiveOrderItemId = String(orderItemId || '')
 
   const selectedEligibleItem = useMemo(
-    () =>
-      eligibleItems.find((item) => matchesEligibleItem(item, effectiveOrderItemId))
-      ?? (orderItemId ? null : eligibleItems[0] ?? null)
-      ?? null,
-    [effectiveOrderItemId, eligibleItems, orderItemId],
+    () => {
+      if (!effectiveOrderItemId) return null
+      return eligibleItems.find((item, index) => (
+        matchesEligibleItem(item, effectiveOrderItemId)
+        || normalizeEligibleItemDisplay(item, index)?.id === effectiveOrderItemId
+      )) ?? null
+    },
+    [effectiveOrderItemId, eligibleItems],
   )
 
   const matchedOrderItem = useMemo(
@@ -905,12 +1121,16 @@ function LeaveReview({ reviewId }) {
   const variantLabel = existing?.variant && existing.variant !== 'Standard'
     ? existing.variant
     : resolveReviewVariantLabel(reviewSourceItem)
-  const order = existing?.order
-    ?? reviewSourceItem?.order_number
-    ?? reviewSourceItem?.order?.order_number
-    ?? location.state?.orderId
-    ?? params.get('order')
-    ?? 'Order'
+  const rawOrderRef = asText(existing?.order)
+    || asText(reviewSourceItem?.order_number)
+    || asText(reviewSourceItem?.order?.order_number)
+    || asText(location.state?.orderId)
+    || asText(params.get('order'))
+  const order = rawOrderRef && !/^[0-9a-hjkmnp-tv-z]{26}$/i.test(rawOrderRef) ? rawOrderRef : ''
+  const storeName = asText(eligibleProduct?.vendor?.store_name)
+    || asText(eligibleProduct?.vendor?.trading_name)
+    || asText(reviewSourceItem?.vendor?.store_name)
+    || asText(reviewSourceItem?.store_name)
   const image = existing?.image || resolveReviewProductImage(reviewSourceItem)
   const productHref = existing?.productHref
     || resolveReviewProductHref(reviewSourceItem, productId)
@@ -964,6 +1184,9 @@ function LeaveReview({ reviewId }) {
     if (!title.trim()) next.title = 'Please enter a review title.'
     if (!body.trim()) next.body = 'Please describe your experience.'
     if (!recommend) next.recommend = 'Please select an option.'
+    if (editing && !canEditCustomerReview(existing)) {
+      next.locked = 'You cannot edit this review after the seller has replied.'
+    }
     setErrors(next)
     if (Object.keys(next).length) return
 
@@ -973,8 +1196,16 @@ function LeaveReview({ reviewId }) {
       review: body.trim(),
     }
     if (!editing) {
-      payload.order_item_id = effectiveOrderItemId
+      const sourceItemId = asText(reviewSourceItem?.id)
+        || asText(reviewSourceItem?.order_item_id)
+        || asText(reviewSourceItem?.orderItemId)
+        || asText(reviewSourceItem?.item_id)
+      if (sourceItemId) payload.order_item_id = sourceItemId
       payload.product_id = productId
+      const variantId = asText(reviewSourceItem?.product_variant_id)
+        || asText(asRecord(reviewSourceItem?.variant)?.id)
+        || asText(asRecord(reviewSourceItem?.product_variant)?.id)
+      if (variantId) payload.product_variant_id = variantId
     } else {
       const existingMediaIds = existingMedia
         .map((item) => {
@@ -1003,6 +1234,46 @@ function LeaveReview({ reviewId }) {
     }
   }
 
+  const showItemList = !editing && !effectiveOrderItemId
+  const canReselectItem = !editing && eligibleItems.length > 0
+
+  const resetReviewDraft = () => {
+    setRating(0)
+    setHover(0)
+    setTitle('')
+    setBody('')
+    setRecommend('')
+    setMedia([])
+    setErrors({})
+  }
+
+  const goBackToItemList = () => {
+    resetReviewDraft()
+    setOrderItemId('')
+    if (location.search || location.state?.reviewOrderItem) {
+      navigate('/account/reviews/new', { replace: true, state: {} })
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const pickItem = (id) => {
+    resetReviewDraft()
+    setOrderItemId(id)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleHeaderBack = () => {
+    if (showItemList) {
+      navigate('/account/reviews')
+      return
+    }
+    if (canReselectItem) {
+      goBackToItemList()
+      return
+    }
+    navigate(-1)
+  }
+
   return (
     <section>
       <nav
@@ -1011,10 +1282,10 @@ function LeaveReview({ reviewId }) {
       >
         <Link to="/">Home</Link>
         <ChevronRight className="size-3.5" />
-        <Link to="/account/orders">Orders</Link>
+        <Link to="/account/reviews">Reviews</Link>
         <ChevronRight className="size-3.5" />
         <span className="font-bold text-slate-900">
-          {editing ? 'Edit Review' : 'Write a Review'}
+          {editing ? 'Edit Review' : showItemList ? 'Choose Item' : 'Write a Review'}
         </span>
       </nav>
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
@@ -1023,19 +1294,21 @@ function LeaveReview({ reviewId }) {
             Customer feedback
           </p>
           <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-            {editing ? 'Edit Your Review' : 'Write a Review'}
+            {editing ? 'Edit Your Review' : showItemList ? 'Choose an item to review' : 'Write a Review'}
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Share your experience to help other customers make better choices.
+            {showItemList
+              ? 'Select a delivered item, then you’ll write your review on the next step.'
+              : 'Share your experience to help other customers make better choices.'}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={handleHeaderBack}
           className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
         >
           <ArrowLeft className="size-4" />
-          Back
+          {canReselectItem && !showItemList ? 'Choose another item' : 'Back'}
         </button>
       </div>
 
@@ -1043,6 +1316,12 @@ function LeaveReview({ reviewId }) {
         <div className="mt-7">
           <NoEligibleReviewsCard />
         </div>
+      ) : showItemList ? (
+        <EligibleItemList
+          items={eligibleItems}
+          isLoading={isLoadingEligible}
+          onSelect={pickItem}
+        />
       ) : (
         <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
         <form
@@ -1050,51 +1329,10 @@ function LeaveReview({ reviewId }) {
           noValidate
           className="space-y-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-7"
         >
-          {!editing && !itemAlreadySelected ? (
-            <label className="block">
-              <span className="text-sm font-bold text-slate-900">
-                Delivered Item <span className="text-auth-primary">*</span>
-              </span>
-              <span className="mt-1 block text-xs text-slate-500">
-                Only delivered order items that are eligible for review are shown.
-              </span>
-              <select
-                value={effectiveOrderItemId}
-                disabled={isLoadingEligible}
-                onChange={(event) => {
-                  setOrderItemId(event.target.value)
-                  setErrors((items) => ({ ...items, orderItem: '' }))
-                }}
-                className={`mt-2 h-12 w-full rounded-xl border bg-white px-4 text-sm outline-none focus:border-auth-primary ${
-                  errors.orderItem ? 'border-red-400' : 'border-slate-200'
-                }`}
-              >
-                <option value="">
-                  {isLoadingEligible ? 'Loading eligible items…' : 'Select an item'}
-                </option>
-                {eligibleItems.map((item, index) => {
-                  const ids = eligibleItemIds(item)
-                  const id = ids.includes(String(effectiveOrderItemId))
-                    ? String(effectiveOrderItemId)
-                    : (ids[0] ?? `eligible-${index}`)
-                  const itemProduct = asRecord(item.product) ?? asRecord(item.product_variant?.product)
-                  const label = itemProduct?.name
-                    || item.product_name
-                    || (typeof item.product === 'string' ? item.product : '')
-                    || `Order item ${id}`
-                  return <option key={id} value={id}>{label}</option>
-                })}
-              </select>
-              {errors.orderItem ? (
-                <span className="mt-1 block text-xs font-semibold text-red-600">
-                  {errors.orderItem}
-                </span>
-              ) : null}
-            </label>
+          {isLoadingReview ? (
+            <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
           ) : !editing && errors.orderItem ? (
             <p className="text-xs font-semibold text-red-600">{errors.orderItem}</p>
-          ) : isLoadingReview ? (
-            <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
           ) : null}
           <fieldset>
             <legend className="text-sm font-bold text-slate-900">
@@ -1323,7 +1561,13 @@ function LeaveReview({ reviewId }) {
             <button
               type="button"
               disabled={isSubmitting}
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                if (canReselectItem) {
+                  goBackToItemList()
+                  return
+                }
+                navigate('/account/reviews')
+              }}
               className="rounded-xl border border-slate-200 px-6 py-3 text-sm font-bold text-slate-700 disabled:opacity-50"
             >
               Cancel
@@ -1360,11 +1604,18 @@ function LeaveReview({ reviewId }) {
           {typeof variantLabel === 'string' && variantLabel ? (
             <p className="mt-1 text-sm text-slate-500">{variantLabel}</p>
           ) : null}
+          {storeName ? (
+            <p className="mt-1 text-xs text-slate-500">
+              Sold by <span className="font-semibold text-slate-700">{storeName}</span>
+            </p>
+          ) : null}
           <dl className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs">
-            <div className="flex justify-between gap-3">
-              <dt className="text-slate-500">Order number</dt>
-              <dd className="font-bold text-slate-800">#{order}</dd>
-            </div>
+            {order ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Order number</dt>
+                <dd className="font-bold text-slate-800">#{order}</dd>
+              </div>
+            ) : null}
             {purchasedDate ? (
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Purchased</dt>

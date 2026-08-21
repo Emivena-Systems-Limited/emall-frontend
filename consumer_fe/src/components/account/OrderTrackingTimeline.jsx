@@ -26,6 +26,12 @@ function stepCircleClass(step, isStatus) {
       : 'bg-amber-500 text-white'
   }
 
+  if (step.ahead) {
+    return isStatus
+      ? 'bg-slate-200 text-slate-600 ring-2 ring-slate-300'
+      : 'bg-slate-200 text-slate-500'
+  }
+
   if (!isStatus) {
     return step.reached
       ? 'bg-auth-primary text-white'
@@ -94,7 +100,7 @@ export default function OrderTrackingTimeline({
         <p className="mt-1 text-sm text-slate-500">Follow your order from placement to delivery.</p>
       ) : null}
 
-      <div className={`${isStatus ? 'mt-4' : 'mt-6'} w-full overflow-x-clip`}>
+      <div className={`${isStatus ? 'mt-4' : 'mt-6'} w-full overflow-x-clip px-4 py-3`}>
         <div className="relative w-full">
           <div
             className={`pointer-events-none absolute h-px -translate-y-1/2 bg-slate-200 ${
@@ -163,6 +169,7 @@ export default function OrderTrackingTimeline({
                           }
                         : { scale: 1 }
                     }
+                    style={{ transformOrigin: 'center center' }}
                     transition={
                       step.active
                         ? { duration: 2, repeat: Infinity, ease: 'easeOut' }
@@ -175,11 +182,20 @@ export default function OrderTrackingTimeline({
                     className={`w-full leading-tight ${
                       isStatus ? 'whitespace-nowrap text-[0.6875rem] sm:text-xs' : 'text-xs'
                     } ${
-                      step.reached || step.active ? 'font-medium text-slate-900' : 'text-slate-400'
+                      step.reached || step.active || step.ahead ? 'font-medium text-slate-900' : 'text-slate-400'
                     }`}
                   >
                     {step.title}
                   </p>
+                  {step.caption ? (
+                    <p
+                      className={`w-full text-[0.625rem] font-semibold leading-tight ${
+                        step.ahead ? 'text-slate-600' : 'text-slate-500'
+                      }`}
+                    >
+                      {step.caption}
+                    </p>
+                  ) : null}
                 </motion.div>
               )
             })}

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Loader2,
+  Package,
   RefreshCw,
 } from 'lucide-react'
 import { getProductConditionLabel, isDescriptiveProductImage } from '../../utils/productMetadata'
@@ -22,6 +23,7 @@ import {
 } from '../../utils/productStatusActions'
 import { getUniqueOrderProducts } from '../../utils/orderProductNavigation'
 import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNavigation'
+import { resolveReviewsReturnTo } from '../../utils/reviewNavigation'
 
 // Reactivate later — listing status banner (API `status`, e.g. pending_approval)
 // function formatApiStatusLabel(status) {
@@ -41,6 +43,10 @@ export default function ViewProduct() {
   const orderId = searchParams.get('orderId')
   const ordersReturnTo = resolveOrdersReturnTo(location)
   const ordersReturnLabel = getOrdersReturnLabel(ordersReturnTo)
+  const reviewsReturnTo = resolveReviewsReturnTo(searchParams, location)
+  const fromReviews = Boolean(reviewsReturnTo)
+  const backTo = orderId ? ordersReturnTo : (reviewsReturnTo || '/products')
+  const backLabel = orderId ? ordersReturnLabel : (fromReviews ? 'Back to reviews' : 'All Products')
   const linkedOrder = orderId ? getOrderById(orderId) : null
   const orderProducts = linkedOrder ? getUniqueOrderProducts(linkedOrder) : []
   const { data: rawRecord, isLoading, isError, refetch } = useProduct(productId)
@@ -83,12 +89,21 @@ export default function ViewProduct() {
               Retry
             </button>
             <Link
-              to={orderId ? ordersReturnTo : '/products'}
+              to={backTo}
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
             >
               <ArrowLeft className="size-4" />
-              {orderId ? ordersReturnLabel : 'Back to products'}
+              {orderId ? ordersReturnLabel : (fromReviews ? 'Back to reviews' : 'Back to products')}
             </Link>
+            {fromReviews && (
+              <Link
+                to="/products"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <Package className="size-4" />
+                View products
+              </Link>
+            )}
           </div>
         </div>
       </DashboardLayout>
@@ -138,24 +153,35 @@ export default function ViewProduct() {
       <div className="page-enter space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
-            to={orderId ? ordersReturnTo : '/products'}
+            to={backTo}
             className={
-              orderId
+              orderId || fromReviews
                 ? 'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand'
                 : 'inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800'
             }
           >
             <ArrowLeft className="size-4" />
-            {orderId ? ordersReturnLabel : 'All Products'}
+            {backLabel}
           </Link>
 
-          {orderId && orderProducts.length > 1 && (
-            <OrderProductSwitcher
-              orderId={orderId}
-              products={orderProducts}
-              currentProductId={productId}
-            />
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {fromReviews && (
+              <Link
+                to="/products"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand"
+              >
+                <Package className="size-4" />
+                View products
+              </Link>
+            )}
+            {orderId && orderProducts.length > 1 && (
+              <OrderProductSwitcher
+                orderId={orderId}
+                products={orderProducts}
+                currentProductId={productId}
+              />
+            )}
+          </div>
         </div>
 
         {/* Listing status — reactivate later

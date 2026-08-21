@@ -60,7 +60,7 @@ function ProductStack({ images = [], remaining = 0, compact = false }) {
     <div className="flex shrink-0 items-center">
       {images.slice(0, 2).map((image, index) => (
         <span key={`${image}-${index}`} className={`${index ? overlapClass : ''} relative flex ${tileClass} overflow-hidden rounded-lg border-white bg-slate-100`}>
-          <img src={image} alt="" className="size-full object-cover" />
+          <img src={image} alt="" className="size-full object-contain p-0.5" />
         </span>
       ))}
       {remaining > 0 ? (
@@ -91,7 +91,7 @@ function OrderStatusBadges({ order }) {
 
 function OrderActions({ order, onOpen, onTrack, viewMode }) {
   const deliveryStatus = order.deliveryStatus || 'Pending Delivery'
-  const inProgressStatuses = ['Pending Delivery', 'Processing', 'Shipped', 'Partially Shipped', 'Partially Delivered']
+  const inProgressStatuses = ['Pending Delivery', 'Processing', 'Shipped']
   const isCancelled = deliveryStatus === 'Cancelled' || order.status === 'Cancelled'
   const canTrack = !isCancelled && (
     viewMode === 'cards'

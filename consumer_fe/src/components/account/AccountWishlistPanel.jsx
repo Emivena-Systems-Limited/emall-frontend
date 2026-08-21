@@ -43,19 +43,18 @@ function WishlistSkeleton() {
   return (
     <div className="animate-pulse overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
       {[1, 2, 3].map((key) => (
-        <div key={key} className="grid gap-5 border-t border-slate-100 p-4 first:border-t-0 sm:p-5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-8 md:px-6">
-          <div className="flex min-w-0 gap-3 sm:gap-4">
-            <div className="mt-2 size-4 shrink-0 rounded bg-slate-200" />
-            <div className="size-24 shrink-0 rounded-xl bg-slate-200 sm:size-28" />
-            <div className="flex-1 space-y-3 py-2">
-              <div className="h-4 w-4/5 rounded bg-slate-200" />
-              <div className="h-3 w-2/5 rounded bg-slate-100" />
-              <div className="h-3 w-3/5 rounded bg-slate-100" />
-              <div className="h-3 w-1/2 rounded bg-slate-100" />
+        <div key={key} className="grid gap-3 border-t border-slate-100 p-3 first:border-t-0 sm:p-3.5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-6 md:px-5">
+          <div className="flex min-w-0 gap-3">
+            <div className="mt-1.5 size-4 shrink-0 rounded bg-slate-200" />
+            <div className="size-16 shrink-0 rounded-lg bg-slate-200 sm:size-20" />
+            <div className="flex-1 space-y-2 py-0.5">
+              <div className="h-3.5 w-4/5 rounded bg-slate-200" />
+              <div className="h-2.5 w-2/5 rounded bg-slate-100" />
+              <div className="h-2.5 w-1/2 rounded bg-slate-100" />
             </div>
           </div>
-          <div className="h-10 w-28 rounded-full bg-slate-100" />
-          <div className="space-y-2 md:text-right"><div className="h-4 w-20 rounded bg-slate-200 md:ml-auto" /><div className="h-3 w-14 rounded bg-slate-100 md:ml-auto" /></div>
+          <div className="h-8 w-24 rounded-full bg-slate-100" />
+          <div className="space-y-1.5 md:text-right"><div className="h-3.5 w-16 rounded bg-slate-200 md:ml-auto" /><div className="h-2.5 w-12 rounded bg-slate-100 md:ml-auto" /></div>
         </div>
       ))}
     </div>
@@ -87,10 +86,10 @@ function VariantSelector({ item, onUpdate, busy }) {
   const productId = item.product?.id
   const { data } = useQuery({ queryKey: ['wishlist-product-variants', productId], queryFn: () => getProductById(productId), enabled: Boolean(productId), staleTime: 300000 })
   const variants = data?.variants ?? []
-  if (variants.length < 2) return item.variant?.variant_name ? <p className="mt-1.5 text-xs text-slate-500">Variant: {item.variant.variant_name}</p> : null
+  if (variants.length < 2) return item.variant?.variant_name ? <p className="mt-1 text-[11px] text-slate-500">Variant: {item.variant.variant_name}</p> : null
   return (
-    <label className="mt-2 block text-xs text-slate-500">Variant
-      <select value={item.variant?.id ?? ''} disabled={busy} onChange={(event) => onUpdate(item.id, event.target.value)} className="mt-1 block max-w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-auth-primary">
+    <label className="mt-1 block text-[11px] text-slate-500">Variant
+      <select value={item.variant?.id ?? ''} disabled={busy} onChange={(event) => onUpdate(item.id, event.target.value)} className="mt-0.5 block max-w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 outline-none focus:border-auth-primary">
         {variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.variant_name ?? variant.value ?? variant.sku}</option>)}
       </select>
     </label>
@@ -104,24 +103,48 @@ function WishlistItem({ item, selected, onSelect, onRemove, onMove, onDetails, o
   const listPrice = Number(variant.price ?? product.regular_price ?? price)
   const image = variant.images?.[0]?.image_url ?? product.images?.find((entry) => entry.is_primary)?.image_url ?? product.images?.[0]?.image_url
   return (
-    <article className={`relative grid gap-5 border-t p-4 first:border-t-0 sm:p-5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-8 md:px-6 ${selected ? 'border-red-100 bg-red-50/35' : 'border-slate-100'}`}>
-      <div className="flex min-w-0 gap-3 sm:gap-4"><input type="checkbox" checked={selected} onChange={() => onSelect(item.id)} aria-label={`Select ${product.name}`} className="mt-2 size-4 accent-red-600" /><Link to={`/${product.slug ?? ''}`} className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 sm:h-28 sm:w-28">{image ? <img src={image} alt={product.name ?? 'Wishlist product'} className="h-full w-full object-cover" /> : <Heart className="m-auto mt-8 size-8 text-slate-300" />}</Link>
-        <div className="min-w-0 py-1"><Link to={`/${product.slug ?? ''}`} className="line-clamp-2 text-sm font-bold leading-5 text-slate-950 transition hover:text-auth-primary sm:text-base">{product.name ?? 'Saved product'}</Link><VariantSelector item={item} onUpdate={onVariant} busy={busyAction === `variant:${item.id}`} />{variant.sku ? <p className="mt-1 text-xs text-slate-400">SKU: {variant.sku}</p> : null}
-          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-2">
-            <button onClick={() => onDetails(item.id)} className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-auth-primary">
-              <Eye className="size-3.5" /> Details
+    <article className={`relative grid gap-3 border-t p-3 first:border-t-0 sm:p-3.5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-6 md:px-5 ${selected ? 'border-red-100 bg-red-50/35' : 'border-slate-100'}`}>
+      <div className="flex min-w-0 gap-3">
+        <input type="checkbox" checked={selected} onChange={() => onSelect(item.id)} aria-label={`Select ${product.name}`} className="mt-1.5 size-4 accent-red-600" />
+        <Link to={`/${product.slug ?? ''}`} className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-1.5 sm:size-20">
+          {image ? (
+            <img src={image} alt={product.name ?? 'Wishlist product'} className="max-h-full max-w-full object-contain" />
+          ) : (
+            <Heart className="size-6 text-slate-300" />
+          )}
+        </Link>
+        <div className="min-w-0 py-0.5">
+          <Link to={`/${product.slug ?? ''}`} className="line-clamp-2 text-xs font-bold leading-4 text-slate-950 transition hover:text-auth-primary sm:text-[0.8125rem] sm:leading-4.5">
+            {product.name ?? 'Saved product'}
+          </Link>
+          <VariantSelector item={item} onUpdate={onVariant} busy={busyAction === `variant:${item.id}`} />
+          {variant.sku ? <p className="mt-0.5 text-[11px] text-slate-400">SKU: {variant.sku}</p> : null}
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            <button onClick={() => onDetails(item.id)} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-auth-primary">
+              <Eye className="size-3" /> Details
             </button>
-            <button onClick={() => onMove(item.id)} disabled={Boolean(busyAction)} className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-auth-primary disabled:opacity-50">
-              <ShoppingCart className="size-3.5" /> Move to cart
+            <button onClick={() => onMove(item.id)} disabled={Boolean(busyAction)} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-auth-primary disabled:opacity-50">
+              <ShoppingCart className="size-3" /> Move to cart
             </button>
-            <button onClick={() => onRemove(item.id)} disabled={Boolean(busyAction)} className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-auth-primary disabled:opacity-50">
-              <Trash2 className="size-3.5" /> Remove
+            <button onClick={() => onRemove(item.id)} disabled={Boolean(busyAction)} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-auth-primary disabled:opacity-50">
+              <Trash2 className="size-3" /> Remove
             </button>
           </div>
         </div>
       </div>
-      <div><span className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Quantity</span><div className="inline-flex items-center rounded-full bg-slate-50 p-1 ring-1 ring-slate-200"><button onClick={() => setQuantity((v) => Math.max(1, v - 1))} disabled={quantity <= 1} aria-label="Decrease quantity" className="grid size-8 place-items-center rounded-full disabled:opacity-35"><Minus className="size-3.5" /></button><span className="min-w-8 text-center text-sm font-bold">{quantity}</span><button onClick={() => setQuantity((v) => v + 1)} aria-label="Increase quantity" className="grid size-8 place-items-center rounded-full text-auth-primary"><Plus className="size-3.5" /></button></div></div>
-      <div className="md:text-right"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Price</span><p className="text-base font-extrabold text-slate-950">{formatCedi(price)}</p>{listPrice > price ? <p className="mt-1 text-xs text-slate-400 line-through">{formatCedi(listPrice)}</p> : null}</div>
+      <div>
+        <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Quantity</span>
+        <div className="inline-flex items-center rounded-full bg-slate-50 p-0.5 ring-1 ring-slate-200">
+          <button onClick={() => setQuantity((v) => Math.max(1, v - 1))} disabled={quantity <= 1} aria-label="Decrease quantity" className="grid size-7 place-items-center rounded-full disabled:opacity-35"><Minus className="size-3" /></button>
+          <span className="min-w-7 text-center text-xs font-bold">{quantity}</span>
+          <button onClick={() => setQuantity((v) => v + 1)} aria-label="Increase quantity" className="grid size-7 place-items-center rounded-full text-auth-primary"><Plus className="size-3" /></button>
+        </div>
+      </div>
+      <div className="md:text-right">
+        <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Price</span>
+        <p className="text-sm font-extrabold text-slate-950">{formatCedi(price)}</p>
+        {listPrice > price ? <p className="mt-0.5 text-[11px] text-slate-400 line-through">{formatCedi(listPrice)}</p> : null}
+      </div>
     </article>
   )
 }
@@ -185,7 +208,7 @@ export default function AccountWishlistPanel() {
   const toggle = (id) => setSelected((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])
   const toolbarActions = useMemo(() => [
     { key: 'moveAll', label: 'Move all to cart', icon: ShoppingCart, primary: true },
-    { key: 'bulkDelete', label: `Delete selected${selected.length ? ` (${selected.length})` : ''}`, icon: Trash2, disabled: !selected.length },
+    { key: 'bulkDelete', label: `Remove selected${selected.length ? ` (${selected.length})` : ''}`, icon: Trash2, disabled: !selected.length },
     { key: 'clear', label: 'Clear wishlist', icon: PackageCheck, danger: true },
   ], [selected.length])
   useEffect(() => { window.scrollTo(0, 0) }, [])

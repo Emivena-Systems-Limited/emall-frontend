@@ -74,6 +74,16 @@ export const EMPTY_STATE_PRESETS = {
     title: 'No product insights yet',
     description: 'Top rated and attention-needed products will show here after you receive reviews.',
   },
+  reviewedProducts: {
+    icon: Package,
+    title: 'No reviewed products yet',
+    description: 'Products appear here only after a customer leaves a review.',
+  },
+  reviewedProductsFiltered: {
+    icon: Package,
+    title: 'No products match your search',
+    description: 'Try a different product name to find a reviewed item.',
+  },
   messages: {
     icon: MessageSquare,
     title: 'No messages yet',

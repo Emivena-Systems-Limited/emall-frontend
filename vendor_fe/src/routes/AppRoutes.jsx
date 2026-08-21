@@ -20,6 +20,8 @@ import Inventory from '../pages/inventory/Inventory'
 import Notifications from '../pages/notifications/Notifications'
 import Finance from '../pages/finance/Finance'
 import Reviews from '../pages/reviews/Reviews'
+import ReviewedProducts from '../pages/reviews/ReviewedProducts'
+import ProductReviews from '../pages/reviews/ProductReviews'
 import Messages from '../pages/messages/Messages'
 import ProfileLayout from '../pages/profile/ProfileLayout'
 import PersonalInformationPage from '../pages/profile/PersonalInformationPage'
@@ -73,6 +75,8 @@ export default function AppRoutes() {
       <Route path="/finance" element={protectedPage(<Finance />)} />
       <Route path="/analytics" element={protectedPage(<Analytics />)} />
       <Route path="/reviews" element={protectedPage(<Reviews />)} />
+      <Route path="/reviews/products" element={protectedPage(<ReviewedProducts />)} />
+      <Route path="/reviews/products/:productId" element={protectedPage(<ProductReviews />)} />
       <Route path="/messages" element={protectedPage(<Messages />)} />
       <Route path="/profile" element={protectedPage(<ProfileLayout />)}>
         <Route index element={<PersonalInformationPage />} />

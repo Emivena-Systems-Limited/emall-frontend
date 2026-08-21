@@ -107,9 +107,9 @@ const FALLBACK_REVIEWS = [
 ]
 
 const FALLBACK_RATING_DISTRIBUTION = [
-  { label: 'Small', value: 7 },
-  { label: 'True to size', value: 88 },
-  { label: 'Large', value: 4 },
+  { label: '5 stars', value: 75 },
+  { label: '4 stars', value: 25 },
+  { label: '3 stars', value: 0 },
 ]
 
 // ─── Data shaping ───────────────────────────────────────────────────────────
@@ -210,12 +210,14 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
   const colorImages = {}
   const colors = []
   const otherVariantGroups = {}
+  const variantImageUrls = new Set()
 
   variants.forEach((variant) => {
     const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
     const normalizedKey = String(attributeKey ?? '').trim().toLowerCase()
     const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
     const varImage = resolveVariantImageUrl(variant)
+    if (varImage) variantImageUrls.add(varImage)
 
     if ((normalizedKey === 'color' || normalizedKey === 'colour') && valueText) {
       if (!colors.includes(valueText)) colors.push(valueText)
@@ -245,11 +247,11 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     }
   })
 
-  variants.forEach((variant) => {
-    const url = resolveVariantImageUrl(variant)
-    if (url) galleryUrls.push(url)
-  })
-  const gallery = [...new Set(galleryUrls)]
+  // Thumbnail carousel uses product images only — variant shots stay on the main viewer.
+  let gallery = [...new Set(galleryUrls)].filter((url) => !variantImageUrls.has(url))
+  if (gallery.length === 0 && (product?.image || galleryUrls[0])) {
+    gallery = [product?.image || galleryUrls[0]].filter(Boolean)
+  }
 
   const extraVariantGroups = Object.entries(otherVariantGroups).map(([key, group]) => ({
     key,
@@ -368,13 +370,10 @@ function Stars({ rating, size = 'size-4' }) {
 }
 
 function PreviewGallery({ gallery, activeImage, setActiveImage, title }) {
-  const images = useMemo(() => {
-    const next = (gallery ?? []).filter(Boolean)
-    if (activeImage && !next.includes(activeImage)) {
-      return [activeImage, ...next]
-    }
-    return next
-  }, [gallery, activeImage])
+  const images = useMemo(
+    () => (gallery ?? []).filter(Boolean),
+    [gallery],
+  )
 
   const currentImage = activeImage || images[0]
 
@@ -408,7 +407,7 @@ function PreviewGallery({ gallery, activeImage, setActiveImage, title }) {
                 currentImage === image ? 'border-brand' : 'border-slate-200 hover:border-slate-300'
               }`}
             >
-              <img src={image} alt="" className="size-full object-cover" />
+              <img src={image} alt="" className="size-full object-contain" />
             </button>
           ))}
         </div>
@@ -461,11 +460,13 @@ function VariantImageGroup({ label, values, images = {}, selected, onSelect, fal
               selected === value ? 'border-brand' : 'border-slate-200'
             }`}
           >
-            <img
-              src={images[value] ?? fallbackGallery[(index + 1) % fallbackGallery.length]}
-              alt=""
-              className="aspect-square w-full bg-slate-100 object-cover"
-            />
+            <span className="block aspect-square w-full overflow-hidden bg-slate-50">
+              <img
+                src={images[value] ?? fallbackGallery[(index + 1) % fallbackGallery.length]}
+                alt=""
+                className="size-full object-contain"
+              />
+            </span>
             <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{value}</span>
           </button>
         ))}
@@ -624,13 +625,15 @@ function InfoPanel({
                     selectedColor === color ? 'border-brand' : 'border-slate-200'
                   }`}
                 >
-                  <img
-                    src={preview.colorImages?.[color] ?? (preview.gallery.length
-                      ? preview.gallery[(index + 1) % preview.gallery.length]
-                      : undefined)}
-                    alt=""
-                    className="aspect-square w-full bg-slate-100 object-cover"
-                  />
+                  <span className="block aspect-square w-full overflow-hidden bg-slate-50">
+                    <img
+                      src={preview.colorImages?.[color] ?? (preview.gallery.length
+                        ? preview.gallery[(index + 1) % preview.gallery.length]
+                        : undefined)}
+                      alt=""
+                      className="size-full object-contain"
+                    />
+                  </span>
                   <span className="mt-1 block text-[0.625rem] font-semibold text-slate-600">{color}</span>
                 </button>
               ))}
@@ -911,7 +914,7 @@ function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews }
 
       <div className="mt-5 space-y-2">
         {ratingDistribution.map((row) => (
-          <div key={row.label} className="grid grid-cols-[4.5rem_1fr_2rem] items-center gap-3 text-[0.625rem] text-slate-600">
+          <div key={row.label} className="grid grid-cols-[3.75rem_1fr_2.25rem] items-center gap-3 text-[0.625rem] text-slate-600">
             <span className="truncate">{row.label}</span>
             <span className="h-1.5 overflow-hidden rounded-full bg-slate-200">
               <span className="block h-full rounded-full bg-slate-950" style={{ width: `${row.value}%` }} />
