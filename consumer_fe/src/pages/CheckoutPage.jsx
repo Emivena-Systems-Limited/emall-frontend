@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -42,7 +42,14 @@ import {
 } from '../services/addressService'
 import { useCartActions } from '../hooks/useCartActions'
 import { selectCartItems } from '../store/slices/cartSlice'
-import { formatCartItemOptions, enrichCartItemsForDisplay, extractCheckoutPreviewItems, resolveCartItemDisplayImage } from '../utils/normalizeCart'
+import {
+  clearCheckoutCartItemIds,
+  filterCartItemsByIds,
+  persistCheckoutCartItemIds,
+  resolveCheckoutCartItemIds,
+  uniqueCartItemIds,
+} from '../utils/checkoutCartItems'
+import { formatCartItemOptions, enrichCartItemsForDisplay, extractCheckoutPreviewItems, resolveCartItemDisplayImage, resolveCartLineItemId } from '../utils/normalizeCart'
 import { normalizePreviewTotals, computeCartOrderTotals, calculateOrderTotal, normalizeOrderMoneyTotals } from '../utils/checkoutTotals'
 import { resolveOrderItemPricing } from '../utils/normalizeOrders'
 import {
@@ -500,11 +507,17 @@ function SavedAddressCard({ savedAddress, selected, onSelect, onEdit, onDelete, 
   )
 }
 
-function buildCheckoutPayload(shippingAddress, billingAddress) {
-  return {
+function buildCheckoutPayload(shippingAddress, billingAddress, cartItemIds) {
+  const payload = {
     shipping_address_id: shippingAddress.id,
     billing_address_id: billingAddress.id,
   }
+
+  if (Array.isArray(cartItemIds)) {
+    payload.cart_item_ids = uniqueCartItemIds(cartItemIds)
+  }
+
+  return payload
 }
 
 function formatCheckoutAmount(value) {
@@ -1553,16 +1566,27 @@ function OrderSuccessScreen({ order, checkoutTotals, checkoutItems = [] }) {
 export default function CheckoutPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   const { mode } = useParams()
   const isBuyNowMode = mode === 'buy-now'
   const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const authenticatedUser = useSelector((state) => state.auth.user)
-  const { updateQuantity, deleteItem, clearAll } = useCartActions()
+  const { updateQuantity, deleteItem, removeCheckedOutItems } = useCartActions()
   const [buyNowItem, setBuyNowItem] = useState(() => (isBuyNowMode ? readBuyNowItem() : null))
   const [buyNowModeActive, setBuyNowModeActive] = useState(isBuyNowMode)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = isBuyNowMode ? (buyNowItem ? [buyNowItem] : []) : cartItems
+  const [checkoutCartItemIds, setCheckoutCartItemIds] = useState(() => (
+    isBuyNowMode
+      ? []
+      : resolveCheckoutCartItemIds({
+        navIds: location.state?.cartItemIds,
+        cartItems,
+      })
+  ))
+  const items = useMemo(() => {
+    if (isBuyNowMode) return buyNowItem ? [buyNowItem] : []
+    return filterCartItemsByIds(cartItems, checkoutCartItemIds)
+  }, [isBuyNowMode, buyNowItem, cartItems, checkoutCartItemIds])
   const [address, setAddress] = useState(initialAddress)
   const [addressErrors, setAddressErrors] = useState({})
   const [billingAddressId, setBillingAddressId] = useState(null)
@@ -1634,10 +1658,26 @@ export default function CheckoutPage() {
     }
   }, [isBuyNowMode, isAuthenticated, buyNowItem])
 
+  useEffect(() => {
+    if (isBuyNowMode) return
+    if (checkoutCartItemIds.length > 0) {
+      persistCheckoutCartItemIds(checkoutCartItemIds)
+      return
+    }
+
+    const ids = resolveCheckoutCartItemIds({
+      navIds: location.state?.cartItemIds,
+      cartItems,
+    })
+    if (ids.length === 0) return
+    persistCheckoutCartItemIds(ids)
+    setCheckoutCartItemIds(ids)
+  }, [isBuyNowMode, checkoutCartItemIds, location.state, cartItems])
+
   const previewQuery = useQuery({
-    queryKey: ['checkout-preview'],
-    queryFn: getCheckoutPreview,
-    enabled: isAuthenticated && !isBuyNowMode,
+    queryKey: ['checkout-preview', checkoutCartItemIds],
+    queryFn: () => getCheckoutPreview(checkoutCartItemIds),
+    enabled: isAuthenticated && !isBuyNowMode && checkoutCartItemIds.length > 0,
     staleTime: 60_000,
     retry: 1,
   })
@@ -1924,6 +1964,7 @@ export default function CheckoutPage() {
     && isCardPaymentValid
     && !(isBuyNowMode && isInitiatingBuyNow)
     && !(isBuyNowMode && !buyNowSessionId)
+    && (isBuyNowMode || checkoutCartItemIds.length > 0)
   )
 
   // Buy Now has no cart line to update on the backend — quantity edits just
@@ -1946,6 +1987,35 @@ export default function CheckoutPage() {
   const handleBuyNowDelete = () => {
     clearBuyNowItem()
     navigate(buyNowItem?.href || '/', { replace: true })
+  }
+
+  const handleCheckoutQuantityChange = async (itemId, quantity) => {
+    if (isBuyNowMode) {
+      handleBuyNowQuantityChange(itemId, quantity)
+      return
+    }
+
+    await updateQuantity(itemId, quantity)
+    queryClient.invalidateQueries({ queryKey: ['checkout-preview'] })
+  }
+
+  const handleCheckoutDelete = (itemId) => {
+    if (isBuyNowMode) {
+      handleBuyNowDelete()
+      return
+    }
+
+    const item = items.find((current) => current.id === itemId || current.key === itemId)
+    const lineId = resolveCartLineItemId(item)
+    deleteItem(itemId)
+
+    if (!lineId) return
+
+    setCheckoutCartItemIds((current) => {
+      const next = current.filter((id) => id !== lineId)
+      persistCheckoutCartItemIds(next)
+      return next
+    })
   }
 
   const handleAddressChange = (event) => {
@@ -2254,13 +2324,20 @@ export default function CheckoutPage() {
       return
     }
 
+    if (!isBuyNowMode && checkoutCartItemIds.length === 0) {
+      notify.error('Select at least one item to checkout.')
+      return
+    }
+
     setOrderStatus('processing')
 
     try {
       // No real payment gateway yet — simulate processing time so the
       // overlay doesn't just flash if the API responds instantly.
       const minProcessingDelay = new Promise((resolve) => setTimeout(resolve, 1800))
-      const addressesPayload = buildCheckoutPayload(activeAddress, activeBillingAddress)
+      const addressesPayload = isBuyNowMode
+        ? buildCheckoutPayload(activeAddress, activeBillingAddress)
+        : buildCheckoutPayload(activeAddress, activeBillingAddress, checkoutCartItemIds)
       const orderPromise = isBuyNowMode
         ? placeBuyNowOrder(buyNowSessionId, addressesPayload)
         : placeCheckoutOrder(addressesPayload)
@@ -2286,7 +2363,8 @@ export default function CheckoutPage() {
       if (isBuyNowMode) {
         clearBuyNowItem()
       } else {
-        await clearAll()
+        removeCheckedOutItems(checkoutCartItemIds)
+        clearCheckoutCartItemIds()
       }
     } catch (error) {
       setOrderStatus('idle')
@@ -2310,10 +2388,15 @@ export default function CheckoutPage() {
               <p className="mt-2 text-sm text-slate-600">
                 {isBuyNowMode
                   ? 'This item is no longer available. Please go back and select it again.'
-                  : 'Your cart is empty.'}
+                  : cartItems.length > 0
+                    ? 'Select at least one item in your cart to checkout.'
+                    : 'Your cart is empty.'}
               </p>
-              <Link to="/" className="mt-6 inline-flex rounded-lg bg-auth-primary px-6 py-3 text-sm font-bold text-white">
-                Continue Shopping
+              <Link
+                to={!isBuyNowMode && cartItems.length > 0 ? '/cart' : '/'}
+                className="mt-6 inline-flex rounded-lg bg-auth-primary px-6 py-3 text-sm font-bold text-white"
+              >
+                {!isBuyNowMode && cartItems.length > 0 ? 'Back to cart' : 'Continue Shopping'}
               </Link>
             </section>
           ) : isCheckoutDataLoading ? (
@@ -2421,8 +2504,8 @@ export default function CheckoutPage() {
                 <div className="order-2 lg:col-span-2 lg:row-start-1">
                   <OrderSummary
                     items={displayItems}
-                    onQuantityChange={isBuyNowMode ? handleBuyNowQuantityChange : updateQuantity}
-                    onDelete={isBuyNowMode ? handleBuyNowDelete : deleteItem}
+                    onQuantityChange={handleCheckoutQuantityChange}
+                    onDelete={handleCheckoutDelete}
                   />
                 </div>
 

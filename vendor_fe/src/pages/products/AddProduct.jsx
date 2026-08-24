@@ -1236,7 +1236,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                     isActiveGroup ? 'border-brand/30' : 'border-slate-200'
                   }`}>
                     <div className="space-y-3 px-4 py-4 sm:px-5">{cards}</div>
-                    <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
+                    <div className="border-t border-slate-200 bg-white px-4 py-4 sm:px-5">
                       <VariantGroupActionBar
                         attribute={group.attribute}
                         valueInput={isActiveGroup ? valueInput : ''}

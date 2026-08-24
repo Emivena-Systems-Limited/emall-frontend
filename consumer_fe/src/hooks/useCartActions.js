@@ -332,6 +332,22 @@ export function useCartActions() {
     dispatch(clearSavedItems())
   }, [dispatch])
 
+  const removeCheckedOutItems = useCallback((lineIds) => {
+    const idSet = new Set(
+      (Array.isArray(lineIds) ? lineIds : [])
+        .map((id) => String(id ?? '').trim())
+        .filter(Boolean),
+    )
+    if (idSet.size === 0) return
+
+    store.getState().cart.items.forEach((item) => {
+      const lineId = resolveCartLineItemId(item)
+      if (lineId && idSet.has(lineId)) {
+        dispatch(removeItem(item.id))
+      }
+    })
+  }, [dispatch])
+
   const ensureBackendCart = useCallback(async () => {
     if (!store.getState().auth.isAuthenticated) return null
     try {
@@ -347,6 +363,7 @@ export function useCartActions() {
     deleteItem,
     selectItem,
     clearAll,
+    removeCheckedOutItems,
     saveItem,
     restoreSavedItem,
     deleteSaved,

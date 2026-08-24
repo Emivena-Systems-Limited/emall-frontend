@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient'
+import { uniqueCartItemIds } from '../utils/checkoutCartItems'
 
 export const CHECKOUT_ENDPOINTS = {
   PREVIEW: '/checkout/preview',
@@ -56,8 +57,18 @@ function assertApiSuccess(data) {
   throw error
 }
 
-export async function getCheckoutPreview() {
-  const { data } = await apiClient.get(CHECKOUT_ENDPOINTS.PREVIEW, { skipAuthLogout: true })
+export function buildCheckoutPreviewPayload(cartItemIds = []) {
+  return {
+    cart_item_ids: uniqueCartItemIds(cartItemIds),
+  }
+}
+
+export async function getCheckoutPreview(cartItemIds = []) {
+  const { data } = await apiClient.post(
+    CHECKOUT_ENDPOINTS.PREVIEW,
+    buildCheckoutPreviewPayload(cartItemIds),
+    { skipAuthLogout: true },
+  )
   assertApiSuccess(data)
   return data?.data ?? data ?? {}
 }

@@ -425,7 +425,7 @@ export default function AddVariantFlow({
               ))}
             </div>
 
-            <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
+            <div className="border-t border-slate-200 bg-white px-4 py-4 sm:px-5">
               <VariantGroupActionBar
                 attribute={activeAttribute}
                 valueInput={valueInput}

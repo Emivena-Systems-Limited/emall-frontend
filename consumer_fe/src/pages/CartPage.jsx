@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useSelector } from 'react-redux'
-import { Loader2, Minus, Plus, ShoppingBag, X } from 'lucide-react'
+import { Check, Loader2, Minus, Plus, ShoppingBag, X } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import { formatCedi } from '../utils/formatCurrency'
@@ -12,7 +12,8 @@ import { useAuthenticatedCart } from '../hooks/useAuthenticatedCart'
 import { useGuestCart } from '../hooks/useGuestCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
-import { formatCartItemOptions, resolveCartItemDisplayImage } from '../utils/normalizeCart'
+import { collectSelectedCartItemIds, persistCheckoutCartItemIds } from '../utils/checkoutCartItems'
+import { formatCartItemOptions, resolveCartItemDisplayImage, resolveCartLineItemId } from '../utils/normalizeCart'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
 import { SavedItemsFloatingTrigger, SavedItemsTrigger } from '../components/cart/SavedItemsDrawer'
 import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
@@ -116,13 +117,25 @@ function CartItemRow({
     <article className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-4 last:border-b-0 sm:px-4 lg:px-5 lg:py-5">
       <div className="flex min-w-0 items-start gap-3 sm:items-center">
         {selectable ? (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={(event) => onSelect(event.target.checked)}
-            aria-label={`Select ${item.name}`}
-            className="mt-1 size-3.5 shrink-0 rounded border-slate-300 text-auth-primary focus:ring-auth-primary lg:mt-0"
-          />
+          <label className="group relative -ml-1.5 mt-0 inline-flex size-10 shrink-0 cursor-pointer items-center justify-center sm:size-11 lg:size-10">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(event) => onSelect(event.target.checked)}
+              aria-label={`Select ${item.name}`}
+              className="peer sr-only"
+            />
+            <span
+              aria-hidden="true"
+              className="flex size-4.5 items-center justify-center rounded-[0.3rem] border-2 border-slate-300 bg-white transition-colors duration-200 group-hover:border-auth-primary peer-checked:border-auth-primary peer-checked:bg-auth-primary peer-focus-visible:ring-2 peer-focus-visible:ring-auth-primary/35 peer-focus-visible:ring-offset-2"
+            >
+              <Check
+                className={`size-3 stroke-3 text-white transition-opacity duration-150 ${
+                  selected ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+            </span>
+          </label>
         ) : null}
         <Link to={productHref} className="shrink-0">
           <img
@@ -537,7 +550,14 @@ export default function CartPage() {
       return
     }
 
-    navigate('/checkout')
+    const cartItemIds = collectSelectedCartItemIds(selectedItems)
+    if (cartItemIds.length === 0 || cartItemIds.length !== selectedItems.length) {
+      notify.error('Those items are not ready for checkout yet. Please try again.')
+      return
+    }
+
+    persistCheckoutCartItemIds(cartItemIds)
+    navigate('/checkout', { state: { cartItemIds } })
   }
 
   const savedItemsTrigger = <SavedItemsTrigger className="hidden lg:inline-flex" />
@@ -572,7 +592,7 @@ export default function CartPage() {
                   headerAction={savedItemsTrigger}
                   items={items}
                   showSaveForLater={isAuthenticated}
-                  selectedIds={new Set(items.filter((item) => item.selected).map((item) => item.id))}
+                  selectedIds={new Set(items.filter((item) => item.selected !== false).map((item) => item.id))}
                   onSelect={selectItem}
                   onQuantityChange={updateQuantity}
                   onDelete={deleteItem}

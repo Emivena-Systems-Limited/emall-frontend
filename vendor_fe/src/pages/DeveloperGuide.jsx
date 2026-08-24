@@ -349,7 +349,7 @@ export function ReviewStep({ ... })
               <li>• <strong>Edit product info</strong> — 5-step wizard. Saves via <code className="rounded bg-slate-100 px-1 text-xs">buildProductInfoJsonPayload</code> + <code className="rounded bg-slate-100 px-1 text-xs">useUpdateProductInfoMutation</code>.</li>
               <li>• <strong>Edit images</strong> — Presign new files → S3 upload → JSON update. Kept images use <code className="rounded bg-slate-100 px-1 text-xs">id</code>; new uploads use <code className="rounded bg-slate-100 px-1 text-xs">upload_id</code>. Removed images are omitted.</li>
               <li>• <strong>Edit variations</strong> — <code className="rounded bg-slate-100 px-1 text-xs">VariationsEditForm</code> manages variant CRUD via per-variant update/create/delete mutations.</li>
-              <li>• <strong>View product</strong> — <code className="rounded bg-slate-100 px-1 text-xs">/products/:id/view</code> renders <code className="rounded bg-slate-100 px-1 text-xs">ProductStorefrontPreview</code> (consumer-style layout).</li>
+              <li>• <strong>View product</strong> — <code className="rounded bg-slate-100 px-1 text-xs">/products/:id/view</code> renders <code className="rounded bg-slate-100 px-1 text-xs">ProductStorefrontPreview</code> with the same shopper variant rules: main option selected first, extra-variant photos (up to 3) in the gallery, Color as image tiles, and other attributes as chips unless every value has a photo.</li>
               <li>• <strong>Form hydration</strong> — <code className="rounded bg-slate-100 px-1 text-xs">mapProductRecordToFormState</code> maps API images to remote preview objects.</li>
             </ul>
 

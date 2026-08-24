@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-07-16',
+  lastUpdated: '2026-08-24',
   currentPhase: 'Customer account dashboard',
   summary:
-    'Public home landing at / uses Laravel landing-page data where available. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout, and product cards open a responsive product details page.',
+    'Public home landing at / uses Laravel landing-page data where available. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout with selected cart_item_ids, and product cards open a responsive product details page.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,17 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-08-24',
+    title: 'Selected cart items for checkout preview and place order',
+    items: [
+      'Cart proceed-to-checkout now carries only the selected line item IDs into /checkout',
+      'Checkout preview switched from GET /checkout/preview to POST /checkout/preview with cart_item_ids',
+      'POST /checkout now sends shipping_address_id, billing_address_id, and cart_item_ids for the selected lines',
+      'Successful cart checkout removes only the purchased lines so unselected cart items remain',
+      'Cart line-item checkboxes now use the auth-primary fill, check, and focus ring instead of the browser default',
+    ],
+  },
   {
     date: '2026-07-16',
     title: 'Modern customer account dashboard',
@@ -444,14 +455,14 @@ export const routes = [
     name: 'My Cart',
     status: 'done',
     file: 'src/pages/CartPage.jsx',
-    notes: 'Responsive cart review page with quantities, item actions, summary totals, and related products',
+    notes: 'Responsive cart review page with selectable line items, quantities, item actions, summary totals, and related products',
   },
   {
     path: '/checkout',
     name: 'Checkout',
     status: 'done',
     file: 'src/pages/CheckoutPage.jsx',
-    notes: 'Responsive guest/user checkout with address, store-grouped items, coupon, totals, payment methods, and Place Order rules',
+    notes: 'Responsive guest/user checkout with address, selected cart_item_ids, store-grouped items, coupon, totals, payment methods, and Place Order rules',
   },
   {
     path: '/categories',
@@ -675,7 +686,19 @@ export const apiIntegrations = [
   {
     method: 'POST',
     endpoint: '/cart/merge',
-    purpose: 'Merge a guest\u2019s local cart lines into the authenticated user\u2019s cart on login/signup (falls back to POST /cart + POST /cart/items per line if 404)',
+    purpose: 'Merge a guest’s local cart lines into the authenticated user’s cart on login/signup (falls back to POST /cart + POST /cart/items per line if 404)',
+    status: 'wired',
+  },
+  {
+    method: 'POST',
+    endpoint: '/checkout/preview',
+    purpose: 'Preview checkout totals for the selected cart_item_ids',
+    status: 'wired',
+  },
+  {
+    method: 'POST',
+    endpoint: '/checkout',
+    purpose: 'Place a cart order with shipping_address_id, billing_address_id, and cart_item_ids',
     status: 'wired',
   },
 ]

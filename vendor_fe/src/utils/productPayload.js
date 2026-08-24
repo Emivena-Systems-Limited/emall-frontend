@@ -246,6 +246,45 @@ export function resolveVariantImageUrl(variant) {
   return normalized || null
 }
 
+/** All image URLs from an API variant record, in display order. */
+export function collectVariantImageUrls(variant) {
+  if (!variant || typeof variant !== 'object') return []
+
+  const urls = []
+  if (Array.isArray(variant.images)) {
+    variant.images.forEach((image) => {
+      const url = typeof image === 'string'
+        ? image
+        : (image?.image_url ?? image?.url ?? image?.preview ?? '')
+      const normalized = String(url ?? '').trim()
+      if (normalized) urls.push(normalized)
+    })
+  }
+
+  const fallback = resolveVariantImageUrl(variant)
+  if (fallback && !urls.includes(fallback)) urls.push(fallback)
+
+  return [...new Set(urls)]
+}
+
+export function isSameVariantOption(selected, value) {
+  if (selected == null || value == null || selected === '' || value === '') return false
+  return String(selected).trim().toLowerCase() === String(value).trim().toLowerCase()
+}
+
+/** Map a variant attribute value to the matching option label from the product list. */
+export function resolveCanonicalVariantOption(rawValue, options = []) {
+  if (rawValue == null || rawValue === '') return ''
+  const normalized = String(rawValue).trim().toLowerCase()
+  if (!normalized) return ''
+
+  const match = (Array.isArray(options) ? options : []).find(
+    (option) => String(option).trim().toLowerCase() === normalized,
+  )
+
+  return match != null ? String(match) : String(rawValue).trim()
+}
+
 export function getVariantAttributeValue(variant, attributeName) {
   const normalized = String(attributeName ?? '').trim().toLowerCase()
   if (!normalized || !variant || typeof variant !== 'object') return ''
@@ -264,6 +303,12 @@ export function getVariantAttributeValue(variant, attributeName) {
   }
 
   if (normalized === 'color' && variant.color != null && variant.color !== '') {
+    return String(variant.color).trim()
+  }
+  if (normalized === 'colour' && variant.colour != null && variant.colour !== '') {
+    return String(variant.colour).trim()
+  }
+  if (normalized === 'colour' && variant.color != null && variant.color !== '') {
     return String(variant.color).trim()
   }
   if (normalized === 'size' && variant.size != null && variant.size !== '') {
