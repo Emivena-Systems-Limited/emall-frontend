@@ -1,5 +1,9 @@
 import { convertDiscountAmountToPercent } from './productPricing'
 import { resolveVariantAttributeFields } from './productPayload'
+import {
+  MAIN_PRODUCT_ATTRIBUTE_META_KEY,
+  MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY,
+} from './defaultProductVariation'
 import { fromVariantDescriptionField, fromVariantOptionalField, fromVariantSalePriceField } from '../components/variants/variantFormUtils'
 import {
   mapApiProductStatus,
@@ -136,6 +140,43 @@ function resolvePricingFields(record, firstVariant, metadataMap = {}) {
     discount_mode: discountMode,
     discount_price: hasSalePrice && discountMode === 'amount' ? String(rawSalePrice) : '',
     discount_percent: hasSalePrice && discountMode === 'percent' ? String(discountPercent) : discountPercent,
+  }
+}
+
+function resolveMainProductOptionFields(record, firstVariant, metadataMap = {}) {
+  const fromMetaAttribute = String(
+    metadataMap[MAIN_PRODUCT_ATTRIBUTE_META_KEY]
+    ?? getMetadataValue(record.metadata, MAIN_PRODUCT_ATTRIBUTE_META_KEY)
+    ?? '',
+  ).trim()
+  const fromMetaValue = String(
+    metadataMap[MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY]
+    ?? getMetadataValue(record.metadata, MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY)
+    ?? '',
+  ).trim()
+
+  if (fromMetaAttribute && fromMetaValue) {
+    return {
+      main_attribute: fromMetaAttribute,
+      main_attribute_value: fromMetaValue,
+    }
+  }
+
+  if (firstVariant) {
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(firstVariant)
+    const attributeLabel = String(firstVariant.attribute ?? '').trim()
+      || humanizeAttributeKey(attributeKey)
+    const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue).trim() : ''
+
+    return {
+      main_attribute: attributeLabel,
+      main_attribute_value: valueText,
+    }
+  }
+
+  return {
+    main_attribute: '',
+    main_attribute_value: '',
   }
 }
 
@@ -318,6 +359,7 @@ export function mapProductRecordToFormValues(record) {
     condition: record.condition ?? metadataMap.condition ?? '',
     tags: normalizeTags(record.tags),
     key_details: mapKeyDetailsFromRecord(record),
+    ...resolveMainProductOptionFields(record, firstVariant, metadataMap),
     ...pricing,
     quantity: resolveQuantity(),
     low_stock_threshold: record.low_stock_threshold != null

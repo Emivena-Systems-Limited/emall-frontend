@@ -78,7 +78,7 @@ export default function VariantListView({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Manage variations</p>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Product variants</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Expand a variant to edit it, or add new values to expand your product options.
+              Expand a variant to edit it, or add extra values. Color options need at least one photo. Other types can skip photos.
             </p>
             {entries.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -149,7 +149,7 @@ export default function VariantListView({
             </span>
             <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
               <strong className="block text-slate-700">3. Fill in the card</strong>
-              Price, stock & photo
+              Price, stock & optional photos
             </span>
           </div>
           <button

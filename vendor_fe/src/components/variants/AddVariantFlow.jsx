@@ -10,8 +10,10 @@ import CardStepHeader from './CardStepHeader'
 import PersistedVariantAccordion from './PersistedVariantAccordion'
 import VariantAccordionCard from './VariantAccordionCard'
 import VariantGroupActionBar from './VariantGroupActionBar'
-import { isPresetAttribute } from './variantConstants'
+import { isPresetAttribute, isColorVariantAttribute, COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE } from './variantConstants'
 import { getSingleVariantValuePlaceholder, normalizeVariantOptionalFields, parseMultiValues } from './variantFormUtils'
+import { isMainProductOption } from '../../utils/defaultProductVariation'
+import { hasUsableProductImages } from '../../utils/productImageUtils'
 
 function createDraftId() {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -125,6 +127,12 @@ export default function AddVariantFlow({
       setValuesError(`"${trimmed}" was already added for ${activeAttribute}`)
       return
     }
+    if (isMainProductOption(productValues, activeAttribute, trimmed)) {
+      setValuesError(
+        `"${trimmed}" is already this product's default ${activeAttribute}. Add a different value, or skip extra options.`,
+      )
+      return
+    }
 
     setAttributeError('')
     setValuesError('')
@@ -181,6 +189,10 @@ export default function AddVariantFlow({
       }
       if (card.quantity === '' || card.quantity == null) {
         remaining.push({ ...card, error: 'Quantity is required' })
+        continue
+      }
+      if (isColorVariantAttribute(activeAttribute) && !hasUsableProductImages(card.images, card.image_url)) {
+        remaining.push({ ...card, error: COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE })
         continue
       }
 
@@ -383,7 +395,11 @@ export default function AddVariantFlow({
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
                   {draftCards.length} {activeAttribute} value{draftCards.length !== 1 ? 's' : ''} to save
                 </p>
-                <p className="text-[11px] text-slate-400">Fill in quantity, price & photo for each value below</p>
+                <p className="text-[11px] text-slate-400">
+                  {isColorVariantAttribute(activeAttribute)
+                    ? 'Fill in quantity and price for each value. Color options need at least one photo (up to 3).'
+                    : 'Fill in quantity and price for each value. Photos are optional (up to 3).'}
+                </p>
               </div>
             </div>
 

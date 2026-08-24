@@ -160,9 +160,9 @@ export default function VariantReviewCard({ attribute, variantValue, productValu
               </span>
             )}
             {imageCount === 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-100">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200">
                 <ImageIcon className="size-2.5" />
-                Missing photo
+                Uses product photos
               </span>
             )}
           </div>

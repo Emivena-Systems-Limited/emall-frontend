@@ -239,13 +239,55 @@ export function buildVariationCatalogContext({
   return { category, subcategory }
 }
 
+export const MAIN_PRODUCT_ATTRIBUTE_META_KEY = 'main_attribute'
+export const MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY = 'main_attribute_value'
+
+function normalizeOptionText(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+export function isSameProductOption(left, right) {
+  const a = normalizeOptionText(left)
+  const b = normalizeOptionText(right)
+  return Boolean(a && b && a === b)
+}
+
+export function isMainProductOption(values = {}, attribute, value) {
+  return isSameProductOption(values.main_attribute, attribute)
+    && isSameProductOption(values.main_attribute_value, value)
+}
+
+export function hasMatchingVariationValue(variations = [], attribute, value) {
+  const attr = normalizeOptionText(attribute)
+  const val = normalizeOptionText(value)
+  if (!attr || !val) return false
+
+  return (variations ?? []).some((group) => (
+    normalizeOptionText(group?.attribute) === attr
+    && (group?.values ?? []).some((item) => normalizeOptionText(item?.value) === val)
+  ))
+}
+
 /**
  * Infer attribute, value, display name, and SKU for the auto-created variation.
- * Uses key details when unambiguous, otherwise category context + listing fields.
+ * Prefers the vendor-defined main option, then key details, then category context.
  */
 export function resolveDefaultVariationIdentity(values = {}, catalogContext = {}) {
   const name = String(values.name ?? '').trim()
   const sku = String(values.sku ?? '').trim()
+  const mainAttribute = String(values.main_attribute ?? '').trim()
+  const mainValue = String(values.main_attribute_value ?? '').trim()
+
+  if (mainAttribute && mainValue) {
+    return {
+      attribute: titleCaseWords(mainAttribute),
+      value: mainValue,
+      variant_name: name || mainValue || sku || 'Standard',
+      sku: resolveDefaultVariantSku(sku, mainAttribute, mainValue),
+      source: 'vendor',
+    }
+  }
+
   const condition = values.condition
   const tags = Array.isArray(values.tags) ? values.tags : []
   const keyDetails = Array.isArray(values.key_details) ? values.key_details : []
@@ -376,8 +418,8 @@ export function buildDefaultProductVariationGroup(
 }
 
 /**
- * If the vendor skipped variations, inject one inferred option from listing details.
- * Call before presigned media upload so the variant image gets its own upload_id.
+ * Always keep the listing's main option in the payload, even when extra variants exist.
+ * Call before presigned media upload so the default variant image gets its own upload_id.
  */
 export function ensureDefaultProductVariations({
   variations = [],
@@ -385,9 +427,25 @@ export function ensureDefaultProductVariations({
   mainImage = null,
   catalogContext = {},
 } = {}) {
-  if (hasAnyProductVariationValues(variations)) {
-    return variations
+  const groups = Array.isArray(variations) ? variations : []
+  const identity = resolveDefaultVariationIdentity(values, catalogContext)
+
+  if (hasMatchingVariationValue(groups, identity.attribute, identity.value)) {
+    return groups
   }
 
-  return [buildDefaultProductVariationGroup(values, mainImage, catalogContext)]
+  const defaultGroup = buildDefaultProductVariationGroup(values, mainImage, catalogContext)
+  const existingIndex = groups.findIndex(
+    (group) => normalizeOptionText(group?.attribute) === normalizeOptionText(identity.attribute),
+  )
+
+  if (existingIndex >= 0) {
+    return groups.map((group, index) => (
+      index === existingIndex
+        ? { ...group, values: [...defaultGroup.values, ...(group.values ?? [])] }
+        : group
+    ))
+  }
+
+  return [defaultGroup, ...groups]
 }

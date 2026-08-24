@@ -6,7 +6,7 @@ import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
 import CardStepHeader from './CardStepHeader'
 import VariantCompatibleModelsSection from './VariantCompatibleModelsSection'
 import VariantIdentitySection from './VariantIdentitySection'
-import { MAX_VARIANT_IMAGE_COUNT } from './variantConstants'
+import { MAX_VARIANT_IMAGE_COUNT, getVariantImageUploadHint, isColorVariantAttribute } from './variantConstants'
 import { svFieldError } from './variantFormUtils'
 
 /** Steps shared between the single-variant form and the add-variant details drawer: photo, pricing, identity/specs, stock, compatible models. */
@@ -21,6 +21,7 @@ export default function VariantDetailFields({
   showImageEditHints = false,
 }) {
   const pricing = resolveVariantPricing(formik.values, productValues)
+  const photosRequired = isColorVariantAttribute(formik.values.attribute)
 
   return (
     <>
@@ -28,9 +29,12 @@ export default function VariantDetailFields({
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
         <CardStepHeader
           step={startStep}
-          title="Add a photo for this value"
-          subtitle="Shown to customers when they select this option."
-          required
+          title="Add photos for this value"
+          subtitle={
+            photosRequired
+              ? 'Required — up to 3 photos. Shoppers see these when they pick this color.'
+              : 'Optional — up to 3 photos. Shoppers see these when they pick this option. Skip this if the main product photos are enough.'
+          }
         />
         <div data-field="images">
           {showImageEditHints && imageBaseline ? (
@@ -38,7 +42,8 @@ export default function VariantDetailFields({
               imageBaseline={imageBaseline}
               images={formik.values.images}
               maxImages={MAX_VARIANT_IMAGE_COUNT}
-              thumbnailSizeClass="size-20 sm:size-24"
+              hint={getVariantImageUploadHint(formik.values.attribute)}
+              required={photosRequired}
               onChange={(images) => {
                 formik.setFieldValue('images', images)
                 formik.setFieldTouched('images', true, false)
@@ -47,11 +52,11 @@ export default function VariantDetailFields({
             />
           ) : (
             <VariantImageUpload
-              label="Variant image"
-              hint="JPG or PNG · Max 5MB"
+              label="Photos"
+              hint={getVariantImageUploadHint(formik.values.attribute)}
+              required={photosRequired}
               images={formik.values.images}
               maxImages={MAX_VARIANT_IMAGE_COUNT}
-              thumbnailSizeClass="size-20 sm:size-24"
               onChange={(images) => {
                 formik.setFieldValue('images', images)
                 formik.setFieldTouched('images', true, false)

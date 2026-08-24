@@ -1,5 +1,6 @@
 import VariantImageUpload from '../products/VariantImageUpload'
 import { summarizeVariantImageChanges } from '../../utils/productImageEditUtils'
+import { VARIANT_IMAGE_UPLOAD_HINT } from './variantConstants'
 
 function VariantImageEditChangeSummary({ summary }) {
   if (!summary?.hasChanges) return null
@@ -26,8 +27,9 @@ export default function VariantImageEditSection({
   error = '',
   maxImages,
   label = 'Variant image',
-  hint = 'JPG or PNG · Max 5MB',
-  thumbnailSizeClass = 'size-20 sm:size-24',
+  hint = VARIANT_IMAGE_UPLOAD_HINT,
+  thumbnailSizeClass = '',
+  required = false,
 }) {
   const changeSummary = summarizeVariantImageChanges(imageBaseline, { images })
 
@@ -38,6 +40,7 @@ export default function VariantImageEditSection({
       <VariantImageUpload
         label={label}
         hint={hint}
+        required={required}
         images={images}
         maxImages={maxImages}
         thumbnailSizeClass={thumbnailSizeClass}

@@ -5,7 +5,8 @@ import VariantImageUpload from '../products/VariantImageUpload'
 import VariantValuesInput from './VariantValuesInput'
 import AttributeIcon from './AttributeIcon'
 import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
-import { MAX_VARIANT_IMAGE_COUNT } from './variantConstants'
+import { hasUsableProductImages } from '../../utils/productImageUtils'
+import { MAX_VARIANT_IMAGE_COUNT, getVariantImageUploadHint, isColorVariantAttribute } from './variantConstants'
 
 /**
  * One variant = one self-contained accordion card. Collapsed shows a quick summary
@@ -32,10 +33,11 @@ export default function VariantAccordionCard({
 }) {
   const [showCompatible, setShowCompatible] = useState(Boolean(values.has_compatible_models))
   const pricing = resolveVariantPricing(values, productValues)
-  const hasImage = (values.images ?? []).length > 0
   const quantityValue = values.quantity !== '' && values.quantity != null ? values.quantity : null
   const displayValue = values.value?.trim() || 'New option'
-  const isReady = Boolean(values.value?.trim()) && quantityValue != null && hasImage
+  const photosRequired = isColorVariantAttribute(attribute)
+  const hasPhotos = hasUsableProductImages(values.images, values.image_url)
+  const isReady = Boolean(values.value?.trim()) && quantityValue != null && (!photosRequired || hasPhotos)
   const fieldId = (name) => `${idPrefix}-${name}`
 
   return (
@@ -131,13 +133,14 @@ export default function VariantAccordionCard({
               {/* Photo — 2/5 */}
               <div className="lg:col-span-2">
                 <VariantImageUpload
-                  label="Photo"
-                  hint="JPG or PNG · Max 5MB"
+                  label="Photos"
+                  hint={getVariantImageUploadHint(attribute)}
+                  required={photosRequired}
                   images={values.images}
                   maxImages={MAX_VARIANT_IMAGE_COUNT}
-                  thumbnailSizeClass="w-full max-w-64 aspect-square"
-                  dropzoneMinHeightClass="min-h-56"
+                  dropzoneMinHeightClass="min-h-28"
                   onChange={(images) => onFieldChange('images', images)}
+                  error={/photo/i.test(String(error ?? '')) ? error : undefined}
                 />
               </div>
 

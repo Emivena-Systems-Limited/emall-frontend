@@ -13,10 +13,12 @@ import AttributeIcon from './AttributeIcon'
 import VariantDetailFields from './VariantDetailFields'
 import { normalizeVariantOptionalFields } from './variantFormUtils'
 import { captureVariantImageBaseline } from '../../utils/productImageEditUtils'
+import { isColorVariantAttribute } from './variantConstants'
 
 function VariantDrawerHeader({ attribute, value, formik, productValues, onClose }) {
   const pricing = resolveVariantPricing(formik.values, productValues)
   const hasImage = (formik.values.images ?? []).length > 0
+  const photosRequired = isColorVariantAttribute(attribute)
 
   return (
     <div className="relative overflow-hidden border-b border-slate-200 bg-linear-to-br from-brand-light/60 via-white to-white px-5 py-5 sm:px-6">
@@ -55,11 +57,13 @@ function VariantDrawerHeader({ attribute, value, formik, productValues, onClose 
           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${
             hasImage
               ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
-              : 'bg-amber-50 text-amber-700 ring-1 ring-amber-100'
+              : photosRequired
+                ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-100'
+                : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200'
           }`}
         >
           <CheckCircle2 className="size-3" />
-          {hasImage ? 'Photo added' : 'Needs a photo'}
+          {hasImage ? 'Photo added' : photosRequired ? 'Photo required' : 'Photos optional'}
         </span>
       </div>
     </div>

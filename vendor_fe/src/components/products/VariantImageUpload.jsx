@@ -12,12 +12,13 @@ export default function VariantImageUpload({
   images = [],
   onChange,
   label = 'Variant images',
-  hint = 'Required · JPG or PNG · Max 5MB · First image is primary',
+  hint = 'Optional · JPG or PNG · Max 5MB · Up to 3 photos · First image is primary',
   error,
   compact = false,
   maxImages = Infinity,
-  thumbnailSizeClass = 'size-16 sm:size-18',
+  thumbnailSizeClass = '',
   dropzoneMinHeightClass = '',
+  required = false,
 }) {
   const inputRef = useRef(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -71,7 +72,10 @@ export default function VariantImageUpload({
 
   const labelBlock = (
     <div className={compact ? 'mb-2 min-h-13' : 'mb-1.5'}>
-      <p className="text-sm font-semibold text-slate-800">{label}</p>
+      <p className="text-sm font-semibold text-slate-800">
+        {label}
+        {required ? <span className="text-red-600" aria-hidden="true"> *</span> : null}
+      </p>
       {hint && (
         <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{hint}</p>
       )}
@@ -125,7 +129,7 @@ export default function VariantImageUpload({
 
       {images.length > 0 && (
         <>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             {images.map((image, index) => (
               <div
                 key={image.id}
@@ -134,19 +138,21 @@ export default function VariantImageUpload({
                 onDragOver={(event) => { event.preventDefault(); setOverIndex(index) }}
                 onDrop={(event) => handleItemDrop(event, index)}
                 onDragEnd={() => { setDraggingIndex(null); setOverIndex(null) }}
-                className={`group relative ${thumbnailSizeClass} shrink-0 overflow-hidden rounded-lg ${
+                className={[
+                  'group relative aspect-square w-full overflow-hidden rounded-lg bg-slate-50',
+                  thumbnailSizeClass,
                   draggingIndex === index
                     ? 'cursor-grabbing opacity-40 ring-2 ring-slate-300'
                     : overIndex === index && draggingIndex !== index
-                      ? 'scale-105 cursor-grab ring-2 ring-brand'
-                      : 'cursor-grab ring-1 ring-slate-200 hover:ring-slate-300 active:cursor-grabbing'
-                }`}
+                      ? 'cursor-grab ring-2 ring-brand'
+                      : 'cursor-grab ring-1 ring-slate-200 hover:ring-slate-300 active:cursor-grabbing',
+                ].filter(Boolean).join(' ')}
               >
                 <img
                   src={image.preview}
                   alt={`Variant image ${index + 1}`}
                   draggable={false}
-                  className="pointer-events-none size-full object-cover select-none"
+                  className="pointer-events-none size-full max-h-full max-w-full object-contain object-center p-1 select-none"
                 />
                 {index === 0 && (
                   <span className="absolute left-1 top-1 rounded-full bg-brand px-1.5 py-px text-[9px] font-bold text-white shadow">

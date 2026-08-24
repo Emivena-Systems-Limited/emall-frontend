@@ -17,6 +17,19 @@ export const VARIANT_DESCRIPTION_MAX_LENGTH = 300
 /** Default variant low-stock alert threshold sent when the field is left blank. */
 export const DEFAULT_VARIANT_MINIMUM_THRESHOLD = 5
 
-// Backend currently only stores a single image per variant. Bump this once multi-image
-// variant uploads are supported server-side — the upload UI already handles it either way.
-export const MAX_VARIANT_IMAGE_COUNT = 1
+export const MAX_VARIANT_IMAGE_COUNT = 3
+export const VARIANT_IMAGE_UPLOAD_HINT =
+  `Optional · Up to ${MAX_VARIANT_IMAGE_COUNT} photos · JPG or PNG · Max 5MB each`
+export const COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE =
+  'Add at least one photo for this color'
+
+export function isColorVariantAttribute(attribute = '') {
+  return /^(color|colour)$/i.test(String(attribute ?? '').trim())
+}
+
+export function getVariantImageUploadHint(attribute = '') {
+  if (isColorVariantAttribute(attribute)) {
+    return `Required · Up to ${MAX_VARIANT_IMAGE_COUNT} photos · JPG or PNG · Max 5MB each`
+  }
+  return VARIANT_IMAGE_UPLOAD_HINT
+}

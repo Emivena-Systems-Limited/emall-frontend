@@ -30,6 +30,11 @@ import {
   buildProductMediaSaveImagesPayload,
   isImageUploadedToStorage,
 } from './productMediaUploadUtils'
+import { MAX_VARIANT_IMAGE_COUNT, isColorVariantAttribute, COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE } from '../components/variants/variantConstants'
+import {
+  MAIN_PRODUCT_ATTRIBUTE_META_KEY,
+  MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY,
+} from './defaultProductVariation'
 
 function describeFile(file) {
   if (!file) return null
@@ -334,17 +339,29 @@ function resolveVariantImageLabel(variantValue, variation) {
 
 function assertVariantImagesPresent(variantValue, variation, { mode = 'create' } = {}) {
   const label = resolveVariantImageLabel(variantValue, variation)
-  const images = variantValue.images ?? []
+  const images = (variantValue.images ?? []).filter(Boolean)
+  const fallbackUrl = String(variantValue.image_url ?? '').trim()
+
+  if (images.length > MAX_VARIANT_IMAGE_COUNT) {
+    throw new Error(`"${label}" can have at most ${MAX_VARIANT_IMAGE_COUNT} photos.`)
+  }
+
+  if (images.length === 0 && !fallbackUrl) {
+    if (isColorVariantAttribute(variation?.attribute)) {
+      throw new Error(`"${label}": ${COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE}`)
+    }
+    return
+  }
 
   if (!hasUsableProductImages(images, variantValue.image_url)) {
-    throw new Error(`"${label}" requires at least one image. Upload a JPG or PNG file and try again.`)
+    throw new Error(`"${label}" has an invalid photo. Upload a JPG or PNG and try again.`)
   }
 
   if (mode === 'create') {
     const hasFileUpload = images.some((image) => isFileValue(image?.file))
     const hasStoragePath = images.some((image) => isImageUploadedToStorage(image))
-    if (!hasFileUpload && !hasStoragePath && !String(variantValue.image_url ?? '').trim()) {
-      throw new Error(`"${label}" requires at least one image. Upload a JPG or PNG file and try again.`)
+    if (!hasFileUpload && !hasStoragePath && !fallbackUrl) {
+      throw new Error(`"${label}" has an invalid photo. Upload a JPG or PNG and try again.`)
     }
   }
 }
@@ -888,6 +905,8 @@ function buildPricingMetadata(values) {
     metadataEntry('percent_off', hasDiscount ? percentOff : null),
     metadataEntry('savings_amount', hasDiscount ? savings : null),
     metadataEntry('has_discount', hasDiscount ? '1' : '0'),
+    metadataEntry(MAIN_PRODUCT_ATTRIBUTE_META_KEY, values.main_attribute?.trim()),
+    metadataEntry(MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY, values.main_attribute_value?.trim()),
   ]
 
   return entries.filter(Boolean)
@@ -1227,13 +1246,6 @@ function buildVariationsJsonPayload(variations, values, { mode = 'create' } = {}
       assertVariantImagesPresent(val, variation, { mode })
 
       const valueData = buildSingleVariationJsonValueData(val, variation, values)
-
-      if (valueData.images.length === 0) {
-        throw new Error(
-          `"${resolveVariantImageLabel(val, variation)}" image upload did not finish. Please try again.`,
-        )
-      }
-
       groupValues.push(valueData)
     }
 

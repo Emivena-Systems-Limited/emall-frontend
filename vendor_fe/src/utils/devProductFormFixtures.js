@@ -105,6 +105,8 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
     key_details: [
       { id: 'kd-material', key: 'Material', value: 'ABS plastic' },
     ],
+    main_attribute: 'Color',
+    main_attribute_value: 'Black',
   },
   2: {
     price: '245.99',
@@ -120,18 +122,12 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
         id: 'var-dev-color',
         attribute: 'Color',
         values: [
-          createDevVariantValue('Black', {
-            sku: 'AUD-WEP-001-BLK',
-            quantity: '25',
-            reserved_quantity: '2',
-            minimum_threshold: '5',
-            description: 'Matte black finish with USB-C charging case.',
-          }),
           createDevVariantValue('Blue', {
             sku: 'AUD-WEP-001-BLU',
             quantity: '15',
             reserved_quantity: '',
             minimum_threshold: '',
+            description: 'Ocean blue finish with USB-C charging case.',
           }),
         ],
       },
@@ -160,9 +156,9 @@ function createDevProductSkuSeed(base = 'AUD-WEP') {
 function withDevVariationSkus(variations = [], productSku) {
   return variations.map((group) => ({
     ...group,
-    values: (group.values ?? []).map((value, index) => ({
+    values: (group.values ?? []).map((value) => ({
       ...value,
-      sku: `${productSku}-${index === 0 ? 'BLK' : 'BLU'}`,
+      sku: `${productSku}-BLU`,
     })),
   }))
 }

@@ -1,10 +1,29 @@
 import * as Yup from 'yup'
 import { PRODUCT_CONDITION_OPTIONS } from '../constants/products'
 import { isPresentVariantField } from '../components/variants/variantFormUtils'
+import { MAX_VARIANT_IMAGE_COUNT, isColorVariantAttribute, COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE } from '../components/variants/variantConstants'
 import { hasUsableProductImages } from './productImageUtils'
 import { stripHtml } from './richText'
 
 const productConditionValues = PRODUCT_CONDITION_OPTIONS.map((option) => option.value)
+
+function resolveSchemaAttribute(context) {
+  return String(
+    context?.parent?.attribute
+    ?? context?.from?.[1]?.value?.attribute
+    ?? '',
+  ).trim()
+}
+
+function colorVariantImagesRequiredTest() {
+  return function validateColorVariantImages(images) {
+    if (!isColorVariantAttribute(resolveSchemaAttribute(this))) return true
+    const list = Array.isArray(images) ? images : []
+    const fallback = this.parent?.image_url
+    if (hasUsableProductImages(list, fallback)) return true
+    return this.createError({ message: COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE })
+  }
+}
 
 const productKeyDetailPairSchema = Yup.object({
   id: Yup.string(),
@@ -372,11 +391,15 @@ const productVariationValueSchema = Yup.object({
         preview: Yup.string(),
       }),
     )
+    .max(MAX_VARIANT_IMAGE_COUNT, `You can add up to ${MAX_VARIANT_IMAGE_COUNT} photos for this option`)
     .default([])
+    .test('color-images-required', COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE, colorVariantImagesRequiredTest())
     .test(
-      'variant-images-required',
-      'At least one variant image is required',
+      'variant-images-usable',
+      'Upload a valid JPG or PNG, or remove this photo',
       function validateVariantImages(images) {
+        const list = Array.isArray(images) ? images : []
+        if (list.length === 0) return true
         const { image_url: imageUrl } = this.parent ?? {}
         return hasUsableProductImages(images, imageUrl)
       },
@@ -414,6 +437,12 @@ export const productListingSchemaBase = Yup.object({
     .required('Product condition is required'),
   tags: Yup.array().of(Yup.string().trim().min(1)).default([]),
   key_details: Yup.array().of(productKeyDetailPairSchema).default([]),
+  main_attribute: Yup.string()
+    .trim()
+    .required('Choose an option type such as Color, Size, or Material'),
+  main_attribute_value: Yup.string()
+    .trim()
+    .required('Enter the value for this listing, such as Navy or Cotton'),
 
   price: Yup.number()
     .typeError('Price must be a valid amount')
@@ -535,11 +564,17 @@ export const singleVariantSchema = Yup.object({
     otherwise: (schema) => schema,
   }),
   images: Yup.array()
+    .max(MAX_VARIANT_IMAGE_COUNT, `You can add up to ${MAX_VARIANT_IMAGE_COUNT} photos for this option`)
     .default([])
+    .test('color-images-required', COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE, colorVariantImagesRequiredTest())
     .test(
-      'variant-images-required',
-      'At least one variant image is required',
-      (images) => hasUsableProductImages(images),
+      'variant-images-usable',
+      'Upload a valid JPG or PNG, or remove this photo',
+      (images) => {
+        const list = Array.isArray(images) ? images : []
+        if (list.length === 0) return true
+        return hasUsableProductImages(images)
+      },
     ),
 })
 
@@ -553,6 +588,8 @@ export const productInfoSchema = productListingSchemaBase.pick([
   'condition',
   'tags',
   'key_details',
+  'main_attribute',
+  'main_attribute_value',
   'price',
   'discount_mode',
   'discount_price',

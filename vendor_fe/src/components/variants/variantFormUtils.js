@@ -296,6 +296,14 @@ export function getSingleVariantValuePlaceholder(attribute = '') {
   return `e.g. ${firstExample} — press Enter to add`
 }
 
+export function getMainOptionValuePlaceholder(attribute = '') {
+  const firstExample = getVariantValuePlaceholder(attribute)
+    .replace(/^e\.g\.\s*/, '')
+    .split(',')[0]
+    .trim()
+  return firstExample ? `e.g. ${firstExample}` : 'e.g. Navy'
+}
+
 /** Splits comma-separated input (e.g. "Red, Blue, Green") into trimmed, de-duplicated values. */
 export function parseMultiValues(raw) {
   const seenLower = new Set()

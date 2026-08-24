@@ -48,7 +48,6 @@ export async function getPayoutAccounts() {
   }
 }
 
-/** @deprecated Use getPayoutAccounts — kept for callers expecting a single account. */
 export async function getPayoutAccount() {
   return getPayoutAccounts()
 }

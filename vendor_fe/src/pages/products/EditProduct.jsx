@@ -62,7 +62,7 @@ const productInfoSteps = [
 ]
 
 const productInfoStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['shipping_weight', 'shipping_length', 'shipping_width', 'shipping_height'],
@@ -173,7 +173,7 @@ function EditModeChooser({ productId }) {
         <EditSectionCard
           icon={Layers3}
           title="Edit variations"
-          description="Manage variation types, option values, variant pricing, stock, barcodes, and variant images."
+          description="Manage extra option types, values, pricing, stock, barcodes, and variant photos (required for Color, optional otherwise)."
           to={`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}`}
           accent="cyan"
         />

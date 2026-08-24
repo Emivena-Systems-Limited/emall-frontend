@@ -25,6 +25,7 @@ import ProductRichTextEditor from '../../components/products/ProductRichTextEdit
 import ProductImageUploader from '../../components/products/ProductImageUploader'
 import DescriptiveImageUploader from '../../components/products/DescriptiveImageUploader'
 import ProductKeyDetailsInput from '../../components/products/ProductKeyDetailsInput'
+import MainProductOptionFields from '../../components/products/MainProductOptionFields'
 import ProductMainImageUpload from '../../components/products/ProductMainImageUpload'
 import ProductImageEditChangeSummary from '../../components/products/ProductImageEditChangeSummary'
 import AttributeIcon from '../../components/variants/AttributeIcon'
@@ -33,7 +34,7 @@ import CardStepHeader from '../../components/variants/CardStepHeader'
 import VariantAccordionCard from '../../components/variants/VariantAccordionCard'
 import VariantGroupActionBar from '../../components/variants/VariantGroupActionBar'
 import VariantReviewCard from '../../components/variants/VariantReviewCard'
-import { isPresetAttribute } from '../../components/variants/variantConstants'
+import { isPresetAttribute, isColorVariantAttribute } from '../../components/variants/variantConstants'
 import { getSingleVariantValuePlaceholder, parseMultiValues } from '../../components/variants/variantFormUtils'
 import DevProductFormTools from '../../components/products/DevProductFormTools'
 import ProductTagInput from '../../components/products/ProductTagInput'
@@ -76,6 +77,7 @@ import {
   resolveDefaultVariationIdentity,
   ensureDefaultProductVariations,
   hasAnyProductVariationValues,
+  isMainProductOption,
 } from '../../utils/defaultProductVariation'
 import {
   buildProductMediaPresignRequest,
@@ -120,13 +122,14 @@ import {
   validateFeaturedImageDimensions,
   validateGalleryImagesRequired,
   validatePrimaryImageDimensions,
+  hasUsableProductImages,
 } from '../../utils/productImageUtils'
 
 const productListingSteps = [
   { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
   { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
   { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
-  { id: 'variations', title: 'Variations',    caption: 'Optional — colors, sizes & more' },
+  { id: 'variations', title: 'Variations',    caption: 'Optional extra colors, sizes & more' },
   { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
   { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
 ]
@@ -135,7 +138,7 @@ const PRODUCT_LISTING_PRICING_STEP = 2
 const PRODUCT_LISTING_VARIATIONS_STEP = 3
 
 const productListingStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['variations'],
@@ -153,6 +156,8 @@ const productListingInitialValues = {
   condition:          '',
   tags:               [],
   key_details:        [],
+  main_attribute:      '',
+  main_attribute_value:'',
   price:              '',
   discount_mode:      'amount',
   discount_price:     '',
@@ -194,6 +199,7 @@ function getTouchedForFields(fields, values) {
                 reserved_quantity: true,
                 minimum_threshold: true,
                 barcode: true,
+                images: true,
               }))
               : true,
           }))
@@ -230,11 +236,12 @@ function createVariantValue(value) {
   }
 }
 
-/** A value is "ready" once it has the two things every variant needs before checkout: stock and a photo. */
-function isVariantValueReady(value) {
-  const hasQuantity = value.quantity !== '' && value.quantity != null
-  const hasImage = (value.images ?? []).length > 0
-  return hasQuantity && hasImage
+/** A value is "ready" once stock is set. Color extras also need at least one photo. */
+function isVariantValueReady(value, attribute = '') {
+  const hasStock = value.quantity !== '' && value.quantity != null
+  if (!hasStock) return false
+  if (!isColorVariantAttribute(attribute)) return true
+  return hasUsableProductImages(value.images, value.image_url)
 }
 
 function createVariantGroupId() {
@@ -512,6 +519,8 @@ export function InfoStep({
           </div>
         )}
       </section>
+
+      <MainProductOptionFields formik={formik} />
 
       <ProductKeyDetailsInput
         pairs={formik.values.key_details ?? []}
@@ -935,6 +944,12 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
       setValuesError(`"${trimmed}" was already added for ${attribute}`)
       return
     }
+    if (isMainProductOption(formik.values, attribute, trimmed)) {
+      setValuesError(
+        `"${trimmed}" is already this product's default ${attribute}. Add a different value, or skip extra options.`,
+      )
+      return
+    }
 
     setAttributeError('')
     setValuesError('')
@@ -997,7 +1012,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
 
   const totalValues = groups.reduce((count, group) => count + group.values.length, 0)
   const readyCount = groups.reduce(
-    (count, group) => count + group.values.filter(isVariantValueReady).length,
+    (count, group) => count + group.values.filter((value) => isVariantValueReady(value, group.attribute)).length,
     0,
   )
   const priceRange = getVariationCustomerPriceRange(groups, formik.values)
@@ -1015,13 +1030,13 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Optional</p>
-        <h3 className="text-lg font-bold text-slate-900">Product variations</h3>
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Optional extras</p>
+        <h3 className="text-lg font-bold text-slate-900">More product options</h3>
         <p className="text-sm text-slate-500">
-          Add option types like Color, Size, or your own (Material, Capacity, etc.), then fill in photo, price, and stock
-          for each value. If you skip this step, we publish one{' '}
-          <span className="font-semibold text-slate-700">{defaultVariationLabel}</span>{' '}
-          variation inferred from your category, product name, and listing details.
+          Your listing already has{' '}
+          <span className="font-semibold text-slate-700">{defaultVariationLabel}</span>
+          {' '}as the default shoppers see first. Add extra colors, sizes, or other values here if you sell more than one option.
+          Photos are required for Color options (up to 3). Other option types can skip photos. Skip this step if the default is enough.
         </p>
         {stepError && (
           <p className="text-xs font-semibold text-red-600" role="alert">{stepError}</p>
@@ -1139,7 +1154,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
                     {groups.length} option type{groups.length !== 1 ? 's' : ''} · {totalValues} value{totalValues !== 1 ? 's' : ''}
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Fill in photo, price & stock for each value. Each type keeps its own add-value field.
+                      Fill in price & stock for each extra value. Color options need at least one photo. Each type keeps its own add-value field.
                   </p>
                 </div>
               </div>
@@ -1149,7 +1164,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
             </div>
 
             {groups.map((group, groupIndex) => {
-              const groupReady = group.values.filter(isVariantValueReady).length
+              const groupReady = group.values.filter((value) => isVariantValueReady(value, group.attribute)).length
               const isActiveGroup = activeAttribute
                 && group.attribute.toLowerCase() === activeAttribute.toLowerCase()
               const cards = group.values.map((value, valueIndex) => (
@@ -1259,11 +1274,10 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
             <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-brand-light text-brand ring-1 ring-brand/15">
               <Box className="size-7" strokeWidth={1.5} />
             </span>
-            <p className="text-sm font-semibold text-slate-700">No custom options yet</p>
+            <p className="text-sm font-semibold text-slate-700">No extra options yet</p>
             <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-500">
               Pick a type above, then type a value and press Enter to add it. Or skip this step —
-              we&apos;ll auto-create <strong>{defaultVariationLabel}</strong> from your listing details
-              and main photo.
+              we&apos;ll publish <strong>{defaultVariationLabel}</strong> as the default option using your product photos, price, and stock.
             </p>
           </div>
         )}
@@ -1410,6 +1424,9 @@ export function ReviewStep({
         ['Brand', selectedBrandLabel],
         ['Condition', getProductConditionLabel(formik.values.condition)],
         ['Tags', formik.values.tags.length ? formik.values.tags.join(', ') : null],
+        ['What shoppers see first', formik.values.main_attribute && formik.values.main_attribute_value
+          ? `${formik.values.main_attribute}: ${formik.values.main_attribute_value}`
+          : defaultVariationLabel],
       ],
     },
     {
@@ -1561,7 +1578,7 @@ export function ReviewStep({
         ))}
       </div>
 
-      {includeVariations && (
+          {includeVariations && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -1585,13 +1602,21 @@ export function ReviewStep({
             </div>
           </div>
 
+          <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">What shoppers see first</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">{defaultVariationLabel}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+              Shoppers see this first. It uses your product photos, price, and stock.
+            </p>
+          </div>
+
           {formik.values.variations.some((variation) => variation.values.length > 0) ? (
             <div className="space-y-5">
               {formik.values.variations.map((variation) => (
                 variation.values.length > 0 && (
                   <div key={variation.id} className="space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      {variation.attribute}
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Extra {variation.attribute}
                     </p>
                     <div className="space-y-3">
                       {variation.values.map((val) => (
@@ -1623,15 +1648,15 @@ export function ReviewStep({
                 )}
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
-                    Auto-created on publish
+                    Extra options
                   </p>
-                  <p className="text-sm font-bold text-slate-900">{defaultVariationLabel}</p>
+                  <p className="text-sm font-bold text-slate-900">None added</p>
                   <p className="text-xs leading-relaxed text-slate-500">
-                    No custom options added. We&apos;ll publish one{' '}
-                    <span className="font-semibold text-slate-700">{defaultVariationPreview.attribute}</span>{' '}
-                    option named{' '}
-                    <span className="font-semibold text-slate-700">{defaultVariationPreview.variant_name}</span>
-                    , using your pricing, stock, shipping details, and main photo.
+                    We&apos;ll publish the default{' '}
+                    <span className="font-semibold text-slate-700">{defaultVariationPreview.attribute}</span>
+                    {' '}option{' '}
+                    <span className="font-semibold text-slate-700">{defaultVariationPreview.value}</span>
+                    {' '}using your product photos, pricing, and stock.
                   </p>
                   <dl className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-slate-500">
                     {price > 0 && (

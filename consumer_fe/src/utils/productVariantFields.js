@@ -94,6 +94,27 @@ export function resolveVariantImageUrl(variant) {
   return normalized || null
 }
 
+/** All image URLs from an API variant record, in display order. */
+export function collectVariantImageUrls(variant) {
+  if (!variant || typeof variant !== 'object') return []
+
+  const urls = []
+  if (Array.isArray(variant.images)) {
+    variant.images.forEach((image) => {
+      const url = typeof image === 'string'
+        ? image
+        : (image?.image_url ?? image?.url ?? image?.preview ?? '')
+      const normalized = String(url ?? '').trim()
+      if (normalized) urls.push(normalized)
+    })
+  }
+
+  const fallback = resolveVariantImageUrl(variant)
+  if (fallback && !urls.includes(fallback)) urls.push(fallback)
+
+  return [...new Set(urls)]
+}
+
 export function getVariantCompatibleModels(variant) {
   if (!variant || typeof variant !== 'object') return []
   if (variant.has_compatible_models === false) return []

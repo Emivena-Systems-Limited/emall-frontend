@@ -51,7 +51,7 @@ export default function VariationsEditForm({ productId, formState, onFinished })
       <div className="page-enter space-y-5">
         {pageHeader(
           'Add new variants',
-          'Add one or more option types — Color, Size, Material, and more. Type a value and it opens as its own card, ready for you to fill in.',
+          'Add extra colors, sizes, or other options. Color options need at least one photo (up to 3). Other types can skip photos.',
         )}
         <AddVariantFlow
           productId={productId}
