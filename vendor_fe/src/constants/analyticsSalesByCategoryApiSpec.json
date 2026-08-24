@@ -1,0 +1,46 @@
+{
+  "title": "Vendor Analytics — Sales by Category Doughnut",
+  "version": "2.0",
+  "description": "Powers the Sales by category doughnut. Filtered by calendar year only — not by the page start_date/end_date. Default year is the current year. Slice colors are assigned on the frontend — do not send hex colors.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/vendor/analytics/sales-by-category",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "query": {
+      "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
+    }
+  },
+  "fields": {
+    "currency": "ISO code, always GHS.",
+    "year": "Echo the requested year.",
+    "total_revenue": "Sum of categories[].revenue for that year. Should match revenue-orders total_revenue for the same year.",
+    "categories": "Parent product categories with completed-order sales in that year. Sorted by revenue descending. Empty array if no sales.",
+    "categories[].id": "Parent category id. Use null for the rolled-up Other slice.",
+    "categories[].name": "Display name (parent category_name). Other for leftover categories.",
+    "categories[].revenue": "Gross completed-order sales in that parent category. Number, not a formatted string.",
+    "categories[].percentage": "Share of total_revenue, 0–100. Frontend also recomputes this."
+  },
+  "grouping_rules": {
+    "level": "Group by the product's parent category, not subcategory.",
+    "limit": "Return at most 5 named categories. If more exist, keep the top 4 by revenue and fold the rest into one Other slice.",
+    "zeros": "Omit categories with revenue 0."
+  },
+  "example_request": "GET /api/vendor/analytics/sales-by-category?year=2026",
+  "example_response": {
+    "in_error": false,
+    "status_code": 200,
+    "message": "Success",
+    "data": {
+      "currency": "GHS",
+      "year": 2026,
+      "total_revenue": 128450,
+      "categories": [
+        { "id": "cat_furniture", "name": "Furniture", "revenue": 48200, "percentage": 37.5 },
+        { "id": "cat_electronics", "name": "Electronics", "revenue": 31800, "percentage": 24.8 },
+        { "id": "cat_home_living", "name": "Home & Living", "revenue": 24600, "percentage": 19.1 },
+        { "id": "cat_office", "name": "Office Supplies", "revenue": 15400, "percentage": 12.0 },
+        { "id": null, "name": "Other", "revenue": 8450, "percentage": 6.6 }
+      ]
+    }
+  }
+}

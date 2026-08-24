@@ -1,0 +1,59 @@
+{
+  "title": "Vendor Analytics Summary Cards — Backend Data Requirements",
+  "version": "1.1",
+  "description": "Powers the six KPI cards at the top of Analytics & Reports. Charts and tables are out of scope for this endpoint. The UI always sends an inclusive start_date and end_date. Do not use a range query param.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/vendor/analytics/summary",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "query": {
+      "start_date": "YYYY-MM-DD. Required. Inclusive start of the reporting window.",
+      "end_date": "YYYY-MM-DD. Required. Inclusive end of the reporting window. Must be on or after start_date."
+    }
+  },
+  "fields": {
+    "currency": "ISO code, always GHS.",
+    "period.start_date / period.end_date": "Echo the requested window.",
+    "previous_period": "Immediately preceding window of the same length. Used only to compute the ±% badge. Example: 2026-07-26 to 2026-08-24 (30 days) → previous is 2026-06-26 to 2026-07-25.",
+    "summary.revenue": "Gross completed-order sales in the period. Number, not a formatted string.",
+    "summary.orders": "Count of completed orders in the period.",
+    "summary.customers": "Unique buyers who placed a completed order in the period.",
+    "summary.avg_order_value": "revenue / orders. 0 when orders is 0.",
+    "summary.conversion_rate": "Percent, not a fraction. Example 3.8 means 3.8% (orders / store visitors × 100).",
+    "summary.return_rate": "Percent of completed orders that were returned. Example 2.4 means 2.4%. Lower is better.",
+    "previous_summary": "Same six metrics for previous_period so the UI can show the trend badge."
+  },
+  "example_request": "GET /api/vendor/analytics/summary?start_date=2026-07-26&end_date=2026-08-24",
+  "example_response": {
+    "in_error": false,
+    "status_code": 200,
+    "message": "Success",
+    "data": {
+      "currency": "GHS",
+      "period": {
+        "start_date": "2026-07-26",
+        "end_date": "2026-08-24"
+      },
+      "previous_period": {
+        "start_date": "2026-06-26",
+        "end_date": "2026-07-25"
+      },
+      "summary": {
+        "revenue": 128450,
+        "orders": 342,
+        "customers": 186,
+        "avg_order_value": 375.58,
+        "conversion_rate": 3.8,
+        "return_rate": 2.4
+      },
+      "previous_summary": {
+        "revenue": 98200,
+        "orders": 278,
+        "customers": 154,
+        "avg_order_value": 353.24,
+        "conversion_rate": 3.2,
+        "return_rate": 2.9
+      }
+    }
+  }
+}

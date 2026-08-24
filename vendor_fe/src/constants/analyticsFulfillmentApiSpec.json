@@ -1,0 +1,41 @@
+{
+  "title": "Vendor Analytics — Order Fulfilment",
+  "version": "1.0",
+  "description": "Powers the Order fulfilment status cards. Counts orders created in the selected calendar year by current status. An order belongs to exactly one bucket.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/vendor/analytics/fulfillment",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "query": {
+      "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
+    }
+  },
+  "status_mapping": {
+    "fulfilled": "delivered",
+    "pending": "ordered + pending + processing + shipped",
+    "cancelled": "cancelled",
+    "returned": "refunded / returned"
+  },
+  "fields": {
+    "year": "Echo the requested year.",
+    "total": "Sum of the four status counts. All orders created that year, not only completed sales.",
+    "fulfilled": "Delivered orders.",
+    "pending": "Not yet delivered, cancelled, or returned.",
+    "cancelled": "Cancelled orders.",
+    "returned": "Returned or refunded orders."
+  },
+  "example_request": "GET /api/vendor/analytics/fulfillment?year=2026",
+  "example_response": {
+    "in_error": false,
+    "status_code": 200,
+    "message": "Success",
+    "data": {
+      "year": 2026,
+      "total": 342,
+      "fulfilled": 298,
+      "pending": 24,
+      "cancelled": 12,
+      "returned": 8
+    }
+  }
+}

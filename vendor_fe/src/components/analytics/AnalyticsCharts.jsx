@@ -15,12 +15,12 @@ import {
   YAxis,
 } from 'recharts'
 import {
-  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Lightbulb,
+  MapPin,
   Package,
   PieChart as PieChartIcon,
+  Truck,
   TrendingUp,
   Users,
 } from 'lucide-react'
@@ -28,21 +28,24 @@ import EmptyState from '../dashboard/EmptyState'
 import { DonutTip } from '../dashboard/ChartTooltips'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import { DONUT_CENTER_LABEL, donutCenterValueStyle, CHART_AXIS_TICK, CHART_AXIS_TICK_Y } from '../../constants/chartTheme'
-import { formatCurrency } from '../../utils/analyticsUtils'
+import { CATEGORY_COLORS } from '../../constants/analytics'
+import { formatCurrency, formatStatCurrency } from '../../utils/analyticsUtils'
+import YearDropdown from '../dashboard/YearDropdown'
 
-function ChartShell({ icon: Icon, title, subtitle, children, empty, className = '' }) {
+function ChartShell({ icon: Icon, title, subtitle, action, children, empty, className = '' }) {
   return (
     <section className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)] ${className}`}>
-      <div className="border-b border-slate-100 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-brand-light text-brand ring-1 ring-brand-muted">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-light text-brand ring-1 ring-brand-muted">
             <Icon className="size-3.5" />
           </span>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-bold text-slate-900">{title}</h2>
             {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
           </div>
         </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {empty ? (
         <EmptyState
@@ -73,15 +76,22 @@ function RevenueTooltip({ active, payload, label }) {
   )
 }
 
-export function RevenueOrdersChart({ timeline, hasData }) {
+export function RevenueOrdersChart({ timeline, hasData, year, onYearChange }) {
   const total = timeline.reduce((s, d) => s + d.revenue, 0)
 
   return (
-    <ChartShell icon={TrendingUp} title="Revenue & orders" subtitle="Performance over the selected period" empty={!hasData} className="xl:col-span-2">
+    <ChartShell
+      icon={TrendingUp}
+      title="Revenue & orders"
+      subtitle={`Monthly performance in ${year}`}
+      empty={!hasData}
+      className="xl:col-span-2"
+      action={<YearDropdown id="analytics-revenue-year" value={year} onChange={onYearChange} />}
+    >
       <div className="p-5">
         <div className="mb-4">
           <p className="text-2xl font-bold tabular-nums text-slate-950">{formatCurrency(total)}</p>
-          <p className="mt-0.5 text-xs text-slate-500">Total revenue in period</p>
+          <p className="mt-0.5 text-xs text-slate-500">Total revenue in {year}</p>
         </div>
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart data={timeline} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
@@ -106,11 +116,17 @@ export function RevenueOrdersChart({ timeline, hasData }) {
   )
 }
 
-export function CategoryBreakdownChart({ categories, hasData }) {
+export function CategoryBreakdownChart({ categories, hasData, year, onYearChange }) {
   const total = categories.reduce((s, c) => s + c.value, 0)
 
   return (
-    <ChartShell icon={PieChartIcon} title="Sales by category" subtitle="Revenue distribution" empty={!hasData}>
+    <ChartShell
+      icon={PieChartIcon}
+      title="Sales by category"
+      subtitle={`Revenue distribution in ${year}`}
+      empty={!hasData}
+      action={<YearDropdown id="analytics-category-year" value={year} onChange={onYearChange} />}
+    >
       <div className="flex flex-col p-5">
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
@@ -157,9 +173,15 @@ function CustomerGrowthTip({ active, payload, label }) {
   )
 }
 
-export function CustomerGrowthChart({ data, hasData }) {
+export function CustomerGrowthChart({ data, hasData, year, onYearChange }) {
   return (
-    <ChartShell icon={Users} title="Customer growth" subtitle="New vs returning customers" empty={!hasData}>
+    <ChartShell
+      icon={Users}
+      title="Customer growth"
+      subtitle={`New vs returning in ${year}`}
+      empty={!hasData}
+      action={<YearDropdown id="analytics-customer-year" value={year} onChange={onYearChange} />}
+    >
       <div className="p-5">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
@@ -177,35 +199,54 @@ export function CustomerGrowthChart({ data, hasData }) {
   )
 }
 
-export function TrafficSourcesChart({ sources, hasData }) {
+export function SalesByRegionChart({ regions, hasData, year, onYearChange }) {
+  const total = regions.reduce((sum, region) => sum + (region.revenue ?? 0), 0)
+
   return (
-    <ChartShell icon={TrendingUp} title="Traffic sources" subtitle="Where your store visitors come from" empty={!hasData}>
+    <ChartShell
+      icon={MapPin}
+      title="Sales by region"
+      subtitle={`Where orders shipped in ${year}`}
+      empty={!hasData}
+      action={<YearDropdown id="analytics-region-year" value={year} onChange={onYearChange} />}
+    >
       <div className="space-y-3 p-5">
-        {sources.map((source, i) => (
-          <div key={source.name}>
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-700">{source.name}</span>
-              <span className="tabular-nums text-slate-500">{source.percentage}% · {source.visits.toLocaleString()} visits</span>
+        {regions.map((region, index) => {
+          const percentage = total > 0 ? (region.revenue / total) * 100 : 0
+          return (
+            <div key={region.id ?? region.name}>
+              <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                <span className="min-w-0 truncate font-semibold text-slate-700">{region.name}</span>
+                <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-500">
+                  {percentage.toFixed(1)}% · {formatStatCurrency(region.revenue)}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${percentage}%`,
+                    background: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+                  }}
+                />
+              </div>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${source.percentage}%`,
-                  background: ['#c73b2d', '#0f8f9c', '#f97316', '#64748b', '#8b5cf6'][i % 5],
-                }}
-              />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </ChartShell>
   )
 }
 
-export function TopProductsTable({ products, hasData }) {
+export function TopProductsTable({ products, hasData, year, onYearChange }) {
   return (
-    <ChartShell icon={Package} title="Top products" subtitle="Best performers by revenue" empty={!hasData}>
+    <ChartShell
+      icon={Package}
+      title="Top products"
+      subtitle={`Best performers in ${year}`}
+      empty={!hasData}
+      action={<YearDropdown id="analytics-products-year" value={year} onChange={onYearChange} />}
+    >
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-left text-sm">
           <thead>
@@ -233,9 +274,9 @@ export function TopProductsTable({ products, hasData }) {
                     </div>
                   </td>
                   <td className="px-5 py-3.5 tabular-nums text-slate-700">{product.units}</td>
-                  <td className="px-5 py-3.5 font-semibold tabular-nums text-slate-900">{formatCurrency(product.revenue)}</td>
+                  <td className="px-5 py-3.5 whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatCurrency(product.revenue)}</td>
                   <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 whitespace-nowrap text-xs font-bold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {up ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />}
                       {Math.abs(product.trend)}%
                     </span>
@@ -250,7 +291,7 @@ export function TopProductsTable({ products, hasData }) {
   )
 }
 
-export function FulfillmentOverview({ stats, hasData }) {
+export function FulfillmentOverview({ stats, hasData, year, onYearChange }) {
   const total = Object.values(stats).reduce((a, b) => a + b, 0)
   const items = [
     { key: 'fulfilled', label: 'Fulfilled', color: '#059669' },
@@ -260,7 +301,13 @@ export function FulfillmentOverview({ stats, hasData }) {
   ]
 
   return (
-    <ChartShell icon={Package} title="Order fulfilment" subtitle="Status breakdown" empty={!hasData}>
+    <ChartShell
+      icon={Truck}
+      title="Order fulfilment"
+      subtitle={`Status breakdown in ${year}`}
+      empty={!hasData}
+      action={<YearDropdown id="analytics-fulfillment-year" value={year} onChange={onYearChange} />}
+    >
       <div className="grid grid-cols-2 gap-3 p-5">
         {items.map(({ key, label, color }) => {
           const value = stats[key] ?? 0
@@ -268,7 +315,7 @@ export function FulfillmentOverview({ stats, hasData }) {
           return (
             <div key={key} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
               <p className="text-xs font-semibold text-slate-500">{label}</p>
-              <p className="mt-1 text-2xl font-bold tabular-nums text-slate-950">{value}</p>
+              <p className="mt-1 whitespace-nowrap text-2xl font-bold tabular-nums text-slate-950">{value}</p>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
               </div>
@@ -278,49 +325,6 @@ export function FulfillmentOverview({ stats, hasData }) {
         })}
       </div>
     </ChartShell>
-  )
-}
-
-const insightTone = {
-  positive: 'border-emerald-100 bg-emerald-50/50',
-  warning: 'border-amber-100 bg-amber-50/50',
-  neutral: 'border-slate-100 bg-slate-50/50',
-}
-
-const insightIcon = {
-  positive: ArrowUpRight,
-  warning: AlertTriangle,
-  neutral: Lightbulb,
-}
-
-export function AnalyticsInsights({ insights, hasData }) {
-  if (!hasData || !insights.length) return null
-
-  return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="text-base font-bold text-slate-900">Insights</h2>
-        <p className="mt-0.5 text-sm text-slate-500">Automated highlights from your store data</p>
-      </div>
-      <div className="grid gap-3 p-5 sm:grid-cols-2">
-        {insights.map((item, i) => {
-          const Icon = insightIcon[item.type] ?? Lightbulb
-          return (
-            <article key={i} className={`rounded-xl border p-4 ${insightTone[item.type] ?? insightTone.neutral}`}>
-              <div className="flex items-start gap-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-600 ring-1 ring-slate-200">
-                  <Icon className="size-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{item.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.text}</p>
-                </div>
-              </div>
-            </article>
-          )
-        })}
-      </div>
-    </section>
   )
 }
 

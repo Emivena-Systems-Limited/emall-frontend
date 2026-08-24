@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux'
 import {
   ArrowRight,
+  BarChart3,
   Bell,
   Database,
   FolderTree,
@@ -23,6 +24,7 @@ const navItems = [
   { id: 'auth-flow', label: 'Vendor auth flow' },
   { id: 'landing', label: 'Landing page' },
   { id: 'dashboard', label: 'Dashboard shell' },
+  { id: 'analytics', label: 'Analytics & reports' },
   { id: 'products', label: 'Product catalog' },
   { id: 'add-product', label: 'Add product' },
   { id: 'edit-product', label: 'Edit product' },
@@ -65,15 +67,21 @@ const folderStructure = `src/
 │   ├── productMediaUpload.js # Presigned S3 upload settings
 │   ├── sidebarNav.js       # Dashboard navigation sections
 │   ├── emptyStates.js      # Empty-state presets per page
-│   └── *Data.js            # Mock datasets (orders, finance, reviews, …)
+│   ├── analytics.js        # Date presets, export reports, ANALYTICS_ENDPOINTS
+│   ├── analytics*ApiSpec.json  # Backend contracts for each analytics widget + export
+│   └── *Data.js            # Dummy datasets (analytics, messages, inventory, …)
 ├── hooks/
 │   ├── useAuthMutations.js
-│   ├── useProducts.js      # Product list + detail queries
-│   ├── useProductMutations.js # Create, update, delete, duplicate, variants
-│   ├── useProductMediaUpload.js # Presign → S3 upload orchestration
-│   ├── useCategories.js
-│   ├── useBrands.js
-│   └── useBrandMutations.js
+│   ├── useProducts.js / useProductMutations.js / useProductMediaUpload.js
+│   ├── useCategories.js / useBrands.js / useBrandMutations.js
+│   ├── useVendorOrders.js / useVendorOrderMutations.js
+│   ├── useCustomers.js
+│   ├── useFinanceSummary.js
+│   ├── useReviews.js
+│   ├── useVendorProfile.js
+│   ├── useUsers.js
+│   └── usePromotions.js    # still mock-backed
+├── mocks/                  # Promotion (and similar) local fixtures until APIs land
 ├── lib/
 │   ├── apiClient.js        # Axios instance + auth interceptors
 │   ├── notify.js           # Toast helper (Sonner)
@@ -103,11 +111,12 @@ const folderStructure = `src/
 │   ├── GuestOnlyRoute.jsx
 │   └── ProtectedRoute.jsx
 ├── services/
-│   ├── authService.js
-│   ├── categoriesService.js
-│   ├── brandsService.js
-│   ├── productService.js
-│   └── productMediaService.js
+│   ├── authService.js / categoriesService.js / brandsService.js
+│   ├── productService.js / productMediaService.js
+│   ├── orderService.js / customerService.js / financeService.js
+│   ├── reviewService.js / profileService.js / userService.js
+│   ├── vendorMetricsService.js
+│   └── promotionService.js # mock until Promotions API
 ├── store/
 │   ├── slices/             # authSlice (+ redux-persist)
 │   └── store.js
@@ -118,6 +127,7 @@ const folderStructure = `src/
     ├── mapProductToFormValues.js
     ├── normalizeProducts.js / normalizeCategories.js / normalizeBrands.js
     ├── validationSchemas.js
+    ├── analyticsUtils.js   # Date presets, CSV export, fulfilment period → dates
     ├── Config.jsx          # API base URL
     └── Images.jsx          # Static image registry`
 
@@ -138,7 +148,7 @@ export default function DeveloperGuide() {
             </div>
           </div>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-            Products API live
+            Core vendor APIs live
           </span>
         </div>
       </header>
@@ -162,9 +172,10 @@ export default function DeveloperGuide() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm leading-relaxed text-slate-600">
               Reference for the vendor frontend stack and feature wiring. Auth, landing, dashboard
-              shell, and the full product lifecycle (list, create, view, edit info, edit variants)
-              are implemented. Several secondary modules still use local mock data until their
-              backend endpoints are ready — see <strong>API vs mock data</strong> below.
+              shell, products, orders, customers, finance, reviews, profile, and users are
+              implemented. Analytics & Reports has a full UI and backend contracts, but still
+              renders dummy data until those endpoints are wired. Promotions, messages, inventory,
+              and notifications remain mock — see <strong>API vs mock data</strong> below.
             </p>
             <dl className="mt-6 grid gap-4 sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-4">
@@ -260,11 +271,65 @@ export default function DeveloperGuide() {
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
               <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardLayout</code> — sidebar + navbar + scroll panel (<code className="rounded bg-slate-100 px-1 text-xs">data-dashboard-scroll-panel</code>).</li>
-              <li>• <code className="rounded bg-slate-100 px-1 text-xs">Sidebar</code> — nav from <code className="rounded bg-slate-100 px-1 text-xs">constants/sidebarNav.js</code> (Main / Insights / Config sections).</li>
+              <li>• <code className="rounded bg-slate-100 px-1 text-xs">Sidebar</code> — nav from <code className="rounded bg-slate-100 px-1 text-xs">constants/sidebarNav.js</code> (Main / Insights / Settings).</li>
               <li>• <code className="rounded bg-slate-100 px-1 text-xs">PendingApprovalGuard</code> — modal when account is pending admin approval.</li>
               <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardReveal</code> — staggered entrance animations for KPI cards and charts.</li>
               <li>• Helpers in <code className="rounded bg-slate-100 px-1 text-xs">utils/vendorAuth.js</code>.</li>
             </ul>
+          </GuideSection>
+
+          <GuideSection
+            id="analytics"
+            icon={BarChart3}
+            title="Analytics & Reports"
+            description="/analytics — full UI and backend contracts. Page still uses dummy data (empty by default; toggle dummy data in the header). No analytics service/hooks yet."
+          >
+            <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
+              <li>• <strong>KPI cards</strong> — six stats (revenue, orders, customers, AOV, conversion, returns). Filtered by inclusive <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> + <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> (7d / 30d / 90d / 12m / From–To).</li>
+              <li>• <strong>Charts &amp; tables</strong> — each has its own year dropdown, defaulting to the current year. They do not use the page date range.</li>
+              <li>• <strong>Export drawer</strong> — pick a report, set duration, download CSV. Order fulfilment duration uses year/month chips; those resolve to the same <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> / <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> payload as every other report.</li>
+              <li>• <strong>Contracts</strong> — <code className="rounded bg-slate-100 px-1 text-xs">src/constants/analytics*ApiSpec.json</code>.</li>
+            </ul>
+
+            <CodeBlock
+              title="Key files"
+              code={`src/pages/analytics/Analytics.jsx
+src/components/analytics/AnalyticsPageHeader.jsx
+src/components/analytics/AnalyticsSummaryCards.jsx
+src/components/analytics/AnalyticsCharts.jsx
+src/components/analytics/AnalyticsExportDrawer.jsx
+src/constants/analytics.js              // ANALYTICS_ENDPOINTS + export report keys
+src/constants/analyticsData.js          // EMPTY_ANALYTICS / DEV_ANALYTICS
+src/utils/analyticsUtils.js`}
+            />
+
+            <CodeBlock
+              title="GET widgets (not wired yet)"
+              code={`GET /api/vendor/analytics/summary?start_date=2026-07-26&end_date=2026-08-24
+GET /api/vendor/analytics/revenue-orders?year=2026
+GET /api/vendor/analytics/sales-by-category?year=2026
+GET /api/vendor/analytics/customer-growth?year=2026
+GET /api/vendor/analytics/sales-by-region?year=2026
+GET /api/vendor/analytics/top-products?year=2026
+GET /api/vendor/analytics/fulfillment?year=2026`}
+            />
+
+            <CodeBlock
+              title="Export report — same payload for every report type"
+              code={`POST /api/vendor/analytics/reports
+
+{
+  "report": "order_fulfillment",
+  "start_date": "2026-01-01",
+  "end_date": "2026-08-24",
+  "format": "csv"
+}
+
+// report: summary | sales_by_category | customer_growth
+//         | sales_by_region | top_products | order_fulfillment
+// Fulfilment chips (current year / specific year / month / ranges)
+// are UI-only and convert to start_date + end_date before send.`}
+            />
           </GuideSection>
 
           <GuideSection
@@ -416,14 +481,17 @@ buildProductInfoJsonPayload(...)      // edit info (presigned JSON update)`}
                   <tr><td className="px-4 py-3">Brands</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Approved brands + inline create</td></tr>
                   <tr><td className="px-4 py-3">Products</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">List, create, view, edit info, variants, delete, duplicate, toggle active</td></tr>
                   <tr><td className="px-4 py-3">Product media</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Presigned S3 upload; edit image fields ready for backend</td></tr>
-                  <tr><td className="px-4 py-3">Orders</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/ordersData.js</td></tr>
-                  <tr><td className="px-4 py-3">Customers</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/customersData.js</td></tr>
-                  <tr><td className="px-4 py-3">Promotions</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/promotionsData.js (localStorage-backed)</td></tr>
-                  <tr><td className="px-4 py-3">Finance</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/financeData.js</td></tr>
-                  <tr><td className="px-4 py-3">Reviews</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/reviews.js</td></tr>
-                  <tr><td className="px-4 py-3">Messages</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/messages.js</td></tr>
-                  <tr><td className="px-4 py-3">Analytics</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">Empty by default; dev toggle loads sample data</td></tr>
+                  <tr><td className="px-4 py-3">Orders</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Vendor list + detail via orderService / useVendorOrders</td></tr>
+                  <tr><td className="px-4 py-3">Customers</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Catalog + detail; stats hook still TODO</td></tr>
+                  <tr><td className="px-4 py-3">Finance</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Summary, earnings, transactions, payout accounts</td></tr>
+                  <tr><td className="px-4 py-3">Reviews</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">List, summary, reply</td></tr>
+                  <tr><td className="px-4 py-3">Profile</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Personal, business, documents, avatar, password</td></tr>
+                  <tr><td className="px-4 py-3">Users &amp; permissions</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Invite, roles, deactivate / reactivate</td></tr>
+                  <tr><td className="px-4 py-3">Promotions</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">promotionService → mocks/promotionMockData.js</td></tr>
+                  <tr><td className="px-4 py-3">Analytics</td><td className="px-4 py-3 text-amber-700">UI + specs</td><td className="px-4 py-3">Dummy toggle; contracts in analytics*ApiSpec.json. Wire GET widgets + POST /api/vendor/analytics/reports</td></tr>
+                  <tr><td className="px-4 py-3">Messages</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/messagesData.js; nav marked coming soon</td></tr>
                   <tr><td className="px-4 py-3">Inventory</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/lowStockData.js</td></tr>
+                  <tr><td className="px-4 py-3">Notifications</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/notificationsData.js</td></tr>
                   <tr><td className="px-4 py-3">Sidebar badges</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">SIDEBAR_NAV_BADGES in sidebarNav.js</td></tr>
                 </tbody>
               </table>
@@ -557,7 +625,13 @@ productQueryKeys.detail(productId)`}
               title="Other live queries"
               code={`useProductCategoryOptions()   // categories
 useApprovedBrands()           // brands
-useCreateBrandMutation()`}
+useCreateBrandMutation()
+useVendorOrders() / useVendorOrder(orderId)
+useCustomers() / useCustomer(customerId)
+useFinanceSummary() / useFinanceTransactions()
+useVendorReviews() / useVendorReviewsSummary()
+useVendorProfile()
+useUsers()`}
             />
 
             <p className="text-sm text-slate-600">
@@ -647,7 +721,7 @@ notify.promise(saveProduct(), {
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
               <li>• <strong>Redux</strong> — auth session + pending verification email only.</li>
-              <li>• <strong>TanStack Query</strong> — all server data (products, categories, brands, future orders).</li>
+              <li>• <strong>TanStack Query</strong> — all server data (products, orders, customers, finance, reviews, profile, users).</li>
               <li>• <strong>Formik + Yup</strong> — multi-step forms; schemas in <code className="rounded bg-slate-100 px-1 text-xs">validationSchemas.js</code>.</li>
               <li>• <strong>Payload builders</strong> — <code className="rounded bg-slate-100 px-1 text-xs">productPayload.js</code> for create (JSON + FormData), edit info, and variant updates.</li>
               <li>• <strong>Normalization</strong> — map API records in <code className="rounded bg-slate-100 px-1 text-xs">normalize*.js</code> / <code className="rounded bg-slate-100 px-1 text-xs">mapProductToFormValues.js</code>.</li>
@@ -656,9 +730,9 @@ notify.promise(saveProduct(), {
             </ul>
 
             <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-              <strong>Done:</strong> auth, landing, dashboard, product catalogue API, add/edit/view product, presigned media upload, brands + categories API, promotions UI (mock data).
+              <strong>Done:</strong> auth, landing, dashboard, products (incl. variants + presigned media), orders, customers, finance, reviews, profile, users &amp; permissions, analytics UI + export drawer + API specs.
               <br />
-              <strong>Next:</strong> wire orders, customers, finance, reviews, messages, analytics, and notifications to backend; replace sidebar badge placeholders with API counts.
+              <strong>Next:</strong> wire analytics GET widgets and POST /api/vendor/analytics/reports; replace dummy analytics toggle; connect promotions, messages, inventory, and notifications; replace sidebar badge placeholders with API counts.
             </div>
           </GuideSection>
         </main>

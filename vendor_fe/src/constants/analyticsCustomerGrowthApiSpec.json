@@ -1,0 +1,54 @@
+{
+  "title": "Vendor Analytics — Customer Growth Chart",
+  "version": "2.0",
+  "description": "Powers the Customer growth grouped bar chart (New vs Returning). Filtered by calendar year only — not by the page start_date/end_date. Default year is the current year. Always 12 monthly buckets, same as revenue-orders.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/vendor/analytics/customer-growth",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "query": {
+      "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
+    }
+  },
+  "definitions": {
+    "new_customers": "Unique buyers whose first completed order with this vendor falls in that month. If they order more than once in the same month, they still count as new once.",
+    "returning_customers": "Unique buyers who placed a completed order in that month and already had at least one completed order with this vendor before that month started. Never count the same buyer as both new and returning in one month."
+  },
+  "fields": {
+    "year": "Echo the requested year.",
+    "total_new": "Unique first-time buyers in that calendar year.",
+    "total_returning": "Unique buyers in that year who already had an order before 1 Jan of that year.",
+    "series": "Always 12 monthly points, January through December. Use 0 for quiet or future months."
+  },
+  "series_item": {
+    "month": "1–12.",
+    "label": "Jan … Dec.",
+    "new_customers": "Integer. 0 is allowed.",
+    "returning_customers": "Integer. 0 is allowed."
+  },
+  "example_request": "GET /api/vendor/analytics/customer-growth?year=2026",
+  "example_response": {
+    "in_error": false,
+    "status_code": 200,
+    "message": "Success",
+    "data": {
+      "year": 2026,
+      "total_new": 84,
+      "total_returning": 102,
+      "series": [
+        { "month": 1, "label": "Jan", "new_customers": 12, "returning_customers": 8 },
+        { "month": 2, "label": "Feb", "new_customers": 14, "returning_customers": 10 },
+        { "month": 3, "label": "Mar", "new_customers": 18, "returning_customers": 12 },
+        { "month": 4, "label": "Apr", "new_customers": 15, "returning_customers": 14 },
+        { "month": 5, "label": "May", "new_customers": 22, "returning_customers": 16 },
+        { "month": 6, "label": "Jun", "new_customers": 19, "returning_customers": 18 },
+        { "month": 7, "label": "Jul", "new_customers": 24, "returning_customers": 20 },
+        { "month": 8, "label": "Aug", "new_customers": 21, "returning_customers": 22 },
+        { "month": 9, "label": "Sep", "new_customers": 0, "returning_customers": 0 },
+        { "month": 10, "label": "Oct", "new_customers": 0, "returning_customers": 0 },
+        { "month": 11, "label": "Nov", "new_customers": 0, "returning_customers": 0 },
+        { "month": 12, "label": "Dec", "new_customers": 0, "returning_customers": 0 }
+      ]
+    }
+  }
+}

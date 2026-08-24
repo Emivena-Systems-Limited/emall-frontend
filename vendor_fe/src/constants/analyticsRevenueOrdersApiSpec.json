@@ -1,0 +1,52 @@
+{
+  "title": "Vendor Analytics — Revenue & Orders Chart",
+  "version": "2.0",
+  "description": "Powers the Revenue & orders composed chart (area = revenue, line = orders) and the total-revenue figure above it. Filtered by calendar year only — not by the page start_date/end_date. Default year is the current year.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/vendor/analytics/revenue-orders",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "query": {
+      "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
+    }
+  },
+  "fields": {
+    "currency": "ISO code, always GHS.",
+    "year": "Echo the requested year.",
+    "total_revenue": "Sum of series[].revenue for that year.",
+    "total_orders": "Sum of series[].orders for that year.",
+    "series": "Always 12 monthly points, January through December, chronological. Use 0 for months with no sales and for future months in the current year."
+  },
+  "series_item": {
+    "month": "1–12.",
+    "label": "Short month name: Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec.",
+    "revenue": "Gross completed-order sales in that month. Number, not a formatted string.",
+    "orders": "Completed order count in that month. Integer."
+  },
+  "example_request": "GET /api/vendor/analytics/revenue-orders?year=2026",
+  "example_response": {
+    "in_error": false,
+    "status_code": 200,
+    "message": "Success",
+    "data": {
+      "currency": "GHS",
+      "year": 2026,
+      "total_revenue": 128450,
+      "total_orders": 342,
+      "series": [
+        { "month": 1, "label": "Jan", "revenue": 8400, "orders": 28 },
+        { "month": 2, "label": "Feb", "revenue": 9200, "orders": 31 },
+        { "month": 3, "label": "Mar", "revenue": 11200, "orders": 38 },
+        { "month": 4, "label": "Apr", "revenue": 9800, "orders": 32 },
+        { "month": 5, "label": "May", "revenue": 12400, "orders": 41 },
+        { "month": 6, "label": "Jun", "revenue": 11800, "orders": 39 },
+        { "month": 7, "label": "Jul", "revenue": 14200, "orders": 47 },
+        { "month": 8, "label": "Aug", "revenue": 13600, "orders": 44 },
+        { "month": 9, "label": "Sep", "revenue": 0, "orders": 0 },
+        { "month": 10, "label": "Oct", "revenue": 0, "orders": 0 },
+        { "month": 11, "label": "Nov", "revenue": 0, "orders": 0 },
+        { "month": 12, "label": "Dec", "revenue": 0, "orders": 0 }
+      ]
+    }
+  }
+}

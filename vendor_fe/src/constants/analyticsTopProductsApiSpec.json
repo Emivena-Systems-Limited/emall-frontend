@@ -1,0 +1,45 @@
+{
+  "title": "Vendor Analytics — Top Products",
+  "version": "1.0",
+  "description": "Powers the Top products table. Filtered by calendar year only. Default year is the current year.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/vendor/analytics/top-products",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "query": {
+      "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
+    }
+  },
+  "fields": {
+    "year": "Echo the requested year.",
+    "currency": "ISO code, always GHS.",
+    "products": "Top products by completed-order revenue in that year. Sorted by revenue descending. Empty array if none."
+  },
+  "product_item": {
+    "id": "Product id.",
+    "name": "Product display name.",
+    "category": "Parent category name.",
+    "units": "Units sold in completed orders that year. Integer.",
+    "revenue": "Gross sales from those units. Number, not a formatted string.",
+    "trend": "Percent change in revenue vs the previous calendar year. Positive = up. New products with no prior year sales can send 100."
+  },
+  "limit": "Return at most 6 products.",
+  "example_request": "GET /api/vendor/analytics/top-products?year=2026",
+  "example_response": {
+    "in_error": false,
+    "status_code": 200,
+    "message": "Success",
+    "data": {
+      "year": 2026,
+      "currency": "GHS",
+      "products": [
+        { "id": "p1", "name": "Ergonomic Office Chair", "category": "Furniture", "units": 48, "revenue": 28800, "trend": 12 },
+        { "id": "p2", "name": "Adjustable Standing Desk", "category": "Furniture", "units": 32, "revenue": 22400, "trend": 8 },
+        { "id": "p3", "name": "Wireless Bluetooth Headphones", "category": "Electronics", "units": 67, "revenue": 16750, "trend": -3 },
+        { "id": "p4", "name": "Memory Foam Pillow", "category": "Home & Living", "units": 89, "revenue": 8900, "trend": 15 },
+        { "id": "p5", "name": "Ceramic Planter Set", "category": "Home & Living", "units": 54, "revenue": 6480, "trend": 5 },
+        { "id": "p6", "name": "USB-C Hub 7-in-1", "category": "Electronics", "units": 41, "revenue": 6150, "trend": -1 }
+      ]
+    }
+  }
+}

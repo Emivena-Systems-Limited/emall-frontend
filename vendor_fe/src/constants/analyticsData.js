@@ -18,10 +18,9 @@ export const EMPTY_ANALYTICS = {
   revenueTimeline: [],
   categoryBreakdown: [],
   topProducts: [],
-  trafficSources: [],
+  salesByRegion: [],
   customerGrowth: [],
   fulfillmentStats: { fulfilled: 0, pending: 0, cancelled: 0, returned: 0 },
-  insights: [],
 }
 
 export const DEV_ANALYTICS = {
@@ -70,12 +69,13 @@ export const DEV_ANALYTICS = {
     { id: 'p5', name: 'Ceramic Planter Set', category: 'Home & Living', units: 54, revenue: 6480, trend: 5 },
     { id: 'p6', name: 'USB-C Hub 7-in-1', category: 'Electronics', units: 41, revenue: 6150, trend: -1 },
   ],
-  trafficSources: [
-    { name: 'Marketplace search', visits: 4200, percentage: 38 },
-    { name: 'Direct / store link', visits: 2800, percentage: 25 },
-    { name: 'Promotions', visits: 1900, percentage: 17 },
-    { name: 'Social media', visits: 1200, percentage: 11 },
-    { name: 'Referrals', visits: 980, percentage: 9 },
+  salesByRegion: [
+    { id: 'greater-accra', name: 'Greater Accra', revenue: 56200, orders: 148 },
+    { id: 'ashanti', name: 'Ashanti', revenue: 31800, orders: 86 },
+    { id: 'western', name: 'Western', revenue: 15400, orders: 41 },
+    { id: 'eastern', name: 'Eastern', revenue: 12800, orders: 34 },
+    { id: 'central', name: 'Central', revenue: 8450, orders: 22 },
+    { id: null, name: 'Other', revenue: 3800, orders: 11 },
   ],
   customerGrowth: [
     { label: 'Jan', newCustomers: 12, returning: 8 },
@@ -92,10 +92,4 @@ export const DEV_ANALYTICS = {
     { label: 'Dec', newCustomers: 34, returning: 30 },
   ],
   fulfillmentStats: { fulfilled: 298, pending: 24, cancelled: 12, returned: 8 },
-  insights: [
-    { type: 'positive', title: 'Revenue up 31%', text: 'Sales grew compared to the previous period, driven by furniture category performance.' },
-    { type: 'positive', title: 'Repeat customers rising', text: 'Returning customer count increased month over month — loyalty is improving.' },
-    { type: 'warning', title: 'Headphones returns', text: 'Wireless Bluetooth Headphones saw a slight dip in sales — check recent reviews.' },
-    { type: 'neutral', title: 'Peak hours', text: 'Most orders arrive between 10 AM – 2 PM. Consider scheduling promotions accordingly.' },
-  ],
 }

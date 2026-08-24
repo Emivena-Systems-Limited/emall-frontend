@@ -1,0 +1,39 @@
+{
+  "title": "Vendor Analytics — Generate / Export Report",
+  "version": "1.2",
+  "description": "Powers the Export report drawer. Every report uses the same body: report, start_date, end_date, format. Year/month chips on Order fulfilment are UI-only and resolve to those dates before the request is sent.",
+  "endpoint": {
+    "method": "POST",
+    "path": "/api/vendor/analytics/reports",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "content_type": "application/json"
+  },
+  "request_body": {
+    "report": "Required. One of: summary | sales_by_category | customer_growth | sales_by_region | top_products | order_fulfillment",
+    "start_date": "YYYY-MM-DD. Required. Inclusive start.",
+    "end_date": "YYYY-MM-DD. Required. Inclusive end. Must be on or after start_date.",
+    "format": "csv. Required. Only CSV is supported in this version."
+  },
+  "example_payload": {
+    "report": "order_fulfillment",
+    "start_date": "2026-01-01",
+    "end_date": "2026-08-24",
+    "format": "csv"
+  },
+  "fulfillment_ui_to_dates": {
+    "note": "Frontend converts the selected calendar chip into start_date and end_date. Backend only receives the shared payload above.",
+    "current_year": { "start_date": "2026-01-01", "end_date": "2026-08-24" },
+    "specific_year_2025": { "start_date": "2025-01-01", "end_date": "2025-12-31" },
+    "specific_month_aug_2026": { "start_date": "2026-08-01", "end_date": "2026-08-24" },
+    "year_range_2024_to_2026": { "start_date": "2024-01-01", "end_date": "2026-08-24" },
+    "month_range_jan_to_aug_2026": { "start_date": "2026-01-01", "end_date": "2026-08-24" }
+  },
+  "success_file_response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": "attachment; filename=\"analytics-order-fulfillment-2026-01-01-to-2026-08-24.csv\""
+    },
+    "body": "CSV file bytes"
+  }
+}

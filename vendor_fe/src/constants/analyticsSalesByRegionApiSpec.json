@@ -1,0 +1,52 @@
+{
+  "title": "Vendor Analytics — Sales by Region",
+  "version": "1.0",
+  "description": "Powers the Sales by region ranked bars on Analytics & Reports. Replaces traffic sources. Filtered by calendar year only. Default year is the current year. Bar colors are assigned on the frontend.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/vendor/analytics/sales-by-region",
+    "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
+    "query": {
+      "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
+    }
+  },
+  "fields": {
+    "currency": "ISO code, always GHS.",
+    "year": "Echo the requested year.",
+    "total_revenue": "Sum of regions[].revenue. Should match revenue-orders total_revenue for the same year.",
+    "total_orders": "Sum of regions[].orders.",
+    "regions": "Shipping regions with completed-order sales in that year. Sorted by revenue descending. Empty array if no sales."
+  },
+  "grouping_rules": {
+    "source": "Use the order shipping address region (Ghana administrative region).",
+    "limit": "Return at most 6 rows. Keep the top 5 by revenue and fold the rest into Other (id: null).",
+    "zeros": "Omit regions with revenue 0."
+  },
+  "region_item": {
+    "id": "Region slug or id. null for Other.",
+    "name": "Display name, e.g. Greater Accra.",
+    "revenue": "Gross completed-order sales shipped to that region. Number, not a formatted string.",
+    "orders": "Completed order count shipped to that region. Integer.",
+    "percentage": "Share of total_revenue, 0–100. Frontend also recomputes this."
+  },
+  "example_request": "GET /api/vendor/analytics/sales-by-region?year=2026",
+  "example_response": {
+    "in_error": false,
+    "status_code": 200,
+    "message": "Success",
+    "data": {
+      "currency": "GHS",
+      "year": 2026,
+      "total_revenue": 128450,
+      "total_orders": 342,
+      "regions": [
+        { "id": "greater-accra", "name": "Greater Accra", "revenue": 56200, "orders": 148, "percentage": 43.8 },
+        { "id": "ashanti", "name": "Ashanti", "revenue": 31800, "orders": 86, "percentage": 24.8 },
+        { "id": "western", "name": "Western", "revenue": 15400, "orders": 41, "percentage": 12.0 },
+        { "id": "eastern", "name": "Eastern", "revenue": 12800, "orders": 34, "percentage": 10.0 },
+        { "id": "central", "name": "Central", "revenue": 8450, "orders": 22, "percentage": 6.6 },
+        { "id": null, "name": "Other", "revenue": 3800, "orders": 11, "percentage": 3.0 }
+      ]
+    }
+  }
+}

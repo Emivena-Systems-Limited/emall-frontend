@@ -42,7 +42,7 @@ export const NAV_SECTIONS = [
   {
     label: 'Insights',
     items: [
-      { to: '/analytics', icon: BarChart3, label: 'Analytics & Reports', comingSoon: true },
+      { to: '/analytics', icon: BarChart3, label: 'Analytics & Reports', comingSoon: false },
       { to: '/finance', icon: CircleDollarSign, label: 'Finance' },
       { to: '/reviews', icon: Star, label: 'Reviews & Ratings' },
       { to: '/messages', icon: MessageSquare, label: 'Messages', comingSoon: true },
