@@ -78,7 +78,7 @@ export default function VariantListView({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Manage variations</p>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Product variants</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Expand a variant to edit it, or add extra values. Color options need at least one photo. Other types can skip photos.
+              Extra options only. The default option shoppers see first is edited in product info.
             </p>
             {entries.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -136,8 +136,10 @@ export default function VariantListView({
           <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 ring-1 ring-slate-200">
             <Layers3 className="size-6" />
           </span>
-          <p className="text-sm font-bold text-slate-900">No variants yet</p>
-          <p className="mt-1 text-sm text-slate-500">Add your first variant to offer product options.</p>
+          <p className="text-sm font-bold text-slate-900">No extra variants yet</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Add optional colors, sizes, or other values. The default option stays in product info.
+          </p>
           <div className="mx-auto mt-5 flex max-w-sm flex-col gap-2 text-left text-xs text-slate-500 sm:flex-row sm:items-start sm:gap-4 sm:text-center">
             <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
               <strong className="block text-slate-700">1. Choose a type</strong>
@@ -158,7 +160,7 @@ export default function VariantListView({
             className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
           >
             <Plus className="size-4" />
-            Add first variant
+            Add extra variant
           </button>
         </div>
       ) : (

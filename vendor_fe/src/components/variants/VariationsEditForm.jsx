@@ -6,6 +6,7 @@ import {
   useUpdateSingleVariantMutation,
 } from '../../hooks/useProductMutations'
 import { iterateVariantFormEntries } from '../../utils/productPayload'
+import { filterOptionalVariantEntries } from '../../utils/defaultProductVariation'
 import AddVariantFlow from './AddVariantFlow'
 import VariantListView from './VariantListView'
 
@@ -19,7 +20,10 @@ export default function VariationsEditForm({ productId, formState, onFinished })
   const deleteVariantMutation = useDeleteProductVariantMutation()
 
   const productValues = formState.formValues
-  const entries = iterateVariantFormEntries(productValues.variations)
+  const entries = filterOptionalVariantEntries(
+    iterateVariantFormEntries(productValues.variations),
+    productValues,
+  )
 
   const handleAdd = (prefillAttribute = '') => {
     setAddPrefillAttribute(prefillAttribute)

@@ -257,6 +257,20 @@ export function isMainProductOption(values = {}, attribute, value) {
     && isSameProductOption(values.main_attribute_value, value)
 }
 
+export function isMainProductVariantEntry(productValues = {}, entry) {
+  return isMainProductOption(
+    productValues,
+    entry?.variation?.attribute,
+    entry?.variantValue?.value,
+  )
+}
+
+export function filterOptionalVariantEntries(entries = [], productValues = {}) {
+  return (Array.isArray(entries) ? entries : []).filter(
+    (entry) => !isMainProductVariantEntry(productValues, entry),
+  )
+}
+
 export function hasMatchingVariationValue(variations = [], attribute, value) {
   const attr = normalizeOptionText(attribute)
   const val = normalizeOptionText(value)
