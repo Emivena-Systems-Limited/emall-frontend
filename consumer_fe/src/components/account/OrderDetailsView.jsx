@@ -135,11 +135,6 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
   return (
     <article className={`grid grid-cols-1 gap-3 border-b border-slate-200 py-5 last:border-b-0 sm:items-center ${tableColumns}`}>
       <div className={`flex min-w-0 items-center gap-3 ${tableCellPadding}`}>
-        <input
-          type="checkbox"
-          aria-label={`Select ${productName}`}
-          className="size-4 shrink-0 rounded-sm border-slate-300 accent-auth-primary"
-        />
         {image ? (
           <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
             <img src={image} alt="" className="size-full object-contain p-1" />

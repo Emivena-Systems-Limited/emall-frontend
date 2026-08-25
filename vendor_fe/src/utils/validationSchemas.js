@@ -443,6 +443,12 @@ export const productListingSchemaBase = Yup.object({
   main_attribute_value: Yup.string()
     .trim()
     .required('Enter the value for this listing, such as Navy or Cotton'),
+  has_compatible_models: Yup.boolean().default(false),
+  compatible_models: Yup.array().of(Yup.string().trim()).default([]).when('has_compatible_models', {
+    is: true,
+    then: (schema) => schema.min(1, 'Add at least one compatible model, or turn this off'),
+    otherwise: (schema) => schema,
+  }),
 
   price: Yup.number()
     .typeError('Price must be a valid amount')
@@ -590,6 +596,8 @@ export const productInfoSchema = productListingSchemaBase.pick([
   'key_details',
   'main_attribute',
   'main_attribute_value',
+  'has_compatible_models',
+  'compatible_models',
   'price',
   'discount_mode',
   'discount_price',

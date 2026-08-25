@@ -3,6 +3,10 @@ import { resolveVariantAttributeFields } from './productPayload'
 import {
   MAIN_PRODUCT_ATTRIBUTE_META_KEY,
   MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY,
+  MAIN_PRODUCT_HAS_COMPATIBLE_MODELS_META_KEY,
+  MAIN_PRODUCT_COMPATIBLE_MODELS_META_KEY,
+  findMainProductVariant,
+  parseCompatibleModels,
 } from './defaultProductVariation'
 import { fromVariantDescriptionField, fromVariantOptionalField, fromVariantSalePriceField } from '../components/variants/variantFormUtils'
 import {
@@ -12,7 +16,8 @@ import {
   resolveSubcategoryRecord,
   isProductActive,
 } from './normalizeProducts'
-import { isGenericBrand } from './normalizeBrands'
+import { findCategoryPath } from './normalizeCategories'
+import { isGenericBrand, normalizeBrandRecord } from './normalizeBrands'
 import {
   createDescriptiveImageFromRemote,
   createProductImageFromRemote,
@@ -51,36 +56,77 @@ function metadataToMap(metadata = []) {
   }, {})
 }
 
-function resolveCategoryFields(record) {
-  const subcategoryRecord = resolveSubcategoryRecord(record)
-  const subcategoryId = typeof record.subcategory_id === 'object'
-    ? record.subcategory_id?.id
-    : record.subcategory_id ?? subcategoryRecord?.id ?? ''
+function asCategoryId(value) {
+  if (value == null || value === '') return ''
+  if (typeof value === 'object') {
+    const nestedId = value.id ?? value.category_id
+    return nestedId == null || nestedId === '' ? '' : String(nestedId)
+  }
+  return String(value)
+}
 
-  if (subcategoryId) {
-    const categoryId = typeof record.category_id === 'object'
-      ? record.category_id?.id
-      : record.category_id ?? record.category?.id ?? ''
+function resolveNestedCategory(record) {
+  if (record?.category && typeof record.category === 'object') return record.category
+  if (record?.category_id && typeof record.category_id === 'object') return record.category_id
+  return null
+}
+
+function resolveCategoryFields(record, categoryTree = []) {
+  const categoryRecord = resolveNestedCategory(record)
+  const subcategoryRecord = resolveSubcategoryRecord(record)
+
+  const rawCategoryId = asCategoryId(record.category_id) || asCategoryId(categoryRecord)
+  const rawSubcategoryId = asCategoryId(record.subcategory_id)
+    || asCategoryId(record.sub_category_id)
+    || asCategoryId(subcategoryRecord)
+
+  const parentFromRecord = asCategoryId(record.parent_category_id)
+    || asCategoryId(categoryRecord?.parent_id)
+    || asCategoryId(categoryRecord?.parentId)
+    || asCategoryId(subcategoryRecord?.parent_id)
+    || asCategoryId(subcategoryRecord?.parentId)
+
+  const leafId = rawSubcategoryId || rawCategoryId
+  const path = findCategoryPath(categoryTree, leafId)
+    || findCategoryPath(categoryTree, rawCategoryId)
+
+  if (path?.length) {
+    const root = path[0]
+    const leaf = path[path.length - 1]
+    const subcategoryId = path.length > 1
+      ? String(leaf.id)
+      : (rawSubcategoryId && rawSubcategoryId !== String(root.id) ? rawSubcategoryId : '')
 
     return {
-      category_id: record.parent_category_id ?? record.category?.parent_id ?? categoryId,
+      category_id: String(root.id),
       subcategory_id: subcategoryId,
     }
   }
 
-  if (record.category?.parent_id) {
+  if (rawSubcategoryId) {
+    const parentId = parentFromRecord || (rawCategoryId && rawCategoryId !== rawSubcategoryId ? rawCategoryId : '')
     return {
-      category_id: record.category.parent_id,
-      subcategory_id: record.category.id ?? record.category_id ?? '',
+      category_id: parentId || rawCategoryId,
+      subcategory_id: rawSubcategoryId,
     }
   }
 
-  const categoryId = typeof record.category_id === 'object'
-    ? record.category_id?.id
-    : record.category_id ?? record.category?.id ?? ''
+  if (parentFromRecord && rawCategoryId && parentFromRecord !== rawCategoryId) {
+    return {
+      category_id: parentFromRecord,
+      subcategory_id: rawCategoryId,
+    }
+  }
+
+  if (parentFromRecord) {
+    return {
+      category_id: parentFromRecord,
+      subcategory_id: rawCategoryId && rawCategoryId !== parentFromRecord ? rawCategoryId : '',
+    }
+  }
 
   return {
-    category_id: categoryId,
+    category_id: rawCategoryId,
     subcategory_id: '',
   }
 }
@@ -177,6 +223,39 @@ function resolveMainProductOptionFields(record, firstVariant, metadataMap = {}) 
   return {
     main_attribute: '',
     main_attribute_value: '',
+  }
+}
+
+function resolveProductCompatibleModels(record, metadataMap, productValues, variants = []) {
+  const fromMetaFlag = String(
+    metadataMap[MAIN_PRODUCT_HAS_COMPATIBLE_MODELS_META_KEY]
+    ?? getMetadataValue(record.metadata, MAIN_PRODUCT_HAS_COMPATIBLE_MODELS_META_KEY)
+    ?? '',
+  ).trim()
+  const fromMetaModels = parseCompatibleModels(
+    metadataMap[MAIN_PRODUCT_COMPATIBLE_MODELS_META_KEY]
+    ?? getMetadataValue(record.metadata, MAIN_PRODUCT_COMPATIBLE_MODELS_META_KEY),
+  )
+
+  if (fromMetaModels.length > 0 || fromMetaFlag === '1' || fromMetaFlag.toLowerCase() === 'true') {
+    return {
+      has_compatible_models: fromMetaModels.length > 0,
+      compatible_models: fromMetaModels,
+    }
+  }
+
+  const defaultVariant = findMainProductVariant(variants, productValues)
+  const variantModels = parseCompatibleModels(defaultVariant?.compatible_models)
+  if (variantModels.length > 0) {
+    return {
+      has_compatible_models: true,
+      compatible_models: variantModels,
+    }
+  }
+
+  return {
+    has_compatible_models: false,
+    compatible_models: [],
   }
 }
 
@@ -318,14 +397,14 @@ export function mapProductImagesToFormState(images = [], descriptiveImages = [])
   }
 }
 
-export function mapProductRecordToFormValues(record) {
+export function mapProductRecordToFormValues(record, options = {}) {
   if (!record?.id) return null
 
   const variants = Array.isArray(record.variants) ? record.variants : []
   const firstVariant = variants[0]
   const shipping = record.shipping ?? {}
   const metadataMap = metadataToMap(record.metadata)
-  const { category_id, subcategory_id } = resolveCategoryFields(record)
+  const { category_id, subcategory_id } = resolveCategoryFields(record, options.categoryTree ?? [])
   const pricing = resolvePricingFields(record, firstVariant, metadataMap)
 
   const resolveQuantity = () => {
@@ -359,7 +438,13 @@ export function mapProductRecordToFormValues(record) {
     condition: record.condition ?? metadataMap.condition ?? '',
     tags: normalizeTags(record.tags),
     key_details: mapKeyDetailsFromRecord(record),
-    ...resolveMainProductOptionFields(record, firstVariant, metadataMap),
+    ...(() => {
+      const mainOption = resolveMainProductOptionFields(record, firstVariant, metadataMap)
+      return {
+        ...mainOption,
+        ...resolveProductCompatibleModels(record, metadataMap, mainOption, variants),
+      }
+    })(),
     ...pricing,
     quantity: resolveQuantity(),
     low_stock_threshold: record.low_stock_threshold != null
@@ -377,8 +462,8 @@ export function mapProductRecordToFormValues(record) {
   }
 }
 
-export function mapProductRecordToFormState(record) {
-  const formValues = mapProductRecordToFormValues(record)
+export function mapProductRecordToFormState(record, options = {}) {
+  const formValues = mapProductRecordToFormValues(record, options)
   if (!formValues) return null
 
   const { mainImage, subImages, descriptiveImages } = mapProductImagesToFormState(
@@ -388,6 +473,7 @@ export function mapProductRecordToFormState(record) {
 
   return {
     formValues,
+    productBrand: normalizeBrandRecord(resolveNestedBrand(record)),
     mainImage,
     subImages,
     descriptiveImages,

@@ -34,6 +34,9 @@ import { MAX_VARIANT_IMAGE_COUNT, isColorVariantAttribute, COLOR_VARIANT_IMAGE_R
 import {
   MAIN_PRODUCT_ATTRIBUTE_META_KEY,
   MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY,
+  MAIN_PRODUCT_HAS_COMPATIBLE_MODELS_META_KEY,
+  MAIN_PRODUCT_COMPATIBLE_MODELS_META_KEY,
+  serializeCompatibleModels,
 } from './defaultProductVariation'
 
 function describeFile(file) {
@@ -952,6 +955,14 @@ function buildPricingMetadata(values) {
     metadataEntry('has_discount', hasDiscount ? '1' : '0'),
     metadataEntry(MAIN_PRODUCT_ATTRIBUTE_META_KEY, values.main_attribute?.trim()),
     metadataEntry(MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY, values.main_attribute_value?.trim()),
+    metadataEntry(
+      MAIN_PRODUCT_HAS_COMPATIBLE_MODELS_META_KEY,
+      values.has_compatible_models && (values.compatible_models ?? []).length > 0 ? '1' : null,
+    ),
+    metadataEntry(
+      MAIN_PRODUCT_COMPATIBLE_MODELS_META_KEY,
+      serializeCompatibleModels(values.compatible_models),
+    ),
   ]
 
   return entries.filter(Boolean)

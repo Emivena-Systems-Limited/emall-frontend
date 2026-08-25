@@ -4,7 +4,7 @@
   "description": "Powers the Revenue & orders composed chart (area = revenue, line = orders) and the total-revenue figure above it. Filtered by calendar year only — not by the page start_date/end_date. Default year is the current year.",
   "endpoint": {
     "method": "GET",
-    "path": "/api/vendor/analytics/revenue-orders",
+    "path": "/api/vendor/analytics/order-revenues",
     "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
     "query": {
       "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
@@ -23,7 +23,7 @@
     "revenue": "Gross completed-order sales in that month. Number, not a formatted string.",
     "orders": "Completed order count in that month. Integer."
   },
-  "example_request": "GET /api/vendor/analytics/revenue-orders?year=2026",
+  "example_request": "GET /api/vendor/analytics/order-revenues?year=2026",
   "example_response": {
     "in_error": false,
     "status_code": 200,

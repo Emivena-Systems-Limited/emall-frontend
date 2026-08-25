@@ -47,9 +47,11 @@ function SavedDrawerItem({ item, onRestore, onDelete, onNavigate }) {
           >
             {item.name}
           </Link>
-          {optionLabel && (
-            <p className="mt-0.5 line-clamp-1 text-[0.6875rem] text-slate-500">{optionLabel}</p>
-          )}
+          {optionLabel ? (
+            <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={optionLabel}>
+              {optionLabel}
+            </p>
+          ) : null}
           {item.seller && (
             <p className="mt-0.5 text-[0.6875rem] text-slate-500">
               Sold by <span className="font-semibold text-slate-700">{item.seller}</span>

@@ -8,7 +8,7 @@ import { useMiniCart } from '../../context/MiniCartContext'
 import { useCartActions } from '../../hooks/useCartActions'
 import { selectCartCount, selectCartItems } from '../../store/slices/cartSlice'
 import { formatCedi } from '../../utils/formatCurrency'
-import { resolveCartItemDisplayImage } from '../../utils/normalizeCart'
+import { formatCartItemOptions, resolveCartItemDisplayImage } from '../../utils/normalizeCart'
 
 const drawerEase = [0.16, 1, 0.3, 1]
 
@@ -47,6 +47,7 @@ function MiniQuantityStepper({ value, onChange, disabled = false }) {
 function MiniCartItem({ item, onQuantityChange, onRemove, onNavigate }) {
   const productHref = item.href?.replace(/^\/products\//, '/') ?? '/'
   const displayImage = resolveCartItemDisplayImage(item)
+  const optionLabel = formatCartItemOptions(item)
 
   return (
     <article className="rounded-xl bg-slate-50/90 p-2.5 ring-1 ring-slate-200/60">
@@ -72,6 +73,11 @@ function MiniCartItem({ item, onQuantityChange, onRemove, onNavigate }) {
           >
             {item.name}
           </Link>
+          {optionLabel ? (
+            <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={optionLabel}>
+              {optionLabel}
+            </p>
+          ) : null}
           <p className="mt-0.5 text-xs font-bold tabular-nums text-auth-primary">
             {formatCedi(item.price)}
           </p>

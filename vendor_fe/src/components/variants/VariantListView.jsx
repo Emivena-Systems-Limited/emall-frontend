@@ -1,26 +1,48 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowLeft, CheckCircle2, Layers3, Plus } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Layers3, Link2, Pin, Plus } from 'lucide-react'
 import ConfirmModal from '../common/ConfirmModal'
 import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
+import { useSyncDefaultVariantMutation } from '../../hooks/useProductMutations'
 import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
+import {
+  applyDefaultVariationDraftToProduct,
+  cloneImagesForDefaultVariant,
+  collectProductImagesForDefaultVariant,
+  mergeDefaultVariantImagesIntoProduct,
+  sameDefaultVariantImageSet,
+} from '../../utils/defaultProductVariation'
+import {
+  buildProductMediaPresignRequest,
+  hasPendingProductMediaUploads,
+  rehydrateKeptImagesMissingIds,
+} from '../../utils/productMediaUploadUtils'
+import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../../constants/productMediaUpload'
 import AttributeIcon from './AttributeIcon'
 import PersistedVariantAccordion from './PersistedVariantAccordion'
 import { normalizeVariantOptionalFields } from './variantFormUtils'
 
 export default function VariantListView({
   productId,
+  defaultEntry,
   entries,
   productValues = {},
+  listingValues = {},
+  mainImage = null,
+  subImages = [],
+  descriptiveImages = [],
   onAdd,
   onFinished,
   updateSingleVariantMutation,
   deleteVariantMutation,
 }) {
   const [removeTarget, setRemoveTarget] = useState(null)
-  const [openIds, setOpenIds] = useState(() => new Set())
+  const [openIds, setOpenIds] = useState(() => new Set(
+    defaultEntry?.variantValue?.id ? [defaultEntry.variantValue.id] : [],
+  ))
   const [savingId, setSavingId] = useState(null)
   const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
+  const syncDefaultVariantMutation = useSyncDefaultVariantMutation()
 
   const toggleOpen = (variantId) => {
     setOpenIds((prev) => {
@@ -31,7 +53,84 @@ export default function VariantListView({
     })
   }
 
-  const handleSave = async (entry, draft, { isCustomPrice }) => {
+  const handleSaveDefault = async (entry, draft) => {
+    const variantId = entry.variantValue.id
+    setSavingId(variantId)
+    try {
+      const { productPatch } = applyDefaultVariationDraftToProduct(draft)
+      const merged = mergeDefaultVariantImagesIntoProduct(draft.images, mainImage, subImages)
+
+      const overlayImages = collectProductImagesForDefaultVariant(mainImage, subImages)
+      const imagesChanged = !sameDefaultVariantImageSet(draft.images ?? [], overlayImages)
+
+      let mediaState = {
+        mainImage: merged.mainImage,
+        subImages: merged.subImages,
+        descriptiveImages: descriptiveImages ?? [],
+        variations: [],
+      }
+
+      if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
+        mediaState = await rehydrateKeptImagesMissingIds(mediaState)
+        const presignRequest = buildProductMediaPresignRequest(mediaState)
+        if (hasPendingProductMediaUploads(presignRequest)) {
+          mediaState = await uploadPendingMedia(mediaState)
+        }
+      }
+
+      const nextListingValues = {
+        ...listingValues,
+        ...productPatch,
+      }
+
+      const variantImages = imagesChanged
+        ? cloneImagesForDefaultVariant(
+          collectProductImagesForDefaultVariant(mediaState.mainImage, mediaState.subImages),
+        )
+        : (entry.variantValue.images ?? collectProductImagesForDefaultVariant(
+          mediaState.mainImage,
+          mediaState.subImages,
+        ))
+
+      const variantFormValues = {
+        ...normalizeVariantOptionalFields(
+          {
+            ...draft,
+            attribute: entry.variation.attribute,
+            images: variantImages,
+          },
+          { isCustomPrice: true },
+        ),
+        attribute: entry.variation.attribute,
+      }
+
+      const prepared = await prepareVariantFormValuesForSave({
+        variantFormValues,
+        attribute: entry.variation.attribute,
+        uploadPendingMedia,
+      })
+
+      await syncDefaultVariantMutation.mutateAsync({
+        productId,
+        variantId: entry.synthetic ? null : variantId,
+        variantFormValues: prepared,
+        listingValues: nextListingValues,
+        productValues: { ...nextListingValues, barcode: '' },
+        mainImage: mediaState.mainImage,
+        subImages: mediaState.subImages,
+        descriptiveImages: mediaState.descriptiveImages ?? [],
+      })
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const handleSave = async (entry, draft, { isCustomPrice, isDefault } = {}) => {
+    if (isDefault) {
+      await handleSaveDefault(entry, draft)
+      return
+    }
+
     const variantId = entry.variantValue.id
     setSavingId(variantId)
     try {
@@ -68,28 +167,35 @@ export default function VariantListView({
     return groups
   }, {})
   const attributeCount = Object.keys(groupedByAttribute).length
+  const defaultLabel = defaultEntry
+    ? `${defaultEntry.variation.attribute}: ${defaultEntry.variantValue.value || listingValues.main_attribute_value || 'Default'}`
+    : ''
 
   return (
     <div className="page-enter space-y-5">
-      {/* Header */}
       <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Manage variations</p>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Product variants</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Extra options only. The default option shoppers see first is edited in product info.
+              The default option is locked here and stays in sync with product info. Extra options can still be added, edited, or removed.
             </p>
-            {entries.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                  {entries.length} variant{entries.length !== 1 ? 's' : ''}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                  {attributeCount} option type{attributeCount !== 1 ? 's' : ''}
-                </span>
-              </div>
-            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-[11px] font-semibold text-cyan-800">
+                1 default
+              </span>
+              {entries.length > 0 && (
+                <>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    {entries.length} extra variant{entries.length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    {attributeCount} option type{attributeCount !== 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
@@ -130,15 +236,48 @@ export default function VariantListView({
         </div>
       </section>
 
-      {/* Variant groups */}
+      {defaultEntry ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700">
+              <Pin className="size-3.5" />
+            </span>
+            <span className="text-xs font-bold uppercase tracking-widest text-cyan-800">Default option</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 ring-1 ring-cyan-100">
+              <Link2 className="size-3" />
+              Cannot be deleted
+            </span>
+            <span className="h-px flex-1 bg-slate-100" />
+          </div>
+          <PersistedVariantAccordion
+            variation={defaultEntry.variation}
+            variantValue={defaultEntry.variantValue}
+            productValues={listingValues}
+            mainImage={mainImage}
+            subImages={subImages}
+            isOpen={openIds.has(defaultEntry.variantValue.id)}
+            onToggle={() => toggleOpen(defaultEntry.variantValue.id)}
+            onSave={(draft, options) => handleSave(defaultEntry, draft, options)}
+            isSaving={
+              savingId === defaultEntry.variantValue.id
+              || isUploadingMedia
+              || syncDefaultVariantMutation.isPending
+            }
+            isDefault
+          />
+        </section>
+      ) : null}
+
       {entries.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 px-6 py-14 text-center">
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 px-6 py-10 text-center">
           <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 ring-1 ring-slate-200">
             <Layers3 className="size-6" />
           </span>
           <p className="text-sm font-bold text-slate-900">No extra variants yet</p>
           <p className="mt-1 text-sm text-slate-500">
-            Add optional colors, sizes, or other values. The default option stays in product info.
+            {defaultLabel
+              ? `${defaultLabel} is already listed first. Add optional colors, sizes, or other values if you sell more than one option.`
+              : 'Add optional colors, sizes, or other values if you sell more than one option.'}
           </p>
           <div className="mx-auto mt-5 flex max-w-sm flex-col gap-2 text-left text-xs text-slate-500 sm:flex-row sm:items-start sm:gap-4 sm:text-center">
             <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
@@ -207,7 +346,6 @@ export default function VariantListView({
         ))
       )}
 
-      {/* Delete confirm */}
       <ConfirmModal
         open={Boolean(removeTarget)}
         tone="danger"

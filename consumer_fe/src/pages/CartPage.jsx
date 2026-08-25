@@ -15,6 +15,7 @@ import { notify } from '../lib/notify'
 import { collectSelectedCartItemIds, persistCheckoutCartItemIds } from '../utils/checkoutCartItems'
 import { formatCartItemOptions, resolveCartItemDisplayImage, resolveCartLineItemId } from '../utils/normalizeCart'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
+import CartPageSkeleton from '../components/cart/CartPageSkeleton'
 import { SavedItemsFloatingTrigger, SavedItemsTrigger } from '../components/cart/SavedItemsDrawer'
 import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
 
@@ -151,11 +152,11 @@ function CartItemRow({
           >
             {item.name}
           </Link>
-          {optionLabel && (
-            <p className="mt-1 text-[0.625rem] leading-relaxed text-slate-500 wrap-anywhere">
+          {optionLabel ? (
+            <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={optionLabel}>
               {optionLabel}
             </p>
-          )}
+          ) : null}
           {item.freeDelivery && (
             <p className="mt-1 w-fit max-w-full rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-emerald-700">
               Free Delivery
@@ -505,18 +506,21 @@ export default function CartPage() {
     window.scrollTo(0,0)
   },[])
   
-  useAuthenticatedCart({
+  const authenticatedCartQuery = useAuthenticatedCart({
     enabled: isAuthenticated && cartSyncReady,
     strategy: 'replace',
     refetchOnMount: 'always',
     staleTime: 0,
   })
 
-  useGuestCart({
+  const guestCartQuery = useGuestCart({
     enabled: !isAuthenticated && cartSyncReady && isValidGuestCartId(guestCartId),
     refetchOnMount: 'always',
     staleTime: 0,
   })
+
+  const cartQuery = isAuthenticated ? authenticatedCartQuery : guestCartQuery
+  const isLoadingCart = !cartSyncReady || cartQuery.isLoading || cartQuery.isFetching
 
   const {
     updateQuantity,
@@ -565,9 +569,11 @@ export default function CartPage() {
 
   return (
     <SiteLayout>
-      <main className={`bg-[#f2f2f2] py-4 sm:py-8 ${items.length > 0 ? 'pb-24 lg:pb-8' : ''}`}>
+      <main className={`bg-[#f2f2f2] py-4 sm:py-8 ${!isLoadingCart && items.length > 0 ? 'pb-24 lg:pb-8' : ''}`}>
         <Container className="min-w-0 space-y-6 sm:space-y-8">
-          {items.length === 0 ? (
+          {isLoadingCart ? (
+            <CartPageSkeleton rows={Math.max(2, Math.min(items.length || 3, 4))} />
+          ) : items.length === 0 ? (
             <div className="min-w-0 space-y-6 sm:space-y-8">
               <section className="min-w-0">
                 <div className="mb-4 flex items-start justify-between gap-3">
@@ -640,14 +646,18 @@ export default function CartPage() {
         </Container>
       </main>
 
-      <SavedItemsFloatingTrigger elevateForMobileBar={elevateSavedFab} />
+      {!isLoadingCart ? (
+        <SavedItemsFloatingTrigger elevateForMobileBar={elevateSavedFab} />
+      ) : null}
 
-      <MobileCheckoutBar
-        itemCount={orderAmounts.itemCount}
-        total={orderTotal}
-        hasSelectedItems={selectedItems.length > 0 && items.length > 0}
-        onProceedCheckout={handleProceedCheckout}
-      />
+      {!isLoadingCart ? (
+        <MobileCheckoutBar
+          itemCount={orderAmounts.itemCount}
+          total={orderTotal}
+          hasSelectedItems={selectedItems.length > 0 && items.length > 0}
+          onProceedCheckout={handleProceedCheckout}
+        />
+      ) : null}
 
       <DeliveryModal
         open={deliveryOpen}

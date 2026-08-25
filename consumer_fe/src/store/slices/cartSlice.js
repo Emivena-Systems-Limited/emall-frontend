@@ -10,8 +10,17 @@ const getProductId = (product) =>
 const getVariantId = (product) =>
   product?.variantId ?? product?.variant_id ?? product?.product_variant_id ?? product?.activeVariant?.id ?? null
 
-const getCartKey = ({ productId, variantId, sku }) =>
-  [productId, variantId, sku].filter(Boolean).join(':')
+const getAttributeIdentity = (product, options = {}) => {
+  const attribute = options.attribute ?? product?.attribute
+  if (!attribute || typeof attribute !== 'object' || Array.isArray(attribute)) return null
+  const key = String(attribute.key ?? attribute.name ?? '').trim()
+  const value = String(attribute.value ?? attribute.option ?? '').trim()
+  if (!key && !value) return null
+  return `${key}:${value}`
+}
+
+const getCartKey = ({ productId, variantId, sku, attribute }) =>
+  [productId, variantId, sku, attribute].filter(Boolean).join(':')
 
 const normalizeCartIdentity = (value) => (
   value == null || value === '' ? null : String(value)
@@ -57,20 +66,108 @@ function isStaleLocalLine(item) {
 }
 
 function findCartItemIndex(items, item) {
-  const lineId = lineItemIdOf(item)
+  return items.findIndex((current) => sameCartLine(current, item))
+}
 
-  return items.findIndex((current) => {
-    const currentLineId = lineItemIdOf(current)
-    if (lineId && currentLineId && lineId === currentLineId) return true
-    if (item.key && current.key === item.key) return true
-    if (
-      item.productId
-      && current.productId === item.productId
-      && (current.variantId ?? null) === (item.variantId ?? null)
-    ) {
-      return true
+function sameCartLine(a, b) {
+  if (!a || !b) return false
+
+  const aLineId = lineItemIdOf(a)
+  const bLineId = lineItemIdOf(b)
+  if (aLineId && bLineId) return aLineId === bLineId
+  if (a.key && b.key && a.key === b.key) return true
+
+  const aProductId = a.productId != null && a.productId !== '' ? String(a.productId) : ''
+  const bProductId = b.productId != null && b.productId !== '' ? String(b.productId) : ''
+  if (!aProductId || aProductId !== bProductId) return false
+
+  if (String(a.variantId ?? '') !== String(b.variantId ?? '')) return false
+  if (a.variantId) return true
+
+  const aAttr = getAttributeIdentity(a)
+  const bAttr = getAttributeIdentity(b)
+  if (aAttr || bAttr) return aAttr === bAttr
+  return true
+}
+
+function isWeakVariantLabel(value) {
+  if (value != null && typeof value === 'object') return true
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return !normalized || normalized === 'default' || normalized === 'standard'
+}
+
+function isUsefulVariantRecord(record) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return false
+  if (record.attribute || record.attribute_name || record.value || record.variant_name || record.option) {
+    return true
+  }
+  const attributes = record.attributes
+  if (Array.isArray(attributes)) return attributes.length > 0
+  return Boolean(attributes && typeof attributes === 'object' && Object.keys(attributes).length > 0)
+}
+
+function firstDisplayValue(...values) {
+  return values.find((value) => {
+    if (value == null || value === '') return false
+    if (typeof value === 'string') return value.trim() !== ''
+    return true
+  }) ?? null
+}
+
+function isWeakHref(value) {
+  const href = String(value ?? '').trim()
+  return !href || href === '/cart'
+}
+
+/**
+ * Backend cart payloads often omit variant names/images. Keep the local
+ * display fields so a refetch does not blank out what the shopper just saw.
+ */
+export function preserveCartDisplayFields(incomingItems, localItems = []) {
+  if (!Array.isArray(incomingItems) || incomingItems.length === 0) return []
+  if (!Array.isArray(localItems) || localItems.length === 0) return incomingItems
+
+  return incomingItems.map((incoming) => {
+    const local = localItems.find((item) => sameCartLine(item, incoming))
+    if (!local) return incoming
+
+    const incomingVariantWeak = isWeakVariantLabel(incoming.variant)
+    const localVariantStrong = !isWeakVariantLabel(local.variant)
+    const incomingRecordWeak = !isUsefulVariantRecord(incoming.variantRecord)
+    const localRecordStrong = isUsefulVariantRecord(local.variantRecord)
+
+    return {
+      ...incoming,
+      name: firstDisplayValue(incoming.name, local.name) ?? incoming.name,
+      href: isWeakHref(incoming.href) ? (local.href || incoming.href) : incoming.href,
+      seller: firstDisplayValue(incoming.seller, local.seller) ?? incoming.seller,
+      variant: incoming.attribute
+        ? (incoming.variant || local.variant)
+        : incomingVariantWeak && localVariantStrong
+          ? local.variant
+          : (incoming.variant || local.variant),
+      storage: firstDisplayValue(incoming.storage, local.storage) ?? incoming.storage,
+      variantRecord: incomingRecordWeak && localRecordStrong
+        ? local.variantRecord
+        : (incoming.variantRecord || local.variantRecord),
+      attribute: incoming.attribute ?? local.attribute ?? null,
+      variant_images: firstDisplayValue(incoming.variant_images, local.variant_images),
+      variantImage: firstDisplayValue(
+        incoming.variant_images,
+        incoming.variantImage,
+        local.variant_images,
+        local.variantImage,
+      ),
+      image: firstDisplayValue(
+        incoming.variant_images,
+        incoming.variantImage,
+        incoming.image,
+        local.variant_images,
+        local.variantImage,
+        local.image,
+      ) ?? incoming.image,
+      product: incoming.product || local.product,
     }
-    return false
   })
 }
 
@@ -78,16 +175,31 @@ export function buildCartItem(product, options = {}) {
   const productId = options.productId ?? getProductId(product)
   const variantId = options.variantId ?? getVariantId(product)
   const sku = options.sku ?? product?.sku ?? product?.activeSku ?? product?.variant
-  const quantity = Math.max(1, Number(options.quantity ?? product?.quantity ?? 1))
+  const quantity = Math.max(
+    1,
+    Number(
+      options.quantity
+      ?? (product?.cartItemId || product?.key || product?.cart_item_id ? product?.quantity : undefined)
+      ?? 1,
+    ) || 1,
+  )
   const price = Number(options.price ?? product?.price ?? product?.discount_price ?? 0)
   const compareAt = options.compareAt ?? product?.compareAt ?? product?.original_price ?? null
   const displaySubtotal = options.displaySubtotal ?? product?.displaySubtotal ?? null
   const lineSavings = options.lineSavings ?? product?.lineSavings ?? null
-  const key = getCartKey({ productId, variantId, sku }) || String(product?.id ?? Date.now())
+  const key = getCartKey({
+    productId,
+    variantId,
+    sku,
+    attribute: variantId ? null : getAttributeIdentity(product, options),
+  }) || String(product?.id ?? Date.now())
+  const variantImages = options.variant_images ?? product?.variant_images ?? null
   const image = options.image ?? product?.image ?? product?.gallery?.[0] ?? ''
-  const variantImage = variantId
-    ? (options.variantImage ?? options.image ?? product?.variantImage ?? null)
-    : (product?.variantImage ?? null)
+  const variantImage = options.variantImage
+    ?? product?.variantImage
+    ?? (typeof variantImages === 'string' && variantImages ? variantImages : null)
+    ?? (variantId ? (options.image ?? null) : null)
+  const attribute = options.attribute ?? product?.attribute ?? null
 
   return {
     id: product?.cartItemId ?? product?.cart_item_id ?? product?.cartId ?? key,
@@ -106,6 +218,8 @@ export function buildCartItem(product, options = {}) {
     quantity,
     image,
     variantImage,
+    variant_images: variantImages,
+    attribute,
     product: options.productRecord ?? product?.productRecord ?? null,
     variantRecord: options.variantRecord ?? product?.variantRecord ?? null,
     href: product?.href ?? (product?.slug ? `/${product.slug}` : '/cart'),
@@ -139,17 +253,13 @@ function mergeItemsIntoList(existingItems, incomingRaw) {
   const items = [...existingItems]
 
   incomingItems.forEach((item) => {
-    const existingIndex = items.findIndex((current) => current.key === item.key || current.id === item.id)
+    const existingIndex = findCartItemIndex(items, item)
     if (existingIndex >= 0) {
+      const preserved = preserveCartDisplayFields([item], [items[existingIndex]])[0]
       items[existingIndex] = {
-        ...items[existingIndex],
-        ...item,
+        ...preserved,
         quantity: item.quantity || items[existingIndex].quantity,
         selected: item.selected ?? items[existingIndex].selected,
-        image: items[existingIndex].variantImage
-          ?? items[existingIndex].image
-          ?? item.image,
-        variantImage: items[existingIndex].variantImage ?? item.variantImage ?? null,
       }
       return
     }
@@ -192,7 +302,8 @@ const cartSlice = createSlice({
       const existingIndex = findCartItemIndex(state.items, item)
 
       if (existingIndex >= 0) {
-        Object.assign(state.items[existingIndex], item, {
+        const preserved = preserveCartDisplayFields([item], [state.items[existingIndex]])[0]
+        Object.assign(state.items[existingIndex], preserved, {
           quantity: item.quantity || state.items[existingIndex].quantity,
           selected: item.selected ?? state.items[existingIndex].selected,
         })
@@ -214,14 +325,24 @@ const cartSlice = createSlice({
       state.items.push(item)
     },
     replaceItems(state, action) {
-      state.items = coerceCartItemsList(action.payload)
+      const incoming = coerceCartItemsList(action.payload)
+      if (incoming.length === 0) {
+        state.items = []
+        return
+      }
+      state.items = preserveCartDisplayFields(incoming, state.items)
     },
     mergeItems(state, action) {
       state.items = mergeItemsIntoList(state.items, action.payload)
     },
     setQuantity(state, action) {
       const { itemId, quantity } = action.payload
-      const item = state.items.find((current) => current.id === itemId || current.key === itemId)
+      const target = String(itemId ?? '')
+      const item = state.items.find((current) => (
+        String(current.id) === target
+        || String(current.key) === target
+        || String(current.cartItemId ?? '') === target
+      ))
       if (!item) return
 
       const nextQuantity = Math.max(1, Number(quantity))
@@ -231,14 +352,24 @@ const cartSlice = createSlice({
       }
     },
     removeItem(state, action) {
-      state.items = state.items.filter((item) => item.id !== action.payload && item.key !== action.payload)
+      const target = String(action.payload ?? '')
+      state.items = state.items.filter((item) => (
+        String(item.id) !== target
+        && String(item.key) !== target
+        && String(item.cartItemId ?? '') !== target
+      ))
     },
     clearCart(state) {
       state.items = []
     },
     setSelected(state, action) {
       const { itemId, selected } = action.payload
-      const item = state.items.find((current) => current.id === itemId || current.key === itemId)
+      const target = String(itemId ?? '')
+      const item = state.items.find((current) => (
+        String(current.id) === target
+        || String(current.key) === target
+        || String(current.cartItemId ?? '') === target
+      ))
       if (item) item.selected = Boolean(selected)
     },
     saveForLater(state, action) {
@@ -287,8 +418,9 @@ const cartSlice = createSlice({
     },
     cartSyncSucceeded(state, action) {
       const { items, userId } = action.payload
-      // Server cart is the source of truth — do not merge with stale persisted lines.
-      state.items = coerceCartItemsList(items)
+      // Server cart is the source of truth for membership/qty, but keep local
+      // variant labels the API cart payload often omits.
+      state.items = preserveCartDisplayFields(coerceCartItemsList(items), state.items)
       state.guestCartId = null
       state.meta.syncStatus = 'synced'
       state.meta.syncedUserId = userId ?? null

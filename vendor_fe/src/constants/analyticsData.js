@@ -1,20 +1,15 @@
+export const EMPTY_ANALYTICS_SUMMARY = {
+  revenue: 0,
+  orders: 0,
+  customers: 0,
+  conversionRate: 0,
+  avgOrderValue: 0,
+  returnRate: 0,
+}
+
 export const EMPTY_ANALYTICS = {
-  summary: {
-    revenue: 0,
-    orders: 0,
-    customers: 0,
-    conversionRate: 0,
-    avgOrderValue: 0,
-    returnRate: 0,
-  },
-  previousSummary: {
-    revenue: 0,
-    orders: 0,
-    customers: 0,
-    conversionRate: 0,
-    avgOrderValue: 0,
-    returnRate: 0,
-  },
+  summary: { ...EMPTY_ANALYTICS_SUMMARY },
+  previousSummary: { ...EMPTY_ANALYTICS_SUMMARY },
   revenueTimeline: [],
   categoryBreakdown: [],
   topProducts: [],

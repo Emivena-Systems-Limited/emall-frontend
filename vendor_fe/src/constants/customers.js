@@ -10,13 +10,13 @@ export const CUSTOMER_ENDPOINTS = {
 export const CUSTOMER_SEGMENTS = {
   ALL: 'all',
   NEW_THIS_MONTH: 'new-this-month',
+  WITH_REVIEWS: 'with-reviews',
 }
 
 export const SUMMARY_CARD_ROUTES = {
   total: '/customers',
   newThisMonth: '/customers?segment=new-this-month',
-  // TODO: Connect to Reviews module/API when vendor reviews endpoint is finalized.
-  reviews: '/reviews',
+  reviews: '/customers?segment=with-reviews',
 }
 
 export const DEFAULT_ORDER_DATE_RANGE = {
@@ -49,6 +49,15 @@ export function resolveCustomerSegment(searchParams) {
     || filter === 'new-this-month'
   ) {
     return CUSTOMER_SEGMENTS.NEW_THIS_MONTH
+  }
+
+  if (
+    segment === CUSTOMER_SEGMENTS.WITH_REVIEWS
+    || filter === CUSTOMER_SEGMENTS.WITH_REVIEWS
+    || filter === 'with-reviews'
+    || filter === 'reviews'
+  ) {
+    return CUSTOMER_SEGMENTS.WITH_REVIEWS
   }
 
   return CUSTOMER_SEGMENTS.ALL

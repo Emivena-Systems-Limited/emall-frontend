@@ -44,7 +44,7 @@ import {
   getBuyNowInitiateKey,
   initiateBuyNow,
 } from '../services/checkoutService'
-import { hasBackendProductId } from '../utils/normalizeCart'
+import { hasBackendProductId, resolveCartItemVariantLabel } from '../utils/normalizeCart'
 import {
   formatProductCondition,
   sortKeyDetailEntries,
@@ -392,7 +392,6 @@ function ProductInfoPanel({
   const [trustInfoOpen, setTrustInfoOpen] = useState(null)
   const trustInfoRef = useRef(null)
   const navigate = useNavigate()
-  const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const { addToCart } = useCartActions()
   const stockAvailability = formatStockAvailability(
@@ -441,10 +440,6 @@ function ProductInfoPanel({
     displayPriceInfo.discountPercent > 0 &&
     displayPriceInfo.compareAt > displayPriceInfo.price
   const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
-  const isInCart = isProductInCart(cartItems, product, {
-    productId: product.backendId ?? product.id,
-    variantId: activeVariant?.id ?? null,
-  })
 
   const hasSelectableVariants = Array.isArray(product.variants) && product.variants.length > 0
 
@@ -464,7 +459,13 @@ function ProductInfoPanel({
       variantId: activeVariant?.id ?? null,
       product_variant_id: activeVariant?.id ?? null,
       sku: activeSku,
-      variant: selectedValue || selectedCompatibleModel || product.variant,
+      variant: resolveCartItemVariantLabel({
+        name: product.title ?? product.name,
+        sku: activeSku,
+        variant: selectedValue || selectedCompatibleModel || product.variant,
+        variantRecord: activeVariant,
+        storage: selectedValue || selectedCompatibleModel,
+      }) || selectedValue || selectedCompatibleModel || product.variant,
       size: selectedValue || selectedCompatibleModel || activeSku,
       image: activeImage
         || product.gallery?.[0]
@@ -475,8 +476,6 @@ function ProductInfoPanel({
   })
 
   const handleAddToCart = async () => {
-    if (isInCart) return
-
     if (isAddingToCart) return
 
     if (hasSelectableVariants && !activeVariant?.id) {
@@ -495,7 +494,6 @@ function ProductInfoPanel({
       if (item) {
         setAddedToCartSnapshot({
           image: cartOptions.image || product.image,
-          quantity: cartOptions.quantity ?? quantity,
           variantLabel: cartOptions.variant || cartOptions.size || activeSku || '',
         })
         setAddedToCartOpen(true)
@@ -549,7 +547,6 @@ function ProductInfoPanel({
         open={addedToCartOpen}
         product={product}
         image={addedToCartSnapshot?.image}
-        quantity={addedToCartSnapshot?.quantity ?? quantity}
         variantLabel={addedToCartSnapshot?.variantLabel}
         onClose={() => setAddedToCartOpen(false)}
         onViewCart={() => {
@@ -673,7 +670,7 @@ function ProductInfoPanel({
         </button>
         <button
           type="button"
-          disabled={outOfStock || isAddingToCart || isInCart}
+          disabled={outOfStock || isAddingToCart}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
           className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
@@ -684,7 +681,7 @@ function ProductInfoPanel({
               Adding...
             </>
           ) : (
-            isInCart ? 'Already in cart' : 'Add to Cart'
+            'Add to Cart'
           )}
         </button>
       </div>

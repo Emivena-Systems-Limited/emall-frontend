@@ -1,4 +1,5 @@
 import { buildCartItem } from '../store/slices/cartSlice'
+import { resolveVariantAttributeFields } from './productVariantFields'
 
 function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '')
@@ -82,12 +83,25 @@ function resolveVariantImage(variant) {
 
   return resolveImageSource(
     firstValue(
-      variant.images,
       variant.variant_images,
+      variant.variantImages,
+      variant.variant_image,
+      variant.images,
       variant.image_url,
       variant.image,
       variant.thumbnail,
     ),
+  )
+}
+
+function getLineVariantImages(record) {
+  return firstValue(
+    record?.variant_images,
+    record?.variantImages,
+    record?.variant_image,
+    record?.variant_image_url,
+    record?.product_variant_image,
+    record?.product_variant_image_url,
   )
 }
 
@@ -96,15 +110,10 @@ function getImage(record) {
   const variant = record.variant ?? record.product_variant ?? record.product_variation ?? {}
   const variantId = firstValue(record.product_variant_id, record.variant_id, variant.id)
 
-  const explicitVariantImage = resolveImageSource(
-    firstValue(
-      record.variant_image,
-      record.variant_image_url,
-      record.product_variant_image,
-      record.product_variant_image_url,
-    ),
-  )
-  if (explicitVariantImage) return explicitVariantImage
+  // Cart lines expose the selected variation photo on `variant_images`, while
+  // `images` is the shared product shot and must not win for variant rows.
+  const lineVariantImage = resolveImageSource(getLineVariantImages(record))
+  if (lineVariantImage) return lineVariantImage
 
   const nestedVariantImage = resolveVariantImage(variant)
   if (nestedVariantImage) return nestedVariantImage
@@ -114,11 +123,6 @@ function getImage(record) {
     const matchedVariantImage = resolveVariantImage(matchedVariant)
     if (matchedVariantImage) return matchedVariantImage
   }
-
-  const variantSpecificRecordImage = resolveImageSource(
-    firstValue(record.variant_images, record.variant_image),
-  )
-  if (variantSpecificRecordImage) return variantSpecificRecordImage
 
   if (variantId) {
     const lineImage = resolveImageSource(firstValue(record.image, record.image_url))
@@ -146,33 +150,181 @@ function getImage(record) {
   )
 }
 
+function asScalarLabel(value) {
+  if (value == null || typeof value === 'object') return ''
+  return String(value).trim()
+}
+
+function isPlaceholderVariantLabel(value) {
+  const normalized = asScalarLabel(value).toLowerCase()
+  return !normalized || normalized === 'default' || normalized === 'standard'
+}
+
+function formatAttributeValueLabel(attribute, value) {
+  const attr = asScalarLabel(attribute)
+  const val = asScalarLabel(value)
+  if (!val) return ''
+  if (!attr || attr.toLowerCase() === 'option') return val
+  return `${attr}: ${val}`
+}
+
+function formatAttributeEntries(attributes) {
+  if (Array.isArray(attributes) && attributes.length) {
+    return attributes
+      .map((entry) => {
+        if (typeof entry === 'string') return asScalarLabel(entry)
+        const name = asScalarLabel(entry?.key ?? entry?.name ?? entry?.attribute ?? entry?.label)
+        const value = asScalarLabel(entry?.value ?? entry?.option)
+        return formatAttributeValueLabel(name, value) || name
+      })
+      .filter(Boolean)
+      .join(' · ')
+  }
+
+  if (isKeyValueAttribute(attributes)) {
+    return formatKeyValueAttribute(attributes)
+  }
+
+  if (attributes && typeof attributes === 'object') {
+    return Object.entries(attributes)
+      .filter(([key, value]) => key && !/^\d+$/.test(String(key).trim()) && value != null && value !== '')
+      .map(([key, value]) => formatAttributeValueLabel(key, value))
+      .filter(Boolean)
+      .join(' · ')
+  }
+
+  return ''
+}
+
+/** Cart lines send `{ key, value }` (e.g. Color / Dark Silver), not a name→value map. */
+function isKeyValueAttribute(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  return ('key' in value || 'name' in value || 'label' in value)
+    && ('value' in value || 'option' in value)
+}
+
+function formatKeyValueAttribute(attribute) {
+  if (!isKeyValueAttribute(attribute)) return ''
+  const name = asScalarLabel(attribute.key ?? attribute.name ?? attribute.attribute ?? attribute.label)
+  const value = asScalarLabel(attribute.value ?? attribute.option)
+  return formatAttributeValueLabel(name, value)
+}
+
+function formatLineAttributes(record) {
+  if (!record || typeof record !== 'object') return ''
+
+  const fromAttribute = formatKeyValueAttribute(record.attribute)
+  if (fromAttribute) return fromAttribute
+
+  return formatAttributeEntries(record.attributes)
+}
+
+function asVariantRecord(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value
+}
+
+/** Cart GET lines may send `{ attribute: { key, value } }` instead of a nested variant. */
+function lineAttributeToVariantRecord(record) {
+  const attribute = record?.attribute
+  if (!attribute || typeof attribute !== 'object' || Array.isArray(attribute)) return null
+
+  const key = asScalarLabel(attribute.key ?? attribute.name ?? attribute.attribute ?? attribute.label)
+  const value = asScalarLabel(attribute.value ?? attribute.option)
+  if (!key && !value) return null
+
+  return {
+    attribute: key,
+    value,
+    ...(key ? { attributes: { [key]: value } } : {}),
+  }
+}
+
+function isUsefulApiVariantRecord(record) {
+  if (!asVariantRecord(record)) return false
+  if (record.attribute || record.attribute_name || record.value || record.variant_name || record.option) {
+    return true
+  }
+  const attributes = record.attributes
+  if (Array.isArray(attributes)) return attributes.length > 0
+  return Boolean(attributes && typeof attributes === 'object' && Object.keys(attributes).length > 0)
+}
+
+/** Vendor-style cart/order subtitle, e.g. "Inch: iPhone Air 6.5 inch". */
+export function resolveCartItemVariantLabel(item) {
+  if (!item || typeof item !== 'object') return ''
+
+  const fromLineAttribute = formatLineAttributes(item)
+  if (fromLineAttribute) return fromLineAttribute
+
+  const variantRecord = asVariantRecord(item.variantRecord)
+    ?? asVariantRecord(item.product_variant)
+    ?? asVariantRecord(item.variant)
+    ?? lineAttributeToVariantRecord(item)
+  const productName = asScalarLabel(item.name ?? item.title)
+  const sku = asScalarLabel(item.sku)
+
+  const fromAttributes = formatAttributeEntries(
+    variantRecord?.attributes ?? variantRecord?.attribute_values ?? item.attributes,
+  )
+  if (fromAttributes && fromAttributes !== productName) return fromAttributes
+
+  if (variantRecord) {
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variantRecord)
+    const attribute = asScalarLabel(
+      variantRecord.attribute ?? variantRecord.attribute_name ?? attributeKey,
+    )
+    const value = asScalarLabel(
+      variantRecord.value ?? variantRecord.option ?? attributeValue,
+    )
+    const fromFields = formatAttributeValueLabel(attribute, value)
+    if (fromFields && fromFields !== productName) return fromFields
+
+    const named = asScalarLabel(variantRecord.variant_name)
+    if (named && !isPlaceholderVariantLabel(named) && named !== productName && named !== sku) {
+      return named
+    }
+  }
+
+  const stored = typeof item.variant === 'string' ? asScalarLabel(item.variant) : ''
+  if (stored && !isPlaceholderVariantLabel(stored) && stored !== productName) return stored
+
+  const storage = asScalarLabel(item.storage)
+  if (storage && storage !== sku && !isPlaceholderVariantLabel(storage) && storage !== productName) {
+    return storage
+  }
+
+  return ''
+}
+
 export function formatCartItemOptions(item) {
-  const variant = String(item?.variant ?? '').trim()
-  const storage = String(item?.storage ?? '').trim()
-  const parts = []
-
-  if (variant && variant.toLowerCase() !== 'default') {
-    parts.push(variant)
-  }
-  if (storage && storage !== variant && storage !== String(item?.sku ?? '').trim()) {
-    parts.push(storage)
-  }
-
-  return parts.join(' · ')
+  return resolveCartItemVariantLabel(item)
 }
 
 export function resolveCartItemDisplayImage(item) {
   if (!item || typeof item !== 'object') return ''
+
+  const fromVariantImages = resolveImageSource(
+    firstValue(item.variant_images, item.variantImages),
+  )
+  if (fromVariantImages) return fromVariantImages
 
   if (item.variantImage) return item.variantImage
 
   const resolved = getImage({
     product_variant_id: item.variantId,
     product: item.product ?? {},
-    variant: item.variantRecord ?? item.product_variant ?? item.variant ?? {},
+    variant: asVariantRecord(item.variantRecord)
+      ?? asVariantRecord(item.product_variant)
+      ?? asVariantRecord(item.variant)
+      ?? {},
+    variant_images: item.variant_images ?? item.variantImages,
+    variant_image: item.variantImage,
+    images: item.images,
     image: item.image,
     image_url: item.image,
     sku: item.sku,
+    attribute: item.attribute,
   })
 
   if (resolved) return resolved
@@ -222,14 +374,22 @@ export function enrichCartItemsForDisplay(cartItems, apiItems) {
       product_variant_id: variantId,
       product,
       variant: variantRecord,
-      image: cartItem.variantImage ?? cartItem.image,
-      image_url: cartItem.variantImage ?? cartItem.image,
+      variant_images: apiMatch.variant_images ?? cartItem.variant_images,
+      image: apiMatch.variant_images ?? cartItem.variantImage ?? cartItem.image,
+      image_url: apiMatch.variant_images ?? cartItem.variantImage ?? cartItem.image,
     })
+    const variantImages = firstValue(
+      apiMatch.variant_images,
+      apiMatch.variantImages,
+      cartItem.variant_images,
+    )
 
     return {
       ...cartItem,
       product,
       variantRecord,
+      attribute: apiMatch.attribute ?? cartItem.attribute ?? null,
+      variant_images: variantImages,
       variantImage: resolvedImage || cartItem.variantImage || cartItem.image || null,
       image: resolvedImage || cartItem.variantImage || cartItem.image || '',
     }
@@ -290,15 +450,37 @@ function resolveCartLinePricing(record, quantity) {
 
 export function normalizeCartItem(record) {
   const product = record.product ?? record.item ?? {}
-  const variant = record.variant ?? record.product_variant ?? record.product_variation ?? product.variant ?? {}
+  const nestedVariant = asVariantRecord(record.variant)
+    ?? asVariantRecord(record.product_variant)
+    ?? asVariantRecord(record.product_variation)
+    ?? asVariantRecord(product.variant)
+    ?? lineAttributeToVariantRecord(record)
+    ?? {}
   const productId = firstValue(record.product_id, product.id, product.product_id)
-  const variantId = firstValue(record.product_variant_id, record.variant_id, variant.id)
+  const variantId = firstValue(record.product_variant_id, record.variant_id, nestedVariant.id)
   const cartItemId = firstValue(record.id, record.cart_item_id, record.item_id)
-  const quantity = firstValue(record.quantity, record.qty, 1)
+  const quantity = firstValue(
+    record.quantity,
+    record.qty,
+    record.item_quantity,
+    record.line_quantity,
+  ) ?? 1
   const pricing = resolveCartLinePricing(record, quantity)
-  const matchedVariant = variantId ? findProductVariant(product, variantId) ?? variant : variant
+  const matchedVariant = variantId ? findProductVariant(product, variantId) ?? nestedVariant : nestedVariant
+  const variantImages = getLineVariantImages(record)
   const image = getImage(record)
-  const variantImage = variantId ? image : null
+  const variantImage = (variantImages || variantId) ? image : null
+  const name = firstValue(record.product_name, product.name, product.product_name, product.title, record.name)
+  const sku = firstValue(record.sku, matchedVariant.sku, nestedVariant.sku, product.sku)
+  const variantLabel = resolveCartItemVariantLabel({
+    name,
+    sku,
+    variant: typeof record.variant === 'string' ? record.variant : record.variant_name,
+    variantRecord: matchedVariant,
+    attribute: record.attribute,
+    attributes: record.attributes ?? matchedVariant.attributes,
+    storage: firstValue(record.storage, record.size, matchedVariant.size, nestedVariant.size),
+  })
 
   return buildCartItem({
     cartItemId,
@@ -306,16 +488,16 @@ export function normalizeCartItem(record) {
     product_id: productId,
     syncable: Boolean(productId && cartItemId),
     variantId,
-    sku: firstValue(record.sku, matchedVariant.sku, variant.sku, product.sku),
-    name: firstValue(record.product_name, product.name, product.product_name, product.title, record.name),
+    sku,
+    name,
     title: firstValue(record.product_name, product.title, product.name, record.name),
-    variant: firstValue(
+    variant: variantLabel || firstValue(
       record.variant_name,
       matchedVariant.variant_name,
       matchedVariant.value,
-      variant.variant_name,
-      variant.value,
-      variant.name,
+      nestedVariant.variant_name,
+      nestedVariant.value,
+      nestedVariant.name,
       record.color,
       product.color,
     ),
@@ -323,17 +505,19 @@ export function normalizeCartItem(record) {
       record.storage,
       record.size,
       matchedVariant.size,
-      variant.size,
+      nestedVariant.size,
       matchedVariant.sku,
-      variant.sku,
+      nestedVariant.sku,
     ),
     price: pricing.price,
-    compareAt: pricing.compareAt ?? firstValue(variant.price, product.original_price),
+    compareAt: pricing.compareAt ?? firstValue(nestedVariant.price, product.original_price),
     displaySubtotal: pricing.displaySubtotal,
     lineSavings: pricing.lineSavings,
     quantity,
     image,
     variantImage,
+    variant_images: variantImages,
+    attribute: record.attribute ?? matchedVariant.attribute ?? null,
     product,
     variantRecord: matchedVariant,
     href: product.slug ? `/${product.slug}` : (productId ? `/${productId}` : undefined),
@@ -521,12 +705,19 @@ export function mergeGuestAddItemWithLocal(apiItem, localItem) {
   )
   const variantIdsMatch = localItem.variantId
     && String(localItem.variantId) === String(apiItem.variantId)
-  const preservedVariantImage = variantIdsMatch
-    ? (localItem.variantImage ?? localItem.image)
-    : (localItem.variantImage ?? apiItem.variantImage ?? null)
-  const preservedImage = variantIdsMatch && localItem.image
-    ? localItem.image
-    : (preservedVariantImage || localItem.image || apiItem.image)
+  const apiVariantImage = firstValue(apiItem.variant_images, apiItem.variantImage)
+  const preservedVariantImage = apiVariantImage
+    || (variantIdsMatch
+      ? (localItem.variantImage ?? localItem.image)
+      : (localItem.variantImage ?? apiItem.variantImage ?? null))
+  const preservedImage = apiVariantImage
+    || (variantIdsMatch && localItem.image
+      ? localItem.image
+      : (preservedVariantImage || localItem.image || apiItem.image))
+
+  const apiRecord = isUsefulApiVariantRecord(apiItem.variantRecord) ? apiItem.variantRecord : null
+  const localRecord = isUsefulApiVariantRecord(localItem.variantRecord) ? localItem.variantRecord : null
+  const variantRecord = apiRecord || localRecord || apiItem.variantRecord || localItem.variantRecord
 
   return {
     ...localItem,
@@ -536,12 +727,21 @@ export function mergeGuestAddItemWithLocal(apiItem, localItem) {
     name: localItem.name || apiItem.name,
     price: Number.isFinite(apiPrice) && apiPrice > 0 ? apiPrice : localItem.price,
     compareAt: apiItem.compareAt ?? localItem.compareAt,
+    variant_images: firstValue(apiItem.variant_images, localItem.variant_images),
+    attribute: apiItem.attribute ?? localItem.attribute ?? null,
     image: preservedImage,
     variantImage: preservedVariantImage || preservedImage || null,
     product: apiItem.product ?? localItem.product,
-    variantRecord: apiItem.variantRecord ?? localItem.variantRecord,
+    variantRecord,
     href: localItem.href || apiItem.href,
-    variant: localItem.variant || apiItem.variant,
+    variant: resolveCartItemVariantLabel({
+      ...localItem,
+      ...apiItem,
+      name: localItem.name || apiItem.name,
+      variant: localItem.variant,
+      variantRecord,
+      storage: localItem.storage || apiItem.storage,
+    }) || localItem.variant || apiItem.variant,
     storage: localItem.storage || apiItem.storage,
     seller: localItem.seller || apiItem.seller,
     quantity,

@@ -119,12 +119,21 @@ export function sortBrandsAlphabetically(brands) {
 }
 
 export function toBrandSelectOptions(brands) {
-  return sortBrandsAlphabetically(brands)
+  return sortBrandsAlphabetically(dedupeBrandRecords(brands))
     .filter((brand) => !isGenericBrand(brand))
     .map((brand) => ({
       value: String(brand.id),
       label: brand.name,
     }))
+}
+
+function dedupeBrandRecords(brands = []) {
+  const byId = new Map()
+  brands.forEach((brand) => {
+    if (!brand?.id) return
+    byId.set(String(brand.id), brand)
+  })
+  return [...byId.values()]
 }
 
 export function findBrandBySlug(brands, slug) {
@@ -141,6 +150,13 @@ export function findBrandById(brands, id) {
 
 export function getBrandDisplayLabel(brandId, brands) {
   if (!brandId) return null
+
+  if (typeof brandId === 'object') {
+    const nestedName = String(brandId.brand_name ?? brandId.name ?? '').trim()
+    if (nestedName && !isGenericBrand(brandId)) return nestedName
+    return getBrandDisplayLabel(brandId.id, brands)
+  }
+
   const match = findBrandById(brands, brandId)
   if (!match || isGenericBrand(match)) return null
   return match.name

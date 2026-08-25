@@ -78,6 +78,7 @@ const folderStructure = `src/
 │   ├── useCustomers.js
 │   ├── useFinanceSummary.js
 │   ├── useReviews.js
+│   ├── useAnalyticsSummary.js
 │   ├── useVendorProfile.js
 │   ├── useUsers.js
 │   └── usePromotions.js    # still mock-backed
@@ -114,7 +115,7 @@ const folderStructure = `src/
 │   ├── authService.js / categoriesService.js / brandsService.js
 │   ├── productService.js / productMediaService.js
 │   ├── orderService.js / customerService.js / financeService.js
-│   ├── reviewService.js / profileService.js / userService.js
+│   ├── reviewService.js / analyticsService.js / profileService.js / userService.js
 │   ├── vendorMetricsService.js
 │   └── promotionService.js # mock until Promotions API
 ├── store/
@@ -126,6 +127,7 @@ const folderStructure = `src/
     ├── productImageUtils.js / productImageEditUtils.js
     ├── mapProductToFormValues.js
     ├── normalizeProducts.js / normalizeCategories.js / normalizeBrands.js
+    ├── normalizeAnalyticsSummary.js / normalizeAnalyticsRevenueOrders.js
     ├── validationSchemas.js
     ├── analyticsUtils.js   # Date presets, CSV export, fulfilment period → dates
     ├── Config.jsx          # API base URL
@@ -282,11 +284,11 @@ export default function DeveloperGuide() {
             id="analytics"
             icon={BarChart3}
             title="Analytics & Reports"
-            description="/analytics — full UI and backend contracts. Page still uses dummy data (empty by default; toggle dummy data in the header). No analytics service/hooks yet."
+            description="/analytics — KPI cards from GET /api/vendor/analytics/summary. Revenue &amp; orders chart from GET /api/vendor/analytics/order-revenues. Remaining charts still use dummy data (empty by default; toggle dummy data in the header)."
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
-              <li>• <strong>KPI cards</strong> — six stats (revenue, orders, customers, AOV, conversion, returns). Filtered by inclusive <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> + <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> (7d / 30d / 90d / 12m / From–To).</li>
-              <li>• <strong>Charts &amp; tables</strong> — each has its own year dropdown, defaulting to the current year. They do not use the page date range.</li>
+              <li>• <strong>KPI cards</strong> — six stats (revenue, orders, customers, AOV, conversion, returns) from <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsSummary()</code>. Filtered by inclusive <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> + <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> (7d / 30d / 90d / 12m / From–To).</li>
+              <li>• <strong>Charts &amp; tables</strong> — each has its own year dropdown, defaulting to the current year. They do not use the page date range. Revenue &amp; orders is live via <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsRevenueOrders()</code>.</li>
               <li>• <strong>Export drawer</strong> — pick a report, set duration, download CSV. Order fulfilment duration uses year/month chips; those resolve to the same <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> / <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> payload as every other report.</li>
               <li>• <strong>Contracts</strong> — <code className="rounded bg-slate-100 px-1 text-xs">src/constants/analytics*ApiSpec.json</code>.</li>
             </ul>
@@ -298,20 +300,24 @@ src/components/analytics/AnalyticsPageHeader.jsx
 src/components/analytics/AnalyticsSummaryCards.jsx
 src/components/analytics/AnalyticsCharts.jsx
 src/components/analytics/AnalyticsExportDrawer.jsx
+src/hooks/useAnalyticsSummary.js
+src/services/analyticsService.js
+src/utils/normalizeAnalyticsSummary.js
+src/utils/normalizeAnalyticsRevenueOrders.js
 src/constants/analytics.js              // ANALYTICS_ENDPOINTS + export report keys
 src/constants/analyticsData.js          // EMPTY_ANALYTICS / DEV_ANALYTICS
 src/utils/analyticsUtils.js`}
             />
 
             <CodeBlock
-              title="GET widgets (not wired yet)"
-              code={`GET /api/vendor/analytics/summary?start_date=2026-07-26&end_date=2026-08-24
-GET /api/vendor/analytics/revenue-orders?year=2026
-GET /api/vendor/analytics/sales-by-category?year=2026
-GET /api/vendor/analytics/customer-growth?year=2026
-GET /api/vendor/analytics/sales-by-region?year=2026
-GET /api/vendor/analytics/top-products?year=2026
-GET /api/vendor/analytics/fulfillment?year=2026`}
+              title="GET widgets"
+              code={`GET /api/vendor/analytics/summary?start_date=2026-07-26&end_date=2026-08-24  // wired
+GET /api/vendor/analytics/order-revenues?year=2026                           // wired
+GET /api/vendor/analytics/sales-by-category?year=2026                        // not wired
+GET /api/vendor/analytics/customer-growth?year=2026                          // not wired
+GET /api/vendor/analytics/sales-by-region?year=2026                          // not wired
+GET /api/vendor/analytics/top-products?year=2026                             // not wired
+GET /api/vendor/analytics/fulfillment?year=2026                              // not wired`}
             />
 
             <CodeBlock
@@ -488,7 +494,7 @@ buildProductInfoJsonPayload(...)      // edit info (presigned JSON update)`}
                   <tr><td className="px-4 py-3">Profile</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Personal, business, documents, avatar, password</td></tr>
                   <tr><td className="px-4 py-3">Users &amp; permissions</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Invite, roles, deactivate / reactivate</td></tr>
                   <tr><td className="px-4 py-3">Promotions</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">promotionService → mocks/promotionMockData.js</td></tr>
-                  <tr><td className="px-4 py-3">Analytics</td><td className="px-4 py-3 text-amber-700">UI + specs</td><td className="px-4 py-3">Dummy toggle; contracts in analytics*ApiSpec.json. Wire GET widgets + POST /api/vendor/analytics/reports</td></tr>
+                  <tr><td className="px-4 py-3">Analytics</td><td className="px-4 py-3 text-amber-700">Partial API</td><td className="px-4 py-3">KPI summary + revenue/orders live; remaining charts/export still dummy</td></tr>
                   <tr><td className="px-4 py-3">Messages</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/messagesData.js; nav marked coming soon</td></tr>
                   <tr><td className="px-4 py-3">Inventory</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/lowStockData.js</td></tr>
                   <tr><td className="px-4 py-3">Notifications</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/notificationsData.js</td></tr>
@@ -732,7 +738,7 @@ notify.promise(saveProduct(), {
             <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
               <strong>Done:</strong> auth, landing, dashboard, products (incl. variants + presigned media), orders, customers, finance, reviews, profile, users &amp; permissions, analytics UI + export drawer + API specs.
               <br />
-              <strong>Next:</strong> wire analytics GET widgets and POST /api/vendor/analytics/reports; replace dummy analytics toggle; connect promotions, messages, inventory, and notifications; replace sidebar badge placeholders with API counts.
+              <strong>Next:</strong> wire remaining analytics GET widgets and POST /api/vendor/analytics/reports; connect promotions, messages, inventory, and notifications; replace sidebar badge placeholders with API counts.
             </div>
           </GuideSection>
         </main>

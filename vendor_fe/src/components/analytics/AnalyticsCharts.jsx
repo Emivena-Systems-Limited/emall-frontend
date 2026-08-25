@@ -17,22 +17,85 @@ import {
 import {
   ArrowDownRight,
   ArrowUpRight,
+  AlertTriangle,
   MapPin,
   Package,
   PieChart as PieChartIcon,
+  RefreshCw,
   Truck,
   TrendingUp,
   Users,
 } from 'lucide-react'
 import EmptyState from '../dashboard/EmptyState'
 import { DonutTip } from '../dashboard/ChartTooltips'
+import { SkeletonBlock } from '../common/skeleton/CatalogSkeleton'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import { DONUT_CENTER_LABEL, donutCenterValueStyle, CHART_AXIS_TICK, CHART_AXIS_TICK_Y } from '../../constants/chartTheme'
 import { CATEGORY_COLORS } from '../../constants/analytics'
 import { formatCurrency, formatStatCurrency } from '../../utils/analyticsUtils'
 import YearDropdown from '../dashboard/YearDropdown'
 
-function ChartShell({ icon: Icon, title, subtitle, action, children, empty, className = '' }) {
+function ChartBodySkeleton() {
+  return (
+    <div className="space-y-4 p-5" role="progressbar" aria-label="Loading chart">
+      <SkeletonBlock className="h-8 w-40" />
+      <SkeletonBlock className="h-3 w-28" />
+      <SkeletonBlock className="h-[280px] w-full" />
+    </div>
+  )
+}
+
+function ChartError({ message, onRetry, isRetrying }) {
+  return (
+    <div className="flex flex-col items-center justify-center px-5 py-12 text-center">
+      <span className="flex size-12 items-center justify-center rounded-2xl bg-red-50 text-red-500 ring-1 ring-red-100">
+        <AlertTriangle className="size-5" />
+      </span>
+      <p className="mt-4 text-sm font-semibold text-slate-800">Unable to load chart</p>
+      <p className="mt-1 max-w-sm text-xs text-slate-500">
+        {message || 'Something went wrong while fetching this report.'}
+      </p>
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+        >
+          <RefreshCw className={`size-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
+          Retry
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function ChartShell({
+  icon: Icon,
+  title,
+  subtitle,
+  action,
+  children,
+  empty,
+  loading = false,
+  errorMessage = '',
+  onRetry,
+  isRetrying = false,
+  className = '',
+}) {
+  let body = children
+  if (loading) body = <ChartBodySkeleton />
+  else if (errorMessage) body = <ChartError message={errorMessage} onRetry={onRetry} isRetrying={isRetrying} />
+  else if (empty) {
+    body = (
+      <EmptyState
+        icon={EMPTY_STATE_PRESETS.analyticsChart.icon}
+        title={EMPTY_STATE_PRESETS.analyticsChart.title}
+        description={EMPTY_STATE_PRESETS.analyticsChart.description}
+        compact
+      />
+    )
+  }
+
   return (
     <section className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)] ${className}`}>
       <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
@@ -47,16 +110,7 @@ function ChartShell({ icon: Icon, title, subtitle, action, children, empty, clas
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      {empty ? (
-        <EmptyState
-          icon={EMPTY_STATE_PRESETS.analyticsChart.icon}
-          title={EMPTY_STATE_PRESETS.analyticsChart.title}
-          description={EMPTY_STATE_PRESETS.analyticsChart.description}
-          compact
-        />
-      ) : (
-        children
-      )}
+      {body}
     </section>
   )
 }
@@ -76,8 +130,22 @@ function RevenueTooltip({ active, payload, label }) {
   )
 }
 
-export function RevenueOrdersChart({ timeline, hasData, year, onYearChange }) {
-  const total = timeline.reduce((s, d) => s + d.revenue, 0)
+export function RevenueOrdersChart({
+  timeline = [],
+  totalRevenue,
+  hasData,
+  year,
+  onYearChange,
+  isLoading = false,
+  isError = false,
+  error = null,
+  onRetry,
+  isFetching = false,
+}) {
+  const series = Array.isArray(timeline) ? timeline : []
+  const total = totalRevenue != null
+    ? Number(totalRevenue) || 0
+    : series.reduce((sum, point) => sum + (point.revenue ?? 0), 0)
 
   return (
     <ChartShell
@@ -85,6 +153,10 @@ export function RevenueOrdersChart({ timeline, hasData, year, onYearChange }) {
       title="Revenue & orders"
       subtitle={`Monthly performance in ${year}`}
       empty={!hasData}
+      loading={isLoading}
+      errorMessage={isError ? (error?.message ?? 'Something went wrong while fetching revenue and orders.') : ''}
+      onRetry={onRetry}
+      isRetrying={isFetching}
       className="xl:col-span-2"
       action={<YearDropdown id="analytics-revenue-year" value={year} onChange={onYearChange} />}
     >
@@ -94,7 +166,7 @@ export function RevenueOrdersChart({ timeline, hasData, year, onYearChange }) {
           <p className="mt-0.5 text-xs text-slate-500">Total revenue in {year}</p>
         </div>
         <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={timeline} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+          <ComposedChart data={series} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
             <defs>
               <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#c73b2d" stopOpacity={0.25} />
@@ -328,11 +400,15 @@ export function FulfillmentOverview({ stats, hasData, year, onYearChange }) {
   )
 }
 
-export function AnalyticsEmptyHero() {
+export function AnalyticsEmptyHero({ title, description }) {
   const preset = EMPTY_STATE_PRESETS.analytics
   return (
     <section className="overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-      <EmptyState icon={preset.icon} title={preset.title} description={preset.description} />
+      <EmptyState
+        icon={preset.icon}
+        title={title || preset.title}
+        description={description || preset.description}
+      />
     </section>
   )
 }

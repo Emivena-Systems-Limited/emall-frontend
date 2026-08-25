@@ -19,6 +19,10 @@ export const RESERVED_PRODUCT_METADATA_KEYS = new Set([
   'shipping_width',
   'shipping_height',
   'condition',
+  'main_attribute',
+  'main_attribute_value',
+  'has_compatible_models',
+  'compatible_models',
 ])
 
 export function isReservedProductMetadataKey(key) {

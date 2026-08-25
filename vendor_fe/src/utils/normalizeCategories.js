@@ -28,7 +28,7 @@ export function extractCategoryList(body) {
 
 export function toSelectOptions(categories) {
   return categories.map((category) => ({
-    value: category.id,
+    value: String(category.id),
     label: category.name,
   }))
 }
@@ -39,13 +39,30 @@ export function findCategoryBySlug(categories, slug) {
 }
 
 export function findCategoryById(categories, id) {
-  if (!id) return null
+  if (id == null || id === '') return null
+  const target = String(id)
 
   for (const category of categories) {
-    if (category.id === id) return category
+    if (String(category.id) === target) return category
 
     const nestedMatch = findCategoryById(category.children ?? [], id)
     if (nestedMatch) return nestedMatch
+  }
+
+  return null
+}
+
+/** Root → leaf path for a category id in the nested tree. */
+export function findCategoryPath(categories, id, path = []) {
+  if (id == null || id === '') return null
+  const target = String(id)
+
+  for (const category of categories) {
+    const nextPath = [...path, category]
+    if (String(category.id) === target) return nextPath
+
+    const nested = findCategoryPath(category.children ?? [], id, nextPath)
+    if (nested) return nested
   }
 
   return null

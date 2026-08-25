@@ -62,7 +62,7 @@ const productInfoSteps = [
 ]
 
 const productInfoStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value', 'has_compatible_models', 'compatible_models'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['shipping_weight', 'shipping_length', 'shipping_width', 'shipping_height'],
@@ -101,11 +101,12 @@ function hasStepErrors(errors, fields) {
 }
 
 
-function buildProductMutationContext(values, { parentCategories, categoryTree, approvedBrands }) {
+function buildProductMutationContext(values, { parentCategories, categoryTree, approvedBrands, productBrand = null }) {
   const selectedCategory =
     findCategoryById(categoryTree, values.category_id)
-    ?? parentCategories.find((category) => category.id === values.category_id)
-  const brand = findBrandById(approvedBrands, values.brand_id)
+    ?? parentCategories.find((category) => String(category.id) === String(values.category_id))
+  const brands = [...approvedBrands, ...(productBrand ? [productBrand] : [])]
+  const brand = findBrandById(brands, values.brand_id)
   const { salesPrice } = getDiscountSummary(
     values.price,
     values.discount_mode ?? 'amount',
@@ -120,7 +121,7 @@ function buildProductMutationContext(values, { parentCategories, categoryTree, a
     salePrice: salesPrice,
     categoryName: selectedCategory?.name ?? '',
     categorySlug: selectedCategory?.slug ?? '',
-    brandName: brand?.name ?? getBrandDisplayLabel(values.brand_id, approvedBrands) ?? '',
+    brandName: brand?.name ?? getBrandDisplayLabel(values.brand_id, brands) ?? '',
     brandSlug: brand?.slug ?? '',
   }
 }
@@ -563,6 +564,7 @@ function ProductInfoEditForm({
               parentCategories,
               categoryTree,
               approvedBrands,
+              productBrand: formState.productBrand,
             })
 
             const payloadValues = withResolvedBrandId(formValues, approvedBrands)
@@ -639,6 +641,7 @@ function ProductInfoEditForm({
                   categoriesLoading={categoriesLoading}
                   categoriesError={categoriesError}
                   approvedBrands={approvedBrands}
+                  productBrand={formState.productBrand}
                   brandsLoading={brandsLoading}
                   brandsError={brandsError}
                   createBrandMutation={createBrandMutation}
@@ -682,6 +685,7 @@ function ProductInfoEditForm({
                   parentCategories={parentCategories}
                   categoryTree={categoryTree}
                   approvedBrands={approvedBrands}
+                  productBrand={formState.productBrand}
                   includeVariations={false}
                   imageChangeSummary={imageChangeSummary}
                 />
@@ -736,21 +740,6 @@ export default function EditProduct() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { data: product, isLoading, isError, refetch } = useProduct(productId)
-  const formState = useMemo(
-    () => (product ? mapProductRecordToFormState(product) : null),
-    [product],
-  )
-  const variationsFormState = useMemo(() => {
-    if (!formState) return null
-
-    return {
-      ...formState,
-      formValues: {
-        ...formState.formValues,
-        barcode: '',
-      },
-    }
-  }, [formState])
   const section = searchParams.get('section')
   const finished = searchParams.get('finished') === '1'
   const needsEditorOptions = section === EDIT_SECTIONS.INFO
@@ -766,6 +755,11 @@ export default function EditProduct() {
     isLoading: categoriesLoading,
     isError: categoriesError,
   } = useProductCategoryOptions({ enabled: canLoadEditorOptions })
+  const formState = useMemo(
+    () => (product ? mapProductRecordToFormState(product, { categoryTree }) : null),
+    [product, categoryTree],
+  )
+  const variationsFormState = formState
 
   if (isLoading) {
     return (
@@ -825,7 +819,13 @@ export default function EditProduct() {
 
   return (
     <DashboardLayout pageTitle="Edit Product">
-      {section === EDIT_SECTIONS.INFO && (
+      {section === EDIT_SECTIONS.INFO && categoriesLoading && (
+        <div className="flex items-center justify-center gap-2 px-5 py-24 text-sm font-semibold text-slate-500">
+          <Loader2 className="size-4 animate-spin text-brand" />
+          Loading product details…
+        </div>
+      )}
+      {section === EDIT_SECTIONS.INFO && !categoriesLoading && (
         <ProductInfoEditForm
           key={productId}
           productId={productId}

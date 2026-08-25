@@ -6,6 +6,7 @@ import AttributeIcon from '../variants/AttributeIcon'
 import { isPresetAttribute } from '../variants/variantConstants'
 import { getMainOptionValuePlaceholder } from '../variants/variantFormUtils'
 import { ProductInput } from './ProductFormControls'
+import CompatibleModelsField from './CompatibleModelsField'
 
 function fieldError(formik, name) {
   const touched = getIn(formik.touched, name) || formik.submitCount > 0
@@ -19,6 +20,11 @@ export default function MainProductOptionFields({ formik }) {
   const [showCustom, setShowCustom] = useState(() => Boolean(attribute && !isPresetAttribute(attribute)))
   const attributeError = fieldError(formik, 'main_attribute')
   const valueError = fieldError(formik, 'main_attribute_value')
+  const compatibleError = fieldError(formik, 'compatible_models')
+  const compatibleModels = Array.isArray(formik.values.compatible_models)
+    ? formik.values.compatible_models
+    : []
+  const hasCompatibleModels = Boolean(formik.values.has_compatible_models)
 
   useEffect(() => {
     if (attribute && !isPresetAttribute(attribute)) {
@@ -100,6 +106,31 @@ export default function MainProductOptionFields({ formik }) {
           aria-required="true"
           aria-describedby={valueError ? 'main_attribute_value-error' : undefined}
         />
+
+        <div>
+          <p className="mb-1.5 text-sm font-semibold text-slate-800">Compatible models</p>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">
+            Optional. Use this when the default option fits more than one device or product model — for example a case that works on several phones.
+          </p>
+          <CompatibleModelsField
+            enabled={hasCompatibleModels}
+            values={compatibleModels}
+            onEnabledChange={(next) => {
+              formik.setFieldValue('has_compatible_models', next, true)
+              formik.setFieldTouched('has_compatible_models', true, false)
+              if (!next) {
+                formik.setFieldValue('compatible_models', [], false)
+                formik.setFieldError('compatible_models', undefined)
+              }
+            }}
+            onValuesChange={(next) => {
+              formik.setFieldValue('compatible_models', next, true)
+              formik.setFieldValue('has_compatible_models', next.length > 0, false)
+              formik.setFieldTouched('compatible_models', true, false)
+            }}
+            error={compatibleError}
+          />
+        </div>
       </div>
 
       {attribute && value ? (
@@ -113,7 +144,11 @@ export default function MainProductOptionFields({ formik }) {
               {attribute}: {value}
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
-              Uses your product photos, price, and stock. Extra options on the next steps can override those when selected.
+              Uses your product photos, price, and stock
+              {compatibleModels.length > 0
+                ? `, and fits ${compatibleModels.length} model${compatibleModels.length === 1 ? '' : 's'}`
+                : ''}
+              . Extra options on later steps can override those when selected. This appears as the locked default on the variations step.
             </p>
           </div>
         </div>

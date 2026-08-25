@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDispatch, useSelector } from 'react-redux'
 import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, duplicateProduct, getProductById, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
-import { buildSingleVariantCreateJsonPayload, buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
+import { buildSingleVariantCreateJsonPayload, buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, buildProductInfoJsonPayload, buildProductInfoPayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
 import { assertVariationBarcodesAvailable, collectKnownBarcodes } from '../utils/variantIdentityValidation'
 import { fetchKnownSkusForSubmit, prepareVariationsForSubmit } from '../utils/variantSkuRegistry'
 import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../constants/productMediaUpload'
@@ -279,6 +279,77 @@ export function useUpdateSingleVariantMutation() {
       notify.success('Variant updated successfully.')
     },
     onError: (error) => notify.fromError(error, 'Failed to update variant.'),
+  })
+}
+
+export function useSyncDefaultVariantMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: ['products', 'sync-default-variant'],
+    mutationFn: async ({
+      productId,
+      variantId,
+      variantFormValues,
+      listingValues,
+      productValues,
+      mainImage,
+      subImages,
+      descriptiveImages = [],
+    }) => {
+      if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
+        const payload = buildProductInfoJsonPayload(
+          listingValues,
+          mainImage,
+          subImages,
+          { descriptiveImages },
+        )
+        await updateProductInfo(productId, payload)
+      } else {
+        const formData = buildProductInfoPayload(
+          listingValues,
+          mainImage,
+          subImages,
+          { mode: 'edit', descriptiveImages },
+        )
+        await updateProductInfo(productId, formData)
+      }
+
+      if (variantId && isPersistedVariantId(variantId)) {
+        const preparedVariantFormValues = await prepareVariantFormValuesForMutation(queryClient, {
+          productId,
+          variantId,
+          productValues: productValues ?? listingValues,
+          variantFormValues,
+        })
+
+        if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
+          const payload = buildSingleVariantUpdateJsonPayload(
+            preparedVariantFormValues,
+            productValues ?? listingValues,
+          )
+          await updateProductVariant(variantId, payload)
+        } else {
+          const formData = buildSingleVariantUpdatePayload(
+            preparedVariantFormValues,
+            variantId,
+            productValues ?? listingValues,
+          )
+          await updateProductVariant(variantId, formData)
+        }
+      }
+
+      return getProductById(productId)
+    },
+    onSuccess: (freshRecord, variables) => {
+      const catalogProduct = toCatalogProduct(freshRecord)
+      if (!catalogProduct) return
+
+      syncProductDetailCache(queryClient, variables.productId, freshRecord)
+      patchProductInListCache(queryClient, catalogProduct)
+      notify.success('Default option updated. Product info stays in sync.')
+    },
+    onError: (error) => notify.fromError(error, 'Failed to update the default option.'),
   })
 }
 

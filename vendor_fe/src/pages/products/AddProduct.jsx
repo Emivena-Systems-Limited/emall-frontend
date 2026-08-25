@@ -32,6 +32,7 @@ import AttributeIcon from '../../components/variants/AttributeIcon'
 import AttributeTypePicker from '../../components/variants/AttributeTypePicker'
 import CardStepHeader from '../../components/variants/CardStepHeader'
 import VariantAccordionCard from '../../components/variants/VariantAccordionCard'
+import DefaultVariationCard from '../../components/variants/DefaultVariationCard'
 import VariantGroupActionBar from '../../components/variants/VariantGroupActionBar'
 import VariantReviewCard from '../../components/variants/VariantReviewCard'
 import { isPresetAttribute, isColorVariantAttribute } from '../../components/variants/variantConstants'
@@ -129,7 +130,7 @@ const productListingSteps = [
   { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
   { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
   { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
-  { id: 'variations', title: 'Variations',    caption: 'Optional extra colors, sizes & more' },
+  { id: 'variations', title: 'Variations',    caption: 'Default option plus extra colors & sizes' },
   { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
   { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
 ]
@@ -138,7 +139,7 @@ const PRODUCT_LISTING_PRICING_STEP = 2
 const PRODUCT_LISTING_VARIATIONS_STEP = 3
 
 const productListingStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value', 'has_compatible_models', 'compatible_models'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['variations'],
@@ -158,6 +159,8 @@ const productListingInitialValues = {
   key_details:        [],
   main_attribute:      '',
   main_attribute_value:'',
+  has_compatible_models: false,
+  compatible_models:  [],
   price:              '',
   discount_mode:      'amount',
   discount_price:     '',
@@ -330,6 +333,7 @@ export function InfoStep({
   categoriesLoading,
   categoriesError,
   approvedBrands,
+  productBrand = null,
   brandsLoading,
   brandsError,
   createBrandMutation,
@@ -338,13 +342,12 @@ export function InfoStep({
   const categoryOptions = toSelectOptions(parentCategories)
   const brandOptions = toBrandSelectOptions([
     ...approvedBrands,
-    ...createdBrands.filter(
-      (brand) => !approvedBrands.some((item) => String(item.id) === String(brand.id)),
-    ),
+    ...(productBrand ? [productBrand] : []),
+    ...createdBrands,
   ])
   const selectedCategory =
     findCategoryById(categoryTree, formik.values.category_id)
-    ?? parentCategories.find((category) => category.id === formik.values.category_id)
+    ?? parentCategories.find((category) => String(category.id) === String(formik.values.category_id))
   const subcategories = getSubcategoriesForParentId(categoryTree, formik.values.category_id)
   const subcategoryOptions = toSelectOptions(subcategories)
 
@@ -846,7 +849,14 @@ function scrollToSavedVariationValues(target) {
  *  then type each value — it opens as its own accordion card right away so photo, price & stock
  *  can be filled in inline. Nothing is saved to the server here — everything lives in the product
  *  form until the whole listing is submitted. */
-export function VariationsStep({ formik, parentCategories, categoryTree }) {
+export function VariationsStep({
+  formik,
+  parentCategories,
+  categoryTree,
+  mainImage,
+  subImages,
+  onProductImagesChange,
+}) {
   const groups = formik.values.variations
   const catalogContext = buildVariationCatalogContext({
     parentCategories,
@@ -863,6 +873,7 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
   const [openValueIds, setOpenValueIds] = useState(() => new Set())
   const [customPriceIds, setCustomPriceIds] = useState(() => new Set())
   const [choosingNextType, setChoosingNextType] = useState(false)
+  const [defaultOpen, setDefaultOpen] = useState(true)
   const savedValuesRef = useRef(null)
   const optionTypePickerRef = useRef(null)
 
@@ -1033,10 +1044,8 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Optional extras</p>
         <h3 className="text-lg font-bold text-slate-900">More product options</h3>
         <p className="text-sm text-slate-500">
-          Your listing already has{' '}
-          <span className="font-semibold text-slate-700">{defaultVariationLabel}</span>
-          {' '}as the default shoppers see first. Add extra colors, sizes, or other values here if you sell more than one option.
-          Photos are required for Color options (up to 3). Other option types can skip photos. Skip this step if the default is enough.
+          Your default option is listed first and stays in sync with product info. Add extra colors, sizes, or other values if you sell more than one option.
+          Photos are required for Color extras (up to 3). Skip extra options if the default is enough.
         </p>
         {stepError && (
           <p className="text-xs font-semibold text-red-600" role="alert">{stepError}</p>
@@ -1052,6 +1061,19 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
       </div>
 
       {totalValues > 0 && <ParentPricingBanner values={formik.values} />}
+
+      <DefaultVariationCard
+        attribute={defaultVariationPreview.attribute}
+        productValues={formik.values}
+        mainImage={mainImage}
+        subImages={subImages}
+        onProductPatch={(patch) => {
+          formik.setValues({ ...formik.values, ...patch }, true)
+        }}
+        onImagesChange={onProductImagesChange}
+        isOpen={defaultOpen}
+        onToggle={() => setDefaultOpen((open) => !open)}
+      />
 
       {/* Choose option type + add values */}
       <div
@@ -1276,8 +1298,8 @@ export function VariationsStep({ formik, parentCategories, categoryTree }) {
             </span>
             <p className="text-sm font-semibold text-slate-700">No extra options yet</p>
             <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-500">
-              Pick a type above, then type a value and press Enter to add it. Or skip this step —
-              we&apos;ll publish <strong>{defaultVariationLabel}</strong> as the default option using your product photos, price, and stock.
+              Pick a type above, then type a value and press Enter to add it. Or skip extra options —
+              we&apos;ll publish <strong>{defaultVariationLabel}</strong> as the default using your product photos, price, and stock.
             </p>
           </div>
         )}
@@ -1370,13 +1392,17 @@ export function ReviewStep({
   parentCategories,
   categoryTree,
   approvedBrands,
+  productBrand = null,
   includeVariations = true,
   imageChangeSummary = null,
 }) {
   const selectedCategory =
     findCategoryById(categoryTree, formik.values.category_id)
-    ?? parentCategories.find((category) => category.id === formik.values.category_id)
-  const selectedBrandLabel = getBrandDisplayLabel(formik.values.brand_id, approvedBrands)
+    ?? parentCategories.find((category) => String(category.id) === String(formik.values.category_id))
+  const selectedBrandLabel = getBrandDisplayLabel(
+    formik.values.brand_id,
+    [...approvedBrands, ...(productBrand ? [productBrand] : [])],
+  )
   const subcategories = getSubcategoriesForParentId(categoryTree, formik.values.category_id)
   const selectedSubcategory = findCategoryById(subcategories, formik.values.subcategory_id)
 
@@ -1427,6 +1453,9 @@ export function ReviewStep({
         ['What shoppers see first', formik.values.main_attribute && formik.values.main_attribute_value
           ? `${formik.values.main_attribute}: ${formik.values.main_attribute_value}`
           : defaultVariationLabel],
+        ['Compatible models', formik.values.has_compatible_models && formik.values.compatible_models?.length
+          ? formik.values.compatible_models.join(', ')
+          : null],
       ],
     },
     {
@@ -1606,8 +1635,17 @@ export function ReviewStep({
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">What shoppers see first</p>
             <p className="mt-1 text-sm font-bold text-slate-900">{defaultVariationLabel}</p>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
-              Shoppers see this first. It uses your product photos, price, and stock.
+              Shoppers see this first. It uses your product photos, price, and stock
+              {formik.values.compatible_models?.length
+                ? `, and fits ${formik.values.compatible_models.length} model${formik.values.compatible_models.length === 1 ? '' : 's'}`
+                : ''}
+              .
             </p>
+            {formik.values.compatible_models?.length > 0 ? (
+              <p className="mt-1.5 text-xs font-semibold text-slate-700">
+                {formik.values.compatible_models.join(', ')}
+              </p>
+            ) : null}
           </div>
 
           {formik.values.variations.some((variation) => variation.values.length > 0) ? (
@@ -1697,7 +1735,7 @@ export function ReviewStep({
 function buildProductMutationContext(values, { parentCategories, categoryTree, approvedBrands }) {
   const selectedCategory =
     findCategoryById(categoryTree, values.category_id)
-    ?? parentCategories.find((category) => category.id === values.category_id)
+    ?? parentCategories.find((category) => String(category.id) === String(values.category_id))
   const brand = findBrandById(approvedBrands, values.brand_id)
   const { salesPrice } = getDiscountSummary(
     values.price,
@@ -2261,6 +2299,16 @@ export function ProductListingForm({
                     formik={formik}
                     parentCategories={parentCategories}
                     categoryTree={categoryTree}
+                    mainImage={mainImage}
+                    subImages={subImages}
+                    onProductImagesChange={({ mainImage: nextMain, subImages: nextSub }) => {
+                      setMainImage(nextMain)
+                      if (nextMain) setMainImageError('')
+                      setSubImages(nextSub)
+                      if (nextSub.length >= 1 && validateGalleryImagesRequired(nextMain, nextSub).valid) {
+                        setGalleryImagesError('')
+                      }
+                    }}
                   />
                 )}
                 {activeStep === 4 && <ShippingStep formik={formik} />}

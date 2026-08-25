@@ -28,11 +28,18 @@ function matchesSearch(customer, search) {
 }
 
 function matchesSegment(customer, segment) {
-  if (segment !== CUSTOMER_SEGMENTS.NEW_THIS_MONTH) return true
+  if (segment === CUSTOMER_SEGMENTS.NEW_THIS_MONTH) {
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    return new Date(customer.firstPurchaseDate) >= monthStart
+  }
 
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  return new Date(customer.firstPurchaseDate) >= monthStart
+  if (segment === CUSTOMER_SEGMENTS.WITH_REVIEWS) {
+    const count = Number(customer.reviewsCount ?? customer.reviews?.length ?? 0)
+    return count > 0
+  }
+
+  return true
 }
 
 function parseDateBoundary(value, endOfDay = false) {
@@ -151,7 +158,9 @@ export function normalizeCustomerListFilters({
     search: String(search ?? '').trim(),
     segment: segment === CUSTOMER_SEGMENTS.NEW_THIS_MONTH
       ? CUSTOMER_SEGMENTS.NEW_THIS_MONTH
-      : CUSTOMER_SEGMENTS.ALL,
+      : segment === CUSTOMER_SEGMENTS.WITH_REVIEWS
+        ? CUSTOMER_SEGMENTS.WITH_REVIEWS
+        : CUSTOMER_SEGMENTS.ALL,
     startDate: String(startDate ?? '').trim(),
     endDate: String(endDate ?? '').trim(),
     minSpend: String(minSpend ?? '').trim(),
@@ -164,7 +173,9 @@ export function buildCustomersQueryParams(filters = {}) {
   const params = {}
 
   if (normalized.search) params.search = normalized.search
-  if (normalized.segment !== CUSTOMER_SEGMENTS.ALL) params.segment = normalized.segment
+  if (normalized.segment === CUSTOMER_SEGMENTS.NEW_THIS_MONTH) {
+    params.segment = normalized.segment
+  }
   if (normalized.startDate) params.start_date = normalized.startDate
   if (normalized.endDate) params.end_date = normalized.endDate
 

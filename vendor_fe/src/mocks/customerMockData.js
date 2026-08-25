@@ -147,6 +147,9 @@ export function getCustomerSummaryFromCatalog(customers) {
     newThisMonth: customers.filter(
       (customer) => new Date(customer.firstPurchaseDate) >= monthStart,
     ).length,
-    reviewsReceived: customers.reduce((sum, customer) => sum + customer.reviews.length, 0),
+    reviewsReceived: customers.reduce(
+      (sum, customer) => sum + Number(customer.reviewsCount ?? customer.reviews?.length ?? 0),
+      0,
+    ),
   }
 }

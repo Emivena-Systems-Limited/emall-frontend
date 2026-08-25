@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Pin, Trash2 } from 'lucide-react'
 import { ProductInput, ProductMoneyInput } from '../products/ProductFormControls'
 import VariantImageUpload from '../products/VariantImageUpload'
 import VariantValuesInput from './VariantValuesInput'
@@ -30,21 +30,36 @@ export default function VariantAccordionCard({
   isBusy = false,
   error,
   footer,
+  isDefault = false,
+  priceAsProduct = false,
+  hideSku = false,
+  imageHint,
 }) {
   const [showCompatible, setShowCompatible] = useState(Boolean(values.has_compatible_models))
+  const showProductPrices = isDefault || priceAsProduct
   const pricing = resolveVariantPricing(values, productValues)
+
+  useEffect(() => {
+    setShowCompatible(Boolean(values.has_compatible_models))
+  }, [values.has_compatible_models])
   const quantityValue = values.quantity !== '' && values.quantity != null ? values.quantity : null
   const displayValue = values.value?.trim() || 'New option'
   const photosRequired = isColorVariantAttribute(attribute)
   const hasPhotos = hasUsableProductImages(values.images, values.image_url)
-  const isReady = Boolean(values.value?.trim()) && quantityValue != null && (!photosRequired || hasPhotos)
+  const isReady = Boolean(values.value?.trim())
+    && quantityValue != null
+    && (!(photosRequired || isDefault) || hasPhotos)
   const fieldId = (name) => `${idPrefix}-${name}`
 
   return (
     <article
       data-variant-card
       className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-colors ${
-        error ? 'border-red-300 ring-1 ring-red-100' : isOpen ? 'border-brand/30' : 'border-slate-200'
+        error
+          ? 'border-red-300 ring-1 ring-red-100'
+          : isOpen
+            ? isDefault ? 'border-cyan-300 ring-1 ring-cyan-100' : 'border-brand/30'
+            : isDefault ? 'border-cyan-200' : 'border-slate-200'
       }`}
     >
       <button
@@ -52,11 +67,13 @@ export default function VariantAccordionCard({
         onClick={onToggle}
         aria-expanded={isOpen}
         className={`flex w-full cursor-pointer items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50/70 sm:px-5 ${
-          isOpen ? 'bg-brand-light/15' : ''
+          isOpen ? (isDefault ? 'bg-cyan-50/80' : 'bg-brand-light/15') : ''
         }`}
       >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 ring-1 ring-slate-200">
-          <AttributeIcon attribute={attribute} className="size-4" />
+        <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl bg-white ring-1 ${
+          isDefault ? 'text-cyan-700 ring-cyan-200' : 'text-slate-500 ring-slate-200'
+        }`}>
+          {isDefault ? <Pin className="size-4" /> : <AttributeIcon attribute={attribute} className="size-4" />}
         </span>
 
         <span className="min-w-0 flex-1">
@@ -64,6 +81,11 @@ export default function VariantAccordionCard({
             <span className="truncate text-sm font-bold text-slate-900">
               {attribute ? `${attribute}: ${displayValue}` : displayValue}
             </span>
+            {isDefault ? (
+              <span className="shrink-0 rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-cyan-800">
+                Default
+              </span>
+            ) : null}
             <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
               Quantity ({quantityValue ?? 0})
             </span>
@@ -134,8 +156,8 @@ export default function VariantAccordionCard({
               <div className="lg:col-span-2">
                 <VariantImageUpload
                   label="Photos"
-                  hint={getVariantImageUploadHint(attribute)}
-                  required={photosRequired}
+                  hint={imageHint ?? getVariantImageUploadHint(attribute)}
+                  required={photosRequired || isDefault}
                   images={values.images}
                   maxImages={MAX_VARIANT_IMAGE_COUNT}
                   dropzoneMinHeightClass="min-h-28"
@@ -147,32 +169,40 @@ export default function VariantAccordionCard({
               {/* Fields — 3/5 */}
               <div className="space-y-4 lg:col-span-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <ProductInput
-                    id={fieldId('value')}
-                    name="value"
-                    label={attribute ? `${attribute} value` : 'Option value'}
-                    placeholder="e.g. Black"
-                    value={values.value}
-                    onChange={(event) => onFieldChange('value', event.target.value)}
-                  />
-                  <ProductInput
-                    id={fieldId('sku')}
-                    name="sku"
-                    label="Seller SKU"
-                    optional
-                    placeholder="e.g. AUD-001-BLK"
-                    value={values.sku}
-                    onChange={(event) => onFieldChange('sku', event.target.value.toUpperCase())}
-                  />
+                  <div className={hideSku ? 'sm:col-span-2' : ''}>
+                    <ProductInput
+                      id={fieldId('value')}
+                      name="value"
+                      label={attribute ? `${attribute} value` : 'Option value'}
+                      placeholder="e.g. Black"
+                      value={values.value}
+                      onChange={(event) => onFieldChange('value', event.target.value)}
+                    />
+                  </div>
+                  {hideSku ? null : (
+                    <ProductInput
+                      id={fieldId('sku')}
+                      name="sku"
+                      label="Seller SKU"
+                      optional
+                      placeholder="e.g. AUD-001-BLK"
+                      value={values.sku}
+                      onChange={(event) => onFieldChange('sku', event.target.value.toUpperCase())}
+                    />
+                  )}
                   <div className="sm:col-span-2">
                     <ProductInput
                       id={fieldId('quantity')}
                       name="quantity"
                       type="number"
                       min={0}
-                      max={mainQty ?? undefined}
+                      max={showProductPrices ? undefined : (mainQty ?? undefined)}
                       label="Quantity"
-                      hint={mainQty != null ? `Up to ${mainQty} units` : 'Set main stock first'}
+                      hint={
+                        showProductPrices
+                          ? 'This is the listing stock shoppers see first.'
+                          : mainQty != null ? `Up to ${mainQty} units` : 'Set main stock first'
+                      }
                       placeholder="0"
                       value={values.quantity}
                       onChange={(event) => onFieldChange('quantity', event.target.value)}
@@ -181,38 +211,13 @@ export default function VariantAccordionCard({
                 </div>
 
                 <div>
-                  <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onToggleCustomPrice(false)
-                        onFieldChange('price', '')
-                        onFieldChange('discount_price', '')
-                      }}
-                      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                        !isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      Use base price
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onToggleCustomPrice(true)}
-                      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                        isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      Custom price
-                    </button>
-                  </div>
-
-                  {isCustomPrice ? (
+                  {showProductPrices ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <ProductMoneyInput
                         id={fieldId('price')}
                         name="price"
                         label="Regular price (GH₵)"
-                        placeholder={formatMoney(pricing.parent.regularPrice)}
+                        placeholder="0.00"
                         value={values.price}
                         onChange={(event) => onFieldChange('price', event.target.value)}
                       />
@@ -221,18 +226,67 @@ export default function VariantAccordionCard({
                         name="discount_price"
                         label="Sale price (GH₵)"
                         optional
-                        placeholder={
-                          pricing.parent.salePrice != null ? formatMoney(pricing.parent.salePrice) : 'No base sale price'
-                        }
+                        placeholder="No sale price"
                         value={values.discount_price}
                         onChange={(event) => onFieldChange('discount_price', event.target.value)}
                       />
                     </div>
                   ) : (
-                    <p className="text-xs leading-relaxed text-slate-500">
-                      Customer pays GH₵ {formatMoney(pricing.hasDiscount ? pricing.salePrice : pricing.listPrice)}
-                      {pricing.hasDiscount ? ' (base sale price applied)' : ' (base product price)'}
-                    </p>
+                    <>
+                      <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onToggleCustomPrice(false)
+                            onFieldChange('price', '')
+                            onFieldChange('discount_price', '')
+                          }}
+                          className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                            !isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Use base price
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onToggleCustomPrice(true)}
+                          className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                            isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Custom price
+                        </button>
+                      </div>
+
+                      {isCustomPrice ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <ProductMoneyInput
+                            id={fieldId('price')}
+                            name="price"
+                            label="Regular price (GH₵)"
+                            placeholder={formatMoney(pricing.parent.regularPrice)}
+                            value={values.price}
+                            onChange={(event) => onFieldChange('price', event.target.value)}
+                          />
+                          <ProductMoneyInput
+                            id={fieldId('discount_price')}
+                            name="discount_price"
+                            label="Sale price (GH₵)"
+                            optional
+                            placeholder={
+                              pricing.parent.salePrice != null ? formatMoney(pricing.parent.salePrice) : 'No base sale price'
+                            }
+                            value={values.discount_price}
+                            onChange={(event) => onFieldChange('discount_price', event.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-xs leading-relaxed text-slate-500">
+                          Customer pays GH₵ {formatMoney(pricing.hasDiscount ? pricing.salePrice : pricing.listPrice)}
+                          {pricing.hasDiscount ? ' (base sale price applied)' : ' (base product price)'}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
 

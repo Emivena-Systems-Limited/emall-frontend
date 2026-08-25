@@ -102,6 +102,7 @@ export default function Customers() {
   const drawerFilterCount = countCustomerDrawerFilters({ orderDateRange, minSpend, maxSpend })
   const hasCustomers = catalogCustomers.length > 0 || listedCustomers.length > 0
   const isNewThisMonthView = segment === CUSTOMER_SEGMENTS.NEW_THIS_MONTH
+  const isReviewsReceivedView = segment === CUSTOMER_SEGMENTS.WITH_REVIEWS
   const hasSearchQuery = debouncedSearch.trim().length > 0
   const isSearchPending = searchInput.trim() !== debouncedSearch.trim()
     || minSpend !== debouncedMinSpend
@@ -170,6 +171,11 @@ export default function Customers() {
               {isNewThisMonthView && (
                 <p className="mt-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
                   Showing new customers this month
+                </p>
+              )}
+              {isReviewsReceivedView && (
+                <p className="mt-1 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-100">
+                  Showing customers who left reviews
                 </p>
               )}
             </div>

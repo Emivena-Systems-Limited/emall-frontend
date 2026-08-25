@@ -47,6 +47,8 @@ export const RATING_FILTERS = [
   { key: '5', label: '5 Stars' },
   { key: '4', label: '4 Stars' },
   { key: '3', label: '3 Stars' },
+  { key: '2', label: '2 Stars' },
+  { key: '1', label: '1 Star' },
 ]
 
 export const REPLY_STATUS_FILTERS = [

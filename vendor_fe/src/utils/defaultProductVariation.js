@@ -1,6 +1,7 @@
 import { getProductConditionLabel } from './productMetadata'
 import { findCategoryById, getSubcategoriesForParentId } from './normalizeCategories'
 import { isUsableProductImage } from './productImageUtils'
+import { MAX_VARIANT_IMAGE_COUNT } from '../components/variants/variantConstants'
 
 const VARIANT_DESCRIPTION_MAX_LENGTH = 300
 
@@ -241,6 +242,40 @@ export function buildVariationCatalogContext({
 
 export const MAIN_PRODUCT_ATTRIBUTE_META_KEY = 'main_attribute'
 export const MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY = 'main_attribute_value'
+export const MAIN_PRODUCT_HAS_COMPATIBLE_MODELS_META_KEY = 'has_compatible_models'
+export const MAIN_PRODUCT_COMPATIBLE_MODELS_META_KEY = 'compatible_models'
+
+export function parseCompatibleModels(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? '').trim()).filter(Boolean)
+  }
+
+  if (typeof value !== 'string' || !value.trim()) return []
+
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item ?? '').trim()).filter(Boolean)
+    }
+  } catch {
+    // comma-separated fallback
+  }
+
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+export function serializeCompatibleModels(models = []) {
+  const list = (Array.isArray(models) ? models : [])
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+  return list.length ? JSON.stringify(list) : ''
+}
+
+export function findMainProductVariant(variants = [], productValues = {}) {
+  return (Array.isArray(variants) ? variants : []).find((variant) => (
+    isMainProductOption(productValues, variant?.attribute, variant?.value)
+  )) ?? null
+}
 
 function normalizeOptionText(value) {
   return String(value ?? '').trim().toLowerCase()
@@ -380,6 +415,24 @@ export function cloneMainImageForDefaultVariation(mainImage) {
   }
 }
 
+export function cloneImagesForDefaultVariant(images = []) {
+  return (Array.isArray(images) ? images : [])
+    .map((image) => cloneMainImageForDefaultVariation(image))
+    .filter(Boolean)
+}
+
+export function sameDefaultVariantImageSet(left = [], right = []) {
+  if (left.length !== right.length) return false
+  return left.every((image, index) => {
+    const other = right[index]
+    if (!image || !other) return false
+    return (image.id && image.id === other.id)
+      || (image.remoteId && image.remoteId === other.remoteId)
+      || (image.upload_id && image.upload_id === other.upload_id)
+      || (image.image_url && image.image_url === other.image_url)
+  })
+}
+
 /**
  * Build one inferred variation from listing details (pricing, stock, photo, etc.).
  */
@@ -423,8 +476,8 @@ export function buildDefaultProductVariationGroup(
         width: values.shipping_width ?? '',
         height: values.shipping_height ?? '',
         description: truncateDescription(values.description),
-        has_compatible_models: false,
-        compatible_models: [],
+        has_compatible_models: Boolean(values.has_compatible_models) && (values.compatible_models ?? []).length > 0,
+        compatible_models: Array.isArray(values.compatible_models) ? values.compatible_models.filter(Boolean) : [],
         images: [image],
       },
     ],
@@ -462,4 +515,133 @@ export function ensureDefaultProductVariations({
   }
 
   return [defaultGroup, ...groups]
+}
+
+export function collectProductImagesForDefaultVariant(
+  mainImage,
+  subImages = [],
+  maxCount = MAX_VARIANT_IMAGE_COUNT,
+) {
+  return [mainImage, ...(Array.isArray(subImages) ? subImages : [])]
+    .filter(Boolean)
+    .slice(0, maxCount)
+}
+
+export function splitDefaultVariantImages(images = []) {
+  const list = (Array.isArray(images) ? images : []).filter(Boolean)
+  return {
+    mainImage: list[0] ?? null,
+    subImages: list.slice(1),
+  }
+}
+
+export function buildDefaultVariationCardValues(productValues = {}, mainImage = null, subImages = []) {
+  return {
+    value: productValues.main_attribute_value ?? '',
+    sku: productValues.sku ?? '',
+    quantity: productValues.quantity ?? '',
+    price: productValues.price ?? '',
+    discount_price: productValues.discount_price ?? '',
+    has_compatible_models: Boolean(productValues.has_compatible_models),
+    compatible_models: Array.isArray(productValues.compatible_models)
+      ? productValues.compatible_models
+      : [],
+    images: collectProductImagesForDefaultVariant(mainImage, subImages),
+    variant_name: '',
+    reserved_quantity: '',
+    minimum_threshold: productValues.low_stock_threshold ?? '',
+    barcode: productValues.barcode ?? '',
+    barcode_type: 'UPC',
+    weight: productValues.shipping_weight ?? '',
+    length: productValues.shipping_length ?? '',
+    width: productValues.shipping_width ?? '',
+    height: productValues.shipping_height ?? '',
+    description: '',
+  }
+}
+
+export function applyDefaultVariationDraftToProduct(draft = {}) {
+  const { mainImage, subImages } = splitDefaultVariantImages(draft.images)
+
+  return {
+    productPatch: {
+      main_attribute_value: draft.value ?? '',
+      quantity: draft.quantity,
+      price: draft.price,
+      discount_price: draft.discount_price,
+      discount_mode: 'amount',
+      has_compatible_models: Boolean(draft.has_compatible_models)
+        && (draft.compatible_models ?? []).length > 0,
+      compatible_models: Array.isArray(draft.compatible_models) ? draft.compatible_models : [],
+    },
+    mainImage,
+    subImages,
+  }
+}
+
+/** Keep gallery photos beyond the 3 shown on the default variant card. */
+export function mergeDefaultVariantImagesIntoProduct(
+  draftImages = [],
+  currentMainImage = null,
+  currentSubImages = [],
+) {
+  const current = [currentMainImage, ...(Array.isArray(currentSubImages) ? currentSubImages : [])]
+    .filter(Boolean)
+  const shownCount = Math.min(MAX_VARIANT_IMAGE_COUNT, current.length)
+  const preserved = current.slice(shownCount)
+  const nextShown = (Array.isArray(draftImages) ? draftImages : []).filter(Boolean)
+  const next = [...nextShown, ...preserved]
+
+  return {
+    mainImage: next[0] ?? null,
+    subImages: next.slice(1),
+  }
+}
+
+export const SYNTHETIC_DEFAULT_VARIANT_ID = 'val-synthetic-default'
+
+export function resolveDefaultVariantEntry(entries = [], productValues = {}, media = {}) {
+  const found = (Array.isArray(entries) ? entries : []).find((entry) => (
+    isMainProductVariantEntry(productValues, entry)
+  ))
+  if (found) return { ...found, synthetic: false }
+
+  const attribute = String(productValues.main_attribute ?? '').trim() || 'Option'
+  const values = buildDefaultVariationCardValues(
+    productValues,
+    media.mainImage,
+    media.subImages,
+  )
+
+  return {
+    synthetic: true,
+    variation: { id: 'var-synthetic-default', attribute },
+    variantValue: {
+      id: SYNTHETIC_DEFAULT_VARIANT_ID,
+      ...values,
+    },
+  }
+}
+
+/** Overlay listing price, stock, identifier, photos, and models onto a variant draft. */
+export function overlayProductFieldsOnVariantDraft(
+  baseDraft = {},
+  productValues = {},
+  mainImage = null,
+  subImages = [],
+) {
+  const productCard = buildDefaultVariationCardValues(productValues, mainImage, subImages)
+
+  return {
+    ...baseDraft,
+    value: productCard.value || baseDraft.value,
+    quantity: productCard.quantity !== '' && productCard.quantity != null
+      ? productCard.quantity
+      : baseDraft.quantity,
+    price: productCard.price,
+    discount_price: productCard.discount_price,
+    has_compatible_models: productCard.has_compatible_models,
+    compatible_models: productCard.compatible_models,
+    images: productCard.images.length > 0 ? productCard.images : (baseDraft.images ?? []),
+  }
 }

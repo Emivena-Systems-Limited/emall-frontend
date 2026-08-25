@@ -9,7 +9,6 @@ export default function AddedToCartFlyout({
   open,
   product,
   image: imageProp,
-  quantity = 1,
   variantLabel,
   onClose,
   onViewCart,
@@ -65,9 +64,6 @@ export default function AddedToCartFlyout({
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-slate-950">Added to cart</p>
-                  <p className="text-xs text-slate-500">
-                    {quantity > 1 ? `${quantity} items` : '1 item'}
-                  </p>
                 </div>
               </div>
               <button
@@ -91,7 +87,6 @@ export default function AddedToCartFlyout({
                 {variantLabel ? (
                   <p className="mt-0.5 truncate text-xs text-slate-500">{variantLabel}</p>
                 ) : null}
-                <p className="mt-1 text-xs font-medium text-slate-600">Qty: {quantity}</p>
               </div>
             </div>
 

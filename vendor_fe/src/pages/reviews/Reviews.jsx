@@ -14,7 +14,6 @@ import ReviewsSummaryCards from '../../components/reviews/ReviewsSummaryCards'
 import ReviewsToolbar from '../../components/reviews/ReviewsToolbar'
 import {
   DEFAULT_REVIEW_DATE_RANGE,
-  EMPTY_REVIEWS_PAGE,
   EMPTY_REVIEWS_SUMMARY,
   EMPTY_REVIEWS_SUMMARY_PREVIOUS,
   REVIEWS_PAGE_SIZE,
@@ -27,8 +26,8 @@ import {
 } from '../../constants/reviewsData'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import {
+  useAllVendorReviews,
   useReplyToVendorReviewMutation,
-  useVendorReviews,
   useVendorReviewsSummary,
 } from '../../hooks/useReviews'
 import notify from '../../lib/notify'
@@ -66,33 +65,22 @@ export default function Reviews() {
 
   const listFilters = useMemo(
     () => ({
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
       search: debouncedSearch,
       ratingFilter,
       replyFilter,
-      sortOrder,
-      page,
-      perPage: REVIEWS_PAGE_SIZE,
-    }),
-    [
       dateRange,
-      debouncedSearch,
-      ratingFilter,
-      replyFilter,
-      sortOrder,
-      page,
-    ],
+    }),
+    [debouncedSearch, ratingFilter, replyFilter, dateRange],
   )
 
   const {
-    data: reviewsPage = EMPTY_REVIEWS_PAGE,
+    data: catalogReviews = [],
     isLoading: isReviewsLoading,
     isError: isReviewsError,
     error: reviewsError,
     refetch: refetchReviews,
     isFetching: isReviewsFetching,
-  } = useVendorReviews(listFilters, { enabled: !devDataEnabled })
+  } = useAllVendorReviews({ enabled: !devDataEnabled })
 
   const {
     data: apiSummary,
@@ -103,69 +91,30 @@ export default function Reviews() {
 
   const replyMutation = useReplyToVendorReviewMutation()
 
-  const devFilteredReviews = useMemo(
-    () =>
-      filterReviews(localReviews, {
-        search: debouncedSearch,
-        ratingFilter,
-        replyFilter,
-        dateRange,
-      }),
-    [
-      localReviews,
-      debouncedSearch,
-      ratingFilter,
-      replyFilter,
-      dateRange,
-    ],
+  const sourceReviews = devDataEnabled ? localReviews : catalogReviews
+
+  const filteredReviews = useMemo(
+    () => filterReviews(sourceReviews, listFilters),
+    [sourceReviews, listFilters],
   )
 
-  const devSortedReviews = useMemo(
-    () => sortReviews(devFilteredReviews, sortOrder),
-    [devFilteredReviews, sortOrder],
+  const sortedReviews = useMemo(
+    () => sortReviews(filteredReviews, sortOrder),
+    [filteredReviews, sortOrder],
   )
 
-  const devPagination = useMemo(
-    () => paginateItems(devSortedReviews, { page, pageSize: REVIEWS_PAGE_SIZE }),
-    [devSortedReviews, page],
+  const pagination = useMemo(
+    () => paginateItems(sortedReviews, { page, pageSize: REVIEWS_PAGE_SIZE }),
+    [sortedReviews, page],
   )
 
-  const reviews = devDataEnabled ? devPagination.items : reviewsPage.items
-  const catalogReviews = devDataEnabled ? localReviews : reviewsPage.items
+  const reviews = pagination.items
+  const exportCount = sortedReviews.length
+  const filterResultCount = filteredReviews.length
 
-  const pagination = useMemo(() => {
-    if (devDataEnabled) {
-      return {
-        page: devPagination.page,
-        pageCount: devPagination.pageCount,
-        totalItems: devPagination.totalItems,
-        startIndex: devPagination.startIndex,
-        endIndex: devPagination.endIndex,
-      }
-    }
-
-    const totalItems = reviewsPage.total
-    const pageCount = Math.max(1, reviewsPage.totalPages)
-    const safePage = Math.min(Math.max(page, 1), pageCount)
-    const perPage = reviewsPage.perPage || REVIEWS_PAGE_SIZE
-    const startIndex = totalItems === 0 ? 0 : (safePage - 1) * perPage + 1
-    const endIndex = Math.min(safePage * perPage, totalItems)
-
-    return {
-      page: safePage,
-      pageCount,
-      totalItems,
-      startIndex,
-      endIndex,
-    }
-  }, [devDataEnabled, devPagination, page, reviewsPage])
-
-  const exportCount = devDataEnabled ? devSortedReviews.length : reviewsPage.total
-  const filterResultCount = devDataEnabled ? devFilteredReviews.length : reviewsPage.total
-
-  const computedSummary = useMemo(() => computeReviewsSummary(catalogReviews), [catalogReviews])
-  const insights = useMemo(() => getProductInsights(catalogReviews), [catalogReviews])
-  const hasReviews = devDataEnabled ? localReviews.length > 0 : reviewsPage.total > 0 || isReviewsLoading
+  const computedSummary = useMemo(() => computeReviewsSummary(sourceReviews), [sourceReviews])
+  const insights = useMemo(() => getProductInsights(sourceReviews), [sourceReviews])
+  const hasReviews = sourceReviews.length > 0 || (!devDataEnabled && isReviewsLoading)
 
   const summary = devDataEnabled ? computedSummary : (apiSummary ?? EMPTY_REVIEWS_SUMMARY)
   const previousSummary = devDataEnabled
@@ -207,7 +156,7 @@ export default function Reviews() {
   }, [apiSummary, devDataEnabled, dispatch])
 
   const handleExport = () => {
-    const rows = devDataEnabled ? devSortedReviews : reviewsPage.items
+    const rows = sortedReviews
     if (exportCount === 0 || rows.length === 0) {
       notify.info('No reviews to export for the current filters.')
       return

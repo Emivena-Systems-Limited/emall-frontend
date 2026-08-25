@@ -35,7 +35,16 @@ export function resolveVariantAttributeFields(variant) {
     return { attributeKey: 'option', attributeValue: '' }
   }
 
-  const flatAttribute = String(variant.attribute ?? '').trim()
+  const rawAttribute = variant.attribute
+  if (rawAttribute && typeof rawAttribute === 'object' && !Array.isArray(rawAttribute)) {
+    const attributeKey = String(rawAttribute.key ?? rawAttribute.name ?? rawAttribute.label ?? '').trim()
+    const attributeValue = rawAttribute.value ?? rawAttribute.option ?? ''
+    if (attributeKey || attributeValue) {
+      return { attributeKey: attributeKey || 'option', attributeValue: attributeValue ?? '' }
+    }
+  }
+
+  const flatAttribute = String(typeof rawAttribute === 'object' ? '' : (rawAttribute ?? '')).trim()
   const flatValue = variant.value ?? variant.variant_name ?? ''
 
   if (flatAttribute) {

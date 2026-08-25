@@ -33,3 +33,7 @@ export function getVariantImageUploadHint(attribute = '') {
   }
   return VARIANT_IMAGE_UPLOAD_HINT
 }
+
+export function getDefaultVariantImageUploadHint() {
+  return `Listing photos · Up to ${MAX_VARIANT_IMAGE_COUNT} shown here · Extra gallery photos stay on Images · JPG or PNG`
+}

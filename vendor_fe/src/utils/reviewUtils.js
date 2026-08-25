@@ -219,8 +219,10 @@ export function filterReviews(reviews, filters) {
     if (!isWithinReviewDateRange(review.date, dateRange)) return false
 
     if (ratingFilter !== 'all') {
-      if (ratingFilter === 'low' && review.rating > 2) return false
-      if (ratingFilter !== 'low' && review.rating !== Number(ratingFilter)) return false
+      const stars = Math.round(Number(review.rating))
+      if (!Number.isFinite(stars)) return false
+      if (ratingFilter === 'low' && stars > 2) return false
+      if (ratingFilter !== 'low' && stars !== Number(ratingFilter)) return false
     }
 
     if (replyFilter === 'needs_reply' && review.vendorReply) return false

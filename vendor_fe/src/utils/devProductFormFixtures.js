@@ -107,6 +107,8 @@ export const DEV_PRODUCT_STEP_FIXTURES = {
     ],
     main_attribute: 'Color',
     main_attribute_value: 'Black',
+    has_compatible_models: false,
+    compatible_models: [],
   },
   2: {
     price: '245.99',

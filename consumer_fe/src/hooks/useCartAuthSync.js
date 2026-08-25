@@ -17,6 +17,7 @@ import { normalizeCartSummary } from '../utils/checkoutTotals'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { sameCartUserId } from '../utils/cartUserId'
 import { notify } from '../lib/notify'
+import { getCartFetchEpoch, isCurrentCartFetchEpoch } from '../utils/cartFetchEpoch'
 
 let authCartSyncInFlightUserId = null
 
@@ -42,10 +43,15 @@ export function useCartAuthSync() {
     const hadLocalItems = localItems.length > 0
 
     dispatch(cartSyncStarted())
+    const epoch = getCartFetchEpoch()
 
     if (!isValidGuestCartId(guestCartId)) {
       ensureAuthenticatedCart()
         .then((payload) => {
+          if (!isCurrentCartFetchEpoch(epoch)) {
+            dispatch(cartSyncSucceeded({ items: store.getState().cart.items, userId }))
+            return
+          }
           const syncedItems = extractCartItems(payload)
           const items = syncedItems.length > 0 ? syncedItems : localItems
           dispatch(cartSyncSucceeded({ items, userId }))
@@ -68,6 +74,10 @@ export function useCartAuthSync() {
 
     syncGuestCartForAuthenticatedUser()
       .then(async (payload) => {
+        if (!isCurrentCartFetchEpoch(epoch)) {
+          dispatch(cartSyncSucceeded({ items: store.getState().cart.items, userId }))
+          return
+        }
         const syncedItems = extractCartItems(payload)
         try {
           await ensureAuthenticatedCart()

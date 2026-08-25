@@ -7,8 +7,8 @@ import {
   clearCart,
   clearGuestCartId,
   clearSavedItems,
-  isProductInCart,
   moveSavedToCart,
+  preserveCartDisplayFields,
   removeItem,
   removeSavedItem,
   replaceItems,
@@ -43,6 +43,7 @@ import {
 } from '../utils/normalizeCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { coalesceQuantitySync } from '../utils/cartQuantitySync'
+import { bumpCartFetchEpoch } from '../utils/cartFetchEpoch'
 
 const logCartSyncError = (message, error, context) => {
   if (import.meta.env.DEV) {
@@ -60,13 +61,19 @@ async function ensureAuthCartReady() {
 }
 
 function findLocalCartItem(itemId) {
-  return store.getState().cart.items.find(
-    (current) => current.id === itemId || current.key === itemId,
-  )
+  const target = String(itemId ?? '')
+  return store.getState().cart.items.find((current) => (
+    String(current.id) === target
+    || String(current.key) === target
+    || String(current.cartItemId ?? '') === target
+  ))
 }
 
 function syncCartLineMutation(dispatch, itemId, response) {
-  const mergedItem = applyCartLineMutationResponse(findLocalCartItem(itemId), response)
+  const localItem = findLocalCartItem(itemId)
+  if (!localItem) return
+
+  const mergedItem = applyCartLineMutationResponse(localItem, response)
   if (mergedItem) {
     dispatch(upsertItem(mergedItem))
   }
@@ -80,7 +87,11 @@ function reconcileGuestCartResponse(dispatch, response, fallbackItem = null) {
 
   const items = extractCartItems(response)
   if (items.length > 0) {
-    dispatch(replaceItems(items))
+    const localItems = store.getState().cart.items
+    dispatch(replaceItems(preserveCartDisplayFields(items, [
+      ...(fallbackItem ? [fallbackItem] : []),
+      ...localItems,
+    ])))
     return items
   }
 
@@ -99,6 +110,47 @@ function reconcileGuestCartResponse(dispatch, response, fallbackItem = null) {
   return []
 }
 
+function findExistingCartLine(items, item) {
+  if (!Array.isArray(items) || !item?.productId) return null
+
+  const itemVariantId = String(item.variantId ?? '')
+  const itemAttribute = [
+    item.attribute?.key ?? item.attribute?.name ?? '',
+    item.attribute?.value ?? item.attribute?.option ?? '',
+  ].join(':')
+
+  return items.find((current) => {
+    if (String(current.productId) !== String(item.productId)) return false
+    if (String(current.variantId ?? '') !== itemVariantId) return false
+    if (itemVariantId) return true
+
+    const currentAttribute = [
+      current.attribute?.key ?? current.attribute?.name ?? '',
+      current.attribute?.value ?? current.attribute?.option ?? '',
+    ].join(':')
+    return currentAttribute === itemAttribute
+  }) ?? null
+}
+
+function resolveAddedLineQuantity(apiItem, existing, addedItem) {
+  const addedQty = Math.max(1, Number(addedItem?.quantity) || 1)
+  const existingQty = Math.max(0, Number(existing?.quantity) || 0)
+  const apiQty = Number(apiItem?.quantity)
+  if (Number.isFinite(apiQty) && apiQty >= existingQty + addedQty) return apiQty
+  if (Number.isFinite(apiQty) && apiQty > existingQty) return apiQty
+  return existingQty + addedQty
+}
+
+function withAddedLineQuantity(mergedItem, apiItem, existing, addedItem) {
+  const quantity = resolveAddedLineQuantity(apiItem, existing, addedItem)
+  const price = Number(mergedItem?.price)
+  return {
+    ...mergedItem,
+    quantity,
+    displaySubtotal: Number.isFinite(price) ? price * quantity : mergedItem?.displaySubtotal,
+  }
+}
+
 export function useCartActions() {
   const dispatch = useDispatch()
   const items = useSelector(selectCartItems)
@@ -107,18 +159,7 @@ export function useCartActions() {
     const { silentSuccess = false, ...cartOptions } = options
     const item = buildCartItem(product, cartOptions)
     const currentItems = store.getState().cart.items
-
-    // Keep every add-to-cart entry point idempotent, including callers that do
-    // not render their own disabled state.
-    if (isProductInCart(currentItems, item, {
-      productId: item.productId,
-      variantId: item.variantId,
-    })) {
-      return currentItems.find((current) => (
-        String(current.productId) === String(item.productId)
-        && (!item.variantId || String(current.variantId) === String(item.variantId))
-      )) ?? item
-    }
+    const existing = findExistingCartLine(currentItems, item)
     const isAuthenticated = store.getState().auth.isAuthenticated
     const shouldSyncWithApi = canSyncToApi(item)
 
@@ -149,7 +190,14 @@ export function useCartActions() {
         }
 
         const response = await addGuestProductToCart(apiPayload)
-        reconcileGuestCartResponse(dispatch, response, item)
+        bumpCartFetchEpoch()
+        reconcileGuestCartResponse(dispatch, response, existing ?? item)
+        const apiItem = parseAddToCartResponse(response)
+        const line = findExistingCartLine(store.getState().cart.items, item) ?? existing
+        if (line) {
+          const next = withAddedLineQuantity(line, apiItem, existing, item)
+          dispatch(upsertItem(next))
+        }
         await persistor.persist()
         if (!silentSuccess) {
           notify.success(`${item.name} added to cart`)
@@ -178,7 +226,13 @@ export function useCartActions() {
           throw new Error('Add to cart response missing product')
         }
 
-        const mergedItem = mergeGuestAddItemWithLocal(apiItem, item)
+        const mergedItem = withAddedLineQuantity(
+          mergeGuestAddItemWithLocal(apiItem, existing ?? item),
+          apiItem,
+          existing,
+          item,
+        )
+        bumpCartFetchEpoch()
         dispatch(upsertItem(mergedItem))
         if (!silentSuccess) {
           notify.success(`${item.name} added to cart`)
@@ -210,6 +264,7 @@ export function useCartActions() {
   const updateQuantity = useCallback(async (itemId, quantity) => {
     const isAuthenticated = store.getState().auth.isAuthenticated
     const nextQuantity = Math.max(1, Number(quantity) || 1)
+    bumpCartFetchEpoch()
     dispatch(setQuantity({ itemId, quantity: nextQuantity }))
     const item = items.find((current) => current.id === itemId || current.key === itemId)
     const lineItemId = resolveCartLineItemId(item)
@@ -244,6 +299,7 @@ export function useCartActions() {
     const isAuthenticated = store.getState().auth.isAuthenticated
     const item = items.find((current) => current.id === itemId || current.key === itemId)
     const lineItemId = resolveCartLineItemId(item)
+    bumpCartFetchEpoch()
     dispatch(removeItem(itemId))
     if (!lineItemId) return
 
@@ -304,6 +360,7 @@ export function useCartActions() {
     }
 
     dispatch(clearCart())
+    bumpCartFetchEpoch()
     if (!isAuthenticated) {
       dispatch(clearGuestCartId())
       await persistor.persist()
@@ -311,6 +368,7 @@ export function useCartActions() {
   }, [dispatch, items])
 
   const saveItem = useCallback((itemId) => {
+    bumpCartFetchEpoch()
     dispatch(saveForLater(itemId))
   }, [dispatch])
 
@@ -340,6 +398,7 @@ export function useCartActions() {
     )
     if (idSet.size === 0) return
 
+    bumpCartFetchEpoch()
     store.getState().cart.items.forEach((item) => {
       const lineId = resolveCartLineItemId(item)
       if (lineId && idSet.has(lineId)) {

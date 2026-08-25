@@ -7,6 +7,7 @@ import { replaceItems, selectGuestCartId, setGuestCartId } from '../store/slices
 import { extractCartItems, extractCartSummary } from '../utils/normalizeCart'
 import { normalizeCartSummary } from '../utils/checkoutTotals'
 import { isValidGuestCartId } from '../utils/guestCartId'
+import { getCartFetchEpoch, isCurrentCartFetchEpoch } from '../utils/cartFetchEpoch'
 
 /** Loads a guest cart from GET /api/cart/guest and syncs it into Redux. */
 export async function syncGuestCart(dispatch) {
@@ -15,9 +16,15 @@ export async function syncGuestCart(dispatch) {
     return { items: [], summary: null }
   }
 
+  const epoch = getCartFetchEpoch()
   const payload = await getGuestCart(guestCartId)
-  const items = extractCartItems(payload)
   const summary = normalizeCartSummary(extractCartSummary(payload))
+
+  if (!isCurrentCartFetchEpoch(epoch)) {
+    return { items: store.getState().cart.items, summary, ignored: true }
+  }
+
+  const items = extractCartItems(payload)
 
   dispatch(setGuestCartId(guestCartId))
   dispatch(replaceItems(items))

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import {
   useCreateProductVariantMutation,
@@ -6,7 +6,10 @@ import {
   useUpdateSingleVariantMutation,
 } from '../../hooks/useProductMutations'
 import { iterateVariantFormEntries } from '../../utils/productPayload'
-import { filterOptionalVariantEntries } from '../../utils/defaultProductVariation'
+import {
+  filterOptionalVariantEntries,
+  resolveDefaultVariantEntry,
+} from '../../utils/defaultProductVariation'
 import AddVariantFlow from './AddVariantFlow'
 import VariantListView from './VariantListView'
 
@@ -19,11 +22,17 @@ export default function VariationsEditForm({ productId, formState, onFinished })
   const createVariantMutation = useCreateProductVariantMutation()
   const deleteVariantMutation = useDeleteProductVariantMutation()
 
-  const productValues = formState.formValues
-  const entries = filterOptionalVariantEntries(
-    iterateVariantFormEntries(productValues.variations),
-    productValues,
+  const listingValues = formState.formValues
+  const productValues = useMemo(
+    () => ({ ...listingValues, barcode: '' }),
+    [listingValues],
   )
+  const allEntries = iterateVariantFormEntries(listingValues.variations)
+  const extraEntries = filterOptionalVariantEntries(allEntries, listingValues)
+  const defaultEntry = resolveDefaultVariantEntry(allEntries, listingValues, {
+    mainImage: formState.mainImage,
+    subImages: formState.subImages,
+  })
 
   const handleAdd = (prefillAttribute = '') => {
     setAddPrefillAttribute(prefillAttribute)
@@ -60,7 +69,7 @@ export default function VariationsEditForm({ productId, formState, onFinished })
         <AddVariantFlow
           productId={productId}
           productValues={productValues}
-          entries={entries}
+          entries={extraEntries}
           prefillAttribute={addPrefillAttribute}
           createVariantMutation={createVariantMutation}
           updateSingleVariantMutation={updateSingleVariantMutation}
@@ -73,8 +82,13 @@ export default function VariationsEditForm({ productId, formState, onFinished })
   return (
     <VariantListView
       productId={productId}
-      entries={entries}
+      defaultEntry={defaultEntry}
+      entries={extraEntries}
       productValues={productValues}
+      listingValues={listingValues}
+      mainImage={formState.mainImage}
+      subImages={formState.subImages}
+      descriptiveImages={formState.descriptiveImages ?? []}
       onAdd={handleAdd}
       onFinished={onFinished}
       updateSingleVariantMutation={updateSingleVariantMutation}

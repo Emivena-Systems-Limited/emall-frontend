@@ -83,7 +83,7 @@ export const ANALYTICS_EXPORT_REPORTS = [
  */
 export const ANALYTICS_ENDPOINTS = {
   SUMMARY: '/api/vendor/analytics/summary',
-  REVENUE_ORDERS: '/api/vendor/analytics/revenue-orders',
+  REVENUE_ORDERS: '/api/vendor/analytics/order-revenues',
   SALES_BY_CATEGORY: '/api/vendor/analytics/sales-by-category',
   CUSTOMER_GROWTH: '/api/vendor/analytics/customer-growth',
   SALES_BY_REGION: '/api/vendor/analytics/sales-by-region',
