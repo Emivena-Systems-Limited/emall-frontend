@@ -32,10 +32,11 @@ function OptionChipButton({ value, selected, onSelect }) {
       type="button"
       onClick={() => onSelect(value)}
       aria-pressed={selected}
-      className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[0.625rem] font-semibold transition-colors ${
+      title={value}
+      className={`inline-flex min-h-12 min-w-[5.5rem] shrink-0 items-center justify-center whitespace-nowrap rounded-xl border-2 px-4 py-3 text-sm font-semibold leading-snug transition-colors outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 focus-visible:ring-offset-1 sm:min-h-[3.25rem] sm:px-5 sm:text-[0.9375rem] ${
         selected
-          ? 'border-auth-primary bg-red-50 text-auth-primary ring-1 ring-auth-primary'
-          : 'border-slate-200 bg-white text-slate-500 hover:border-auth-primary hover:text-auth-primary'
+          ? 'border-auth-primary bg-red-50 text-auth-primary shadow-[inset_0_0_0_1px_rgba(199,59,45,0.35)]'
+          : 'border-slate-200 bg-white text-slate-800 hover:border-auth-primary/50 hover:bg-slate-50 hover:text-slate-950'
       }`}
     >
       {value}
@@ -111,26 +112,26 @@ export default function VariantOptionRow({
 
   return (
     <div className="min-w-0 pt-3">
-      <p className="text-xs font-semibold text-slate-950">
+      <p className="text-sm font-bold text-slate-950">
         {label}{selected ? `: ${selected}` : ''}
       </p>
-      <div className={`mt-2 flex min-w-0 items-center ${hasOverflow ? 'sm:gap-2' : ''}`}>
+      <div className={`mt-2.5 flex min-w-0 items-center ${hasOverflow ? 'sm:gap-2' : ''}`}>
         {hasOverflow ? (
           <button
             type="button"
             disabled={!canScrollLeft}
             onClick={() => scrollByDirection(-1)}
             aria-label={`Previous ${label} options`}
-            className="hidden size-8 shrink-0 items-center justify-center border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
+            className="hidden size-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
           >
-            <ChevronLeft className="size-4" strokeWidth={2} />
+            <ChevronLeft className="size-5" strokeWidth={2} />
           </button>
         ) : null}
         <div
           ref={scrollerRef}
           tabIndex={0}
           aria-label={`${label} options`}
-          className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth overscroll-x-contain pb-1 scrollbar-none [-ms-overflow-style:none] outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 [&::-webkit-scrollbar]:hidden"
+          className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-smooth overscroll-x-contain py-0.5 scrollbar-none [-ms-overflow-style:none] outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 [&::-webkit-scrollbar]:hidden"
         >
           {values.map((value) => (
             <div key={value} className="snap-start">
@@ -157,9 +158,9 @@ export default function VariantOptionRow({
             disabled={!canScrollRight}
             onClick={() => scrollByDirection(1)}
             aria-label={`Next ${label} options`}
-            className="hidden size-8 shrink-0 items-center justify-center border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
+            className="hidden size-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
           >
-            <ChevronRight className="size-4" strokeWidth={2} />
+            <ChevronRight className="size-5" strokeWidth={2} />
           </button>
         ) : null}
       </div>
