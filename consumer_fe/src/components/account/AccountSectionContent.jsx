@@ -4,11 +4,11 @@ import AccountOrdersPanel from './AccountOrdersPanel'
 import AccountWishlistPanel from './AccountWishlistPanel'
 import AccountCouponsPanel from './AccountCouponsPanel'
 import AccountReviewsPanel from './AccountReviewsPanel'
+import AccountReturnsPanel from './AccountReturnsPanel'
 import {
   AccountFollowedStoresPanel,
   AccountNotificationsPanel,
   AccountPaymentsPanel,
-  AccountReturnsPanel,
   AccountSettingsPanel,
   AccountSupportPanel,
 } from './AccountPlaceholderPanels'

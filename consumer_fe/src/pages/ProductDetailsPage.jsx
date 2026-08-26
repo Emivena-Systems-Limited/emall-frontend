@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Heart,
   Loader2,
+  MapPin,
   Minus,
   Plus,
   ShoppingCart,
@@ -25,6 +26,7 @@ import VendorReviewReply, { normalizeVendorReviewReply } from '../components/sha
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
+import { getProductDeliveryEligibility } from '../services/storeService'
 import { getProductReviews } from '../services/reviewService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
@@ -53,6 +55,10 @@ import { normalizeProductDescription } from '../utils/productDescriptionHtml'
 import { mapKeyDetailsEntries, mapKeyDetailsToObject } from '../utils/productKeyDetails'
 import { calculateDisplayDiscountPercent } from '../utils/productPricing'
 import { resolveProductDisplayPrices } from '../utils/extractProductVariantFacets'
+import {
+  resolveProductStoreEligibility,
+  resolveShoppingLocationDetails,
+} from '../utils/storefront'
 import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
@@ -382,7 +388,9 @@ function ProductInfoPanel({
   activeImage,
   activeVariant,
   activeSku,
-  displayPriceInfo
+  displayPriceInfo,
+  deliveryEligible = true,
+  shoppingLocation = '',
 }) {
   const [quantity, setQuantity] = useState(1)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
@@ -393,7 +401,12 @@ function ProductInfoPanel({
   const trustInfoRef = useRef(null)
   const navigate = useNavigate()
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const cartItems = useSelector(selectCartItems)
   const { addToCart } = useCartActions()
+  const isInCart = isProductInCart(cartItems, product, {
+    productId: product.backendId ?? product.id,
+    variantId: activeVariant?.id ?? null,
+  })
   const stockAvailability = formatStockAvailability(
     activeVariant?.quantity != null
       ? toNumber(activeVariant.quantity, 0)
@@ -476,6 +489,8 @@ function ProductInfoPanel({
   })
 
   const handleAddToCart = async () => {
+    if (!deliveryEligible) return
+    if (isInCart) return
     if (isAddingToCart) return
 
     if (hasSelectableVariants && !activeVariant?.id) {
@@ -504,6 +519,7 @@ function ProductInfoPanel({
   }
 
   const handleBuyNow = async () => {
+    if (!deliveryEligible) return
     if (isBuyingNow) return
 
     if (hasSelectableVariants && !activeVariant?.id) {
@@ -651,10 +667,17 @@ function ProductInfoPanel({
         </div>
       </div>
 
+      {!deliveryEligible ? (
+        <div className="mt-4 flex gap-2.5 rounded-xl border border-red-100 bg-red-50/70 p-3 text-xs leading-5 text-slate-700">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-auth-primary" />
+          <p><span className="font-bold text-slate-900">Delivery unavailable{shoppingLocation ? ` in ${shoppingLocation}` : ''}.</span> This store does not currently deliver to your location.</p>
+        </div>
+      ) : null}
+
       <div className="mt-4 grid gap-2 min-[420px]:grid-cols-2 sm:gap-3">
         <button
           type="button"
-          disabled={outOfStock || isBuyingNow}
+          disabled={outOfStock || isBuyingNow || !deliveryEligible}
           onClick={handleBuyNow}
           aria-busy={isBuyingNow}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
@@ -665,12 +688,12 @@ function ProductInfoPanel({
               Starting...
             </>
           ) : (
-            'Buy Now'
+            deliveryEligible ? 'Buy Now' : 'Delivery unavailable'
           )}
         </button>
         <button
           type="button"
-          disabled={outOfStock || isAddingToCart}
+          disabled={outOfStock || isAddingToCart || isInCart || !deliveryEligible}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
           className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
@@ -681,7 +704,7 @@ function ProductInfoPanel({
               Adding...
             </>
           ) : (
-            'Add to Cart'
+            !deliveryEligible ? 'Not available in your location' : isInCart ? 'Already in cart' : 'Add to Cart'
           )}
         </button>
       </div>
@@ -2040,6 +2063,20 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const [selectedValue, setSelectedValue] = useState(initialSelections.value)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const user = useSelector((state) => state.auth.user)
+  const shoppingLocationDetails = resolveShoppingLocationDetails(user)
+  const shoppingLocation = shoppingLocationDetails.city
+  const deliveryEligibilityQuery = useQuery({
+    queryKey: ['product-delivery-eligibility', apiProduct?.id, shoppingLocationDetails.region, shoppingLocationDetails.city],
+    queryFn: () => getProductDeliveryEligibility(apiProduct.id, shoppingLocationDetails),
+    enabled: Boolean(apiProduct?.id),
+    staleTime: 60 * 1000,
+    retry: 0,
+  })
+  const liveDeliveryEligibility = deliveryEligibilityQuery.data?.delivery_eligible
+  const deliveryEligible = typeof liveDeliveryEligibility === 'boolean'
+    ? liveDeliveryEligibility
+    : apiProduct ? resolveProductStoreEligibility(apiProduct, shoppingLocation) : true
   const [localWishlisted, setLocalWishlisted] = useState(false)
   const [localWishlistItemId, setLocalWishlistItemId] = useState('')
   const [isTogglingWishlist, setIsTogglingWishlist] = useState(false)
@@ -2304,6 +2341,8 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
                 activeVariant={activeVariant}
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
+                deliveryEligible={deliveryEligible}
+                shoppingLocation={shoppingLocation}
               />
               <ReviewSummary product={product} fillHeight />
             </div>

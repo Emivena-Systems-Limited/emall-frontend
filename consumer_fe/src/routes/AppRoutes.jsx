@@ -8,6 +8,7 @@ import CategoriesPage from '../pages/CategoriesPage'
 import CategoryPage from '../pages/CategoryPage'
 import PromotionsPage from '../pages/PromotionsPage'
 import StoresPage from '../pages/StoresPage'
+import StoreLandingPage from '../pages/StoreLandingPage'
 import ProductDetailsPage from '../pages/ProductDetailsPage'
 import ProductListingPage from '../pages/ProductListingPage'
 import LoginPage from '../pages/auth/LoginPage'
@@ -52,6 +53,7 @@ export default function AppRoutes() {
       <Route path="/categories" element={<CategoriesPage />} />
       <Route path="/promotions" element={<PromotionsPage />} />
       <Route path="/stores" element={<StoresPage />} />
+      <Route path="/stores/:storeId" element={<StoreLandingPage />} />
       <Route path="/categories/:slug/:subSlug" element={<CategoryPage />} />
       <Route path="/categories/:slug" element={<CategoryPage />} />
       <Route path="/products" element={<ProductListingPage type="all" />} />

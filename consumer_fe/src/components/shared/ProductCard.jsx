@@ -62,7 +62,7 @@ function StarRating({ rating, count }) {
   )
 }
 
-export default function ProductCard({ product, hrefOverride, onAddToCart }) {
+export default function ProductCard({ product, hrefOverride, onAddToCart, disabledReason = '' }) {
   const { addToCart } = useCartActions()
   const miniCart = useOptionalMiniCart()
   const cartItems = useSelector(selectCartItems)
@@ -75,7 +75,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
     event.preventDefault()
     event.stopPropagation()
 
-    if (isAdding || isInCart) return
+    if (isAdding || isInCart || disabledReason) return
 
     if (onAddToCart) {
       onAddToCart(product)
@@ -152,18 +152,20 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
               type="button"
               aria-busy={isAdding}
               aria-label={
-                isInCart
+                disabledReason
+                  ? disabledReason
+                  : isInCart
                   ? `${product.name} is already in cart`
                   : isAdding
                     ? `Adding ${product.name} to cart`
                     : `Add ${product.name} to cart`
               }
-              disabled={isAdding || isInCart}
+              disabled={isAdding || isInCart || Boolean(disabledReason)}
               onClick={handleAddToCart}
               className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed ${
                 isAdding
                   ? 'border-auth-primary bg-auth-primary text-white'
-                  : isInCart
+                  : isInCart || disabledReason
                     ? 'border-slate-200 bg-slate-100 text-slate-400 shadow-none'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'
               }`}
@@ -174,12 +176,12 @@ export default function ProductCard({ product, hrefOverride, onAddToCart }) {
                 <ShoppingCart className="size-[1em]" strokeWidth={2} />
               )}
             </button>
-            {isInCart && (
+            {(isInCart || disabledReason) && (
               <span
                 role="tooltip"
                 className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[0.6875rem] font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover/cart:opacity-100 group-focus-within/cart:opacity-100"
               >
-                Already in cart
+                {disabledReason || 'Already in cart'}
               </span>
             )}
           </span>

@@ -21,7 +21,7 @@ export const accountNavigationItems = [
   { id: 'wishlist', label: 'Wishlist', icon: Heart, href: '/account/wishlist', enabled: true },
   { id: 'coupons', label: 'Coupons & Offers', icon: TicketPercent, href: '/account/coupons', enabled: false },
   { id: 'reviews', label: 'Reviews', icon: MessageSquareText, href: '/account/reviews', enabled: true },
-  { id: 'returns', label: 'Returns & Refunds', icon: RotateCcw, href: '/account/returns', enabled: false },
+  { id: 'returns', label: 'Returns & Refunds', icon: RotateCcw, href: '/account/returns', enabled: true },
   { id: 'stores', label: 'Followed Stores', icon: Store, href: '/account/stores', enabled: false },
   { id: 'addresses', label: 'Addresses', icon: MapPin, href: '/account/addresses', enabled: true },
   { id: 'payments', label: 'Payment Methods', icon: CreditCard, href: '/account/payments', enabled: false },
