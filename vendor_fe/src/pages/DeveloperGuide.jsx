@@ -127,7 +127,7 @@ const folderStructure = `src/
     ├── productImageUtils.js / productImageEditUtils.js
     ├── mapProductToFormValues.js
     ├── normalizeProducts.js / normalizeCategories.js / normalizeBrands.js
-    ├── normalizeAnalyticsSummary.js / normalizeAnalyticsRevenueOrders.js
+    ├── normalizeAnalyticsSummary.js / normalizeAnalyticsRevenueOrders.js / normalizeAnalyticsSalesByCategory.js / normalizeAnalyticsSalesByRegion.js / normalizeAnalyticsTopProducts.js / normalizeAnalyticsFulfillment.js
     ├── validationSchemas.js
     ├── analyticsUtils.js   # Date presets, CSV export, fulfilment period → dates
     ├── Config.jsx          # API base URL
@@ -284,11 +284,11 @@ export default function DeveloperGuide() {
             id="analytics"
             icon={BarChart3}
             title="Analytics & Reports"
-            description="/analytics — KPI cards from GET /api/vendor/analytics/summary. Revenue &amp; orders chart from GET /api/vendor/analytics/order-revenues. Remaining charts still use dummy data (empty by default; toggle dummy data in the header)."
+            description="/analytics — GET widgets for summary, order-revenues, sales-by-category, customer-growth, sales-by-region, top-products, and fulfillments are live. Toggle dummy data in the header to skip APIs."
           >
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
               <li>• <strong>KPI cards</strong> — six stats (revenue, orders, customers, AOV, conversion, returns) from <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsSummary()</code>. Filtered by inclusive <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> + <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> (7d / 30d / 90d / 12m / From–To).</li>
-              <li>• <strong>Charts &amp; tables</strong> — each has its own year dropdown, defaulting to the current year. They do not use the page date range. Revenue &amp; orders is live via <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsRevenueOrders()</code>.</li>
+              <li>• <strong>Charts &amp; tables</strong> — each has its own year dropdown, defaulting to the current year. They do not use the page date range. Live widgets: <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsRevenueOrders()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsSalesByCategory()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsCustomerGrowth()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsSalesByRegion()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsTopProducts()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsFulfillment()</code>.</li>
               <li>• <strong>Export drawer</strong> — pick a report, set duration, download CSV. Order fulfilment duration uses year/month chips; those resolve to the same <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> / <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> payload as every other report.</li>
               <li>• <strong>Contracts</strong> — <code className="rounded bg-slate-100 px-1 text-xs">src/constants/analytics*ApiSpec.json</code>.</li>
             </ul>
@@ -304,6 +304,11 @@ src/hooks/useAnalyticsSummary.js
 src/services/analyticsService.js
 src/utils/normalizeAnalyticsSummary.js
 src/utils/normalizeAnalyticsRevenueOrders.js
+src/utils/normalizeAnalyticsSalesByCategory.js
+src/utils/normalizeAnalyticsCustomerGrowth.js
+src/utils/normalizeAnalyticsSalesByRegion.js
+src/utils/normalizeAnalyticsTopProducts.js
+src/utils/normalizeAnalyticsFulfillment.js
 src/constants/analytics.js              // ANALYTICS_ENDPOINTS + export report keys
 src/constants/analyticsData.js          // EMPTY_ANALYTICS / DEV_ANALYTICS
 src/utils/analyticsUtils.js`}
@@ -313,11 +318,11 @@ src/utils/analyticsUtils.js`}
               title="GET widgets"
               code={`GET /api/vendor/analytics/summary?start_date=2026-07-26&end_date=2026-08-24  // wired
 GET /api/vendor/analytics/order-revenues?year=2026                           // wired
-GET /api/vendor/analytics/sales-by-category?year=2026                        // not wired
-GET /api/vendor/analytics/customer-growth?year=2026                          // not wired
-GET /api/vendor/analytics/sales-by-region?year=2026                          // not wired
-GET /api/vendor/analytics/top-products?year=2026                             // not wired
-GET /api/vendor/analytics/fulfillment?year=2026                              // not wired`}
+GET /api/vendor/analytics/sales-by-category?year=2026                        // wired
+GET /api/vendor/analytics/customer-growth?year=2026                          // wired
+GET /api/vendor/analytics/sales-by-region?year=2026                          // wired
+GET /api/vendor/analytics/top-products?year=2026                             // wired
+GET /api/vendor/analytics/fulfillments?year=2026                             // wired`}
             />
 
             <CodeBlock
@@ -494,7 +499,7 @@ buildProductInfoJsonPayload(...)      // edit info (presigned JSON update)`}
                   <tr><td className="px-4 py-3">Profile</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Personal, business, documents, avatar, password</td></tr>
                   <tr><td className="px-4 py-3">Users &amp; permissions</td><td className="px-4 py-3 text-emerald-700">Live API</td><td className="px-4 py-3">Invite, roles, deactivate / reactivate</td></tr>
                   <tr><td className="px-4 py-3">Promotions</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">promotionService → mocks/promotionMockData.js</td></tr>
-                  <tr><td className="px-4 py-3">Analytics</td><td className="px-4 py-3 text-amber-700">Partial API</td><td className="px-4 py-3">KPI summary + revenue/orders live; remaining charts/export still dummy</td></tr>
+                  <tr><td className="px-4 py-3">Analytics</td><td className="px-4 py-3 text-amber-700">Partial API</td><td className="px-4 py-3">All GET widgets live except customer growth; export still dummy</td></tr>
                   <tr><td className="px-4 py-3">Messages</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/messagesData.js; nav marked coming soon</td></tr>
                   <tr><td className="px-4 py-3">Inventory</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/lowStockData.js</td></tr>
                   <tr><td className="px-4 py-3">Notifications</td><td className="px-4 py-3 text-amber-700">Mock</td><td className="px-4 py-3">constants/notificationsData.js</td></tr>

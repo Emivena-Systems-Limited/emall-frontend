@@ -88,7 +88,7 @@ export const ANALYTICS_ENDPOINTS = {
   CUSTOMER_GROWTH: '/api/vendor/analytics/customer-growth',
   SALES_BY_REGION: '/api/vendor/analytics/sales-by-region',
   TOP_PRODUCTS: '/api/vendor/analytics/top-products',
-  FULFILLMENT: '/api/vendor/analytics/fulfillment',
+  FULFILLMENT: '/api/vendor/analytics/fulfillments',
   EXPORT: '/api/vendor/analytics/reports',
 }
 
