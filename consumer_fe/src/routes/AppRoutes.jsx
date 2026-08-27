@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router'
+import { Navigate, Routes, Route } from 'react-router'
 import DeveloperGuide from '../pages/DeveloperGuide'
 import HomePage from '../pages/HomePage'
 import AccountPage from '../pages/AccountPage'
@@ -17,6 +17,7 @@ import VerifyOtpPage from '../pages/auth/VerifyOtpPage'
 import GuestOnlyRoute from './GuestOnlyRoute'
 import ProtectedRoute from './ProtectedRoute'
 import AuthVerifyRoute from './AuthVerifyRoute'
+import { STORE_DIRECTORY_ENABLED } from '../config/featureFlags'
 
 const guestOnly = (page) => (
   <GuestOnlyRoute>
@@ -52,8 +53,8 @@ export default function AppRoutes() {
       <Route path="/checkout/:mode" element={authRequiredViaLogin(<CheckoutPage />)} />
       <Route path="/categories" element={<CategoriesPage />} />
       <Route path="/promotions" element={<PromotionsPage />} />
-      <Route path="/stores" element={<StoresPage />} />
-      <Route path="/stores/:storeId" element={<StoreLandingPage />} />
+      <Route path="/stores" element={STORE_DIRECTORY_ENABLED ? <StoresPage /> : <Navigate to="/" replace />} />
+      <Route path="/stores/:storeId" element={STORE_DIRECTORY_ENABLED ? <StoreLandingPage /> : <Navigate to="/" replace />} />
       <Route path="/categories/:slug/:subSlug" element={<CategoryPage />} />
       <Route path="/categories/:slug" element={<CategoryPage />} />
       <Route path="/products" element={<ProductListingPage type="all" />} />

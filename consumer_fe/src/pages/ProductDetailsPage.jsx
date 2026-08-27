@@ -35,6 +35,7 @@ import {
 import { getProductReviews } from '../services/reviewService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
+import { STORE_DELIVERY_ELIGIBILITY_ENABLED, STORE_DIRECTORY_ENABLED } from '../config/featureFlags'
 import { notify } from '../lib/notify'
 import { addToWishlist, getUserWishlist, removeFromWishlist } from '../services/wishlistService'
 import { useCartActions } from '../hooks/useCartActions'
@@ -672,7 +673,7 @@ function ProductInfoPanel({
         </div>
       </div>
 
-      {!deliveryEligible ? (
+      {STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible ? (
         <div className="mt-4 flex gap-2.5 rounded-xl border border-red-100 bg-red-50/70 p-3 text-xs leading-5 text-slate-700">
           <MapPin className="mt-0.5 size-4 shrink-0 text-auth-primary" />
           <p><span className="font-bold text-slate-900">Delivery unavailable{shoppingLocation ? ` in ${shoppingLocation}` : ''}.</span> This store does not currently deliver to your location.</p>
@@ -1503,12 +1504,18 @@ function StoreInfo({ product }) {
           <ShoppingCart className="size-3.5 text-auth-primary" strokeWidth={2} aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <Link
-            to={product.vendorId ? `/stores/${product.vendorId}` : '/stores'}
-            className="block truncate text-xs font-bold text-[#2E71A1] hover:underline sm:text-sm"
-          >
-            Visit the {product.storeName}
-          </Link>
+          {STORE_DIRECTORY_ENABLED ? (
+            <Link
+              to={product.vendorId ? `/stores/${product.vendorId}` : '/stores'}
+              className="block truncate text-xs font-bold text-[#2E71A1] hover:underline sm:text-sm"
+            >
+              Visit the {product.storeName}
+            </Link>
+          ) : (
+            <p className="truncate text-xs font-bold text-[#2E71A1] sm:text-sm">
+              {product.storeName}
+            </p>
+          )}
           <p className="mt-0.5 truncate text-[0.625rem] font-semibold text-slate-500 sm:text-xs">
             <span className="text-slate-700">110</span> Followers
             <span className="mx-1 text-slate-300" aria-hidden="true">|</span>
@@ -2140,14 +2147,16 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const deliveryEligibilityQuery = useQuery({
     queryKey: ['product-delivery-eligibility', apiProduct?.id, shoppingLocationDetails.region, shoppingLocationDetails.city],
     queryFn: () => getProductDeliveryEligibility(apiProduct.id, shoppingLocationDetails),
-    enabled: Boolean(apiProduct?.id),
+    enabled: Boolean(STORE_DELIVERY_ELIGIBILITY_ENABLED && apiProduct?.id),
     staleTime: 60 * 1000,
     retry: 0,
   })
   const liveDeliveryEligibility = deliveryEligibilityQuery.data?.delivery_eligible
-  const deliveryEligible = typeof liveDeliveryEligibility === 'boolean'
-    ? liveDeliveryEligibility
-    : apiProduct ? resolveProductStoreEligibility(apiProduct, shoppingLocation) : true
+  const deliveryEligible = !STORE_DELIVERY_ELIGIBILITY_ENABLED
+    ? true
+    : typeof liveDeliveryEligibility === 'boolean'
+      ? liveDeliveryEligibility
+      : apiProduct ? resolveProductStoreEligibility(apiProduct, shoppingLocation) : true
   const [localWishlisted, setLocalWishlisted] = useState(false)
   const [localWishlistItemId, setLocalWishlistItemId] = useState('')
   const [isTogglingWishlist, setIsTogglingWishlist] = useState(false)
