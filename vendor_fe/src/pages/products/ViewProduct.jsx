@@ -24,6 +24,7 @@ import {
 import { getUniqueOrderProducts } from '../../utils/orderProductNavigation'
 import { getOrdersReturnLabel, resolveOrdersReturnTo } from '../../utils/orderNavigation'
 import { resolveReviewsReturnTo } from '../../utils/reviewNavigation'
+import { resolveAnalyticsReturnTo } from '../../utils/analyticsNavigation'
 
 // Reactivate later — listing status banner (API `status`, e.g. pending_approval)
 // function formatApiStatusLabel(status) {
@@ -45,8 +46,17 @@ export default function ViewProduct() {
   const ordersReturnLabel = getOrdersReturnLabel(ordersReturnTo)
   const reviewsReturnTo = resolveReviewsReturnTo(searchParams, location)
   const fromReviews = Boolean(reviewsReturnTo)
-  const backTo = orderId ? ordersReturnTo : (reviewsReturnTo || '/products')
-  const backLabel = orderId ? ordersReturnLabel : (fromReviews ? 'Back to reviews' : 'All Products')
+  const analyticsReturnTo = resolveAnalyticsReturnTo(searchParams, location)
+  const fromAnalytics = Boolean(analyticsReturnTo)
+  const backTo = orderId ? ordersReturnTo : (reviewsReturnTo || analyticsReturnTo || '/products')
+  const backLabel = orderId
+    ? ordersReturnLabel
+    : fromReviews
+      ? 'Back to reviews'
+      : fromAnalytics
+        ? 'Back to analytics'
+        : 'All Products'
+  const showContextBack = Boolean(orderId || fromReviews || fromAnalytics)
   const linkedOrder = orderId ? getOrderById(orderId) : null
   const orderProducts = linkedOrder ? getUniqueOrderProducts(linkedOrder) : []
   const { data: rawRecord, isLoading, isError, refetch } = useProduct(productId)
@@ -90,10 +100,10 @@ export default function ViewProduct() {
             </button>
             <Link
               to={backTo}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
             >
               <ArrowLeft className="size-4" />
-              {orderId ? ordersReturnLabel : (fromReviews ? 'Back to reviews' : 'Back to products')}
+              {backLabel === 'All Products' ? 'Back to products' : backLabel}
             </Link>
             {fromReviews && (
               <Link
@@ -155,9 +165,9 @@ export default function ViewProduct() {
           <Link
             to={backTo}
             className={
-              orderId || fromReviews
-                ? 'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand'
-                : 'inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800'
+              showContextBack
+                ? 'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-brand/30 hover:bg-brand-light/20 hover:text-brand'
+                : 'inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800'
             }
           >
             <ArrowLeft className="size-4" />

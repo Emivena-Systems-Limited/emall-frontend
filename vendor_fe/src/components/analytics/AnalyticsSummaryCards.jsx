@@ -3,7 +3,7 @@ import {
   ArrowUpRight,
   Banknote,
   Minus,
-  Percent,
+  // Percent,
   Receipt,
   RotateCcw,
   ShoppingBag,
@@ -58,16 +58,16 @@ const cards = [
     bg: 'from-brand-light to-white',
     ring: 'ring-brand-muted',
   },
-  {
-    key: 'conversionRate',
-    label: 'Conversion',
-    helper: 'Visitors → orders',
-    icon: Percent,
-    format: formatStatPercent,
-    accent: '#d97706',
-    bg: 'from-amber-50 to-white',
-    ring: 'ring-amber-100',
-  },
+  // {
+  //   key: 'conversionRate',
+  //   label: 'Conversion',
+  //   helper: 'Visitors → orders',
+  //   icon: Percent,
+  //   format: formatStatPercent,
+  //   accent: '#d97706',
+  //   bg: 'from-amber-50 to-white',
+  //   ring: 'ring-amber-100',
+  // },
   {
     key: 'returnRate',
     label: 'Return rate',
@@ -105,7 +105,7 @@ function TrendBadge({ value, invert }) {
 
 export default function AnalyticsSummaryCards({ summary, previousSummary = {} }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 lg:gap-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 lg:gap-4">
       {cards.map(({ key, label, helper, icon: Icon, format, invertTrend, accent, bg, ring }) => {
         const value = summary[key] ?? 0
         const displayValue = format(value)

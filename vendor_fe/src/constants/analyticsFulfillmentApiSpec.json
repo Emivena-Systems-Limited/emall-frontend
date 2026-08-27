@@ -4,7 +4,7 @@
   "description": "Powers the Order fulfilment status cards. Counts orders created in the selected calendar year by current status. An order belongs to exactly one bucket.",
   "endpoint": {
     "method": "GET",
-    "path": "/api/vendor/analytics/fulfillment",
+    "path": "/api/vendor/analytics/fulfillments",
     "auth": "Vendor Bearer token + Application-Token (same as other /api/vendor/* routes)",
     "query": {
       "year": "YYYY. Required. Calendar year. Frontend defaults to the current year."
@@ -24,7 +24,7 @@
     "cancelled": "Cancelled orders.",
     "returned": "Returned or refunded orders."
   },
-  "example_request": "GET /api/vendor/analytics/fulfillment?year=2026",
+  "example_request": "GET /api/vendor/analytics/fulfillments?year=2026",
   "example_response": {
     "in_error": false,
     "status_code": 200,

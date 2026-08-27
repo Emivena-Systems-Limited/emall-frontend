@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router'
 import {
   Bell,
+  BookOpen,
   ChevronDown,
   LogOut,
   Menu,
@@ -12,7 +13,7 @@ import {
 import { useLogoutVendorMutation } from '../../hooks/useAuthMutations'
 import { formatBadgeCount, getNavBadgeCount } from '../../constants/sidebarNav'
 import Images from '../../utils/Images'
-import NavbarDateRangeFilter from './NavbarDateRangeFilter'
+import { isLocalEnvironment } from '../../utils/environment'
 
 function getVendorDisplayName(user) {
   return user?.admin_full_name?.trim() || user?.business_name || user?.store_name || 'Vendor'
@@ -49,6 +50,22 @@ function NavIconButton({ icon: Icon, label, count = 0, to, onClick }) {
     <button type="button" aria-label={label} title={label} onClick={onClick} className={className}>
       {content}
     </button>
+  )
+}
+
+function DevGuideButton() {
+  if (!isLocalEnvironment()) return null
+
+  return (
+    <Link
+      to="/dev-guide"
+      aria-label="Open developer guide"
+      title="Developer guide"
+      className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-amber-400 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200/60 transition-colors hover:bg-amber-100"
+    >
+      <BookOpen className="size-3.5 shrink-0" strokeWidth={2} />
+      <span className="hidden sm:inline">Dev guide</span>
+    </Link>
   )
 }
 
@@ -161,7 +178,7 @@ export default function Navbar({ onMobileMenuOpen, pageTitle }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <NavbarDateRangeFilter />
+        <DevGuideButton />
 
         <NavIconButton
           icon={Bell}

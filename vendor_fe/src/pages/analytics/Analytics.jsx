@@ -6,7 +6,6 @@ import AnalyticsExportDrawer from '../../components/analytics/AnalyticsExportDra
 import AnalyticsSummaryCards from '../../components/analytics/AnalyticsSummaryCards'
 import AnalyticsSummaryCardsLoader from '../../components/analytics/AnalyticsSummaryCardsLoader'
 import {
-  AnalyticsEmptyHero,
   CategoryBreakdownChart,
   CustomerGrowthChart,
   FulfillmentOverview,
@@ -15,7 +14,7 @@ import {
   TopProductsTable,
 } from '../../components/analytics/AnalyticsCharts'
 import { DEV_ANALYTICS, EMPTY_ANALYTICS, EMPTY_ANALYTICS_SUMMARY } from '../../constants/analyticsData'
-import { useAnalyticsRevenueOrders, useAnalyticsSummary } from '../../hooks/useAnalyticsSummary'
+import { useAnalyticsCustomerGrowth, useAnalyticsFulfillment, useAnalyticsRevenueOrders, useAnalyticsSalesByCategory, useAnalyticsSalesByRegion, useAnalyticsSummary, useAnalyticsTopProducts } from '../../hooks/useAnalyticsSummary'
 import notify from '../../lib/notify'
 import {
   exportAnalyticsReport,
@@ -61,8 +60,67 @@ export default function Analytics() {
     enabled: !devDataEnabled,
   })
 
+  const {
+    data: apiSalesByCategory,
+    isLoading: isCategoryLoading,
+    isError: isCategoryError,
+    error: categoryError,
+    refetch: refetchCategory,
+    isFetching: isCategoryFetching,
+  } = useAnalyticsSalesByCategory({
+    year: categoryYear,
+    enabled: !devDataEnabled,
+  })
+
+  const {
+    data: apiCustomerGrowth,
+    isLoading: isCustomerLoading,
+    isError: isCustomerError,
+    error: customerError,
+    refetch: refetchCustomer,
+    isFetching: isCustomerFetching,
+  } = useAnalyticsCustomerGrowth({
+    year: customerYear,
+    enabled: !devDataEnabled,
+  })
+
+  const {
+    data: apiSalesByRegion,
+    isLoading: isRegionLoading,
+    isError: isRegionError,
+    error: regionError,
+    refetch: refetchRegion,
+    isFetching: isRegionFetching,
+  } = useAnalyticsSalesByRegion({
+    year: regionYear,
+    enabled: !devDataEnabled,
+  })
+
+  const {
+    data: apiTopProducts,
+    isLoading: isProductsLoading,
+    isError: isProductsError,
+    error: productsError,
+    refetch: refetchProducts,
+    isFetching: isProductsFetching,
+  } = useAnalyticsTopProducts({
+    year: productsYear,
+    enabled: !devDataEnabled,
+  })
+
+  const {
+    data: apiFulfillment,
+    isLoading: isFulfillmentLoading,
+    isError: isFulfillmentError,
+    error: fulfillmentError,
+    refetch: refetchFulfillment,
+    isFetching: isFulfillmentFetching,
+  } = useAnalyticsFulfillment({
+    year: fulfillmentYear,
+    enabled: !devDataEnabled,
+  })
+
   const remainingChartData = devDataEnabled ? DEV_ANALYTICS : EMPTY_ANALYTICS
-  const hasRemainingChartData = devDataEnabled
 
   const summary = devDataEnabled
     ? DEV_ANALYTICS.summary
@@ -76,20 +134,58 @@ export default function Analytics() {
     : (apiRevenueOrders?.series ?? EMPTY_ANALYTICS.revenueTimeline)
   const revenueTotal = devDataEnabled ? undefined : apiRevenueOrders?.totalRevenue
 
+  const categoryBreakdown = devDataEnabled
+    ? DEV_ANALYTICS.categoryBreakdown
+    : (apiSalesByCategory?.categories ?? EMPTY_ANALYTICS.categoryBreakdown)
+  const categoryTotal = devDataEnabled ? undefined : apiSalesByCategory?.totalRevenue
+
+  const customerGrowth = devDataEnabled
+    ? DEV_ANALYTICS.customerGrowth
+    : (apiCustomerGrowth?.series ?? EMPTY_ANALYTICS.customerGrowth)
+
+  const salesByRegion = devDataEnabled
+    ? DEV_ANALYTICS.salesByRegion
+    : (apiSalesByRegion?.regions ?? EMPTY_ANALYTICS.salesByRegion)
+  const regionTotal = devDataEnabled ? undefined : apiSalesByRegion?.totalRevenue
+
+  const topProducts = devDataEnabled
+    ? DEV_ANALYTICS.topProducts
+    : (apiTopProducts?.products ?? EMPTY_ANALYTICS.topProducts)
+
+  const fulfillmentStats = devDataEnabled
+    ? DEV_ANALYTICS.fulfillmentStats
+    : (apiFulfillment?.stats ?? EMPTY_ANALYTICS.fulfillmentStats)
+  const fulfillmentTotal = devDataEnabled ? undefined : apiFulfillment?.total
+
   const exportData = useMemo(
     () => ({
       ...remainingChartData,
       summary,
       previousSummary,
       revenueTimeline,
+      categoryBreakdown,
+      customerGrowth,
+      salesByRegion,
+      topProducts,
+      fulfillmentStats,
     }),
-    [remainingChartData, summary, previousSummary, revenueTimeline],
+    [remainingChartData, summary, previousSummary, revenueTimeline, categoryBreakdown, customerGrowth, salesByRegion, topProducts, fulfillmentStats],
   )
 
   const showSummaryLoader = !devDataEnabled && isSummaryLoading
   const showSummaryError = !devDataEnabled && isSummaryError
   const showRevenueLoader = !devDataEnabled && isRevenueLoading
   const showRevenueError = !devDataEnabled && isRevenueError
+  const showCategoryLoader = !devDataEnabled && isCategoryLoading
+  const showCategoryError = !devDataEnabled && isCategoryError
+  const showCustomerLoader = !devDataEnabled && isCustomerLoading
+  const showCustomerError = !devDataEnabled && isCustomerError
+  const showRegionLoader = !devDataEnabled && isRegionLoading
+  const showRegionError = !devDataEnabled && isRegionError
+  const showProductsLoader = !devDataEnabled && isProductsLoading
+  const showProductsError = !devDataEnabled && isProductsError
+  const showFulfillmentLoader = !devDataEnabled && isFulfillmentLoading
+  const showFulfillmentError = !devDataEnabled && isFulfillmentError
 
   useEffect(() => {
     if (!devDataEnabled && isSummaryError) {
@@ -102,6 +198,36 @@ export default function Analytics() {
       notify.fromError(revenueError, 'Unable to load revenue and orders')
     }
   }, [devDataEnabled, isRevenueError, revenueError])
+
+  useEffect(() => {
+    if (!devDataEnabled && isCategoryError) {
+      notify.fromError(categoryError, 'Unable to load sales by category')
+    }
+  }, [devDataEnabled, isCategoryError, categoryError])
+
+  useEffect(() => {
+    if (!devDataEnabled && isCustomerError) {
+      notify.fromError(customerError, 'Unable to load customer growth')
+    }
+  }, [devDataEnabled, isCustomerError, customerError])
+
+  useEffect(() => {
+    if (!devDataEnabled && isRegionError) {
+      notify.fromError(regionError, 'Unable to load sales by region')
+    }
+  }, [devDataEnabled, isRegionError, regionError])
+
+  useEffect(() => {
+    if (!devDataEnabled && isProductsError) {
+      notify.fromError(productsError, 'Unable to load top products')
+    }
+  }, [devDataEnabled, isProductsError, productsError])
+
+  useEffect(() => {
+    if (!devDataEnabled && isFulfillmentError) {
+      notify.fromError(fulfillmentError, 'Unable to load order fulfilment')
+    }
+  }, [devDataEnabled, isFulfillmentError, fulfillmentError])
 
   const handleDevDataToggle = (enabled) => {
     setDevDataEnabled(enabled)
@@ -160,7 +286,7 @@ export default function Analytics() {
           />
         )}
 
-        <div className="grid gap-6 xl:grid-cols-3">
+        <div className="grid items-stretch gap-6 xl:grid-cols-3">
           <RevenueOrdersChart
             timeline={revenueTimeline}
             totalRevenue={revenueTotal}
@@ -174,53 +300,72 @@ export default function Analytics() {
             isFetching={isRevenueFetching}
           />
           <CategoryBreakdownChart
-            categories={remainingChartData.categoryBreakdown}
-            hasData={hasRemainingChartData}
+            categories={categoryBreakdown}
+            totalRevenue={categoryTotal}
+            hasData={categoryBreakdown.length > 0}
             year={categoryYear}
             onYearChange={setCategoryYear}
+            isLoading={showCategoryLoader}
+            isError={showCategoryError}
+            error={categoryError}
+            onRetry={() => refetchCategory()}
+            isFetching={isCategoryFetching}
           />
         </div>
 
-        {!hasRemainingChartData ? (
-          <AnalyticsEmptyHero
-            title="More reports coming soon"
-            description="Customer growth, sales by region, top products, and fulfilment will appear here next."
+        <div className="grid items-stretch gap-6 lg:grid-cols-2">
+          <CustomerGrowthChart
+            data={customerGrowth}
+            hasData={customerGrowth.length > 0}
+            year={customerYear}
+            onYearChange={setCustomerYear}
+            isLoading={showCustomerLoader}
+            isError={showCustomerError}
+            error={customerError}
+            onRetry={() => refetchCustomer()}
+            isFetching={isCustomerFetching}
           />
-        ) : (
-          <>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <CustomerGrowthChart
-                data={remainingChartData.customerGrowth}
-                hasData={hasRemainingChartData}
-                year={customerYear}
-                onYearChange={setCustomerYear}
-              />
-              <SalesByRegionChart
-                regions={remainingChartData.salesByRegion}
-                hasData={hasRemainingChartData}
-                year={regionYear}
-                onYearChange={setRegionYear}
-              />
-            </div>
+          <SalesByRegionChart
+            regions={salesByRegion}
+            totalRevenue={regionTotal}
+            hasData={salesByRegion.length > 0}
+            year={regionYear}
+            onYearChange={setRegionYear}
+            isLoading={showRegionLoader}
+            isError={showRegionError}
+            error={regionError}
+            onRetry={() => refetchRegion()}
+            isFetching={isRegionFetching}
+          />
+        </div>
 
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <TopProductsTable
-                  products={remainingChartData.topProducts}
-                  hasData={hasRemainingChartData}
-                  year={productsYear}
-                  onYearChange={setProductsYear}
-                />
-              </div>
-              <FulfillmentOverview
-                stats={remainingChartData.fulfillmentStats}
-                hasData={hasRemainingChartData}
-                year={fulfillmentYear}
-                onYearChange={setFulfillmentYear}
-              />
-            </div>
-          </>
-        )}
+        <div className="grid items-stretch gap-6 lg:grid-cols-3">
+          <div className="flex h-full min-h-0 flex-col lg:col-span-2">
+            <TopProductsTable
+              products={topProducts}
+              hasData={topProducts.length > 0}
+              year={productsYear}
+              onYearChange={setProductsYear}
+              isLoading={showProductsLoader}
+              isError={showProductsError}
+              error={productsError}
+              onRetry={() => refetchProducts()}
+              isFetching={isProductsFetching}
+            />
+          </div>
+          <FulfillmentOverview
+            stats={fulfillmentStats}
+            total={fulfillmentTotal}
+            hasData={devDataEnabled || Boolean(apiFulfillment)}
+            year={fulfillmentYear}
+            onYearChange={setFulfillmentYear}
+            isLoading={showFulfillmentLoader}
+            isError={showFulfillmentError}
+            error={fulfillmentError}
+            onRetry={() => refetchFulfillment()}
+            isFetching={isFulfillmentFetching}
+          />
+        </div>
       </div>
     </DashboardLayout>
   )
