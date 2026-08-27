@@ -1,7 +1,6 @@
 import {
   Bell,
   CircleHelp,
-  CreditCard,
   Gift,
   Heart,
   House,
@@ -22,9 +21,8 @@ export const accountNavigationItems = [
   { id: 'coupons', label: 'Coupons & Offers', icon: TicketPercent, href: '/account/coupons', enabled: false },
   { id: 'reviews', label: 'Reviews', icon: MessageSquareText, href: '/account/reviews', enabled: true },
   { id: 'returns', label: 'Returns & Refunds', icon: RotateCcw, href: '/account/returns', enabled: true },
-  { id: 'stores', label: 'Followed Stores', icon: Store, href: '/account/stores', enabled: false },
+  { id: 'stores', label: 'Followed Stores', icon: Store, href: '/account/stores', enabled: true },
   { id: 'addresses', label: 'Addresses', icon: MapPin, href: '/account/addresses', enabled: true },
-  { id: 'payments', label: 'Payment Methods', icon: CreditCard, href: '/account/payments', enabled: false },
   { id: 'settings', label: 'Account Settings', icon: Settings, href: '/account/settings', enabled: true },
   { id: 'notifications', label: 'Notifications', icon: Bell, href: '/account/notifications', enabled: false },
   { id: 'support', label: 'Help & Support', icon: CircleHelp, href: '/account/support', enabled: false },
@@ -97,10 +95,6 @@ export const accountSectionMeta = {
   addresses: {
     title: 'Address management',
     description: 'Manage delivery and billing addresses for faster checkout.',
-  },
-  payments: {
-    title: 'Payment methods',
-    description: 'Save cards and mobile money options for quick checkout.',
   },
   settings: {
     title: 'Account settings',

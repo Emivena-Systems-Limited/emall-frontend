@@ -5,10 +5,9 @@ import AccountWishlistPanel from './AccountWishlistPanel'
 import AccountCouponsPanel from './AccountCouponsPanel'
 import AccountReviewsPanel from './AccountReviewsPanel'
 import AccountReturnsPanel from './AccountReturnsPanel'
+import AccountFollowedStoresPanel from './AccountFollowedStoresPanel'
 import {
-  AccountFollowedStoresPanel,
   AccountNotificationsPanel,
-  AccountPaymentsPanel,
   AccountSettingsPanel,
   AccountSupportPanel,
 } from './AccountPlaceholderPanels'
@@ -30,8 +29,6 @@ export default function AccountSectionContent({ pathname }) {
       return <AccountFollowedStoresPanel />
     case 'addresses':
       return <AccountAddressesSection />
-    case 'payments':
-      return <AccountPaymentsPanel />
     case 'settings':
       return <AccountSettingsPanel />
     case 'notifications':

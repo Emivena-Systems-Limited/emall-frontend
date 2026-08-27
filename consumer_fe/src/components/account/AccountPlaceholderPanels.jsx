@@ -1,11 +1,9 @@
 import { Link } from 'react-router'
-import { Bell, CircleHelp, CreditCard, Settings, Store } from 'lucide-react'
+import { Bell, CircleHelp, Settings } from 'lucide-react'
 import AccountSectionShell from './AccountSectionShell'
 import { accountSectionMeta } from './accountNavigation'
 
 const sectionIcons = {
-  stores: Store,
-  payments: CreditCard,
   settings: Settings,
   notifications: Bell,
   support: CircleHelp,
@@ -42,14 +40,6 @@ function AccountComingSoonPanel({ sectionId, actionLabel, actionHref }) {
       </div>
     </AccountSectionShell>
   )
-}
-
-export function AccountFollowedStoresPanel() {
-  return <AccountComingSoonPanel sectionId="stores" />
-}
-
-export function AccountPaymentsPanel() {
-  return <AccountComingSoonPanel sectionId="payments" actionLabel="Go to checkout" actionHref="/cart" />
 }
 
 export function AccountSettingsPanel() {

@@ -87,3 +87,37 @@ export async function checkProductsDeliveryEligibility(payload) {
   })
   return unwrap(data)
 }
+
+export async function getFollowedStores(params = {}) {
+  const { data } = await apiClient.get('/user/followed-stores', {
+    params: {
+      page: params.page ?? 1,
+      per_page: params.perPage ?? 9,
+      search: params.search || undefined,
+      region: params.region || undefined,
+      city: params.city || undefined,
+    },
+  })
+  return unwrap(data)
+}
+
+export async function getStoreFollowStatus(storeId) {
+  const { data } = await apiClient.get(`/stores/${storeId}/follow-status`)
+  const payload = unwrap(data)
+  return Boolean(
+    payload?.is_following
+      ?? payload?.isFollowing
+      ?? payload?.followed
+      ?? payload?.following,
+  )
+}
+
+export async function followStore(storeId) {
+  const { data } = await apiClient.post(`/stores/${storeId}/follow`)
+  return unwrap(data)
+}
+
+export async function unfollowStore(storeId) {
+  const { data } = await apiClient.delete(`/stores/${storeId}/unfollow`)
+  return unwrap(data)
+}

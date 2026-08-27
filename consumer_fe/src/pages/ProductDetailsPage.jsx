@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import {
   ChevronLeft,
@@ -26,7 +26,12 @@ import VendorReviewReply, { normalizeVendorReviewReply } from '../components/sha
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
-import { getProductDeliveryEligibility } from '../services/storeService'
+import {
+  followStore,
+  getProductDeliveryEligibility,
+  getStoreFollowStatus,
+  unfollowStore,
+} from '../services/storeService'
 import { getProductReviews } from '../services/reviewService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
@@ -588,7 +593,7 @@ function ProductInfoPanel({
           </p>
         )}
 
-        <StoreInfo product={product} />
+        <StoreInfo key={product.vendorId || product.storeName} product={product} />
       </div>
 
       <div className="space-y-2 py-3">
@@ -1444,6 +1449,52 @@ function DescriptiveImagesGrid({ product }) {
 
 function StoreInfo({ product }) {
   const ratingLabel = product.rating?.toFixed(1) ?? '4.5'
+  const navigate = useNavigate()
+  const location = useLocation()
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const queryClient = useQueryClient()
+  const followStatusKey = ['store-follow-status', String(product.vendorId || '')]
+  const followStatusQuery = useQuery({
+    queryKey: followStatusKey,
+    queryFn: () => getStoreFollowStatus(product.vendorId),
+    enabled: Boolean(isAuthenticated && product.vendorId),
+    staleTime: 30_000,
+  })
+  const isFollowing = followStatusQuery.data === true
+  const followMutation = useMutation({
+    mutationFn: (shouldFollow) => shouldFollow
+      ? followStore(product.vendorId)
+      : unfollowStore(product.vendorId),
+    onMutate: async (shouldFollow) => {
+      await queryClient.cancelQueries({ queryKey: followStatusKey })
+      const previous = queryClient.getQueryData(followStatusKey)
+      queryClient.setQueryData(followStatusKey, shouldFollow)
+      return { previous, shouldFollow }
+    },
+    onError: (error, _shouldFollow, context) => {
+      queryClient.setQueryData(followStatusKey, context?.previous ?? false)
+      notify.error(error?.response?.data?.message || error?.message || 'Unable to update this store. Please try again.')
+    },
+    onSuccess: async (_data, shouldFollow) => {
+      queryClient.setQueryData(followStatusKey, shouldFollow)
+      await queryClient.invalidateQueries({ queryKey: ['followed-stores'] })
+      notify.success(shouldFollow
+        ? `You are now following ${product.storeName}`
+        : `You unfollowed ${product.storeName}`)
+    },
+  })
+
+  const handleFollowToggle = () => {
+    if (!product.vendorId) {
+      notify.error('Store information is not available for this product.')
+      return
+    }
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location.pathname } })
+      return
+    }
+    followMutation.mutate(!isFollowing)
+  }
 
   return (
     <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
@@ -1468,9 +1519,12 @@ function StoreInfo({ product }) {
       </div>
       <button
         type="button"
-        className="shrink-0 rounded-full border border-slate-300 bg-white px-4 py-1.5 text-[0.625rem] font-bold text-slate-950 transition-colors hover:border-auth-primary hover:text-auth-primary sm:px-5 sm:text-xs"
+        onClick={handleFollowToggle}
+        disabled={followMutation.isPending || followStatusQuery.isFetching}
+        aria-pressed={isFollowing}
+        className={`shrink-0 rounded-full border px-4 py-1.5 text-[0.625rem] font-bold transition-colors disabled:cursor-wait disabled:opacity-60 sm:px-5 sm:text-xs ${isFollowing ? 'border-red-100 bg-red-50 text-auth-primary hover:bg-red-100' : 'border-slate-300 bg-white text-slate-950 hover:border-auth-primary hover:text-auth-primary'}`}
       >
-        Follow
+        {followMutation.isPending ? 'Saving…' : isFollowing ? 'Following' : 'Follow'}
       </button>
     </div>
   )
@@ -1776,6 +1830,23 @@ function normalizeApiProductDetails(apiProduct) {
       || apiProduct.store?.name
       || 'EZ Stores',
     vendorId: apiProduct.vendor?.id ?? apiProduct.store?.id ?? null,
+    storeImage: apiProduct.vendor?.cover_image
+      || apiProduct.vendor?.store_image
+      || apiProduct.vendor?.store_logo
+      || apiProduct.vendor?.logo
+      || apiProduct.store?.cover_image
+      || apiProduct.store?.image
+      || '',
+    storeCity: apiProduct.vendor?.city
+      || apiProduct.vendor?.city_or_town
+      || apiProduct.vendor?.address?.city
+      || apiProduct.vendor?.address?.city_or_town
+      || apiProduct.store?.city
+      || '',
+    storeRegion: apiProduct.vendor?.region
+      || apiProduct.vendor?.address?.region
+      || apiProduct.store?.region
+      || '',
     salesCount: 120,
     soldIndicator: '1K+ bought in past month',
     inStock,
