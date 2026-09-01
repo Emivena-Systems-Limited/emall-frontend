@@ -1,142 +1,360 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQueries, useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
-import { useSelector } from 'react-redux'
-import { ArrowRight, ChevronDown, MapPin, Search, StoreIcon, Truck } from 'lucide-react'
-import SiteLayout from '../components/layout/SiteLayout'
-import Container from '../components/layout/Container'
-import { GHANA_LOCATIONS, getCityOptionsByRegion } from '../constants/ghanaLocations'
-import { useLandingPageData } from '../hooks/useLandingPageData'
-import { getSavedDeliveryLocation, getStore, getStores, saveDeliveryLocation } from '../services/storeService'
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
+import { useSelector } from "react-redux";
 import {
-  buildStoreDirectory,
+  ChevronLeft,
+  ChevronRight,
+  Grid2X2,
+  List,
+  Search,
+  Star,
+  StoreIcon,
+} from "lucide-react";
+import SiteLayout from "../components/layout/SiteLayout";
+import Container from "../components/layout/Container";
+import { getStores } from "../services/storeService";
+import {
   normalizeStoreDirectory,
   resolveShoppingLocationDetails,
   resolveStoreEligibility,
-  saveShoppingLocation,
-} from '../utils/storefront'
+} from "../utils/storefront";
 
-function StoreCard({ store, location }) {
-  const eligible = resolveStoreEligibility(store, location.city)
+const PAGE_SIZE = 6;
+const recentSearches = ["Kaneshie", "Spintex", "Amasaman"];
+const paginationFrom = (payload) =>
+  payload?.pagination ?? payload?.meta ?? payload?.data?.pagination ?? {};
+
+function resolveDirectoryEligibility(store, city) {
+  // The directory request is intentionally unfiltered so every store appears.
+  // Its delivery_eligible value therefore has no location context; calculate
+  // the badge from service areas and the shopper's resolved/default city.
+  return resolveStoreEligibility(
+    {
+      ...store,
+      explicitEligibility: undefined,
+      delivery_eligible: undefined,
+      delivers_to_user_location: undefined,
+      is_delivery_eligible: undefined,
+    },
+    city,
+  );
+}
+
+function Rating({ store }) {
+  const rating = Number(store.rating ?? store.average_rating ?? 0);
+  const count = Number(
+    store.rating_count ?? store.reviews_count ?? store.review_count ?? 0,
+  );
   return (
-    <Link to={`/stores/${store.id}`} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.04)] transition hover:-translate-y-1 hover:border-auth-primary/25 hover:shadow-[0_18px_42px_rgba(15,23,42,0.09)]">
-      <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-red-50 via-white to-amber-50">{store.image ? <img src={store.image} alt="" className="size-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="flex size-full items-center justify-center"><span className="flex size-20 items-center justify-center rounded-3xl border border-red-100 bg-white/85 text-auth-primary shadow-sm"><StoreIcon className="size-9" /></span></div>}<div className="absolute inset-0 bg-gradient-to-t from-slate-950/20 via-transparent to-transparent" /></div>
-      <div className="p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-base font-bold text-slate-950 group-hover:text-auth-primary">{store.name}</h2><p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="size-3.5" />{store.city}{store.region ? `, ${store.region}` : ''}</p></div><span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition group-hover:border-auth-primary group-hover:bg-auth-primary group-hover:text-white"><ArrowRight className="size-4" /></span></div>
-        <span className={`mt-4 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[0.68rem] font-bold ${eligible ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-auth-primary'}`}><Truck className="size-3.5" />{eligible ? 'Delivers to your location' : 'Not available in your location'}</span>
+    <div className="flex items-center gap-1.5 text-sm">
+      <strong>{rating.toFixed(1)}</strong>
+      <span className="flex text-auth-primary">
+        {Array.from({ length: 5 }, (_, index) => (
+          <Star
+            key={index}
+            className={`size-3.5 ${index < Math.round(rating) ? "fill-current" : ""}`}
+          />
+        ))}
+      </span>
+      {count > 0 ? <span className="text-slate-400">({count})</span> : null}
+    </div>
+  );
+}
+
+function DeliveryBadge({ eligible }) {
+  return (
+    <span
+      className={`rounded-md px-2.5 py-1 text-[0.68rem] font-semibold text-white ${eligible ? "bg-green-600" : "bg-auth-primary"}`}
+    >
+      {eligible ? "Delivers to your location" : "Delivery unavailable here"}
+    </span>
+  );
+}
+
+function StoreArtwork({ store, className = "" }) {
+  return store.image ? (
+    <img
+      src={store.image}
+      alt={`${store.name} store`}
+      className={`size-full object-cover ${className}`}
+    />
+  ) : (
+    <div
+      className={`flex size-full items-center justify-center bg-gradient-to-br from-red-50 via-white to-slate-100 ${className}`}
+    >
+      <StoreIcon className="size-12 text-auth-primary" />
+    </div>
+  );
+}
+
+function StoreCard({ store, location, view, popular = false }) {
+  const eligible = resolveDirectoryEligibility(store, location.city);
+  if (view === "list")
+    return (
+      <Link
+        to={`/stores/${store.id}`}
+        className="group flex min-h-28 gap-4 border border-slate-200 bg-white p-3 transition hover:border-auth-primary/40"
+      >
+        <div className="h-24 w-28 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+          <StoreArtwork store={store} />
+        </div>
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="truncate text-lg font-bold group-hover:text-auth-primary">
+              {store.name}
+            </h3>
+            <Rating store={store} />
+            <p className="mt-2 text-xs text-slate-600">{store.city}</p>
+          </div>
+          <DeliveryBadge eligible={eligible} />
+        </div>
+      </Link>
+    );
+  return (
+    <Link to={`/stores/${store.id}`} className="group block min-w-0">
+      <div
+        className={`relative overflow-hidden rounded-xl bg-slate-100 ${popular ? "aspect-[1.9/1]" : "aspect-[1.85/1]"}`}
+      >
+        <StoreArtwork
+          store={store}
+          className="transition duration-500 group-hover:scale-105"
+        />
+        {popular ? null : (
+          <span className="absolute right-3 top-3">
+            <DeliveryBadge eligible={eligible} />
+          </span>
+        )}
+      </div>
+      <div className="mt-3 flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-bold group-hover:text-auth-primary">
+            {store.name}
+          </h3>
+          <p className="mt-1 text-xs text-slate-600">{store.city}</p>
+        </div>
+        {popular ? <DeliveryBadge eligible={eligible} /> : null}
+      </div>
+      <div className="mt-2">
+        <Rating store={store} />
       </div>
     </Link>
-  )
+  );
 }
 
-function EmptyStoresState({ location }) {
+function EmptyStoresState({ query }) {
   return (
-    <section className="relative mt-8 min-h-[430px] overflow-hidden rounded-3xl border border-red-100 bg-gradient-to-br from-white via-white to-red-50/70 px-6 py-16 text-center shadow-[0_14px_44px_rgba(15,23,42,0.05)] sm:flex sm:min-h-[500px] sm:items-center sm:justify-center sm:py-20">
-      <div className="absolute -bottom-32 -left-24 size-72 rounded-full bg-amber-100/50 blur-3xl" />
-      <div className="absolute -right-28 -top-28 size-72 rounded-full bg-red-100/60 blur-3xl" />
-      <div className="relative mx-auto flex max-w-2xl flex-col items-center">
-        <span className="relative flex size-28 items-center justify-center rounded-[2rem] border border-red-100 bg-white text-auth-primary shadow-[0_16px_36px_rgba(153,40,31,0.1)]">
-          <StoreIcon className="size-12" />
-          <span className="absolute -right-2 -top-2 flex size-9 items-center justify-center rounded-full bg-auth-primary text-xl font-medium text-white">+</span>
+    <section className="my-12 flex min-h-[420px] items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-red-50/50 px-6 text-center">
+      <div className="max-w-xl">
+        <span className="mx-auto flex size-24 items-center justify-center rounded-3xl border border-red-100 bg-white text-auth-primary shadow-sm">
+          <StoreIcon className="size-10" />
         </span>
-        <p className="mt-7 text-xs font-extrabold uppercase tracking-[0.22em] text-auth-primary">More stores on the way</p>
-        <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">No stores deliver to {location.city} yet</h2>
-        <p className="mt-4 max-w-xl text-sm leading-7 text-slate-500 sm:text-base">We’re expanding the EZ-Stores marketplace to more neighbourhoods. Choose another delivery location to explore available sellers, or check back soon for new stores near you.</p>
-        <Link to="/" className="mt-8 inline-flex items-center gap-2 rounded-full bg-auth-primary px-7 py-3.5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(153,40,31,0.2)] transition hover:-translate-y-0.5 hover:bg-auth-primary/90">Continue shopping <ArrowRight className="size-4" /></Link>
+        <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-auth-primary">
+          Stores coming soon
+        </p>
+        <h2 className="mt-2 text-3xl font-extrabold tracking-tight">
+          {query
+            ? "No stores match your search"
+            : "No stores are available yet"}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-500">
+          {query
+            ? "Try another store name or location to continue exploring."
+            : "New sellers are joining the marketplace. Please check back soon."}
+        </p>
       </div>
     </section>
-  )
-}
-
-function normalizeSavedLocation(data) {
-  const location = data?.location ?? data
-  if (!location?.city) return null
-  return { region: location.region || 'Greater Accra', city: location.city }
+  );
 }
 
 export default function StoresPage() {
-  const { user, isAuthenticated } = useSelector((state) => state.auth)
-  const { data: landingData, isPending: isLandingPending } = useLandingPageData()
-  const initialLocation = useMemo(() => resolveShoppingLocationDetails(user), [user])
-  const [selectedLocation, setSelectedLocation] = useState(initialLocation)
-  const [hasSelectedLocation, setHasSelectedLocation] = useState(false)
-  const [query, setQuery] = useState('')
-
-  const savedLocationQuery = useQuery({
-    queryKey: ['delivery-location', user?.id],
-    queryFn: getSavedDeliveryLocation,
-    enabled: Boolean(isAuthenticated),
-    staleTime: 5 * 60 * 1000,
-    retry: 0,
-  })
-  const savedLocation = normalizeSavedLocation(savedLocationQuery.data)
-  const location = !hasSelectedLocation && savedLocation ? savedLocation : selectedLocation
+  const user = useSelector((state) => state.auth.user);
+  const location = useMemo(() => resolveShoppingLocationDetails(user), [user]);
+  const [draftQuery, setDraftQuery] = useState("");
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState("grid");
+  const [page, setPage] = useState(1);
   const storesQuery = useQuery({
-    queryKey: ['stores', location.region, location.city],
-    queryFn: () => getStores(location),
-    staleTime: 60 * 1000,
+    queryKey: ["stores", "directory", query, page],
+    // This is the complete marketplace directory. The shopper's location is
+    // used for delivery badges, not to remove stores from the catalogue.
+    queryFn: () => getStores(null, { search: query, page, perPage: PAGE_SIZE }),
+    staleTime: 60_000,
     retry: 0,
-  })
-  const saveLocationMutation = useMutation({ mutationFn: saveDeliveryLocation })
-  const liveStores = useMemo(() => normalizeStoreDirectory(storesQuery.data), [storesQuery.data])
-  const storeDetailQueries = useQueries({
-    queries: liveStores.map((store) => ({
-      queryKey: ['store', store.id, location.region, location.city],
-      queryFn: () => getStore(store.id, location),
-      staleTime: 60 * 1000,
-      retry: 0,
-    })),
-  })
-  const enrichedLiveStores = liveStores.map((store, index) => {
-    const detailedStore = normalizeStoreDirectory(storeDetailQueries[index]?.data)[0]
-    return detailedStore ? { ...store, ...detailedStore } : store
-  })
-  const fallbackStores = useMemo(() => buildStoreDirectory(landingData), [landingData])
-  const stores = storesQuery.isError ? fallbackStores : enrichedLiveStores
-  const filteredStores = stores.filter((store) => store.name.toLowerCase().includes(query.trim().toLowerCase()))
-  const selectedRegion = GHANA_LOCATIONS.find((region) => region.name === location.region) ?? GHANA_LOCATIONS[0]
-  const cityOptions = getCityOptionsByRegion(selectedRegion.id)
-  const citySelectOptions = cityOptions.some((option) => option.city === location.city)
-    ? cityOptions
-    : [{ value: location.city, label: location.city, city: location.city }, ...cityOptions]
-  const isPending = storesQuery.isPending || (storesQuery.isError && isLandingPending)
-
-  useEffect(() => { window.scrollTo(0, 0) }, [])
+  });
+  const stores = useMemo(
+    () => normalizeStoreDirectory(storesQuery.data),
+    [storesQuery.data],
+  );
+  const popularStores = useMemo(
+    () => stores.filter((store) => store.is_popular === true).slice(0, 3),
+    [stores],
+  );
+  const pagination = paginationFrom(storesQuery.data);
+  const pages = Math.max(
+    1,
+    Number(pagination.last_page ?? pagination.total_pages ?? 1),
+  );
+  const total = Number(pagination.total ?? stores.length);
   useEffect(() => {
-    if (savedLocation && !hasSelectedLocation) saveShoppingLocation(savedLocation)
-  }, [hasSelectedLocation, savedLocation])
-
-  const updateLocation = (nextLocation) => {
-    setSelectedLocation(nextLocation)
-    setHasSelectedLocation(true)
-    saveShoppingLocation(nextLocation)
-    if (isAuthenticated) saveLocationMutation.mutate(nextLocation)
-  }
-
-  const updateRegion = (regionName) => {
-    const region = GHANA_LOCATIONS.find((entry) => entry.name === regionName) ?? GHANA_LOCATIONS[0]
-    const firstCity = getCityOptionsByRegion(region.id)[0]?.city || region.name
-    updateLocation({ region: region.name, city: firstCity })
-  }
-
-  const updateCity = (cityValue) => {
-    updateLocation({ region: selectedRegion.name, city: cityValue })
-  }
+    window.scrollTo(0, 0);
+  }, []);
+  const search = (value) => {
+    setDraftQuery(value);
+    setQuery(value.trim());
+    setPage(1);
+  };
 
   return (
-    <SiteLayout><main className="min-h-[70vh] bg-slate-50/60 py-8 sm:py-10"><Container>
-      <section className="relative overflow-hidden rounded-3xl bg-auth-primary px-5 py-8 text-white shadow-[0_18px_50px_rgba(153,40,31,0.2)] sm:px-8 sm:py-10 lg:px-12">
-        <div className="absolute -right-12 -top-16 size-56 rounded-full border-[34px] border-white/10" /><div className="relative max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-white/70">Marketplace directory</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Find stores that deliver to you</h1><p className="mt-3 max-w-xl text-sm leading-6 text-white/75">Browse every seller on EZ-Stores and instantly see which stores serve your selected location.</p></div>
-        <div className="relative mt-7 grid gap-3 rounded-2xl bg-white p-3 shadow-lg sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_12rem_14rem]">
-          <label className="relative sm:col-span-2 lg:col-span-1"><Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search stores" className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-4 text-sm text-slate-800 outline-none focus:border-auth-primary/40" /></label>
-          <label className="relative"><MapPin className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-auth-primary" /><select value={selectedRegion.name} onChange={(event) => updateRegion(event.target.value)} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-700 outline-none focus:border-auth-primary/40">{GHANA_LOCATIONS.map((region) => <option key={region.id} value={region.name}>{region.name}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" /></label>
-          <label className="relative"><MapPin className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-auth-primary" /><select value={location.city} onChange={(event) => updateCity(event.target.value)} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-700 outline-none focus:border-auth-primary/40">{citySelectOptions.map((option) => <option key={option.value} value={option.city}>{option.label}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" /></label>
-        </div>
-      </section>
-      {isPending ? <section className="mt-8"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-72 animate-pulse rounded-2xl bg-slate-200/70" />)}</div></section> : !stores.length ? <EmptyStoresState location={location} /> : <section className="mt-8"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-auth-primary">All stores</p><h2 className="mt-1 text-2xl font-extrabold text-slate-950">Shop by store</h2></div><p className="text-xs text-slate-500">{filteredStores.length} {filteredStores.length === 1 ? 'store' : 'stores'}</p></div>
-        {storesQuery.isError && fallbackStores.length ? <p className="mt-4 rounded-xl border border-red-100 bg-red-50/70 px-4 py-3 text-xs text-slate-600">Live store information is temporarily unavailable. Showing the latest marketplace stores.</p> : null}
-        {filteredStores.length ? <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{filteredStores.map((store) => <StoreCard key={store.id} store={store} location={location} />)}</div> : <div className="mt-5 flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-5 text-center"><Search className="size-8 text-auth-primary" /><h3 className="mt-3 font-bold text-slate-950">No matching stores</h3><p className="mt-1 text-sm text-slate-500">Try another store name or clear your search.</p><button type="button" onClick={() => setQuery('')} className="mt-5 rounded-full bg-auth-primary px-5 py-2.5 text-sm font-bold text-white transition hover:bg-auth-primary/90">Clear search</button></div>}
-      </section>}
-    </Container></main></SiteLayout>
-  )
+    <SiteLayout>
+      <main className="bg-white py-8 sm:py-10">
+        <Container>
+          <section className="mx-auto max-w-3xl text-center">
+            <h1 className="text-3xl font-black tracking-tight text-black sm:text-5xl">
+              Find Stores In your Location
+            </h1>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                search(draftQuery);
+              }}
+              className="relative mt-8"
+            >
+              <input
+                value={draftQuery}
+                onChange={(event) => setDraftQuery(event.target.value)}
+                placeholder="Search"
+                className="h-14 w-full rounded-full border border-slate-300 px-6 pr-16 text-sm outline-none transition focus:border-auth-primary"
+              />
+              <button
+                type="submit"
+                aria-label="Search stores"
+                className="absolute right-2 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-auth-primary text-white"
+              >
+                <Search className="size-6" />
+              </button>
+            </form>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
+              <strong className="mr-1">Recent Searches:</strong>
+              {recentSearches.map((item, index) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => search(item)}
+                  className={`rounded-full border px-4 py-2.5 transition ${index === 0 ? "border-auth-primary bg-auth-primary text-white" : "border-slate-300 text-slate-600 hover:border-auth-primary hover:text-auth-primary"}`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </section>
+          {storesQuery.isPending ? (
+            <div className="mt-12 grid gap-5 md:grid-cols-3">
+              {Array.from({ length: 3 }, (_, index) => (
+                <div
+                  key={index}
+                  className="h-72 animate-pulse rounded-xl bg-slate-100"
+                />
+              ))}
+            </div>
+          ) : storesQuery.isError || !stores.length ? (
+            <EmptyStoresState query={query} />
+          ) : (
+            <>
+              {popularStores.length ? (
+                <section className="mt-12">
+                  <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+                    Popular Stores
+                  </h2>
+                  <div className="mt-6 grid gap-6 md:grid-cols-3">
+                    {popularStores.map((store) => (
+                      <StoreCard
+                        key={store.id}
+                        store={store}
+                        location={location}
+                        popular
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              <section className="mt-12">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+                      All Stores
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {total} {total === 1 ? "store" : "stores"}
+                    </p>
+                  </div>
+                  <div className="flex overflow-hidden rounded-lg border border-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => setView("grid")}
+                      className={`flex items-center gap-2 px-3 py-2 text-xs ${view === "grid" ? "text-auth-primary" : ""}`}
+                    >
+                      <Grid2X2 className="size-4" /> Cards
+                    </button>
+                    <span className="my-2 border-l border-slate-300" />
+                    <button
+                      type="button"
+                      onClick={() => setView("list")}
+                      className={`flex items-center gap-2 px-3 py-2 text-xs ${view === "list" ? "text-auth-primary" : ""}`}
+                    >
+                      <List className="size-4" /> List
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className={`mt-5 grid gap-x-5 gap-y-7 ${view === "grid" ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2"}`}
+                >
+                  {stores.map((store) => (
+                    <StoreCard
+                      key={store.id}
+                      store={store}
+                      location={location}
+                      view={view}
+                    />
+                  ))}
+                </div>
+                {pages > 1 ? (
+                  <nav className="mt-10 flex justify-center gap-2">
+                    <button
+                      type="button"
+                      disabled={page === 1}
+                      onClick={() => setPage((value) => value - 1)}
+                      className="flex size-9 items-center justify-center border border-slate-200 disabled:opacity-30"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
+                    {Array.from({ length: pages }, (_, index) => index + 1).map(
+                      (number) => (
+                        <button
+                          type="button"
+                          key={number}
+                          onClick={() => setPage(number)}
+                          className={`size-9 text-sm ${page === number ? "bg-auth-primary text-white" : ""}`}
+                        >
+                          {number}
+                        </button>
+                      ),
+                    )}
+                    <button
+                      type="button"
+                      disabled={page === pages}
+                      onClick={() => setPage((value) => value + 1)}
+                      className="flex size-9 items-center justify-center border border-slate-200 disabled:opacity-30"
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
+                  </nav>
+                ) : null}
+              </section>
+            </>
+          )}
+        </Container>
+      </main>
+    </SiteLayout>
+  );
 }

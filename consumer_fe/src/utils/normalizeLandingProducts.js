@@ -1,34 +1,44 @@
-import { enrichLandingProductForFilters, getMetadataValue, resolveProductDisplayPrices } from './extractProductVariantFacets'
-import { calculateDisplayDiscountPercent } from './productPricing'
+import {
+  enrichLandingProductForFilters,
+  getMetadataValue,
+  resolveProductDisplayPrices,
+} from './extractProductVariantFacets';
+import { calculateDisplayDiscountPercent } from './productPricing';
 
 const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80'
+  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80';
 
 function firstValue(...values) {
-  return values.find((value) => value !== undefined && value !== null && value !== '')
+  return values.find(
+    (value) => value !== undefined && value !== null && value !== '',
+  );
 }
 
 function toArray(value) {
-  if (Array.isArray(value)) return value
-  if (Array.isArray(value?.data)) return value.data
-  if (Array.isArray(value?.products)) return value.products
-  return []
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.products)) return value.products;
+  return [];
 }
 
 function toNumber(value, fallback = 0) {
-  if (value === undefined || value === null || value === '') return fallback
-  const number = Number(String(value).replace(/[^\d.-]/g, ''))
-  return Number.isFinite(number) ? number : fallback
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(String(value).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(number) ? number : fallback;
 }
 
 export function isProductActive(product) {
-  if (!product || typeof product !== 'object') return false
-  const status = firstValue(product.is_active, product.isActive, product.active)
-  if (status === undefined) return true
-  if (typeof status === 'boolean') return status
-  if (typeof status === 'number') return status === 1
-  const normalized = String(status).trim().toLowerCase()
-  return ['true', '1', 'yes', 'active'].includes(normalized)
+  if (!product || typeof product !== 'object') return false;
+  const status = firstValue(
+    product.is_active,
+    product.isActive,
+    product.active,
+  );
+  if (status === undefined) return true;
+  if (typeof status === 'boolean') return status;
+  if (typeof status === 'number') return status === 1;
+  const normalized = String(status).trim().toLowerCase();
+  return ['true', '1', 'yes', 'active'].includes(normalized);
 }
 
 function slugify(value) {
@@ -36,12 +46,12 @@ function slugify(value) {
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
+    .replace(/(^-|-$)/g, '');
 }
 
 function getNestedImage(value) {
-  if (!value) return null
-  if (typeof value === 'string') return value
+  if (!value) return null;
+  if (typeof value === 'string') return value;
   return firstValue(
     value.url,
     value.image_url,
@@ -49,14 +59,16 @@ function getNestedImage(value) {
     value.path,
     value.secure_url,
     value.thumbnail,
-  )
+  );
 }
 
 function getProductImage(product) {
-  const images = toArray(product.images)
-  const gallery = toArray(product.gallery)
-  const productImages = toArray(product.product_images)
-  const variationImages = toArray(product.variants?.[0]?.images || product.variations?.[0]?.images)
+  const images = toArray(product.images);
+  const gallery = toArray(product.gallery);
+  const productImages = toArray(product.product_images);
+  const variationImages = toArray(
+    product.variants?.[0]?.images || product.variations?.[0]?.images,
+  );
 
   return firstValue(
     getNestedImage(product.primary_image),
@@ -69,32 +81,46 @@ function getProductImage(product) {
     getNestedImage(productImages[0]),
     getNestedImage(variationImages[0]),
     FALLBACK_IMAGE,
-  )
+  );
 }
 
 function getVariantText(product) {
-  const variation = toArray(product.variants || product.variations)[0]
-  const color = firstValue(product.color, product.colour, variation?.color, variation?.colour)
-  const size = firstValue(product.size, variation?.size)
+  const variation = toArray(product.variants || product.variations)[0];
+  const color = firstValue(
+    product.color,
+    product.colour,
+    variation?.color,
+    variation?.colour,
+  );
+  const size = firstValue(product.size, variation?.size);
   const category = firstValue(
     product.category?.name,
     product.category?.category_name,
     product.category_name,
-  )
-  const store = firstValue(product.store?.name, product.store?.store_name, product.vendor?.name)
-  const parts = [color && `Color:${color}`, size && `Size:${size}`].filter(Boolean)
+  );
+  const store = firstValue(
+    product.store?.name,
+    product.store?.store_name,
+    product.vendor?.name,
+  );
+  const parts = [color && `Color:${color}`, size && `Size:${size}`].filter(
+    Boolean,
+  );
 
-  return parts.join('  ') || firstValue(product.variant, category, store, 'E-Mall product')
+  return (
+    parts.join('  ') ||
+    firstValue(product.variant, category, store, 'E-Mall product')
+  );
 }
 
 function resolveProductCardPrices(product, variation) {
-  const { price, compareAt } = resolveProductDisplayPrices(product, variation)
-  return { price, compareAt }
+  const { price, compareAt } = resolveProductDisplayPrices(product, variation);
+  return { price, compareAt };
 }
 
 function getDiscountPercent(product, variation, price, compareAt) {
-  const metadata = toArray(product.metadata)
-  const variationMetadata = toArray(variation?.metadata)
+  const metadata = toArray(product.metadata);
+  const variationMetadata = toArray(variation?.metadata);
   const explicit = firstValue(
     product.discount_percent,
     product.discountPercentage,
@@ -102,33 +128,53 @@ function getDiscountPercent(product, variation, price, compareAt) {
     getMetadataValue(metadata, 'discount_percent'),
     getMetadataValue(variationMetadata, 'percent_off'),
     getMetadataValue(variationMetadata, 'discount_percent'),
-  )
+  );
   if (explicit !== undefined) {
-    const explicitDiscount = toNumber(explicit, null)
-    if (explicitDiscount > 0 && explicitDiscount < 100) return explicitDiscount
+    const explicitDiscount = toNumber(explicit, null);
+    if (explicitDiscount > 0 && explicitDiscount < 100) return explicitDiscount;
   }
   if (compareAt != null && compareAt > price && price > 0) {
-    return calculateDisplayDiscountPercent(compareAt, price)
+    return calculateDisplayDiscountPercent(compareAt, price);
   }
-  return null
+  return null;
 }
 
 export function normalizeLandingProduct(product, index = 0, options = {}) {
-  if (!product || typeof product !== 'object') return null
-  if (!isProductActive(product)) return null
+  if (!product || typeof product !== 'object') return null;
+  if (!isProductActive(product)) return null;
 
-  const variation = toArray(product.variants || product.variations)[0]
-  const backendId = firstValue(product.id, product.product_id, product.uuid)
-  const id = backendId ?? `${options.prefix ?? 'product'}-${index}`
-  const name = firstValue(product.name, product.product_name, product.title, variation?.name, 'Product')
-  const slug = firstValue(product.slug, product.product_slug, slugify(`${name}-${id}`))
-  const { price, compareAt } = resolveProductCardPrices(product, variation)
-  const discountPercent = getDiscountPercent(product, variation, price, compareAt)
-  const categoryRecord = product.category && typeof product.category === 'object' ? product.category : null
+  const variation = toArray(product.variants || product.variations)[0];
+  const backendId = firstValue(product.id, product.product_id, product.uuid);
+  const id = backendId ?? `${options.prefix ?? 'product'}-${index}`;
+  const name = firstValue(
+    product.name,
+    product.product_name,
+    product.title,
+    variation?.name,
+    'Product',
+  );
+  const slug = firstValue(
+    product.slug,
+    product.product_slug,
+    slugify(`${name}-${id}`),
+  );
+  const { price, compareAt } = resolveProductCardPrices(product, variation);
+  const discountPercent = getDiscountPercent(
+    product,
+    variation,
+    price,
+    compareAt,
+  );
+  const categoryRecord =
+    product.category && typeof product.category === 'object'
+      ? product.category
+      : null;
   const subcategoryRecord =
-    product.subcategory && typeof product.subcategory === 'object' ? product.subcategory : null
-  const filterFields = enrichLandingProductForFilters(product, index, options)
-  const priceRange = { min: filterFields.minPrice, max: filterFields.maxPrice }
+    product.subcategory && typeof product.subcategory === 'object'
+      ? product.subcategory
+      : null;
+  const filterFields = enrichLandingProductForFilters(product, index, options);
+  const priceRange = { min: filterFields.minPrice, max: filterFields.maxPrice };
 
   return {
     id,
@@ -138,18 +184,36 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
     variant: getVariantText(product),
     price,
     compareAt,
-    rating: toNumber(firstValue(product.rating, product.average_rating, product.avg_rating), 4.5),
-    reviewCount: toNumber(firstValue(product.reviews_count, product.review_count, product.total_reviews), 0),
+    rating: toNumber(
+      firstValue(product.rating, product.average_rating, product.avg_rating),
+      4.5,
+    ),
+    reviewCount: toNumber(
+      firstValue(
+        product.reviews_count,
+        product.review_count,
+        product.total_reviews,
+      ),
+      0,
+    ),
     href: `/${slug}`,
     image: getProductImage(product),
     discountPercent,
-    isHot: Boolean(firstValue(product.is_hot, product.hot, product.is_flash_sale, options.isHot)),
+    isHot: Boolean(
+      firstValue(
+        product.is_hot,
+        product.hot,
+        product.is_flash_sale,
+        options.isHot,
+      ),
+    ),
     category: firstValue(
       categoryRecord?.category_name,
       categoryRecord?.name,
       product.category_name,
       typeof product.category === 'string' ? product.category : null,
     ),
+    categoryId: firstValue(categoryRecord?.id, product.category_id),
     categorySlug: firstValue(categoryRecord?.slug, product.category_slug),
     subcategory: firstValue(
       subcategoryRecord?.category_name,
@@ -157,18 +221,23 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
       product.subcategory_name,
       typeof product.subcategory === 'string' ? product.subcategory : null,
     ),
-    subcategorySlug: firstValue(subcategoryRecord?.slug, product.subcategory_slug),
+    subcategorySlug: firstValue(
+      subcategoryRecord?.slug,
+      product.subcategory_slug,
+    ),
+    subcategoryId: firstValue(subcategoryRecord?.id, product.subcategory_id),
     variants: filterFields.variants,
     variantFacets: filterFields.variantFacets,
     brand: filterFields.brand,
+    brandId: firstValue(product.brand?.id, product.brand_id),
     condition: filterFields.condition,
     minPrice: priceRange.min,
     maxPrice: priceRange.max,
-  }
+  };
 }
 
 export function normalizeLandingProducts(products, options = {}) {
   return toArray(products)
     .map((product, index) => normalizeLandingProduct(product, index, options))
-    .filter(Boolean)
+    .filter(Boolean);
 }

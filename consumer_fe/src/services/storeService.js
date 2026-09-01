@@ -19,9 +19,20 @@ function locationParams(location) {
   }
 }
 
-export async function getStores(location) {
+function cleanParams(params) {
+  return Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''))
+}
+
+export async function getStores(location, options = {}) {
   const { data } = await apiClient.get('/stores', {
-    params: locationParams(location),
+    params: cleanParams({
+      ...locationParams(location),
+      search: options.search,
+      popular: options.popular,
+      sort: options.sort,
+      page: options.page,
+      per_page: options.perPage,
+    }),
     skipAuthLogout: true,
   })
   return unwrap(data)
@@ -30,14 +41,45 @@ export async function getStores(location) {
 export async function getStore(storeId, location) {
   const { data } = await apiClient.get(`/stores/${storeId}`, {
     params: locationParams(location),
+    // Store details are public. Sending the authenticated session currently
+    // triggers the backend StoreFollowService while the response already has a
+    // dedicated follow-status endpoint on the frontend.
+    guestSessionOnly: true,
     skipAuthLogout: true,
   })
   return unwrap(data)
 }
 
-export async function getStoreProducts(storeId, location) {
+export async function getStoreProducts(storeId, location, options = {}) {
   const { data } = await apiClient.get(`/stores/${storeId}/products`, {
-    params: locationParams(location),
+    params: cleanParams({
+      ...locationParams(location),
+      search: options.search,
+      category_id: options.categoryId,
+      subcategory_id: options.subcategoryId,
+      brand_id: options.brandId,
+      color: options.color,
+      size: options.size,
+      min_price: options.minPrice,
+      max_price: options.maxPrice,
+      promotional: options.promotional,
+      sort: options.sort,
+      page: options.page,
+      per_page: options.perPage,
+    }),
+    // The directory is public. Follow information is loaded separately so a
+    // signed-in session cannot make the public catalogue depend on the
+    // backend's authenticated follow-status enrichment.
+    guestSessionOnly: true,
+    skipAuthLogout: true,
+  })
+  return unwrap(data)
+}
+
+export async function getStoreReviews(storeId, options = {}) {
+  const { data } = await apiClient.get(`/stores/${storeId}/reviews`, {
+    params: cleanParams({ page: options.page ?? 1, per_page: options.perPage ?? 10 }),
+    guestSessionOnly: true,
     skipAuthLogout: true,
   })
   return unwrap(data)

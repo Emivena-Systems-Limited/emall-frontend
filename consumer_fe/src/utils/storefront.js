@@ -21,6 +21,7 @@ const fallbackStores = [
 const sectionKeys = ['recommended_products', 'best_sellers', 'flash_sales', 'random_products']
 const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== '')
 const normalizeArea = (value) => typeof value === 'string' ? value.trim() : String(firstValue(value?.city, value?.name, value?.city_or_town, value?.region) ?? '').trim()
+const titleCase = (value) => String(value ?? '').toLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toUpperCase())
 const normalizeBoolean = (value) => {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value === 1
@@ -60,6 +61,7 @@ function asArray(value) {
 export function normalizeStoreRecord(record, index = 0) {
   if (!record || typeof record !== 'object') return null
   const source = record.store && typeof record.store === 'object' ? record.store : record
+  const serviceAreas = getServiceAreas(source)
   const products = asArray(source.products)
     .map((product, productIndex) => normalizeLandingProduct(product, productIndex, { prefix: `store-${index}` }))
     .filter(Boolean)
@@ -67,10 +69,26 @@ export function normalizeStoreRecord(record, index = 0) {
     ...source,
     id: String(firstValue(source.id, source.store_id, source.uuid, `store-${index}`)),
     name: firstValue(source.store_name, source.business_name, source.name, source.title, 'Marketplace store'),
-    city: firstValue(source.city, source.city_or_town, source.location?.city, source.address?.city, source.address?.city_or_town, 'Ghana'),
+    city: titleCase(firstValue(
+      source.city,
+      source.city_or_town,
+      source.store_location,
+      source.location_name,
+      typeof source.location === 'string' ? source.location : undefined,
+      source.location?.city,
+      source.location?.city_or_town,
+      source.address?.city,
+      source.address?.city_or_town,
+      source.region,
+      source.location?.region,
+      source.address?.region,
+      serviceAreas[0],
+      'Location unavailable',
+    )),
     region: firstValue(source.region, source.location?.region, source.address?.region, ''),
     image: firstValue(source.cover_image, source.cover_photo, source.banner, source.banner_image, source.store_image, source.store_logo, source.logo, source.image, source.avatar, source.profile_image, products[0]?.image, null),
-    serviceAreas: getServiceAreas(source),
+    bannerImage: firstValue(source.banner_image, source.cover_image, source.cover_photo, source.banner, null),
+    serviceAreas,
     explicitEligibility: firstValue(source.delivery_eligible, source.delivers_to_user_location, source.is_delivery_eligible),
     deliveryMessage: firstValue(source.delivery_message, source.eligibility_message, ''),
     products,
