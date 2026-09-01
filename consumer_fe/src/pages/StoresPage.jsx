@@ -21,9 +21,19 @@ import {
 } from "../utils/storefront";
 
 const PAGE_SIZE = 6;
-const recentSearches = ["Kaneshie", "Spintex", "Amasaman"];
-const paginationFrom = (payload) =>
-  payload?.pagination ?? payload?.meta ?? payload?.data?.pagination ?? {};
+const RECENT_SEARCHES_KEY = "emall:store-recent-searches";
+
+function readRecentSearches() {
+  if (typeof window === "undefined") return [];
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(RECENT_SEARCHES_KEY) || "[]",
+    );
+    return Array.isArray(saved) ? saved.filter(Boolean).slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+}
 
 function resolveDirectoryEligibility(store, city) {
   // The directory request is intentionally unfiltered so every store appears.
@@ -172,13 +182,14 @@ export default function StoresPage() {
   const location = useMemo(() => resolveShoppingLocationDetails(user), [user]);
   const [draftQuery, setDraftQuery] = useState("");
   const [query, setQuery] = useState("");
+  const [recentSearches, setRecentSearches] = useState(readRecentSearches);
   const [view, setView] = useState("grid");
   const [page, setPage] = useState(1);
   const storesQuery = useQuery({
-    queryKey: ["stores", "directory", query, page],
+    queryKey: ["stores", "directory"],
     // This is the complete marketplace directory. The shopper's location is
     // used for delivery badges, not to remove stores from the catalogue.
-    queryFn: () => getStores(null, { search: query, page, perPage: PAGE_SIZE }),
+    queryFn: () => getStores(null, { page: 1, perPage: 50 }),
     staleTime: 60_000,
     retry: 0,
   });
@@ -186,23 +197,59 @@ export default function StoresPage() {
     () => normalizeStoreDirectory(storesQuery.data),
     [storesQuery.data],
   );
+  const filteredStores = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return stores;
+    return stores.filter((store) => {
+      const searchableValues = [
+        store.name,
+        store.city,
+        store.region,
+        typeof store.address === "string"
+          ? store.address
+          : store.address?.address,
+        ...(store.serviceAreas ?? []),
+      ];
+      return searchableValues.some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(needle),
+      );
+    });
+  }, [query, stores]);
   const popularStores = useMemo(
-    () => stores.filter((store) => store.is_popular === true).slice(0, 3),
-    [stores],
+    () =>
+      query
+        ? []
+        : stores.filter((store) => store.is_popular === true).slice(0, 3),
+    [query, stores],
   );
-  const pagination = paginationFrom(storesQuery.data);
-  const pages = Math.max(
-    1,
-    Number(pagination.last_page ?? pagination.total_pages ?? 1),
+  const pages = Math.max(1, Math.ceil(filteredStores.length / PAGE_SIZE));
+  const visibleStores = filteredStores.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
   );
-  const total = Number(pagination.total ?? stores.length);
+  const total = filteredStores.length;
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
   const search = (value) => {
-    setDraftQuery(value);
-    setQuery(value.trim());
+    const normalized = value.trim();
+    setDraftQuery(normalized);
+    setQuery(normalized);
     setPage(1);
+    if (normalized) {
+      setRecentSearches((current) => {
+        const next = [
+          normalized,
+          ...current.filter(
+            (item) => item.toLowerCase() !== normalized.toLowerCase(),
+          ),
+        ].slice(0, 5);
+        window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+        return next;
+      });
+    }
   };
 
   return (
@@ -234,19 +281,21 @@ export default function StoresPage() {
                 <Search className="size-6" />
               </button>
             </form>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
-              <strong className="mr-1">Recent Searches:</strong>
-              {recentSearches.map((item, index) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => search(item)}
-                  className={`rounded-full border px-4 py-2.5 transition ${index === 0 ? "border-auth-primary bg-auth-primary text-white" : "border-slate-300 text-slate-600 hover:border-auth-primary hover:text-auth-primary"}`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
+            {recentSearches.length ? (
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
+                <strong className="mr-1">Recent Searches:</strong>
+                {recentSearches.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => search(item)}
+                    className={`rounded-full border px-4 py-2.5 transition ${query.toLowerCase() === item.toLowerCase() ? "border-auth-primary bg-auth-primary text-white" : "border-slate-300 text-slate-600 hover:border-auth-primary hover:text-auth-primary"}`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </section>
           {storesQuery.isPending ? (
             <div className="mt-12 grid gap-5 md:grid-cols-3">
@@ -257,7 +306,7 @@ export default function StoresPage() {
                 />
               ))}
             </div>
-          ) : storesQuery.isError || !stores.length ? (
+          ) : storesQuery.isError || !filteredStores.length ? (
             <EmptyStoresState query={query} />
           ) : (
             <>
@@ -309,7 +358,7 @@ export default function StoresPage() {
                 <div
                   className={`mt-5 grid gap-x-5 gap-y-7 ${view === "grid" ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2"}`}
                 >
-                  {stores.map((store) => (
+                  {visibleStores.map((store) => (
                     <StoreCard
                       key={store.id}
                       store={store}
