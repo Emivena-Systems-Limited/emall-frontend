@@ -25,7 +25,7 @@ export const accountNavigationItems = [
   { id: 'addresses', label: 'Addresses', icon: MapPin, href: '/account/addresses', enabled: true },
   { id: 'settings', label: 'Account Settings', icon: Settings, href: '/account/settings', enabled: true },
   { id: 'notifications', label: 'Notifications', icon: Bell, href: '/account/notifications', enabled: false },
-  { id: 'support', label: 'Help & Support', icon: CircleHelp, href: '/account/support', enabled: false },
+  { id: 'support', label: 'Help & Support', icon: CircleHelp, href: '/account/support', enabled: true },
 ]
 
 export const accountOverviewStatistics = [

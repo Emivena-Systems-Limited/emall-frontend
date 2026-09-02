@@ -1,12 +1,11 @@
 import { Link } from 'react-router'
-import { Bell, CircleHelp, Settings } from 'lucide-react'
+import { Bell, Settings } from 'lucide-react'
 import AccountSectionShell from './AccountSectionShell'
 import { accountSectionMeta } from './accountNavigation'
 
 const sectionIcons = {
   settings: Settings,
   notifications: Bell,
-  support: CircleHelp,
 }
 
 function AccountComingSoonPanel({ sectionId, actionLabel, actionHref }) {
@@ -48,8 +47,4 @@ export function AccountSettingsPanel() {
 
 export function AccountNotificationsPanel() {
   return <AccountComingSoonPanel sectionId="notifications" />
-}
-
-export function AccountSupportPanel() {
-  return <AccountComingSoonPanel sectionId="support" />
 }

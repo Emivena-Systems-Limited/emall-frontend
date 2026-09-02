@@ -6,10 +6,10 @@ import AccountCouponsPanel from './AccountCouponsPanel'
 import AccountReviewsPanel from './AccountReviewsPanel'
 import AccountReturnsPanel from './AccountReturnsPanel'
 import AccountFollowedStoresPanel from './AccountFollowedStoresPanel'
+import AccountSupportPanel from './AccountSupportPanel'
 import {
   AccountNotificationsPanel,
   AccountSettingsPanel,
-  AccountSupportPanel,
 } from './AccountPlaceholderPanels'
 import { resolveAccountSectionId } from './accountNavigation'
 
