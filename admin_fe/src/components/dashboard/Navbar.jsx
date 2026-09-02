@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
-import { useNavigate } from 'react-router'
-import { ChevronDown, LogOut, Menu, Shield, User } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router'
+import { Bell, ChevronDown, LogOut, Menu, User } from 'lucide-react'
 import { useLogoutAdminMutation } from '../../hooks/useAuthMutations'
 import Images from '../../utils/Images'
+import { getProfileDisplayName, getProfileInitials } from '../../utils/profileUtils'
 
 function UserMenu({ user, logoutMutation }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const ref = useRef(null)
-  const displayName = user?.full_name ?? 'Operator'
+  const displayName = getProfileDisplayName(user)
   const role = user?.role ?? 'Admin'
-  const initials = (displayName[0] ?? 'A').toUpperCase()
+  const initials = getProfileInitials(user)
 
   useEffect(() => {
     const handleOutside = (event) => {
@@ -36,9 +37,13 @@ function UserMenu({ user, logoutMutation }) {
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
-          {initials}
-        </span>
+        {user?.avatar_url ? (
+          <img src={user.avatar_url} alt="" className="size-8 shrink-0 rounded-full object-cover" />
+        ) : (
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
+            {initials}
+          </span>
+        )}
         <span className="hidden min-w-0 text-left sm:block">
           <span className="block max-w-[140px] truncate text-xs font-bold text-slate-900">{displayName}</span>
           <span className="block max-w-[140px] truncate text-[10px] font-medium text-slate-500">{role}</span>
@@ -82,6 +87,8 @@ function UserMenu({ user, logoutMutation }) {
 export default function Navbar({ onMobileMenuOpen, pageTitle }) {
   const { user } = useSelector((state) => state.auth)
   const logoutMutation = useLogoutAdminMutation()
+  const { pathname } = useLocation()
+  const notificationsActive = pathname.startsWith('/notifications')
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur-sm sm:px-5">
@@ -105,10 +112,18 @@ export default function Navbar({ onMobileMenuOpen, pageTitle }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <span className="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200 sm:inline-flex">
-          <Shield className="size-3" />
-          Internal
-        </span>
+        <Link
+          to="/notifications"
+          aria-label="Notifications"
+          aria-current={notificationsActive ? 'page' : undefined}
+          className={`inline-flex size-9 cursor-pointer items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+            notificationsActive
+              ? 'bg-brand-light text-brand'
+              : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+          }`}
+        >
+          <Bell className="size-4" strokeWidth={2} aria-hidden="true" />
+        </Link>
         <UserMenu user={user} logoutMutation={logoutMutation} />
       </div>
     </header>

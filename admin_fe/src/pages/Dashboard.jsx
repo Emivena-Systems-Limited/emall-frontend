@@ -6,8 +6,10 @@ import AttentionQueue from '../components/dashboard/AttentionQueue'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardLoader from '../components/dashboard/DashboardLoader'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
-import GmvTrendChart from '../components/dashboard/GmvTrendChart'
+import SalesMixChart from '../components/dashboard/SalesMixChart'
 import LiveOrdersFeed from '../components/dashboard/LiveOrdersFeed'
+import OrderStatusChart from '../components/dashboard/OrderStatusChart'
+import RegionalSalesChart from '../components/dashboard/RegionalSalesChart'
 import VendorPipeline from '../components/dashboard/VendorPipeline'
 import { useDashboardReveal } from '../hooks/useDashboardReveal'
 
@@ -56,7 +58,7 @@ export default function Dashboard() {
           <DashboardReveal index={2}>
             <div className="grid items-stretch gap-5 lg:grid-cols-5">
               <div className="h-full lg:col-span-3">
-                <GmvTrendChart />
+                <SalesMixChart />
               </div>
               <div className="h-full lg:col-span-2">
                 <AttentionQueue />
@@ -65,6 +67,14 @@ export default function Dashboard() {
           </DashboardReveal>
 
           <DashboardReveal index={3}>
+            <OrderStatusChart />
+          </DashboardReveal>
+
+          <DashboardReveal index={4}>
+            <RegionalSalesChart />
+          </DashboardReveal>
+
+          <DashboardReveal index={5}>
             <div className="grid items-stretch gap-5 lg:grid-cols-5">
               <div className="h-full lg:col-span-3">
                 <LiveOrdersFeed />

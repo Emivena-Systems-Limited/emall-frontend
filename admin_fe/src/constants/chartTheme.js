@@ -11,3 +11,19 @@ export const CHART_AXIS_TICK_Y = {
   fill: '#94a3b8',
   fontFamily: INSTRUMENT_SANS,
 }
+
+export const DONUT_CENTER_LABEL = {
+  fontSize: 11,
+  fill: '#94a3b8',
+  fontFamily: INSTRUMENT_SANS,
+  fontWeight: 600,
+}
+
+export function donutCenterValueStyle(fontSize = 22) {
+  return {
+    fontSize,
+    fontWeight: 700,
+    fill: '#0f172a',
+    fontFamily: INSTRUMENT_SANS,
+  }
+}

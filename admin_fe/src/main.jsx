@@ -8,6 +8,7 @@ import { PersistGate } from 'redux-persist/integration/react'
 import { queryClient } from './lib/queryClient.js'
 import { store, persistor } from './store/store.js'
 import NotificationProvider from './components/NotificationProvider.jsx'
+import SessionRestore from './components/auth/SessionRestore.jsx'
 import './index.css'
 import App from './App.jsx'
 
@@ -15,7 +16,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <Provider store={store}>
-        <PersistGate loading={null} persistor={persistor}>
+        <PersistGate loading={<SessionRestore />} persistor={persistor}>
           <BrowserRouter>
             <App />
             <NotificationProvider />

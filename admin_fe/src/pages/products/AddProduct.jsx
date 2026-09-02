@@ -1,0 +1,2400 @@
+import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Form, Formik, getIn } from 'formik'
+import { Link, useNavigate } from 'react-router'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BadgePercent,
+  Box,
+  Check,
+  ImagePlus,
+  Info,
+  Layers3,
+  Loader2,
+  Package,
+  PackageSearch,
+  Plus,
+  Ruler,
+  Store,
+  Trash2,
+} from 'lucide-react'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import ProductStepper from '../../components/products/ProductStepper'
+import ProductRichTextEditor from '../../components/products/ProductRichTextEditor'
+import ProductImageUploader from '../../components/products/ProductImageUploader'
+import DescriptiveImageUploader from '../../components/products/DescriptiveImageUploader'
+import ProductKeyDetailsInput from '../../components/products/ProductKeyDetailsInput'
+import MainProductOptionFields from '../../components/products/MainProductOptionFields'
+import ProductMainImageUpload from '../../components/products/ProductMainImageUpload'
+import ProductImageEditChangeSummary from '../../components/products/ProductImageEditChangeSummary'
+import AttributeIcon from '../../components/variants/AttributeIcon'
+import AttributeTypePicker from '../../components/variants/AttributeTypePicker'
+import CardStepHeader from '../../components/variants/CardStepHeader'
+import VariantAccordionCard from '../../components/variants/VariantAccordionCard'
+import DefaultVariationCard from '../../components/variants/DefaultVariationCard'
+import VariantGroupActionBar from '../../components/variants/VariantGroupActionBar'
+import VariantReviewCard from '../../components/variants/VariantReviewCard'
+import { isPresetAttribute, isColorVariantAttribute } from '../../components/variants/variantConstants'
+import { getSingleVariantValuePlaceholder, parseMultiValues } from '../../components/variants/variantFormUtils'
+import DevProductFormTools from '../../components/products/DevProductFormTools'
+import ProductTagInput from '../../components/products/ProductTagInput'
+import SearchableSelect from '../../components/auth/SearchableSelect'
+import {
+  GuidanceCard,
+  // OptionalBadge,
+  OptionalSection,
+  OptionalSectionHeader,
+  ProductInput,
+  ProductMoneyInput,
+  ProductSelect,
+} from '../../components/products/ProductFormControls'
+import {
+  DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL,
+  FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+  MAX_DESCRIPTIVE_IMAGE_COUNT,
+  PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL,
+  PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
+  PRODUCT_CONDITION_OPTIONS,
+} from '../../constants/products'
+import {
+  findCategoryById,
+  getSubcategoriesForParentId,
+  toSelectOptions,
+} from '../../utils/normalizeCategories'
+import { findBrandById, getBrandDisplayLabel, toBrandSelectOptions, withResolvedBrandId } from '../../utils/normalizeBrands'
+import { useApprovedBrands } from '../../hooks/useBrands'
+import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
+import { useProductCategoryOptions } from '../../hooks/useCategories'
+import { productListingSchema } from '../../utils/validationSchemas'
+import {
+  buildProductPayload,
+  buildProductCreateJsonPayload,
+  formatProductPayloadSample,
+} from '../../utils/productPayload'
+import {
+  buildVariationCatalogContext,
+  formatDefaultVariationLabel,
+  resolveDefaultVariationIdentity,
+  ensureDefaultProductVariations,
+  hasAnyProductVariationValues,
+  isMainProductOption,
+} from '../../utils/defaultProductVariation'
+import {
+  buildProductMediaPresignRequest,
+  buildProductMediaSaveImagesPayload,
+} from '../../utils/productMediaUploadUtils'
+import { PRODUCT_PUBLISH_STAGE, USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../../constants/productMediaUpload'
+import useProductMediaUpload from '../../hooks/useProductMediaUpload'
+import ProductPublishProgressModal from '../../components/products/ProductPublishProgressModal'
+import { useCreateProductMutation, useUpdateProductMutation } from '../../hooks/useProductMutations'
+import { productQueryKeys } from '../../hooks/useProducts'
+import {
+  convertDiscountAmountToPercent,
+  convertDiscountPercentToAmount,
+  formatCustomerPriceRange,
+  formatMoney,
+  getDiscountSummary,
+  getParentProductPricing,
+  getVariationCustomerPriceRange,
+} from '../../utils/productPricing'
+import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirstError'
+import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
+import { parseApiError } from '../../utils/parseApiError'
+import {
+  assertVariationBarcodesAvailable,
+  collectKnownBarcodes,
+  mapFieldErrorsToFormikErrors,
+} from '../../utils/variantIdentityValidation'
+import {
+  assertPayloadSkuUniqueness,
+  buildVariantSkuCandidates,
+  fetchKnownSkusForSubmit,
+  prepareVariationsForSubmit,
+  resolveProductSkuForSubmit,
+} from '../../utils/variantSkuRegistry'
+import notify from '../../lib/notify'
+import { isLocalEnvironment } from '../../utils/environment'
+import { getProductConditionLabel } from '../../utils/productMetadata'
+import {
+  validateProductImageLimits,
+  validateDescriptiveImageLimits,
+  validateDescriptiveImageDimensions,
+  validateFeaturedImageDimensions,
+  validateGalleryImagesRequired,
+  validatePrimaryImageDimensions,
+  hasUsableProductImages,
+} from '../../utils/productImageUtils'
+
+const productListingSteps = [
+  { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
+  { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
+  { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
+  { id: 'variations', title: 'Variations',    caption: 'Default option plus extra colors & sizes' },
+  { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
+  { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
+]
+
+const PRODUCT_LISTING_PRICING_STEP = 2
+const PRODUCT_LISTING_VARIATIONS_STEP = 3
+
+const productListingStepFields = [
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value', 'has_compatible_models', 'compatible_models'],
+  [],
+  ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
+  ['variations'],
+  [],
+  [],
+]
+
+const productListingInitialValues = {
+  name:               '',
+  sku:                '',
+  description:        '',
+  category_id:        '',
+  subcategory_id:     '',
+  brand_id:           '',
+  condition:          '',
+  tags:               [],
+  key_details:        [],
+  main_attribute:      '',
+  main_attribute_value:'',
+  has_compatible_models: false,
+  compatible_models:  [],
+  price:              '',
+  discount_mode:      'amount',
+  discount_price:     '',
+  discount_percent:   '',
+  quantity:           '',
+  low_stock_threshold:'',
+  barcode:            '',
+  variations:         [],
+  shipping_weight:    '',
+  shipping_length:    '',
+  shipping_width:     '',
+  shipping_height:    '',
+  status:             'draft',
+}
+
+function getTouchedForFields(fields, values) {
+  return fields.reduce((touched, field) => {
+    if (field === 'key_details') {
+      return {
+        ...touched,
+        key_details: (values.key_details ?? []).map(() => ({ key: true, value: true })),
+      }
+    }
+    if (field === 'variations') {
+      const variationGroups = values.variations ?? []
+      return {
+        ...touched,
+        variations: variationGroups.length > 0
+          ? variationGroups.map((v) => ({
+            attribute: true,
+            values: v.values.length > 0
+              ? v.values.map(() => ({
+                value: true,
+                variant_name: true,
+                sku: true,
+                price: true,
+                discount_price: true,
+                quantity: true,
+                reserved_quantity: true,
+                minimum_threshold: true,
+                barcode: true,
+                images: true,
+              }))
+              : true,
+          }))
+          : true,
+      }
+    }
+    return { ...touched, [field]: true }
+  }, {})
+}
+
+function createVariantValue(value) {
+  return {
+    id: `val-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    value,
+    variant_name: '',
+    sku: '',
+    price: '',
+    discount_price: '',
+    quantity: '',
+    reserved_quantity: '',
+    // Left blank — defaulted to DEFAULT_VARIANT_MINIMUM_THRESHOLD only at payload build time
+    // so it never conflicts with a low quantity value while the form is still being filled in.
+    minimum_threshold: '',
+    barcode: '',
+    barcode_type: 'UPC',
+    weight: '',
+    length: '',
+    width: '',
+    height: '',
+    description: '',
+    has_compatible_models: false,
+    compatible_models: [],
+    images: [],
+  }
+}
+
+/** A value is "ready" once stock is set. Color extras also need at least one photo. */
+function isVariantValueReady(value, attribute = '') {
+  const hasStock = value.quantity !== '' && value.quantity != null
+  if (!hasStock) return false
+  if (!isColorVariantAttribute(attribute)) return true
+  return hasUsableProductImages(value.images, value.image_url)
+}
+
+function createVariantGroupId() {
+  return `var-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function finalizeVariationsForSubmit({
+  variations,
+  productValues,
+  knownSkus,
+  autoResolveVendorSkus = false,
+}) {
+  return prepareVariationsForSubmit({
+    variations,
+    productValues,
+    knownSkus,
+    reserveProductSku: true,
+    autoResolveVendorSkus,
+  })
+}
+
+
+
+/** First readable error message for a single variant value, once its errors have been touched. */
+function getVariantValueErrorMessage(formik, groupIndex, valueIndex) {
+  const valueErrors = formik.errors?.variations?.[groupIndex]?.values?.[valueIndex]
+  const valueTouched = formik.touched?.variations?.[groupIndex]?.values?.[valueIndex]
+  if (!valueErrors || (!valueTouched && formik.submitCount === 0)) return ''
+  if (typeof valueErrors === 'string') return valueErrors
+
+  const firstError = Object.values(valueErrors).find((entry) => typeof entry === 'string')
+  return firstError ?? ''
+}
+
+function hasVariationStepErrors(variationErrors) {
+  if (!variationErrors) return false
+  if (typeof variationErrors === 'string') return true
+  if (!Array.isArray(variationErrors)) {
+    return Object.values(variationErrors).some((value) => {
+      if (!value) return false
+      if (typeof value === 'string') return true
+      if (Array.isArray(value)) return value.some(Boolean)
+      return typeof value === 'object' && Object.values(value).some(Boolean)
+    })
+  }
+
+  return variationErrors.some((item) => {
+    if (!item) return false
+    if (typeof item === 'string') return true
+    return Object.values(item).some((value) => {
+      if (!value) return false
+      if (typeof value === 'string') return true
+      if (Array.isArray(value)) return value.some(Boolean)
+      return typeof value === 'object' && Object.values(value).some(Boolean)
+    })
+  })
+}
+
+function hasStepErrors(errors, fields) {
+  return fields.some((field) => {
+    if (field === 'variations') return hasVariationStepErrors(errors?.variations)
+    if (field === 'key_details') {
+      const keyDetailErrors = errors?.key_details
+      if (!keyDetailErrors) return false
+      if (typeof keyDetailErrors === 'string') return true
+      if (Array.isArray(keyDetailErrors)) {
+        return keyDetailErrors.some((item) => item && (item.key || item.value))
+      }
+    }
+    return Boolean(getIn(errors, field))
+  })
+}
+
+function getFieldError(formik, name) {
+  const touched = getIn(formik.touched, name) || formik.submitCount > 0
+  const error = getIn(formik.errors, name)
+  return touched && typeof error === 'string' ? error : undefined
+}
+
+// ─── Step 1: Product Info ────────────────────────────────────────────────────
+
+export function InfoStep({
+  formik,
+  parentCategories,
+  categoryTree,
+  categoriesLoading,
+  categoriesError,
+  approvedBrands,
+  productBrand = null,
+  brandsLoading,
+  brandsError,
+  createBrandMutation,
+}) {
+  const [createdBrands, setCreatedBrands] = useState([])
+  const categoryOptions = toSelectOptions(parentCategories)
+  const brandOptions = toBrandSelectOptions([
+    ...approvedBrands,
+    ...(productBrand ? [productBrand] : []),
+    ...createdBrands,
+  ])
+  const selectedCategory =
+    findCategoryById(categoryTree, formik.values.category_id)
+    ?? parentCategories.find((category) => String(category.id) === String(formik.values.category_id))
+  const subcategories = getSubcategoriesForParentId(categoryTree, formik.values.category_id)
+  const subcategoryOptions = toSelectOptions(subcategories)
+
+  const handleCustomBrandSubmit = async (brandName) => {
+    const brand = await createBrandMutation.mutateAsync({ brand_name: brandName })
+    const selectedBrand = {
+      ...brand,
+      id: String(brand.id),
+      name: brand.name || brand.brand_name || brandName.trim(),
+    }
+    setCreatedBrands((current) => (
+      current.some((item) => String(item.id) === selectedBrand.id)
+        ? current
+        : [...current, selectedBrand]
+    ))
+    await formik.setFieldValue('brand_id', selectedBrand.id, true)
+    formik.setFieldTouched('brand_id', true, false)
+    formik.setFieldError('brand_id', undefined)
+    return selectedBrand
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid items-stretch gap-4 md:grid-cols-3">
+        <div className="md:col-span-3">
+          <ProductInput
+            id="name"
+            name="name"
+            label="Product name"
+            hint="Use the marketplace-facing name customers search for."
+            placeholder="e.g. Wireless Earbuds Pro 2nd Gen"
+            value={formik.values.name}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'name')}
+          />
+        </div>
+        <ProductInput
+          id="sku"
+          name="sku"
+          label="SKU"
+          hint="Unique identifier. Letters, numbers, hyphens only."
+          reserveHintSpace
+          placeholder="AUD-WEP-001"
+          value={formik.values.sku}
+          onChange={(e) => formik.setFieldValue('sku', e.target.value.toUpperCase())}
+          onBlur={formik.handleBlur}
+          error={getFieldError(formik, 'sku')}
+        />
+        <ProductTagInput
+          tags={formik.values.tags}
+          onChange={(tags) => formik.setFieldValue('tags', tags)}
+          label="Tags"
+          hint="Press Enter or comma to add. Max 15 tags."
+          reserveHintSpace
+          optional
+        />
+        <SearchableSelect
+          id="brand_id"
+          name="brand_id"
+          label="Brand"
+          icon={Store}
+          hint="Optional. Search an existing brand or add a new one if it is not listed."
+          reserveHintSpace
+          optional
+          placeholder={brandsLoading ? 'Loading brands…' : 'Search brands…'}
+          options={brandOptions}
+          value={formik.values.brand_id}
+          disabled={brandsLoading || createBrandMutation.isPending}
+          allowCustom
+          customPlaceholder="Enter your brand name…"
+          customEntryLabel="Add a custom brand…"
+          customSubmitLabel="Save brand"
+          customEntityName="brand"
+          onCustomSubmit={handleCustomBrandSubmit}
+          isCustomSubmitting={createBrandMutation.isPending}
+          onChange={(e) => {
+            formik.setFieldValue('brand_id', e.target.value, true)
+            formik.setFieldTouched('brand_id', true, false)
+            if (e.target.value.trim()) {
+              formik.setFieldError('brand_id', undefined)
+            }
+          }}
+          onCustomModeStart={() => {
+            formik.setFieldTouched('brand_id', false, false)
+            formik.setFieldError('brand_id', undefined)
+          }}
+          onBlur={formik.handleBlur}
+          error={getFieldError(formik, 'brand_id')}
+        />
+        {brandsError && (
+          <p className="mt-1 text-xs text-red-600">
+            Could not load brands from the server. Refresh the page and try again.
+          </p>
+        )}
+      </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Classification</p>
+          <h3 className="mt-1 text-sm font-bold text-slate-900">Category</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Accurate classification helps customers find your product faster.
+          </p>
+        </div>
+        {categoriesError && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+            Could not load categories from the server. Refresh the page and try again.
+          </div>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SearchableSelect
+            id="category_id"
+            name="category_id"
+            label="Category"
+            icon={Layers3}
+            placeholder={categoriesLoading ? 'Loading categories…' : 'Search categories…'}
+            options={categoryOptions}
+            value={formik.values.category_id}
+            disabled={categoriesLoading || categoriesError}
+            onChange={(e) => {
+              formik.setFieldValue('category_id', e.target.value, true)
+              formik.setFieldValue('subcategory_id', '', false)
+              formik.setFieldTouched('category_id', true, false)
+            }}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'category_id')}
+          />
+          <SearchableSelect
+            id="subcategory_id"
+            name="subcategory_id"
+            label="Sub category"
+            icon={PackageSearch}
+            placeholder={
+              categoriesLoading
+                ? 'Loading sub categories…'
+                : selectedCategory
+                  ? 'Search sub categories…'
+                  : 'Choose a category first'
+            }
+            options={subcategoryOptions}
+            value={formik.values.subcategory_id}
+            disabled={categoriesLoading || categoriesError || !formik.values.category_id}
+            onChange={(e) => {
+              formik.setFieldValue('subcategory_id', e.target.value, true)
+              formik.setFieldTouched('subcategory_id', true, false)
+            }}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'subcategory_id')}
+          />
+          <ProductSelect
+            id="condition"
+            name="condition"
+            label="Product condition"
+            hint="Required. Describe the physical state of the item."
+            placeholder="Select condition"
+            options={PRODUCT_CONDITION_OPTIONS}
+            value={formik.values.condition}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'condition')}
+          />
+        </div>
+        {selectedCategory && (
+          <div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3">
+            <p className="text-xs font-bold text-cyan-900">{selectedCategory.name}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-cyan-800/80">
+              {subcategories.length > 0
+                ? `${subcategories.length} sub categor${subcategories.length === 1 ? 'y' : 'ies'} available under this category.`
+                : 'Choose the sub category that best matches this item.'}
+            </p>
+          </div>
+        )}
+      </section>
+
+      <MainProductOptionFields formik={formik} />
+
+      <ProductKeyDetailsInput
+        pairs={formik.values.key_details ?? []}
+        onChange={(pairs) => formik.setFieldValue('key_details', pairs)}
+        errors={formik.errors.key_details}
+        touched={formik.touched.key_details}
+        submitCount={formik.submitCount}
+      />
+
+      <ProductRichTextEditor
+        id="description"
+        name="description"
+        label="Product description"
+        hint="Explain what the buyer gets, what problem it solves, and what is included."
+        value={formik.values.description}
+        onChange={(html) => formik.setFieldValue('description', html)}
+        onBlur={formik.handleBlur}
+        error={getFieldError(formik, 'description')}
+      />
+
+    </div>
+  )
+}
+
+// ─── Step 2: Images ──────────────────────────────────────────────────────────
+
+export function ImagesStep({
+  mainImage,
+  onMainImageChange,
+  mainImageError,
+  subImages,
+  onSubImagesChange,
+  subImagesError = '',
+  descriptiveImages = [],
+  onDescriptiveImagesChange,
+  descriptiveImagesError = '',
+}) {
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Main photo</p>
+          <h3 className="mt-1 text-sm font-bold text-slate-900">Primary product image</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            This is the hero image customers see first in search results and category cards. Use a square photo near {PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} or a wide landscape near {PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL}.
+          </p>
+        </div>
+        <ProductMainImageUpload
+          image={mainImage}
+          onChange={onMainImageChange}
+          error={mainImageError}
+          subImages={subImages}
+        />
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Gallery</p>
+          <h3 className="mt-1 text-sm font-bold text-slate-900">Additional product images</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Required. Add at least one extra photo for the product page gallery — different angles, packaging, or close-ups. Use wide landscape photos near {FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL}. Up to 5 images total and 5MB combined across all photos (including the main photo).
+          </p>
+        </div>
+        <ProductImageUploader
+          images={subImages}
+          onChange={onSubImagesChange}
+          mainImage={mainImage}
+          error={subImagesError}
+        />
+      </section>
+
+      <OptionalSection dataField="descriptive_product_images">
+        <OptionalSectionHeader
+          eyebrow="Descriptive photos"
+          title="Detail images"
+          description={`Optional wide lifestyle or detail banners shown one per row on your product page — the same landscape style used on Amazon-style listings. Upload up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} images near ${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} for the best fit.`}
+        />
+        <DescriptiveImageUploader
+          images={descriptiveImages}
+          onChange={onDescriptiveImagesChange}
+          error={descriptiveImagesError}
+        />
+      </OptionalSection>
+    </div>
+  )
+}
+
+// ─── Step 3: Pricing & Inventory ─────────────────────────────────────────────
+
+export function PricingStep({ formik }) {
+  const discountMode = formik.values.discount_mode ?? 'amount'
+  const { salesPrice, savings, percentOff, hasDiscount } = getDiscountSummary(
+    formik.values.price,
+    discountMode,
+    formik.values.discount_price,
+    formik.values.discount_percent,
+  )
+
+  const handleDiscountModeChange = (mode) => {
+    if (mode === discountMode) return
+
+    const price = formik.values.price
+    if (mode === 'percent') {
+      const percent = convertDiscountAmountToPercent(price, formik.values.discount_price)
+      if (percent) formik.setFieldValue('discount_percent', percent, false)
+    } else {
+      const amount = convertDiscountPercentToAmount(price, formik.values.discount_percent)
+      if (amount) formik.setFieldValue('discount_price', amount, false)
+    }
+
+    formik.setFieldValue('discount_mode', mode)
+    formik.setFieldTouched('discount_price', false, false)
+    formik.setFieldTouched('discount_percent', false, false)
+  }
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="mb-5">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Pricing</p>
+            <h3 className="mt-1 text-sm font-bold text-slate-900">Set your prices</h3>
+          </div>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">
+              {/* Discount type
+              <OptionalBadge /> */}
+            </span>
+            <div className="inline-flex w-fit rounded-lg bg-slate-100 p-0.5 ring-1 ring-slate-200">
+              {[
+                { value: 'amount', label: 'Sale price' },
+                { value: 'percent', label: '% Off' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => handleDiscountModeChange(value)}
+                  className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                    discountMode === value
+                      ? 'bg-white text-brand shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid items-stretch gap-4 sm:grid-cols-2">
+            <ProductMoneyInput
+              id="price"
+              name="price"
+              label="Regular price (GH₵)"
+              hint="The standard selling price. Up to 2 decimal places."
+              value={formik.values.price}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={getFieldError(formik, 'price')}
+            />
+            {discountMode === 'amount' ? (
+              <ProductMoneyInput
+                id="discount_price"
+                name="discount_price"
+                label="Sale price (GH₵)"
+                hint="Optional discounted price. Up to 2 decimal places."
+                optional
+                value={formik.values.discount_price}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                error={getFieldError(formik, 'discount_price')}
+              />
+            ) : (
+              <ProductInput
+                id="discount_percent"
+                name="discount_percent"
+                type="number"
+                step="0.01"
+                min="0"
+                max="99.99"
+                inputMode="decimal"
+                label="Discount percentage (%)"
+                hint="Optional. Enter a value between 0.01 and 99.99."
+                optional
+                placeholder="e.g. 20"
+                value={formik.values.discount_percent}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                error={getFieldError(formik, 'discount_percent')}
+              />
+            )}
+          </div>
+
+          {hasDiscount && salesPrice != null && (
+            <div className="mt-4 space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                <BadgePercent className="size-3.5" />
+                {percentOff % 1 === 0 ? percentOff : percentOff.toFixed(2)}% off · GH₵ {formatMoney(savings)} savings
+              </div>
+              <p className="text-xs text-slate-500">
+                Computed sale price:{' '}
+                <span className="font-bold text-slate-800">GH₵ {formatMoney(salesPrice)}</span>
+              </p>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="mb-5">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Inventory</p>
+            <h3 className="mt-1 text-sm font-bold text-slate-900">Stock management</h3>
+          </div>
+          <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ProductInput
+              id="quantity"
+              name="quantity"
+              type="number"
+              label="Stock quantity"
+              reserveHintSpace
+              hint="Must be at least the low stock threshold when one is set."
+              placeholder="0"
+              value={formik.values.quantity}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={getFieldError(formik, 'quantity')}
+            />
+            <ProductInput
+              id="low_stock_threshold"
+              name="low_stock_threshold"
+              type="number"
+              label="Low stock threshold"
+              reserveHintSpace
+              optional
+              hint="Cannot exceed stock quantity."
+              placeholder="10"
+              value={formik.values.low_stock_threshold}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={getFieldError(formik, 'low_stock_threshold')}
+            />
+            <ProductInput
+              id="barcode"
+              name="barcode"
+              label="Barcode"
+              reserveHintSpace
+              optional
+              hint="EAN, UPC, or other barcode."
+              placeholder="123456789012"
+              value={formik.values.barcode}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={getFieldError(formik, 'barcode')}
+            />
+          </div>
+        </section>
+      </div>
+
+      <GuidanceCard icon={Info} title="Pricing tips">
+        <p>Set a competitive regular price to attract customers.</p>
+        <p>Choose sale price or percentage off — we compute the final sale price either way.</p>
+        <p>The low stock threshold triggers an alert so you know when to restock before items sell out.</p>
+      </GuidanceCard>
+    </div>
+  )
+}
+
+// ─── Step 4: Variations ──────────────────────────────────────────────────────
+
+function ParentPricingBanner({ values }) {
+  const parent = getParentProductPricing(values)
+
+  if (!parent.regularPrice) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+        <p className="text-sm font-semibold text-amber-900">Set base pricing first</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-amber-800/80">
+          Go back to the Pricing step to set a regular price. Variants will inherit that pricing by default.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-4 py-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-cyan-900">Base product pricing</p>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span className="text-slate-700">
+          Regular: <strong className="text-slate-900">GH₵ {formatMoney(parent.regularPrice)}</strong>
+        </span>
+        {parent.hasDiscount ? (
+          <span className="text-slate-700">
+            Sale: <strong className="text-emerald-700">GH₵ {formatMoney(parent.salePrice)}</strong>
+          </span>
+        ) : (
+          <span className="text-xs text-slate-500">No discount applied</span>
+        )}
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-cyan-900/75">
+        Variants without a price override inherit this pricing. A custom variant price is used as-is unless you set a sale price.
+      </p>
+    </div>
+  )
+}
+
+function scrollToSavedVariationValues(target) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (!target) return
+      const panel = document.querySelector('[data-dashboard-scroll-panel]')
+      if (panel) {
+        const panelRect = panel.getBoundingClientRect()
+        const targetRect = target.getBoundingClientRect()
+        const offset = targetRect.top - panelRect.top + panel.scrollTop - 20
+        panel.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' })
+        return
+      }
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  })
+}
+
+/** Add-variations step for the create/edit product wizard: pick an option type (Color, Size…),
+ *  then type each value — it opens as its own accordion card right away so photo, price & stock
+ *  can be filled in inline. Nothing is saved to the server here — everything lives in the product
+ *  form until the whole listing is submitted. */
+export function VariationsStep({
+  formik,
+  parentCategories,
+  categoryTree,
+  mainImage,
+  subImages,
+  onProductImagesChange,
+}) {
+  const groups = formik.values.variations
+  const catalogContext = buildVariationCatalogContext({
+    parentCategories,
+    categoryTree,
+    formValues: formik.values,
+  })
+  const defaultVariationPreview = resolveDefaultVariationIdentity(formik.values, catalogContext)
+  const defaultVariationLabel = formatDefaultVariationLabel(defaultVariationPreview)
+  const [buildingAttribute, setBuildingAttribute] = useState('')
+  const [showCustomAttribute, setShowCustomAttribute] = useState(false)
+  const [attributeError, setAttributeError] = useState('')
+  const [valueInput, setValueInput] = useState('')
+  const [valuesError, setValuesError] = useState('')
+  const [openValueIds, setOpenValueIds] = useState(() => new Set())
+  const [customPriceIds, setCustomPriceIds] = useState(() => new Set())
+  const [choosingNextType, setChoosingNextType] = useState(false)
+  const [defaultOpen, setDefaultOpen] = useState(true)
+  const savedValuesRef = useRef(null)
+  const optionTypePickerRef = useRef(null)
+
+  const activeAttribute = buildingAttribute.trim()
+
+  const toggleValueOpen = (id) => {
+    setOpenValueIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const closeValueAccordion = (id) => {
+    setOpenValueIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
+  const toggleCustomPrice = (id, next) => {
+    setCustomPriceIds((prev) => {
+      const nextSet = new Set(prev)
+      if (next) nextSet.add(id)
+      else nextSet.delete(id)
+      return nextSet
+    })
+  }
+
+  const activateGroup = (attribute) => {
+    const next = String(attribute ?? '').trim()
+    if (!next) return
+    if (next.toLowerCase() !== activeAttribute.toLowerCase()) {
+      setValueInput('')
+      setValuesError('')
+    }
+    setBuildingAttribute(next)
+    setShowCustomAttribute(false)
+    setChoosingNextType(false)
+    setAttributeError('')
+  }
+
+  const handleAddAnotherOptionType = () => {
+    setChoosingNextType(true)
+    setShowCustomAttribute(false)
+    setAttributeError('')
+    setValuesError('')
+    setBuildingAttribute('')
+    setValueInput('')
+    scrollToSavedVariationValues(optionTypePickerRef.current)
+  }
+
+  const resolveAttributeName = (attributeName) => (
+    typeof attributeName === 'string' && attributeName.trim()
+      ? attributeName.trim()
+      : activeAttribute
+  )
+
+  const addValue = (rawValue, attributeName = activeAttribute) => {
+    const trimmed = rawValue.trim()
+    if (!trimmed) return
+    const attribute = String(attributeName ?? '').trim()
+    if (!attribute) {
+      setAttributeError('Choose or enter an option type to continue')
+      return
+    }
+
+    const key = trimmed.toLowerCase()
+    const existingIndex = groups.findIndex(
+      (group) => group.attribute.toLowerCase() === attribute.toLowerCase(),
+    )
+    const existingValuesLower = existingIndex >= 0
+      ? new Set(groups[existingIndex].values.map((item) => item.value.toLowerCase()))
+      : new Set()
+    if (existingValuesLower.has(key)) {
+      setValuesError(`"${trimmed}" was already added for ${attribute}`)
+      return
+    }
+    if (isMainProductOption(formik.values, attribute, trimmed)) {
+      setValuesError(
+        `"${trimmed}" is already this product's default ${attribute}. Add a different value, or skip extra options.`,
+      )
+      return
+    }
+
+    setAttributeError('')
+    setValuesError('')
+    setBuildingAttribute(attribute)
+    setChoosingNextType(false)
+
+    const newValue = createVariantValue(trimmed)
+
+    if (existingIndex >= 0) {
+      formik.setFieldValue(`variations.${existingIndex}.values`, [
+        ...groups[existingIndex].values,
+        newValue,
+      ])
+    } else {
+      formik.setFieldValue('variations', [
+        ...groups,
+        { id: createVariantGroupId(), attribute, values: [newValue] },
+      ])
+    }
+    formik.setFieldError('variations', undefined)
+    setOpenValueIds((prev) => new Set(prev).add(newValue.id))
+    scrollToSavedVariationValues(savedValuesRef.current)
+  }
+
+  const commitValueInput = (attributeName) => {
+    if (!valueInput.trim()) return
+    const target = resolveAttributeName(attributeName)
+    if (valueInput.includes(',')) {
+      parseMultiValues(valueInput).forEach((entry) => addValue(entry, target))
+    } else {
+      addValue(valueInput, target)
+    }
+    setValueInput('')
+  }
+
+  const handleValueInputKeyDown = (event, attributeName = activeAttribute) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault()
+      commitValueInput(attributeName)
+    }
+  }
+
+  const handleRemoveValue = async (id) => {
+    const nextGroups = groups
+      .map((group) => ({
+        ...group,
+        values: group.values.filter((item) => item.id !== id),
+      }))
+      .filter((group) => group.values.length > 0)
+
+    await formik.setFieldValue('variations', nextGroups, true)
+    formik.setFieldError('variations', undefined)
+  }
+
+  const handleRemoveGroup = async (groupIndex) => {
+    const nextGroups = groups.filter((_, index) => index !== groupIndex)
+    await formik.setFieldValue('variations', nextGroups, true)
+    formik.setFieldError('variations', undefined)
+  }
+
+  const totalValues = groups.reduce((count, group) => count + group.values.length, 0)
+  const readyCount = groups.reduce(
+    (count, group) => count + group.values.filter((value) => isVariantValueReady(value, group.attribute)).length,
+    0,
+  )
+  const priceRange = getVariationCustomerPriceRange(groups, formik.values)
+  const rangeLabel = formatCustomerPriceRange(priceRange)
+  const stepError = typeof formik.errors.variations === 'string'
+    && (formik.touched.variations || formik.submitCount > 0)
+    ? formik.errors.variations
+    : ''
+
+  const activeGroup = groups.find(
+    (group) => group.attribute.toLowerCase() === activeAttribute.toLowerCase(),
+  )
+  const activeGroupHasValues = (activeGroup?.values?.length ?? 0) > 0
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Optional extras</p>
+        <h3 className="text-lg font-bold text-slate-900">More product options</h3>
+        <p className="text-sm text-slate-500">
+          Your default option is listed first and stays in sync with product info. Add extra colors, sizes, or other values if you sell more than one option.
+          Photos are required for Color extras (up to 3). Skip extra options if the default is enough.
+        </p>
+        {stepError && (
+          <p className="text-xs font-semibold text-red-600" role="alert">{stepError}</p>
+        )}
+        {rangeLabel && totalValues > 0 && (
+          <p className="text-xs font-semibold leading-relaxed text-slate-600">
+            Customer price range: <span className="whitespace-nowrap text-brand">{rangeLabel}</span>
+          </p>
+        )}
+        {stepError && (
+          <p className="text-sm font-medium text-red-600" role="alert">{stepError}</p>
+        )}
+      </div>
+
+      {totalValues > 0 && <ParentPricingBanner values={formik.values} />}
+
+      <DefaultVariationCard
+        attribute={defaultVariationPreview.attribute}
+        productValues={formik.values}
+        mainImage={mainImage}
+        subImages={subImages}
+        onProductPatch={(patch) => {
+          formik.setValues({ ...formik.values, ...patch }, true)
+        }}
+        onImagesChange={onProductImagesChange}
+        isOpen={defaultOpen}
+        onToggle={() => setDefaultOpen((open) => !open)}
+      />
+
+      {/* Choose option type + add values */}
+      <div
+        ref={optionTypePickerRef}
+        className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6"
+      >
+        <CardStepHeader
+          step={1}
+          title={choosingNextType ? 'Choose the next option type' : 'Add option types & values'}
+          subtitle={
+            choosingNextType
+              ? 'Pick Color, Size, or your own type. Your existing options stay open below so you can still add more values to them.'
+              : 'Pick an option type (Color, Size, Material…), then type each value — Black, Red, Blue — and fill in its details right on the card.'
+          }
+        />
+
+        {choosingNextType ? (
+          <div className="mb-4 rounded-xl border border-brand/20 bg-brand-light/70 px-4 py-3">
+            <p className="text-sm font-bold text-slate-900">What do you want to add next?</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              Select a type below to start it. To add more values to an existing type, use the input under that type in the list.
+            </p>
+          </div>
+        ) : null}
+
+        <div className={choosingNextType ? 'rounded-xl ring-2 ring-brand/30 ring-offset-2' : ''}>
+          <AttributeTypePicker
+            value={buildingAttribute}
+            showCustom={showCustomAttribute}
+            onSelectPreset={(preset) => {
+              setShowCustomAttribute(false)
+              setBuildingAttribute(preset)
+              setChoosingNextType(false)
+              setValueInput('')
+              setAttributeError('')
+            }}
+            onToggleCustom={() => {
+              setShowCustomAttribute(true)
+              setChoosingNextType(false)
+              if (isPresetAttribute(buildingAttribute)) setBuildingAttribute('')
+            }}
+            onCloseCustom={() => {
+              setShowCustomAttribute(false)
+              setBuildingAttribute(activeGroup?.attribute ?? '')
+            }}
+            onCustomChange={(event) => {
+              setBuildingAttribute(event.target.value)
+              setAttributeError('')
+            }}
+            onCustomBlur={() => {}}
+            error={attributeError}
+          />
+        </div>
+        {attributeError && <p className="mt-2 text-xs font-semibold text-red-600">{attributeError}</p>}
+
+        {activeAttribute && !activeGroupHasValues ? (
+          <div className="mt-5 border-t border-slate-100 pt-5">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-800">
+              Add a {activeAttribute.toLowerCase()} value
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={valueInput}
+                onChange={(event) => setValueInput(event.target.value)}
+                onKeyDown={handleValueInputKeyDown}
+                onBlur={() => commitValueInput(activeAttribute)}
+                placeholder={getSingleVariantValuePlaceholder(activeAttribute)}
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-light"
+              />
+              <button
+                type="button"
+                onClick={() => commitValueInput(activeAttribute)}
+                disabled={!valueInput.trim()}
+                className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="size-4" />
+                Add value
+              </button>
+            </div>
+            {valuesError && <p className="mt-2 text-xs font-semibold text-red-600">{valuesError}</p>}
+            <p className="mt-2 text-[11px] text-slate-400">
+              Press Enter or comma after each value, or paste several at once — e.g. Black, Red, Blue.
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      {/* All added option groups, each value as its own accordion card */}
+      <div ref={savedValuesRef} className="scroll-mt-6" data-field="variations">
+        {groups.length > 0 ? (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+              <div className="flex items-center gap-2">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-brand-light text-brand">
+                  <Layers3 className="size-4" />
+                </span>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                    {groups.length} option type{groups.length !== 1 ? 's' : ''} · {totalValues} value{totalValues !== 1 ? 's' : ''}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                      Fill in price & stock for each extra value. Color options need at least one photo. Each type keeps its own add-value field.
+                  </p>
+                </div>
+              </div>
+              <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80">
+                {readyCount}/{totalValues} ready
+              </span>
+            </div>
+
+            {groups.map((group, groupIndex) => {
+              const groupReady = group.values.filter((value) => isVariantValueReady(value, group.attribute)).length
+              const isActiveGroup = activeAttribute
+                && group.attribute.toLowerCase() === activeAttribute.toLowerCase()
+              const cards = group.values.map((value, valueIndex) => (
+                <VariantAccordionCard
+                  key={value.id}
+                  idPrefix={`variation-${groupIndex}-${valueIndex}`}
+                  attribute={group.attribute}
+                  values={value}
+                  onFieldChange={(field, fieldValue) => (
+                    formik.setFieldValue(`variations.${groupIndex}.values.${valueIndex}.${field}`, fieldValue)
+                  )}
+                  isCustomPrice={customPriceIds.has(value.id)}
+                  onToggleCustomPrice={(next) => toggleCustomPrice(value.id, next)}
+                  productValues={formik.values}
+                  mainQty={formik.values.quantity ? Number(formik.values.quantity) : null}
+                  isOpen={openValueIds.has(value.id)}
+                  onToggle={() => toggleValueOpen(value.id)}
+                  onRemove={() => handleRemoveValue(value.id)}
+                  removeLabel={`Remove ${value.value}`}
+                  error={getVariantValueErrorMessage(formik, groupIndex, valueIndex)}
+                  footer={(
+                    <button
+                      type="button"
+                      onClick={() => closeValueAccordion(value.id)}
+                      className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover"
+                    >
+                      <Check className="size-4" />
+                      Save
+                    </button>
+                  )}
+                />
+              ))
+
+              return (
+                <div key={group.id} className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => activateGroup(group.attribute)}
+                      aria-label={`Add more ${group.attribute} values`}
+                      className={`flex min-w-0 items-center gap-3 rounded-lg text-left transition-colors ${
+                        isActiveGroup ? 'text-brand' : 'text-slate-400 hover:text-slate-700'
+                      }`}
+                    >
+                      <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
+                        isActiveGroup ? 'bg-brand-light text-brand' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        <AttributeIcon attribute={group.attribute} className="size-3.5" />
+                      </span>
+                      <span className="text-xs font-bold uppercase tracking-widest">
+                        {group.attribute}
+                      </span>
+                    </button>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200/80">
+                      {groupReady}/{group.values.length} ready
+                    </span>
+                    <span className="h-px flex-1 bg-slate-100" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveGroup(groupIndex)}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      aria-label={`Remove ${group.attribute} option type`}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+
+                  <div className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+                    isActiveGroup ? 'border-brand/30' : 'border-slate-200'
+                  }`}>
+                    <div className="space-y-3 px-4 py-4 sm:px-5">{cards}</div>
+                    <div className="border-t border-slate-200 bg-white px-4 py-4 sm:px-5">
+                      <VariantGroupActionBar
+                        attribute={group.attribute}
+                        valueInput={isActiveGroup ? valueInput : ''}
+                        onValueInputFocus={() => activateGroup(group.attribute)}
+                        onValueInputChange={(event) => {
+                          activateGroup(group.attribute)
+                          setValueInput(event.target.value)
+                        }}
+                        onValueInputKeyDown={(event) => handleValueInputKeyDown(event, group.attribute)}
+                        onCommitValue={() => commitValueInput(group.attribute)}
+                        valuesError={isActiveGroup ? valuesError : ''}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleAddAnotherOptionType}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-brand bg-white px-4 py-3 text-sm font-bold text-brand shadow-sm transition-colors hover:bg-brand-light"
+              >
+                <Plus className="size-4" />
+                Add Color, Size, or another option
+              </button>
+              <p className="text-center text-[11px] leading-relaxed text-slate-400">
+                Starts a new option type above. Existing types stay open so you can keep adding values to them.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-b from-slate-50/80 to-white px-6 py-10 text-center">
+            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-brand-light text-brand ring-1 ring-brand/15">
+              <Box className="size-7" strokeWidth={1.5} />
+            </span>
+            <p className="text-sm font-semibold text-slate-700">No extra options yet</p>
+            <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-500">
+              Pick a type above, then type a value and press Enter to add it. Or skip extra options —
+              we&apos;ll publish <strong>{defaultVariationLabel}</strong> as the default using your product photos, price, and stock.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Step 5: Shipping ─────────────────────────────────────────────────────────
+
+export function ShippingStep({ formik }) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+      <OptionalSection className="p-5">
+        <OptionalSectionHeader
+          eyebrow="Shipping"
+          title="Weight & dimensions"
+          description="Accurate values improve delivery cost calculations for customers at checkout."
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ProductInput
+            id="shipping_weight"
+            name="shipping_weight"
+            type="number"
+            label="Weight (kg)"
+            optional
+            hint="Product weight in kilograms."
+            placeholder="0.00"
+            value={formik.values.shipping_weight}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'shipping_weight')}
+          />
+          <ProductInput
+            id="shipping_length"
+            name="shipping_length"
+            type="number"
+            label="Length (cm)"
+            optional
+            hint="Package length in centimetres."
+            placeholder="0.00"
+            value={formik.values.shipping_length}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'shipping_length')}
+          />
+          <ProductInput
+            id="shipping_width"
+            name="shipping_width"
+            type="number"
+            label="Width (cm)"
+            optional
+            hint="Package width in centimetres."
+            placeholder="0.00"
+            value={formik.values.shipping_width}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'shipping_width')}
+          />
+          <ProductInput
+            id="shipping_height"
+            name="shipping_height"
+            type="number"
+            label="Height (cm)"
+            optional
+            hint="Package height in centimetres."
+            placeholder="0.00"
+            value={formik.values.shipping_height}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={getFieldError(formik, 'shipping_height')}
+          />
+        </div>
+      </OptionalSection>
+      <GuidanceCard icon={Ruler} title="Why fill this in?">
+        <p>Weight and dimensions help calculate accurate delivery costs shown to customers at checkout.</p>
+        <p>Even approximate values improve shipping rate accuracy.</p>
+      </GuidanceCard>
+    </div>
+  )
+}
+
+// ─── Step 6: Review ───────────────────────────────────────────────────────────
+
+export function ReviewStep({
+  formik,
+  mainImage,
+  subImages,
+  descriptiveImages = [],
+  parentCategories,
+  categoryTree,
+  approvedBrands,
+  productBrand = null,
+  includeVariations = true,
+  imageChangeSummary = null,
+}) {
+  const selectedCategory =
+    findCategoryById(categoryTree, formik.values.category_id)
+    ?? parentCategories.find((category) => String(category.id) === String(formik.values.category_id))
+  const selectedBrandLabel = getBrandDisplayLabel(
+    formik.values.brand_id,
+    [...approvedBrands, ...(productBrand ? [productBrand] : [])],
+  )
+  const subcategories = getSubcategoriesForParentId(categoryTree, formik.values.category_id)
+  const selectedSubcategory = findCategoryById(subcategories, formik.values.subcategory_id)
+
+  const price = Number(formik.values.price) || 0
+  const { salesPrice, percentOff, hasDiscount } = getDiscountSummary(
+    formik.values.price,
+    formik.values.discount_mode ?? 'amount',
+    formik.values.discount_price,
+    formik.values.discount_percent,
+  )
+
+  const filledKeyDetails = (formik.values.key_details ?? []).filter(
+    (item) => item?.key?.trim() && item?.value?.trim(),
+  )
+
+  const variationPriceRange = includeVariations
+    ? getVariationCustomerPriceRange(formik.values.variations, formik.values)
+    : null
+  const variationCount = formik.values.variations.reduce(
+    (count, variation) => count + variation.values.length,
+    0,
+  )
+  const catalogContext = buildVariationCatalogContext({
+    parentCategories,
+    categoryTree,
+    formValues: formik.values,
+  })
+  const defaultVariationPreview = resolveDefaultVariationIdentity(formik.values, catalogContext)
+  const defaultVariationLabel = formatDefaultVariationLabel(defaultVariationPreview)
+  const suggestedVariantSku = buildVariantSkuCandidates({
+    productSku: formik.values.sku,
+    attribute: defaultVariationPreview.attribute,
+    value: defaultVariationPreview.value,
+  })[0] ?? null
+
+  const summaryRows = [
+    {
+      title: 'Product info',
+      icon: Package,
+      items: [
+        ['Name', formik.values.name],
+        ['SKU', formik.values.sku],
+        ['Category', selectedCategory?.name],
+        ['Sub category', selectedSubcategory?.name],
+        ['Brand', selectedBrandLabel],
+        ['Condition', getProductConditionLabel(formik.values.condition)],
+        ['Tags', formik.values.tags.length ? formik.values.tags.join(', ') : null],
+        ['What shoppers see first', formik.values.main_attribute && formik.values.main_attribute_value
+          ? `${formik.values.main_attribute}: ${formik.values.main_attribute_value}`
+          : defaultVariationLabel],
+        ['Compatible models', formik.values.has_compatible_models && formik.values.compatible_models?.length
+          ? formik.values.compatible_models.join(', ')
+          : null],
+      ],
+    },
+    {
+      title: 'Pricing & inventory',
+      icon: BadgePercent,
+      items: [
+        [
+          'Price',
+          price
+            ? (
+              hasDiscount && salesPrice != null
+                ? `GH₵ ${formatMoney(price)} → GH₵ ${formatMoney(salesPrice)}`
+                : `GH₵ ${formatMoney(price)}`
+            )
+            : null,
+        ],
+        ['Discount', hasDiscount ? `${percentOff % 1 === 0 ? percentOff : percentOff.toFixed(1)}% off` : null],
+        ['Stock quantity', formik.values.quantity || null],
+        ['Low stock alert', formik.values.low_stock_threshold || null],
+        ['Barcode', formik.values.barcode || null],
+      ],
+    },
+    {
+      title: 'Shipping',
+      icon: Ruler,
+      items: [
+        ['Weight', formik.values.shipping_weight ? `${formik.values.shipping_weight} kg` : null],
+        ['Length', formik.values.shipping_length ? `${formik.values.shipping_length} cm` : null],
+        ['Width', formik.values.shipping_width ? `${formik.values.shipping_width} cm` : null],
+        ['Height', formik.values.shipping_height ? `${formik.values.shipping_height} cm` : null],
+      ],
+    },
+  ]
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Summary</p>
+        <h3 className="mt-1 text-lg font-bold text-slate-900">Review your listing</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Check everything before publishing. You can go back to edit any section.
+        </p>
+      </div>
+
+      {(mainImage || subImages.length > 0 || descriptiveImages.length > 0 || imageChangeSummary?.hasChanges) && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
+            <ImagePlus className="size-4 text-cyan-700" />
+            Product images
+          </h3>
+          {imageChangeSummary?.hasChanges && (
+            <div className="mb-4">
+              <ProductImageEditChangeSummary summary={imageChangeSummary} />
+            </div>
+          )}
+          <div className="space-y-4">
+            {mainImage && (
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Main photo</p>
+                <div className="relative inline-block">
+                  <img
+                    src={mainImage.preview}
+                    alt="Main product"
+                    className="size-24 rounded-xl object-cover ring-1 ring-slate-200 sm:size-28"
+                  />
+                  <span className="absolute left-1 top-1 rounded-full bg-brand px-1.5 py-px text-[9px] font-bold text-white">
+                    Main
+                  </span>
+                </div>
+              </div>
+            )}
+            {subImages.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  Gallery · {subImages.length}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {subImages.slice(0, 4).map((img, index) => (
+                    <img
+                      key={img.id}
+                      src={img.preview}
+                      alt={`Gallery image ${index + 1}`}
+                      className="size-16 rounded-xl object-cover ring-1 ring-slate-200"
+                    />
+                  ))}
+                  {subImages.length > 4 && (
+                    <div className="flex size-16 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                      +{subImages.length - 4}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {descriptiveImages.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  Descriptive · {descriptiveImages.length}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {descriptiveImages.slice(0, 4).map((img, index) => (
+                    <img
+                      key={img.id}
+                      src={img.preview}
+                      alt={`Descriptive image ${index + 1}`}
+                      className="size-16 rounded-xl object-cover ring-1 ring-slate-200"
+                    />
+                  ))}
+                  {descriptiveImages.length > 4 && (
+                    <div className="flex size-16 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                      +{descriptiveImages.length - 4}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {filledKeyDetails.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 text-sm font-bold text-slate-900">Key details</h3>
+          <dl className="space-y-2">
+            {filledKeyDetails.map((item) => (
+              <div key={item.id ?? item.key} className="flex items-start justify-between gap-3">
+                <dt className="shrink-0 text-xs font-semibold text-slate-400">{item.key}</dt>
+                <dd className="text-right text-xs font-bold text-slate-900">{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {summaryRows.map(({ title, icon: Icon, items }) => (
+          <section key={title} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
+              <Icon className="size-4 text-cyan-700" /> {title}
+            </h3>
+            <dl className="space-y-2">
+              {items.map(([label, value]) => (
+                <div key={label} className="flex items-start justify-between gap-3">
+                  <dt className="shrink-0 text-xs font-semibold text-slate-400">{label}</dt>
+                  <dd className="text-right text-xs font-bold text-slate-900">{value ?? '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
+
+          {includeVariations && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <Box className="size-4 text-cyan-700" />
+                Variants
+                {variationCount > 0 && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+                    {variationCount}
+                  </span>
+                )}
+              </h3>
+              {variationPriceRange && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Price range:{' '}
+                  <span className="font-bold text-slate-800">
+                    {formatCustomerPriceRange(variationPriceRange)}
+                  </span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">What shoppers see first</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">{defaultVariationLabel}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+              Shoppers see this first. It uses your product photos, price, and stock
+              {formik.values.compatible_models?.length
+                ? `, and fits ${formik.values.compatible_models.length} model${formik.values.compatible_models.length === 1 ? '' : 's'}`
+                : ''}
+              .
+            </p>
+            {formik.values.compatible_models?.length > 0 ? (
+              <p className="mt-1.5 text-xs font-semibold text-slate-700">
+                {formik.values.compatible_models.join(', ')}
+              </p>
+            ) : null}
+          </div>
+
+          {formik.values.variations.some((variation) => variation.values.length > 0) ? (
+            <div className="space-y-5">
+              {formik.values.variations.map((variation) => (
+                variation.values.length > 0 && (
+                  <div key={variation.id} className="space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Extra {variation.attribute}
+                    </p>
+                    <div className="space-y-3">
+                      {variation.values.map((val) => (
+                        <VariantReviewCard
+                          key={val.id}
+                          attribute={variation.attribute}
+                          variantValue={val}
+                          productValues={formik.values}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-dashed border-brand/25 bg-gradient-to-br from-brand-light/40 via-white to-slate-50">
+              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+                {mainImage?.preview ? (
+                  <img
+                    src={mainImage.preview}
+                    alt=""
+                    className="size-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 sm:size-24"
+                  />
+                ) : (
+                  <div className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200 sm:size-24">
+                    <ImagePlus className="size-7" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+                    Extra options
+                  </p>
+                  <p className="text-sm font-bold text-slate-900">None added</p>
+                  <p className="text-xs leading-relaxed text-slate-500">
+                    We&apos;ll publish the default{' '}
+                    <span className="font-semibold text-slate-700">{defaultVariationPreview.attribute}</span>
+                    {' '}option{' '}
+                    <span className="font-semibold text-slate-700">{defaultVariationPreview.value}</span>
+                    {' '}using your product photos, pricing, and stock.
+                  </p>
+                  <dl className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-slate-500">
+                    {price > 0 && (
+                      <div>
+                        <dt className="inline font-semibold text-slate-400">Price </dt>
+                        <dd className="inline font-bold text-slate-800">
+                          GH₵ {formatMoney(hasDiscount && salesPrice != null ? salesPrice : price)}
+                        </dd>
+                      </div>
+                    )}
+                    {formik.values.quantity !== '' && formik.values.quantity != null && (
+                      <div>
+                        <dt className="inline font-semibold text-slate-400">Stock </dt>
+                        <dd className="inline font-bold text-slate-800">{formik.values.quantity}</dd>
+                      </div>
+                    )}
+                    {suggestedVariantSku && (
+                      <div>
+                        <dt className="inline font-semibold text-slate-400">Variant SKU </dt>
+                        <dd className="inline font-bold text-slate-800">
+                          {suggestedVariantSku}-V••••••
+                          <span className="font-medium text-slate-400"> · auto-assigned on publish</span>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+    </div>
+  )
+}
+
+function buildProductMutationContext(values, { parentCategories, categoryTree, approvedBrands }) {
+  const selectedCategory =
+    findCategoryById(categoryTree, values.category_id)
+    ?? parentCategories.find((category) => String(category.id) === String(values.category_id))
+  const brand = findBrandById(approvedBrands, values.brand_id)
+  const { salesPrice } = getDiscountSummary(
+    values.price,
+    values.discount_mode ?? 'amount',
+    values.discount_price,
+    values.discount_percent,
+  )
+
+  return {
+    sku: values.sku,
+    quantity: Number(values.quantity),
+    price: Number(values.price),
+    salePrice: salesPrice,
+    categoryName: selectedCategory?.name ?? '',
+    categorySlug: selectedCategory?.slug ?? '',
+    brandName: brand?.name ?? getBrandDisplayLabel(values.brand_id, approvedBrands) ?? '',
+    brandSlug: brand?.slug ?? '',
+  }
+}
+
+function resolveListingStepForFieldErrors(fieldErrors = {}) {
+  const fields = Object.keys(fieldErrors)
+  if (fields.some((field) => field.startsWith('variations.'))) {
+    return PRODUCT_LISTING_VARIATIONS_STEP
+  }
+  if (fields.includes('barcode')) {
+    return PRODUCT_LISTING_PRICING_STEP
+  }
+  return null
+}
+
+function applyListingFieldErrors(actions, fieldErrors, { onStepChange } = {}) {
+  if (!fieldErrors || Object.keys(fieldErrors).length === 0) return false
+
+  actions.setErrors(mapFieldErrorsToFormikErrors(fieldErrors))
+
+  const nextStep = resolveListingStepForFieldErrors(fieldErrors)
+  if (nextStep != null) {
+    onStepChange?.(nextStep)
+  }
+
+  requestAnimationFrame(() => {
+    scrollToFirstError(fieldErrors)
+  })
+
+  notify.error(Object.values(fieldErrors)[0])
+  return true
+}
+
+export function ProductListingForm({
+  mode = 'create',
+  productId = null,
+  initialFormValues = null,
+  initialMainImage = null,
+  initialSubImages = null,
+  initialDescriptiveImages = null,
+}) {
+  const isEditMode = mode === 'edit'
+  const [activeStep, setActiveStep] = useState(0)
+  const [mainImage, setMainImage] = useState(initialMainImage ?? null)
+  const [subImages, setSubImages] = useState(initialSubImages ?? [])
+  const [descriptiveImages, setDescriptiveImages] = useState(initialDescriptiveImages ?? [])
+  const [mainImageError, setMainImageError] = useState('')
+  const [galleryImagesError, setGalleryImagesError] = useState('')
+  const [descriptiveImagesError, setDescriptiveImagesError] = useState('')
+  const stepDirectionRef = useRef('forward')
+  const isInitialStepMount = useRef(true)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const createProductMutation = useCreateProductMutation()
+  const updateProductMutation = useUpdateProductMutation()
+  const { uploadPendingMedia, uploadProgress } = useProductMediaUpload()
+  const [publishStage, setPublishStage] = useState(PRODUCT_PUBLISH_STAGE.IDLE)
+  const [publishErrorMessage, setPublishErrorMessage] = useState(null)
+  const [erroredPublishStage, setErroredPublishStage] = useState(null)
+  const createBrandMutation = useCreateBrandMutation()
+  const {
+    data: approvedBrands = [],
+    isLoading: brandsLoading,
+    isError: brandsError,
+  } = useApprovedBrands()
+  const {
+    parentCategories,
+    categoryTree,
+    isLoading: categoriesLoading,
+    isError: categoriesError,
+  } = useProductCategoryOptions()
+
+  useEffect(() => {
+    if (isInitialStepMount.current) {
+      isInitialStepMount.current = false
+      return
+    }
+    if (stepDirectionRef.current === 'forward') {
+      scrollDashboardPanelToTop()
+    }
+  }, [activeStep])
+
+  const goToPreviousStep = () => {
+    stepDirectionRef.current = 'back'
+    setActiveStep((step) => Math.max(step - 1, 0))
+  }
+
+  const navigateToStep = (stepIndex) => {
+    stepDirectionRef.current = stepIndex < activeStep ? 'back' : 'forward'
+    setActiveStep(stepIndex)
+  }
+
+  const validateStepBeforeLeave = async (formik, stepIndex) => {
+    if (stepIndex === 1) {
+      if (!mainImage) {
+        setMainImageError('Add a main product image to continue')
+        requestAnimationFrame(() => {
+          scrollToFirstError({ main_product_image: 'Add a main product image to continue' })
+        })
+        return false
+      }
+
+      const galleryResult = validateGalleryImagesRequired(mainImage, subImages)
+      if (!galleryResult.valid) {
+        setGalleryImagesError(galleryResult.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ sub_product_images: galleryResult.message })
+        })
+        return false
+      }
+
+      const imageLimits = validateProductImageLimits(mainImage, subImages)
+      if (!imageLimits.valid) {
+        setMainImageError(imageLimits.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ main_product_image: imageLimits.message })
+        })
+        return false
+      }
+
+      const primaryDimensions = await validatePrimaryImageDimensions(mainImage)
+      if (!primaryDimensions.valid) {
+        setMainImageError(primaryDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ main_product_image: primaryDimensions.message })
+        })
+        return false
+      }
+
+      const featuredDimensions = await validateFeaturedImageDimensions(subImages)
+      if (!featuredDimensions.valid) {
+        setGalleryImagesError(featuredDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ sub_product_images: featuredDimensions.message })
+        })
+        return false
+      }
+
+      const descriptiveLimits = validateDescriptiveImageLimits(descriptiveImages)
+      if (!descriptiveLimits.valid) {
+        setDescriptiveImagesError(descriptiveLimits.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ descriptive_product_images: descriptiveLimits.message })
+        })
+        return false
+      }
+
+      const descriptiveDimensions = await validateDescriptiveImageDimensions(descriptiveImages)
+      if (!descriptiveDimensions.valid) {
+        setDescriptiveImagesError(descriptiveDimensions.message)
+        requestAnimationFrame(() => {
+          scrollToFirstError({ descriptive_product_images: descriptiveDimensions.message })
+        })
+        return false
+      }
+
+      setMainImageError('')
+      setGalleryImagesError('')
+      setDescriptiveImagesError('')
+      return true
+    }
+
+    const errors = await formik.validateForm()
+    const fields = productListingStepFields[stepIndex]
+
+    if (fields.length > 0) {
+      formik.setTouched(
+        { ...formik.touched, ...getTouchedForFields(fields, formik.values) },
+        true,
+      )
+      if (hasStepErrors(errors, fields)) {
+        requestAnimationFrame(() => {
+          scrollToFirstError(collectStepErrors(errors, fields))
+        })
+        return false
+      }
+    }
+
+    return true
+  }
+
+  const handleNext = async (formik) => {
+    const valid = await validateStepBeforeLeave(formik, activeStep)
+    if (!valid) return
+    navigateToStep(Math.min(activeStep + 1, productListingSteps.length - 1))
+  }
+
+  const handleStepClick = async (formik, stepIndex) => {
+    if (stepIndex === activeStep) return
+
+    if (stepIndex < activeStep) {
+      navigateToStep(stepIndex)
+      return
+    }
+
+    for (let step = activeStep; step < stepIndex; step += 1) {
+      const valid = await validateStepBeforeLeave(formik, step)
+      if (!valid) {
+        if (step !== activeStep) navigateToStep(step)
+        return
+      }
+    }
+
+    navigateToStep(stepIndex)
+  }
+
+  return (
+    <DashboardLayout pageTitle={isEditMode ? 'Edit Product' : 'Add Product'}>
+      <div className="page-enter space-y-5">
+        <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">
+                {isEditMode ? 'Edit listing' : 'New listing'}
+              </p>
+              <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+                {isEditMode ? 'Edit product' : 'Add a product'}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+                {isEditMode
+                  ? 'Update photos, pricing, and product details. Changes are saved to your live catalogue.'
+                  : 'Create a complete listing with clear photos and accurate pricing so customers find and trust your product.'}
+              </p>
+            </div>
+
+            <Link
+              to="/products"
+              className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+            >
+              <ArrowLeft className="size-4" />
+              Back to products
+            </Link>
+          </div>
+        </section>
+
+        <Formik
+          initialValues={initialFormValues ?? productListingInitialValues}
+          enableReinitialize={isEditMode}
+          validationSchema={productListingSchema}
+          validateOnBlur
+          validateOnChange={false}
+          onSubmit={async (values, actions) => {
+            const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD && !isEditMode
+            let currentStage = PRODUCT_PUBLISH_STAGE.REQUESTING_URLS
+
+            try {
+              const formValues = isEditMode
+                ? { ...values, status: values.status || 'active' }
+                : { ...values, status: 'active' }
+              let payloadValues = withResolvedBrandId(formValues, approvedBrands)
+
+              const catalogContext = buildVariationCatalogContext({
+                parentCategories,
+                categoryTree,
+                formValues: payloadValues,
+              })
+
+              const hadCustomVariations = hasAnyProductVariationValues(formValues.variations)
+
+              let variationsForSubmit = isEditMode
+                ? formValues.variations
+                : ensureDefaultProductVariations({
+                  variations: formValues.variations,
+                  values: payloadValues,
+                  mainImage,
+                  catalogContext,
+                })
+
+              const knownSkus = await fetchKnownSkusForSubmit(queryClient, {
+                excludeProductId: isEditMode ? productId : null,
+              })
+              const knownBarcodes = collectKnownBarcodes(
+                queryClient.getQueryData(productQueryKeys.list()) ?? [],
+                { excludeProductId: isEditMode ? productId : null },
+              )
+
+              try {
+                const productSkuResult = resolveProductSkuForSubmit(payloadValues.sku, knownSkus, {
+                  autoResolve: !isEditMode,
+                })
+                const submitValues = { ...payloadValues, sku: productSkuResult.sku }
+
+                if (productSkuResult.wasAdjusted) {
+                  notify.info(
+                    `Product SKU updated to ${productSkuResult.sku} because ${productSkuResult.originalSku} is already in your catalogue.`,
+                  )
+                }
+
+                variationsForSubmit = finalizeVariationsForSubmit({
+                  variations: variationsForSubmit,
+                  productValues: submitValues,
+                  knownSkus: productSkuResult.knownSkus,
+                  autoResolveVendorSkus: !isEditMode,
+                })
+
+                assertPayloadSkuUniqueness(submitValues.sku, variationsForSubmit)
+
+                assertVariationBarcodesAvailable({
+                  productBarcode: submitValues.barcode,
+                  variations: variationsForSubmit,
+                  knownBarcodes,
+                  excludeProductId: isEditMode ? productId : null,
+                })
+
+                payloadValues = submitValues
+              } catch (validationError) {
+                if (applyListingFieldErrors(actions, validationError.fieldErrors, {
+                  onStepChange: navigateToStep,
+                })) {
+                  return
+                }
+
+                notify.error(validationError.message || 'Fix the highlighted variation fields before publishing.')
+                return
+              }
+
+              const mediaState = {
+                mainImage,
+                subImages,
+                descriptiveImages,
+                variations: variationsForSubmit,
+              }
+
+              if (import.meta.env.DEV) {
+                console.log('[product media presign request]', buildProductMediaPresignRequest(mediaState))
+              }
+
+              let nextMediaState = mediaState
+
+              if (usePresignedUpload) {
+                setPublishErrorMessage(null)
+                setErroredPublishStage(null)
+                setPublishStage(PRODUCT_PUBLISH_STAGE.REQUESTING_URLS)
+
+                nextMediaState = await uploadPendingMedia(mediaState)
+                setMainImage(nextMediaState.mainImage)
+                setSubImages(nextMediaState.subImages)
+                setDescriptiveImages(nextMediaState.descriptiveImages)
+                actions.setFieldValue('variations', nextMediaState.variations ?? variationsForSubmit)
+
+                if (import.meta.env.DEV && !isEditMode) {
+                  console.log(
+                    '[product media save images]',
+                    buildProductMediaSaveImagesPayload(nextMediaState),
+                  )
+                }
+
+                currentStage = PRODUCT_PUBLISH_STAGE.CREATING_PRODUCT
+                setPublishStage(PRODUCT_PUBLISH_STAGE.CREATING_PRODUCT)
+              }
+
+              const resolvedVariations = nextMediaState.variations ?? variationsForSubmit
+
+              if (
+                import.meta.env.DEV
+                && !isEditMode
+                && !hadCustomVariations
+              ) {
+                console.log('[product default variation]', resolvedVariations)
+                console.log('[product variant skus]', resolvedVariations.flatMap((group) => (
+                  group.values?.map((value) => value.sku) ?? []
+                )))
+              }
+
+              const context = buildProductMutationContext(formValues, {
+                parentCategories,
+                categoryTree,
+                approvedBrands,
+              })
+
+              if (isEditMode) {
+                const payload = buildProductPayload(
+                  payloadValues,
+                  nextMediaState.mainImage,
+                  nextMediaState.subImages,
+                  {
+                    mode: 'edit',
+                    includeVariations: true,
+                    descriptiveImages: nextMediaState.descriptiveImages,
+                    variations: resolvedVariations,
+                  },
+                )
+
+                if (import.meta.env.DEV) {
+                  console.log('[update product] FormData payload:', formatProductPayloadSample(payload))
+                }
+
+                await updateProductMutation.mutateAsync({
+                  productId,
+                  formData: payload,
+                  context,
+                })
+              } else if (usePresignedUpload) {
+                const payload = buildProductCreateJsonPayload(
+                  payloadValues,
+                  nextMediaState.mainImage,
+                  nextMediaState.subImages,
+                  {
+                    includeVariations: true,
+                    descriptiveImages: nextMediaState.descriptiveImages,
+                    variations: resolvedVariations,
+                  },
+                )
+
+                if (import.meta.env.DEV) {
+                  console.log('[create product] JSON payload:', payload)
+                }
+
+                await createProductMutation.mutateAsync({
+                  payload,
+                  context,
+                })
+              } else {
+                const payload = buildProductPayload(
+                  payloadValues,
+                  nextMediaState.mainImage,
+                  nextMediaState.subImages,
+                  {
+                    mode: 'create',
+                    includeVariations: true,
+                    descriptiveImages: nextMediaState.descriptiveImages,
+                    variations: resolvedVariations,
+                  },
+                )
+
+                if (import.meta.env.DEV) {
+                  console.log('[create product] FormData payload:', formatProductPayloadSample(payload))
+                }
+
+                await createProductMutation.mutateAsync({
+                  formData: payload,
+                  context,
+                })
+              }
+
+              if (usePresignedUpload) {
+                setPublishStage(PRODUCT_PUBLISH_STAGE.SUCCESS)
+              }
+
+              navigate('/products')
+            } catch (error) {
+              if (applyListingFieldErrors(actions, parseApiError(error).fieldErrors, {
+                onStepChange: navigateToStep,
+              })) {
+                if (usePresignedUpload) {
+                  setPublishStage(PRODUCT_PUBLISH_STAGE.IDLE)
+                  setPublishErrorMessage(null)
+                  setErroredPublishStage(null)
+                }
+                return
+              }
+
+              if (usePresignedUpload) {
+                const failedDuringUpload = (
+                  currentStage === PRODUCT_PUBLISH_STAGE.REQUESTING_URLS
+                  && uploadProgress.phase === PRODUCT_PUBLISH_STAGE.UPLOADING_IMAGES
+                )
+
+                setErroredPublishStage(
+                  failedDuringUpload ? PRODUCT_PUBLISH_STAGE.UPLOADING_IMAGES : currentStage,
+                )
+                setPublishErrorMessage(error?.message || 'Failed to publish product.')
+                setPublishStage(PRODUCT_PUBLISH_STAGE.ERROR)
+              }
+
+              if (!error?.response) {
+                notify.error(error?.message || 'Failed to prepare product images.')
+              }
+            } finally {
+              actions.setSubmitting(false)
+            }
+          }}
+        >
+          {(formik) => (
+            <Form className="space-y-5">
+              {isLocalEnvironment() && (
+                <DevProductFormTools
+                  activeStep={activeStep}
+                  stepTitle={productListingSteps[activeStep].title}
+                  catalogContext={{
+                    parentCategories,
+                    categoryTree,
+                    approvedBrands,
+                  }}
+                  onFillStep={(fixture) => {
+                    formik.setValues({ ...formik.values, ...fixture })
+                    formik.setErrors({})
+                  }}
+                  onFillAll={(fixture) => {
+                    formik.setValues({ ...formik.values, ...fixture })
+                    formik.setErrors({})
+                  }}
+                />
+              )}
+
+              <ProductStepper
+                steps={productListingSteps}
+                activeStep={activeStep}
+                onStepClick={(stepIndex) => handleStepClick(formik, stepIndex)}
+              />
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
+                {activeStep === 0 && (
+                  <InfoStep
+                    formik={formik}
+                    parentCategories={parentCategories}
+                    categoryTree={categoryTree}
+                    categoriesLoading={categoriesLoading}
+                    categoriesError={categoriesError}
+                    approvedBrands={approvedBrands}
+                    brandsLoading={brandsLoading}
+                    brandsError={brandsError}
+                    createBrandMutation={createBrandMutation}
+                  />
+                )}
+                {activeStep === 1 && (
+                  <ImagesStep
+                    mainImage={mainImage}
+                    onMainImageChange={(image) => {
+                      setMainImage(image)
+                      if (image) setMainImageError('')
+                    }}
+                    mainImageError={mainImageError}
+                    subImages={subImages}
+                    onSubImagesChange={(images) => {
+                      setSubImages(images)
+                      if (images.length >= 1 && validateGalleryImagesRequired(mainImage, images).valid) {
+                        setGalleryImagesError('')
+                      }
+                    }}
+                    subImagesError={galleryImagesError}
+                    descriptiveImages={descriptiveImages}
+                    onDescriptiveImagesChange={(images) => {
+                      setDescriptiveImages(images)
+                      if (images.length === 0 || validateDescriptiveImageLimits(images).valid) {
+                        setDescriptiveImagesError('')
+                      }
+                    }}
+                    descriptiveImagesError={descriptiveImagesError}
+                  />
+                )}
+                {activeStep === 2 && <PricingStep formik={formik} />}
+                {activeStep === 3 && (
+                  <VariationsStep
+                    formik={formik}
+                    parentCategories={parentCategories}
+                    categoryTree={categoryTree}
+                    mainImage={mainImage}
+                    subImages={subImages}
+                    onProductImagesChange={({ mainImage: nextMain, subImages: nextSub }) => {
+                      setMainImage(nextMain)
+                      if (nextMain) setMainImageError('')
+                      setSubImages(nextSub)
+                      if (nextSub.length >= 1 && validateGalleryImagesRequired(nextMain, nextSub).valid) {
+                        setGalleryImagesError('')
+                      }
+                    }}
+                  />
+                )}
+                {activeStep === 4 && <ShippingStep formik={formik} />}
+                {activeStep === 5 && (
+                  <ReviewStep
+                    formik={formik}
+                    mainImage={mainImage}
+                    subImages={subImages}
+                    descriptiveImages={descriptiveImages}
+                    parentCategories={parentCategories}
+                    categoryTree={categoryTree}
+                    approvedBrands={approvedBrands}
+                  />
+                )}
+              </section>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  onClick={goToPreviousStep}
+                  disabled={activeStep === 0}
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ArrowLeft className="size-4" /> Back
+                </button>
+
+                {activeStep < productListingSteps.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleNext(formik)}
+                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover"
+                  >
+                    Continue <ArrowRight className="size-4" />
+                  </button>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      to="/products"
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300"
+                    >
+                      Cancel
+                    </Link>
+                    <button
+                      type="submit"
+                      disabled={
+                        formik.isSubmitting
+                        || createProductMutation.isPending
+                        || updateProductMutation.isPending
+                      }
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(199,59,45,0.22)] transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {formik.isSubmitting || createProductMutation.isPending || updateProductMutation.isPending ? (
+                        <><Loader2 className="size-4 animate-spin" /> {isEditMode ? 'Saving…' : 'Publishing…'}</>
+                      ) : (
+                        <>{isEditMode ? 'Save changes' : 'Publish product'} <ArrowRight className="size-4" /></>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </Form>
+          )}
+        </Formik>
+      </div>
+
+      <ProductPublishProgressModal
+        open={publishStage !== PRODUCT_PUBLISH_STAGE.IDLE}
+        stage={
+          publishStage === PRODUCT_PUBLISH_STAGE.REQUESTING_URLS
+          && uploadProgress.phase === PRODUCT_PUBLISH_STAGE.UPLOADING_IMAGES
+            ? PRODUCT_PUBLISH_STAGE.UPLOADING_IMAGES
+            : publishStage
+        }
+        uploadProgress={uploadProgress}
+        errorMessage={publishErrorMessage}
+        erroredAtStage={erroredPublishStage}
+        onDismissError={() => {
+          setPublishStage(PRODUCT_PUBLISH_STAGE.IDLE)
+          setPublishErrorMessage(null)
+          setErroredPublishStage(null)
+        }}
+      />
+    </DashboardLayout>
+  )
+}
+
+export default function AddProduct() {
+    return <ProductListingForm mode="create" />
+}

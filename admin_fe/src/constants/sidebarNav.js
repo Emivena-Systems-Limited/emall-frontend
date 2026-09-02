@@ -1,6 +1,8 @@
 import {
-  BadgeCheck,
+  Award,
+  Bell,
   CircleDollarSign,
+  FolderTree,
   Headset,
   LayoutDashboard,
   Package,
@@ -16,9 +18,7 @@ import {
 } from 'lucide-react'
 
 export const SIDEBAR_NAV_BADGES = {
-  applications: 8,
   support: 5,
-  products: 3,
   finance: 2,
 }
 
@@ -32,15 +32,17 @@ export const NAV_SECTIONS = [
     label: 'Command',
     items: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/notifications', icon: Bell, label: 'Notifications' },
     ],
   },
   {
     label: 'Marketplace',
     items: [
-      { to: '/vendors', icon: Store, label: 'Vendors', comingSoon: true },
-      { to: '/vendors/applications', icon: BadgeCheck, label: 'Applications', comingSoon: true, badgeKey: 'applications' },
-      { to: '/products', icon: Package, label: 'Catalogue', comingSoon: true, badgeKey: 'products' },
-      { to: '/orders', icon: ShoppingCart, label: 'Orders', comingSoon: true },
+      { to: '/vendors', icon: Store, label: 'Vendors' },
+      { to: '/categories', icon: FolderTree, label: 'Categories', end: true },
+      { to: '/brands', icon: Award, label: 'Brands' },
+      { to: '/products', icon: Package, label: 'Catalogue' },
+      { to: '/orders', icon: ShoppingCart, label: 'Orders' },
       { to: '/customers', icon: Users, label: 'Customers', comingSoon: true },
     ],
   },
@@ -59,7 +61,7 @@ export const NAV_SECTIONS = [
       { to: '/staff', icon: UserCog, label: 'Staff & roles', comingSoon: true },
       { to: '/audit', icon: Shield, label: 'Audit log', comingSoon: true },
       { to: '/settings', icon: Settings, label: 'Platform settings', comingSoon: true },
-      { to: '/profile', icon: User, label: 'My profile', comingSoon: true },
+      { to: '/profile', icon: User, label: 'My profile' },
     ],
   },
 ]

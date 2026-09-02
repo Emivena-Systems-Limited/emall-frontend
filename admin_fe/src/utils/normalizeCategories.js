@@ -1,0 +1,102 @@
+import { unwrapApiEnvelope } from './parseApiError'
+
+export function normalizeCategoryRecord(record) {
+  if (!record || typeof record !== 'object') return null
+
+  return {
+    id: record.id,
+    slug: record.slug,
+    name: record.category_name ?? record.name ?? '',
+    parentId: record.parent_id ?? null,
+    nestedLevel: record.nested_level ?? 0,
+    isActive: record.is_active ?? true,
+    isFeatured: record.is_featured ?? false,
+    children: (record.children ?? [])
+      .map(normalizeCategoryRecord)
+      .filter(Boolean),
+  }
+}
+
+export function extractCategoryList(body) {
+  const envelope = unwrapApiEnvelope(body)
+  const list = Array.isArray(envelope?.data) ? envelope.data : []
+
+  return list
+    .map(normalizeCategoryRecord)
+    .filter((category) => category && category.isActive && category.slug && category.name)
+}
+
+export function toSelectOptions(categories) {
+  return categories.map((category) => ({
+    value: String(category.id),
+    label: category.name,
+  }))
+}
+
+export function findCategoryBySlug(categories, slug) {
+  if (!slug) return null
+  return categories.find((category) => category.slug === slug) ?? null
+}
+
+export function findCategoryById(categories, id) {
+  if (id == null || id === '') return null
+  const target = String(id)
+
+  for (const category of categories) {
+    if (String(category.id) === target) return category
+
+    const nestedMatch = findCategoryById(category.children ?? [], id)
+    if (nestedMatch) return nestedMatch
+  }
+
+  return null
+}
+
+/** Root → leaf path for a category id in the nested tree. */
+export function findCategoryPath(categories, id, path = []) {
+  if (id == null || id === '') return null
+  const target = String(id)
+
+  for (const category of categories) {
+    const nextPath = [...path, category]
+    if (String(category.id) === target) return nextPath
+
+    const nested = findCategoryPath(category.children ?? [], id, nextPath)
+    if (nested) return nested
+  }
+
+  return null
+}
+
+export function getSubcategoriesForParent(categories, parentSlug) {
+  const parent = findCategoryBySlug(categories, parentSlug)
+  return (parent?.children ?? []).filter((child) => child.isActive)
+}
+
+export function getSubcategoriesForParentId(categories, parentId) {
+  const parent = findCategoryById(categories, parentId)
+  return (parent?.children ?? []).filter((child) => child.isActive)
+}
+
+export function inferMetadataTemplateType(parentSlug) {
+  if (!parentSlug) return 'default'
+
+  if (parentSlug.includes('electronic') || parentSlug.includes('phone') || parentSlug.includes('computer')) {
+    return 'electronics'
+  }
+
+  if (parentSlug.includes('fashion') || parentSlug.includes('cloth') || parentSlug.includes('wear')) {
+    return 'fashion'
+  }
+
+  if (
+    parentSlug.includes('home')
+    || parentSlug.includes('furniture')
+    || parentSlug.includes('kitchen')
+    || parentSlug.includes('living')
+  ) {
+    return 'home'
+  }
+
+  return 'default'
+}

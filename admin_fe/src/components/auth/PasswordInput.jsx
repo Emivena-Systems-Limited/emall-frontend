@@ -34,6 +34,8 @@ export default function PasswordInput({
           autoComplete={autoComplete}
           onChange={onChange}
           onBlur={onBlur}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : undefined}
           className={`w-full rounded-xl border bg-white px-4 py-3 pr-11 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 ${
             error
               ? 'border-red-400 ring-2 ring-red-100'
@@ -49,7 +51,7 @@ export default function PasswordInput({
           {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
         </button>
       </div>
-      {error && <FieldError message={error} />}
+      {error && <FieldError id={`${id}-error`} message={error} />}
     </div>
   )
 }

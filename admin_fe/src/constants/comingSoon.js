@@ -1,5 +1,4 @@
 import {
-  BadgeCheck,
   CircleDollarSign,
   Headset,
   Package,
@@ -7,36 +6,12 @@ import {
   Shield,
   ShoppingCart,
   Star,
-  Store,
   Tag,
-  User,
   UserCog,
   Users,
 } from 'lucide-react'
 
 export const COMING_SOON = {
-  '/vendors': {
-    icon: Store,
-    title: 'Vendors',
-    eyebrow: 'Marketplace',
-    description: 'Approve, suspend, and inspect every seller on EZ-Mall from one roster.',
-    capabilities: [
-      'Search live vendors by store, region, and KYC status',
-      'Open a vendor dossier with catalogue, orders, and payouts',
-      'Suspend or reinstate a store with an audit reason',
-    ],
-  },
-  '/vendors/applications': {
-    icon: BadgeCheck,
-    title: 'Vendor applications',
-    eyebrow: 'Onboarding',
-    description: 'Review new seller applications before they reach the storefront.',
-    capabilities: [
-      'Queue of pending, returned, and approved applications',
-      'Document checks for business registration and bank details',
-      'Approve with a one-click welcome, or request more evidence',
-    ],
-  },
   '/products': {
     icon: Package,
     title: 'Catalogue moderation',
@@ -145,17 +120,6 @@ export const COMING_SOON = {
       'Commission and payout calendars',
       'Supported regions and carriers',
       'Kill-switches for campaigns and checkout',
-    ],
-  },
-  '/profile': {
-    icon: User,
-    title: 'My profile',
-    eyebrow: 'Account',
-    description: 'Your operator identity, password, and notification preferences.',
-    capabilities: [
-      'Update display name and avatar',
-      'Change password with session revoke',
-      'Choose which queues ping you',
     ],
   },
 }

@@ -4,15 +4,17 @@ import { ChevronLeft, ChevronRight, LogOut, X } from 'lucide-react'
 import { useLogoutAdminMutation } from '../../hooks/useAuthMutations'
 import { formatBadgeCount, getNavBadgeCount, NAV_SECTIONS } from '../../constants/sidebarNav'
 import Images from '../../utils/Images'
+import { getProfileDisplayName, getProfileInitials } from '../../utils/profileUtils'
 
-function NavItem({ item, collapsed }) {
+function NavItem({ item, collapsed, onNavigate }) {
   const badge = formatBadgeCount(getNavBadgeCount(item.badgeKey))
 
   return (
     <NavLink
       to={item.to}
+      end={item.end ?? item.to === '/dashboard'}
       title={collapsed ? item.label : undefined}
-      end={item.to === '/dashboard'}
+      onClick={() => onNavigate?.()}
       className={({ isActive }) =>
         `group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-150
         ${collapsed ? 'justify-center px-2.5' : 'px-3'}
@@ -57,24 +59,37 @@ function NavItem({ item, collapsed }) {
 }
 
 function IdentityCard({ user, collapsed }) {
-  const name = user?.full_name ?? 'Operator'
+  const name = getProfileDisplayName(user)
   const role = user?.role ?? 'Admin'
-  const initial = (name[0] ?? 'A').toUpperCase()
+  const initials = getProfileInitials(user)
 
   if (collapsed) {
     return (
       <div className="mb-2 flex justify-center">
-        <span className="flex size-9 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
-          {initial}
-        </span>
+        {user?.avatar_url ? (
+          <img src={user.avatar_url} alt="" className="size-9 rounded-full object-cover ring-1 ring-white/15" />
+        ) : (
+          <span className="flex size-9 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
+            {initials}
+          </span>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="mb-2 rounded-xl bg-white/5 px-3 py-2.5 ring-1 ring-white/8">
-      <p className="truncate text-xs font-bold text-white">{name}</p>
-      <p className="truncate text-[10px] font-medium text-white/45">{role}</p>
+    <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-white/5 px-3 py-2.5 ring-1 ring-white/8">
+      {user?.avatar_url ? (
+        <img src={user.avatar_url} alt="" className="size-8 shrink-0 rounded-full object-cover ring-1 ring-white/15" />
+      ) : (
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white">
+          {initials}
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="truncate text-xs font-bold text-white">{name}</p>
+        <p className="truncate text-[10px] font-medium text-white/45">{role}</p>
+      </div>
     </div>
   )
 }
@@ -135,7 +150,7 @@ function SidebarInner({ collapsed, onToggle, onMobileClose, isMobile = false }) 
             <ul className="space-y-0.5">
               {section.items.map((item) => (
                 <li key={item.to}>
-                  <NavItem item={item} collapsed={effectiveCollapsed} />
+                  <NavItem item={item} collapsed={effectiveCollapsed} onNavigate={onMobileClose} />
                 </li>
               ))}
             </ul>
