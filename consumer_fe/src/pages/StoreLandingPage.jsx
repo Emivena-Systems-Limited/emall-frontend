@@ -248,7 +248,7 @@ export default function StoreLandingPage() {
       location.city,
     ],
     queryFn: () => getStoreDeliveryEligibility(storeId, location),
-    enabled: Boolean(storeId),
+    enabled: Boolean(storeId && isAuthenticated),
     staleTime: 60_000,
     retry: 0,
   });
@@ -416,14 +416,16 @@ export default function StoreLandingPage() {
                   <span>
                     <strong>{yearsOnPlatform}</strong> Years on E-MALL
                   </span>
-                  <span
-                    className={`rounded-md px-3 py-1 text-xs font-semibold text-white ${eligible ? "bg-green-600" : "bg-auth-primary"}`}
-                  >
-                    <Truck className="mr-1 inline size-3.5" />
-                    {eligible
-                      ? "Delivers to your location"
-                      : "Delivery unavailable here"}
-                  </span>
+                  {isAuthenticated ? (
+                    <span
+                      className={`rounded-md px-3 py-1 text-xs font-semibold text-white ${eligible ? "bg-green-600" : "bg-auth-primary"}`}
+                    >
+                      <Truck className="mr-1 inline size-3.5" />
+                      {eligible
+                        ? "Delivers to your location"
+                        : "Delivery unavailable here"}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -664,9 +666,9 @@ export default function StoreLandingPage() {
                         key={product.id}
                         product={product}
                         disabledReason={
-                          eligible
-                            ? ""
-                            : "Store does not deliver to your location"
+                          isAuthenticated && !eligible
+                            ? "Store does not deliver to your location"
+                            : ""
                         }
                       />
                     ))}

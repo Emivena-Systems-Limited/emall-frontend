@@ -66,6 +66,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
   const { addToCart } = useCartActions()
   const miniCart = useOptionalMiniCart()
   const cartItems = useSelector(selectCartItems)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const [isAdding, setIsAdding] = useState(false)
   const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
   const productId = product.backendId ?? product.id
@@ -75,7 +76,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
     event.preventDefault()
     event.stopPropagation()
 
-    if (isAdding || isInCart || disabledReason) return
+    if (!isAuthenticated || isAdding || isInCart || disabledReason) return
 
     if (onAddToCart) {
       onAddToCart(product)
@@ -160,12 +161,12 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
                     ? `Adding ${product.name} to cart`
                     : `Add ${product.name} to cart`
               }
-              disabled={isAdding || isInCart || Boolean(disabledReason)}
+              disabled={!isAuthenticated || isAdding || isInCart || Boolean(disabledReason)}
               onClick={handleAddToCart}
               className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed ${
                 isAdding
                   ? 'border-auth-primary bg-auth-primary text-white'
-                  : isInCart || disabledReason
+                  : !isAuthenticated || isInCart || disabledReason
                     ? 'border-slate-200 bg-slate-100 text-slate-400 shadow-none'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'
               }`}

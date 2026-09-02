@@ -98,7 +98,7 @@ function StoreArtwork({ store, className = "" }) {
   );
 }
 
-function StoreCard({ store, location, view, popular = false }) {
+function StoreCard({ store, location, view, popular = false, showDelivery = true }) {
   const eligible = resolveDirectoryEligibility(store, location.city);
   if (view === "list")
     return (
@@ -117,7 +117,7 @@ function StoreCard({ store, location, view, popular = false }) {
             <Rating store={store} />
             <p className="mt-2 text-xs text-slate-600">{store.city}</p>
           </div>
-          <DeliveryBadge eligible={eligible} />
+          {showDelivery ? <DeliveryBadge eligible={eligible} /> : null}
         </div>
       </Link>
     );
@@ -130,11 +130,11 @@ function StoreCard({ store, location, view, popular = false }) {
           store={store}
           className="transition duration-500 group-hover:scale-105"
         />
-        {popular ? null : (
+        {!popular && showDelivery ? (
           <span className="absolute right-3 top-3">
             <DeliveryBadge eligible={eligible} />
           </span>
-        )}
+        ) : null}
       </div>
       <div className="mt-3 flex min-w-0 items-start justify-between gap-2">
         <div className="min-w-0">
@@ -143,7 +143,7 @@ function StoreCard({ store, location, view, popular = false }) {
           </h3>
           <p className="mt-1 text-xs text-slate-600">{store.city}</p>
         </div>
-        {popular ? <DeliveryBadge eligible={eligible} /> : null}
+        {popular && showDelivery ? <DeliveryBadge eligible={eligible} /> : null}
       </div>
       <div className="mt-2">
         <Rating store={store} />
@@ -178,7 +178,7 @@ function EmptyStoresState({ query }) {
 }
 
 export default function StoresPage() {
-  const user = useSelector((state) => state.auth.user);
+  const { user, isAuthenticated } = useSelector((state) => state.auth);
   const location = useMemo(() => resolveShoppingLocationDetails(user), [user]);
   const [draftQuery, setDraftQuery] = useState("");
   const [query, setQuery] = useState("");
@@ -322,6 +322,7 @@ export default function StoresPage() {
                         store={store}
                         location={location}
                         popular
+                        showDelivery={isAuthenticated}
                       />
                     ))}
                   </div>
@@ -364,6 +365,7 @@ export default function StoresPage() {
                       store={store}
                       location={location}
                       view={view}
+                      showDelivery={isAuthenticated}
                     />
                   ))}
                 </div>

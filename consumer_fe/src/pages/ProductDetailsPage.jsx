@@ -29,6 +29,7 @@ import { getProductById } from '../services/landingPageService'
 import {
   followStore,
   getProductDeliveryEligibility,
+  getStore,
   getStoreFollowStatus,
   unfollowStore,
 } from '../services/storeService'
@@ -42,8 +43,6 @@ import { useCartActions } from '../hooks/useCartActions'
 import { useOptionalMiniCart } from '../context/MiniCartContext'
 import { buildCartItem, isProductInCart, selectCartItems } from '../store/slices/cartSlice'
 import {
-  getBuyNowAuthLocationState,
-  markBuyNowAuthPending,
   saveBuyNowItem,
   withBuyNowSession,
 } from '../utils/buyNowItem'
@@ -495,7 +494,7 @@ function ProductInfoPanel({
   })
 
   const handleAddToCart = async () => {
-    if (!deliveryEligible) return
+    if (!isAuthenticated || !deliveryEligible) return
     if (isInCart) return
     if (isAddingToCart) return
 
@@ -525,7 +524,7 @@ function ProductInfoPanel({
   }
 
   const handleBuyNow = async () => {
-    if (!deliveryEligible) return
+    if (!isAuthenticated || !deliveryEligible) return
     if (isBuyingNow) return
 
     if (hasSelectableVariants && !activeVariant?.id) {
@@ -543,12 +542,6 @@ function ProductInfoPanel({
     }
 
     saveBuyNowItem(buyNowItem)
-
-    if (!isAuthenticated) {
-      markBuyNowAuthPending()
-      navigate('/login', { state: getBuyNowAuthLocationState() })
-      return
-    }
 
     setIsBuyingNow(true)
     try {
@@ -673,7 +666,7 @@ function ProductInfoPanel({
         </div>
       </div>
 
-      {STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible ? (
+      {isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible ? (
         <div className="mt-4 flex gap-2.5 rounded-xl border border-red-100 bg-red-50/70 p-3 text-xs leading-5 text-slate-700">
           <MapPin className="mt-0.5 size-4 shrink-0 text-auth-primary" />
           <p><span className="font-bold text-slate-900">Delivery unavailable{shoppingLocation ? ` in ${shoppingLocation}` : ''}.</span> This store does not currently deliver to your location.</p>
@@ -683,7 +676,7 @@ function ProductInfoPanel({
       <div className="mt-4 grid gap-2 min-[420px]:grid-cols-2 sm:gap-3">
         <button
           type="button"
-          disabled={outOfStock || isBuyingNow || !deliveryEligible}
+          disabled={!isAuthenticated || outOfStock || isBuyingNow || !deliveryEligible}
           onClick={handleBuyNow}
           aria-busy={isBuyingNow}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
@@ -694,12 +687,12 @@ function ProductInfoPanel({
               Starting...
             </>
           ) : (
-            deliveryEligible ? 'Buy Now' : 'Delivery unavailable'
+            !isAuthenticated || deliveryEligible ? 'Buy Now' : 'Delivery unavailable'
           )}
         </button>
         <button
           type="button"
-          disabled={outOfStock || isAddingToCart || isInCart || !deliveryEligible}
+          disabled={!isAuthenticated || outOfStock || isAddingToCart || isInCart || !deliveryEligible}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
           className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
@@ -710,7 +703,7 @@ function ProductInfoPanel({
               Adding...
             </>
           ) : (
-            !deliveryEligible ? 'Not available in your location' : isInCart ? 'Already in cart' : 'Add to Cart'
+            !isAuthenticated ? 'Add to Cart' : !deliveryEligible ? 'Not available in your location' : isInCart ? 'Already in cart' : 'Add to Cart'
           )}
         </button>
       </div>
@@ -1072,6 +1065,7 @@ function RailProductCard({ product }) {
   const fullStars = Math.floor(product.rating ?? 0)
   const productHref = product.href?.replace(/^\/products\//, '/')
   const cartItems = useSelector(selectCartItems)
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const { addToCart } = useCartActions()
   const miniCart = useOptionalMiniCart()
   const [isAdding, setIsAdding] = useState(false)
@@ -1079,7 +1073,7 @@ function RailProductCard({ product }) {
   const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
 
   const handleRailAddToCart = async () => {
-    if (isAdding || isInCart) return
+    if (!isAuthenticated || isAdding || isInCart) return
 
     setIsAdding(true)
     try {
@@ -1144,11 +1138,11 @@ function RailProductCard({ product }) {
           <button
             type="button"
             onClick={handleRailAddToCart}
-            disabled={isAdding || isInCart}
+            disabled={!isAuthenticated || isAdding || isInCart}
             aria-busy={isAdding}
             aria-label={isInCart ? `${product.name} is already in cart` : `Add ${product.name} to cart`}
             className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed ${
-              isInCart
+              !isAuthenticated || isInCart
                 ? 'border-slate-200 bg-slate-100 text-slate-400'
                 : 'border-slate-300 text-slate-500 hover:border-auth-primary hover:text-auth-primary'
             }`}
@@ -1454,13 +1448,28 @@ function StoreInfo({ product }) {
   const location = useLocation()
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const queryClient = useQueryClient()
+  const storeSummaryKey = ['store-summary', String(product.vendorId || '')]
   const followStatusKey = ['store-follow-status', String(product.vendorId || '')]
+  const storeSummaryQuery = useQuery({
+    queryKey: storeSummaryKey,
+    queryFn: () => getStore(product.vendorId),
+    enabled: Boolean(product.vendorId),
+    staleTime: 30_000,
+    retry: 0,
+  })
   const followStatusQuery = useQuery({
     queryKey: followStatusKey,
     queryFn: () => getStoreFollowStatus(product.vendorId),
     enabled: Boolean(isAuthenticated && product.vendorId),
     staleTime: 30_000,
   })
+  const storeSummary = storeSummaryQuery.data?.store ?? storeSummaryQuery.data
+  const followerCount = Number(
+    storeSummary?.followers_count
+      ?? storeSummary?.followersCount
+      ?? product.storeFollowersCount
+      ?? 0,
+  )
   const isFollowing = followStatusQuery.data === true
   const followMutation = useMutation({
     mutationFn: (shouldFollow) => shouldFollow
@@ -1478,7 +1487,11 @@ function StoreInfo({ product }) {
     },
     onSuccess: async (_data, shouldFollow) => {
       queryClient.setQueryData(followStatusKey, shouldFollow)
-      await queryClient.invalidateQueries({ queryKey: ['followed-stores'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: storeSummaryKey }),
+        queryClient.invalidateQueries({ queryKey: ['store', String(product.vendorId)] }),
+        queryClient.invalidateQueries({ queryKey: ['followed-stores'] }),
+      ])
       notify.success(shouldFollow
         ? `You are now following ${product.storeName}`
         : `You unfollowed ${product.storeName}`)
@@ -1517,7 +1530,8 @@ function StoreInfo({ product }) {
             </p>
           )}
           <p className="mt-0.5 truncate text-[0.625rem] font-semibold text-slate-500 sm:text-xs">
-            <span className="text-slate-700">110</span> Followers
+            <span className="text-slate-700">{followerCount.toLocaleString()}</span>{' '}
+            {followerCount === 1 ? 'Follower' : 'Followers'}
             <span className="mx-1 text-slate-300" aria-hidden="true">|</span>
             <span className="text-slate-700">{ratingLabel}</span>
             <span className="text-slate-400" aria-hidden="true"> ★</span>
@@ -1837,6 +1851,13 @@ function normalizeApiProductDetails(apiProduct) {
       || apiProduct.store?.name
       || 'EZ Stores',
     vendorId: apiProduct.vendor?.id ?? apiProduct.store?.id ?? null,
+    storeFollowersCount: toNumber(
+      apiProduct.vendor?.followers_count
+        ?? apiProduct.vendor?.followersCount
+        ?? apiProduct.store?.followers_count
+        ?? apiProduct.store?.followersCount,
+      0,
+    ),
     storeImage: apiProduct.vendor?.cover_image
       || apiProduct.vendor?.store_image
       || apiProduct.vendor?.store_logo
@@ -2147,7 +2168,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const deliveryEligibilityQuery = useQuery({
     queryKey: ['product-delivery-eligibility', apiProduct?.id, shoppingLocationDetails.region, shoppingLocationDetails.city],
     queryFn: () => getProductDeliveryEligibility(apiProduct.id, shoppingLocationDetails),
-    enabled: Boolean(STORE_DELIVERY_ELIGIBILITY_ENABLED && apiProduct?.id),
+    enabled: Boolean(isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && apiProduct?.id),
     staleTime: 60 * 1000,
     retry: 0,
   })
