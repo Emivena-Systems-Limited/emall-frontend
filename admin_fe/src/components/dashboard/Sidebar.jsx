@@ -1,0 +1,186 @@
+import { NavLink, useNavigate } from 'react-router'
+import { useSelector } from 'react-redux'
+import { ChevronLeft, ChevronRight, LogOut, X } from 'lucide-react'
+import { useLogoutAdminMutation } from '../../hooks/useAuthMutations'
+import { formatBadgeCount, getNavBadgeCount, NAV_SECTIONS } from '../../constants/sidebarNav'
+import Images from '../../utils/Images'
+
+function NavItem({ item, collapsed }) {
+  const badge = formatBadgeCount(getNavBadgeCount(item.badgeKey))
+
+  return (
+    <NavLink
+      to={item.to}
+      title={collapsed ? item.label : undefined}
+      end={item.to === '/dashboard'}
+      className={({ isActive }) =>
+        `group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-150
+        ${collapsed ? 'justify-center px-2.5' : 'px-3'}
+        ${isActive ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <span className="absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand" />
+          )}
+          <item.icon className="size-[18px] shrink-0" strokeWidth={isActive ? 2 : 1.75} />
+          {!collapsed && (
+            <>
+              <span className="min-w-0 truncate">{item.label}</span>
+              {item.comingSoon && (
+                <span className="ml-auto shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
+                  Soon
+                </span>
+              )}
+              {!item.comingSoon && badge && (
+                <span className="ml-auto flex min-h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
+                  {badge}
+                </span>
+              )}
+              {item.comingSoon && badge && (
+                <span className="flex min-h-4 min-w-4 items-center justify-center rounded-full bg-white/15 px-1 text-[9px] font-bold text-white/70">
+                  {badge}
+                </span>
+              )}
+            </>
+          )}
+          {collapsed && (
+            <span className="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              {item.label}{item.comingSoon ? ' — Coming soon' : ''}
+            </span>
+          )}
+        </>
+      )}
+    </NavLink>
+  )
+}
+
+function IdentityCard({ user, collapsed }) {
+  const name = user?.full_name ?? 'Operator'
+  const role = user?.role ?? 'Admin'
+  const initial = (name[0] ?? 'A').toUpperCase()
+
+  if (collapsed) {
+    return (
+      <div className="mb-2 flex justify-center">
+        <span className="flex size-9 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
+          {initial}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-2 rounded-xl bg-white/5 px-3 py-2.5 ring-1 ring-white/8">
+      <p className="truncate text-xs font-bold text-white">{name}</p>
+      <p className="truncate text-[10px] font-medium text-white/45">{role}</p>
+    </div>
+  )
+}
+
+function SidebarInner({ collapsed, onToggle, onMobileClose, isMobile = false }) {
+  const { user } = useSelector((state) => state.auth)
+  const navigate = useNavigate()
+  const logoutMutation = useLogoutAdminMutation()
+  const effectiveCollapsed = isMobile ? false : collapsed
+
+  const handleLogout = async () => {
+    onMobileClose?.()
+    try { await logoutMutation.mutateAsync() } catch { /* noop */ }
+    navigate('/login', { replace: true })
+  }
+
+  return (
+    <div className={`flex h-full flex-col bg-ink transition-[width] duration-300 ease-in-out ${effectiveCollapsed ? 'w-[68px]' : 'w-64'}`}>
+      <div className={`flex h-16 shrink-0 items-center border-b border-white/8 ${effectiveCollapsed ? 'justify-center px-1.5' : 'justify-between px-4'}`}>
+        {!effectiveCollapsed ? (
+          <div className="flex min-w-0 items-center gap-2 pr-1">
+            <img src={Images.brand.logoWhite} alt="EZ-Mall Admin" className="h-11 w-auto max-w-none object-contain object-left" />
+          </div>
+        ) : null}
+
+        {!isMobile && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={!effectiveCollapsed}
+            aria-label={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={effectiveCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
+            className={`hidden cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-white/10 hover:text-white lg:flex ${
+              effectiveCollapsed ? 'size-9 text-white/80' : 'size-7 text-white/35'
+            }`}
+          >
+            {effectiveCollapsed ? <ChevronRight className="size-4" strokeWidth={2.25} /> : <ChevronLeft className="size-3.5" />}
+          </button>
+        )}
+
+        {isMobile && (
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
+
+      <nav className="sidebar-scroll flex-1 overflow-y-auto px-2.5 py-4">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.label} className="mb-5">
+            {!effectiveCollapsed
+              ? <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/28">{section.label}</p>
+              : <div className="mx-auto mb-1.5 h-px w-6 bg-white/10" />}
+            <ul className="space-y-0.5">
+              {section.items.map((item) => (
+                <li key={item.to}>
+                  <NavItem item={item} collapsed={effectiveCollapsed} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      <div className="shrink-0 border-t border-white/8 p-2.5">
+        <IdentityCard user={user} collapsed={effectiveCollapsed} />
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={logoutMutation.isPending}
+          title={effectiveCollapsed ? 'Sign out' : undefined}
+          className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl py-2.5 text-sm font-medium text-white/55 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 ${
+            effectiveCollapsed ? 'justify-center px-2.5' : 'px-3'
+          }`}
+        >
+          <LogOut className="size-[18px] shrink-0" strokeWidth={1.75} />
+          {!effectiveCollapsed && <span className="truncate">Sign out</span>}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }) {
+  return (
+    <>
+      <aside className="hidden h-screen shrink-0 overflow-hidden lg:block">
+        <SidebarInner collapsed={collapsed} onToggle={onToggle} onMobileClose={onMobileClose} />
+      </aside>
+
+      {mobileOpen && (
+        <>
+          <div
+            className="overlay-appear fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+          <aside className="slide-in-left fixed inset-y-0 left-0 z-50 overflow-hidden shadow-2xl lg:hidden">
+            <SidebarInner collapsed={false} onToggle={onToggle} onMobileClose={onMobileClose} isMobile />
+          </aside>
+        </>
+      )}
+    </>
+  )
+}
