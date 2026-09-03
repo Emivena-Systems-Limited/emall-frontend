@@ -9,6 +9,7 @@ import {
   toApiVendorStatus,
   toListStatusParam,
 } from '../utils/normalizeAdminVendors'
+import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
 
 const LIST_PAGE_SIZE = 20
 const MAX_LIST_PAGES = 20
@@ -47,11 +48,12 @@ async function fetchVendorPage({ status, page }) {
     pendingQueue ? VENDOR_ADMIN_ENDPOINTS.PENDING : VENDOR_ADMIN_ENDPOINTS.LIST,
     {
       params: pendingQueue
-        ? { page, per_page: LIST_PAGE_SIZE }
+        ? { page, per_page: LIST_PAGE_SIZE, ...LATEST_FIRST_QUERY }
         : {
           status: toListStatusParam(status),
           page,
           per_page: LIST_PAGE_SIZE,
+          ...LATEST_FIRST_QUERY,
         },
     },
   )
@@ -73,6 +75,21 @@ export async function fetchAdminVendors({ status = '' } = {}) {
   }
 
   return vendors
+}
+
+export async function fetchAdminVendorChoices({ search = '', page = 1, perPage = 8 } = {}) {
+  const params = {
+    status: toListStatusParam('approved'),
+    page,
+    per_page: perPage,
+    ...LATEST_FIRST_QUERY,
+  }
+  const query = String(search ?? '').trim()
+  if (query) params.search = query
+
+  const { data } = await apiClient.get(VENDOR_ADMIN_ENDPOINTS.LIST, { params })
+  const envelope = assertAuthEnvelope(data, 'Could not load stores.')
+  return normalizeAdminVendors(envelope)
 }
 
 export async function fetchAdminVendorById(vendorId) {

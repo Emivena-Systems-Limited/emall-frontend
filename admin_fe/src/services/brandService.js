@@ -8,6 +8,7 @@ import {
   normalizeAdminBrands,
   toBrandApiStatus,
 } from '../utils/normalizeAdminBrands'
+import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
 
 export async function fetchAdminBrands({ status = '', page = 1, perPage = 20 } = {}) {
   const { data } = await apiClient.get(BRAND_ADMIN_ENDPOINTS.LIST, {
@@ -15,6 +16,7 @@ export async function fetchAdminBrands({ status = '', page = 1, perPage = 20 } =
       status: toBrandApiStatus(status),
       page,
       per_page: perPage,
+      ...LATEST_FIRST_QUERY,
     },
   })
   const envelope = assertAuthEnvelope(data, 'Could not load brands.')

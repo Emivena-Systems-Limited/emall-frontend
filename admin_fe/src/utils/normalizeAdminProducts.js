@@ -6,6 +6,7 @@ import {
   toCatalogProduct,
 } from './normalizeProducts'
 import { unwrapApiEnvelope } from './parseApiError'
+import { sortLatestFirst } from './sortLatestFirst'
 
 function isRecord(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
@@ -111,7 +112,10 @@ export function toAdminCatalogProduct(record, context = {}) {
 }
 
 export function normalizeAdminProducts(body) {
-  return extractProductList(body).map((record) => toAdminCatalogProduct(record)).filter(Boolean)
+  return sortLatestFirst(
+    extractProductList(body).map((record) => toAdminCatalogProduct(record)).filter(Boolean),
+    ['createdAt', 'id'],
+  )
 }
 
 export function extractAdminProductRecord(body, productId) {

@@ -1,6 +1,7 @@
 import { GHANA_REGIONS } from '../constants/adminDashboardData'
 import { composeFullName } from './profileUtils'
 import { unwrapApiEnvelope } from './parseApiError'
+import { sortLatestFirst } from './sortLatestFirst'
 
 const ULID_CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
 
@@ -276,7 +277,10 @@ export function normalizeAdminVendor(record) {
 }
 
 export function normalizeAdminVendors(body) {
-  return extractVendorList(body)
-    .map(normalizeAdminVendor)
-    .filter((vendor) => vendor?.id)
+  return sortLatestFirst(
+    extractVendorList(body)
+      .map(normalizeAdminVendor)
+      .filter((vendor) => vendor?.id),
+    ['joinedAt', 'id'],
+  )
 }

@@ -1,4 +1,5 @@
 import { unwrapApiEnvelope } from './parseApiError'
+import { compareLatest } from './sortLatestFirst'
 import { BRAND_API_STATUS, BRAND_API_STATUSES, BRAND_PAGE_SIZE } from '../constants/brands'
 
 const ULID_CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
@@ -155,7 +156,7 @@ export function normalizeAdminBrand(record) {
 }
 
 export function normalizeAdminBrands(body) {
-  return extractBrandList(body).map(normalizeAdminBrand).filter(Boolean)
+  return sortBrands(extractBrandList(body).map(normalizeAdminBrand).filter(Boolean))
 }
 
 export function getBrandInitials(name) {
@@ -204,12 +205,8 @@ export function getBrandSummary(brands) {
 
 export function sortBrands(brands) {
   return [...(brands ?? [])].sort((a, b) => {
-    const aTime = new Date(a.createdAt).getTime()
-    const bTime = new Date(b.createdAt).getTime()
-    const aValid = Number.isFinite(aTime)
-    const bValid = Number.isFinite(bTime)
-    if (aValid && bValid && aTime !== bTime) return bTime - aTime
-    if (aValid !== bValid) return aValid ? -1 : 1
+    const ranked = compareLatest(a, b, ['createdAt', 'id'])
+    if (ranked !== 0) return ranked
     return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, { sensitivity: 'base' })
   })
 }

@@ -5,8 +5,6 @@ import {
   Settings,
   Shield,
   ShoppingCart,
-  Star,
-  Tag,
   UserCog,
   Users,
 } from 'lucide-react'
@@ -34,9 +32,9 @@ export const COMING_SOON = {
       'Refund and replacement oversight',
     ],
   },
-  '/customers': {
+  '/users': {
     icon: Users,
-    title: 'Customers',
+    title: 'Users',
     eyebrow: 'Demand',
     description: 'Understand shoppers across the network — not inside a single store.',
     capabilities: [
@@ -54,28 +52,6 @@ export const COMING_SOON = {
       'Payout batches and vendor ledger',
       'Holds for disputes and KYC gaps',
       'Settlement exports for finance ops',
-    ],
-  },
-  '/promotions': {
-    icon: Tag,
-    title: 'Promotions',
-    eyebrow: 'Growth',
-    description: 'Platform campaigns, flash sales, and coupon policy live here.',
-    capabilities: [
-      'Create marketplace-wide campaigns',
-      'Approve vendor-submitted deals',
-      'Guardrails for discount stacking',
-    ],
-  },
-  '/reviews': {
-    icon: Star,
-    title: 'Trust & reviews',
-    eyebrow: 'Quality',
-    description: 'Moderate ratings, remove abuse, and protect genuine feedback.',
-    capabilities: [
-      'Reported review queue',
-      'Vendor reply oversight',
-      'Trust score signals on listings',
     ],
   },
   '/support': {

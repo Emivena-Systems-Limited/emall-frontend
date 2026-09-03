@@ -33,6 +33,60 @@ export default function DashboardLoader() {
           </div>
         ))}
       </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={`checkout-${index}`} className="h-[76px] rounded-2xl border border-slate-200 bg-white" />
+        ))}
+      </div>
+      <div className="grid gap-5 lg:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-2">
+          <SkeletonBlock className="h-56 w-full" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-3">
+          <SkeletonBlock className="h-56 w-full" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={`cart-${index}`} className="h-[76px] rounded-2xl border border-slate-200 bg-white" />
+        ))}
+      </div>
+      <div className="grid gap-5 lg:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-2">
+          <SkeletonBlock className="h-56 w-full" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-3">
+          <SkeletonBlock className="h-56 w-full" />
+        </div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <SkeletonBlock className="h-4 w-32" />
+        <SkeletonBlock className="mt-2 h-3 w-48" />
+        <SkeletonBlock className="mt-5 h-64 w-full" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={`wishlist-${index}`} className="h-[76px] rounded-2xl border border-slate-200 bg-white" />
+        ))}
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <SkeletonBlock className="h-4 w-28" />
+        <SkeletonBlock className="mt-2 h-3 w-44" />
+        <SkeletonBlock className="mt-5 h-64 w-full" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={`search-${index}`} className="h-[76px] rounded-2xl border border-slate-200 bg-white" />
+        ))}
+      </div>
+      <div className="grid gap-5 lg:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-2">
+          <SkeletonBlock className="h-56 w-full" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-3">
+          <SkeletonBlock className="h-56 w-full" />
+        </div>
+      </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <SkeletonBlock className="h-4 w-32" />
         <SkeletonBlock className="mt-2 h-3 w-48" />

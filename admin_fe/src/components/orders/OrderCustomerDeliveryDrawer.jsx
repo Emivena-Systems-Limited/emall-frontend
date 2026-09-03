@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router'
 import { MapPin, Phone, UserRound, X } from 'lucide-react'
 import DeliveryStatusBadge from './DeliveryStatusBadge'
 
@@ -95,6 +96,14 @@ export default function OrderCustomerDeliveryDrawer({ open, order, onClose }) {
               <DetailRow label="Email Address" value={order.customer.email} />
               <DetailRow label="Phone Number" value={order.customer.phone} singleLine />
             </dl>
+            {order.userId ? (
+              <Link
+                to={`/users/${encodeURIComponent(order.userId)}`}
+                className="mt-3 inline-flex text-sm font-semibold text-brand transition-colors hover:text-brand-hover"
+              >
+                Open user profile
+              </Link>
+            ) : null}
           </DrawerSection>
 
           <DrawerSection icon={MapPin} title="Delivery Information">

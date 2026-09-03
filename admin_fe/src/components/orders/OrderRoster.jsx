@@ -146,7 +146,16 @@ export default function OrderRoster({
                     <p className="mt-1 text-xs text-slate-500">{formatOrderDate(order.orderDate)}</p>
                   </td>
                   <td className="px-5 py-3">
-                    <p className="font-semibold text-slate-800">{order.customer?.name || '—'}</p>
+                    {order.userId ? (
+                      <Link
+                        to={`/users/${encodeURIComponent(order.userId)}`}
+                        className="font-semibold text-slate-800 transition-colors hover:text-brand"
+                      >
+                        {order.customer?.name || 'Shopper'}
+                      </Link>
+                    ) : (
+                      <p className="font-semibold text-slate-800">{order.customer?.name || '—'}</p>
+                    )}
                     {order.customer?.phone ? (
                       <p className="mt-0.5 text-xs text-slate-500">{order.customer.phone}</p>
                     ) : null}

@@ -1,4 +1,5 @@
 import { unwrapApiEnvelope } from './parseApiError'
+import { sortLatestFirst } from './sortLatestFirst'
 import { NOTIFICATION_PAGE_SIZE, getNotificationEventMeta } from '../constants/notifications'
 
 const HIDDEN_DETAIL_KEYS = new Set([
@@ -240,7 +241,10 @@ export function normalizeAdminNotification(record) {
 }
 
 export function normalizeAdminNotifications(body) {
-  return extractNotificationList(body).map(normalizeAdminNotification).filter(Boolean)
+  return sortLatestFirst(
+    extractNotificationList(body).map(normalizeAdminNotification).filter(Boolean),
+    ['createdAt', 'id'],
+  )
 }
 
 function humanizeKey(key) {

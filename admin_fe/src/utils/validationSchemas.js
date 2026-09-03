@@ -622,3 +622,61 @@ export const productVariationsSchema = withVariantStockCapValidation(
     'variations',
   ]),
 )
+
+export function getCouponFormSchema(isEdit = false) {
+  return Yup.object({
+    vendorId: isEdit
+      ? Yup.string()
+      : Yup.string().trim().required('Choose the store this code belongs to.'),
+    vendorName: Yup.string(),
+    code: Yup.string()
+      .trim()
+      .min(3, 'Use at least 3 characters.')
+      .max(32, 'Keep the code within 32 characters.')
+      .matches(/^[A-Za-z0-9_-]+$/, 'Use letters, numbers, hyphens, or underscores.')
+      .required('Add a code shoppers will enter at checkout.'),
+    type: Yup.string()
+      .oneOf(['percentage', 'fixed'], 'Choose how the discount works.')
+      .required('Choose how the discount works.'),
+    value: Yup.number()
+      .transform((current, original) => (original === '' || original == null ? undefined : current))
+      .typeError('Enter a number.')
+      .required('Add the discount amount.')
+      .when('type', {
+        is: 'percentage',
+        then: (schema) => schema
+          .min(1, 'Use at least 1%.')
+          .max(100, 'Keep the discount at 100% or less.'),
+        otherwise: (schema) => schema.min(0.01, 'Add an amount greater than zero.'),
+      }),
+    minimumPurchase: Yup.number()
+      .transform((current, original) => (original === '' || original == null ? null : current))
+      .nullable()
+      .min(0, 'Minimum purchase Amount cannot be negative.'),
+    usageLimit: Yup.number()
+      .transform((current, original) => (original === '' || original == null ? null : current))
+      .nullable()
+      .integer('Use a whole number.')
+      .min(1, 'Set at least one checkout across all shoppers, or leave this blank for no overall cap.'),
+    perUserLimit: Yup.number()
+      .transform((current, original) => (original === '' || original == null ? null : current))
+      .nullable()
+      .integer('Use a whole number.')
+      .min(1, 'Set how many times the same shopper can redeem it, or leave this blank.'),
+    maximumDiscount: Yup.number()
+      .transform((current, original) => (original === '' || original == null ? null : current))
+      .nullable()
+      .min(0, 'Discount cap cannot be negative.'),
+    stackable: Yup.boolean(),
+    description: Yup.string().trim().max(240, 'Keep the note within 240 characters.'),
+  })
+}
+
+export const paymentRefundSchema = Yup.object({
+  reason: Yup.string()
+    .trim()
+    .min(3, 'Give a short reason.')
+    .max(500, 'Keep the reason under 500 characters.')
+    .required('A reason is required.'),
+})
+

@@ -9,7 +9,7 @@ const QUICK_ACTIONS = [
     icon: Package,
     label: 'Manage products',
     description: 'Add, edit, or restock catalogue items',
-    accent: '#0f8f9c',
+    accent: '#0891b2',
   },
   {
     to: '/orders',

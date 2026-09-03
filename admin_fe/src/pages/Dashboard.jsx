@@ -3,6 +3,10 @@ import { useSelector } from 'react-redux'
 import AdminHeader from '../components/dashboard/AdminHeader'
 import AdminKpiGrid from '../components/dashboard/AdminKpiGrid'
 import AttentionQueue from '../components/dashboard/AttentionQueue'
+import CheckoutAnalytics from '../components/dashboard/CheckoutAnalytics'
+import CartAnalytics from '../components/dashboard/CartAnalytics'
+import WishlistAnalytics from '../components/dashboard/WishlistAnalytics'
+import SearchAnalytics from '../components/dashboard/SearchAnalytics'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardLoader from '../components/dashboard/DashboardLoader'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
@@ -10,7 +14,7 @@ import SalesMixChart from '../components/dashboard/SalesMixChart'
 import LiveOrdersFeed from '../components/dashboard/LiveOrdersFeed'
 import OrderStatusChart from '../components/dashboard/OrderStatusChart'
 import RegionalSalesChart from '../components/dashboard/RegionalSalesChart'
-import VendorPipeline from '../components/dashboard/VendorPipeline'
+import VendorPerformance from '../components/dashboard/VendorPerformance'
 import { useDashboardReveal } from '../hooks/useDashboardReveal'
 
 function getGreeting() {
@@ -54,8 +58,7 @@ export default function Dashboard() {
           <DashboardReveal index={1}>
             <AdminKpiGrid />
           </DashboardReveal>
-
-          <DashboardReveal index={2}>
+          <DashboardReveal index={6}>
             <div className="grid items-stretch gap-5 lg:grid-cols-5">
               <div className="h-full lg:col-span-3">
                 <SalesMixChart />
@@ -66,23 +69,42 @@ export default function Dashboard() {
             </div>
           </DashboardReveal>
 
-          <DashboardReveal index={3}>
+          <DashboardReveal index={2}>
+            <CheckoutAnalytics />
+          </DashboardReveal>
+          
+          <DashboardReveal index={7}>
             <OrderStatusChart />
           </DashboardReveal>
-
-          <DashboardReveal index={4}>
+          
+          <DashboardReveal index={8}>
             <RegionalSalesChart />
           </DashboardReveal>
 
-          <DashboardReveal index={5}>
-            <div className="grid items-stretch gap-5 lg:grid-cols-5">
-              <div className="h-full lg:col-span-3">
+       
+
+          <DashboardReveal index={3}>
+            <CartAnalytics />
+          </DashboardReveal>
+
+          <DashboardReveal index={4}>
+            <WishlistAnalytics />
+          </DashboardReveal>
+
+       
+
+          <DashboardReveal index={9}>
+            <div className="grid min-w-0 items-stretch gap-5 lg:grid-cols-5">
+              <div className="min-w-0 h-full lg:col-span-3">
                 <LiveOrdersFeed />
               </div>
-              <div className="h-full lg:col-span-2">
-                <VendorPipeline />
+              <div className="min-w-0 h-full lg:col-span-2">
+                <VendorPerformance />
               </div>
             </div>
+          </DashboardReveal>
+          <DashboardReveal index={5}>
+            <SearchAnalytics />
           </DashboardReveal>
         </div>
       )}

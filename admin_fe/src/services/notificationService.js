@@ -11,6 +11,7 @@ import {
   normalizeAdminNotification,
   normalizeAdminNotifications,
 } from '../utils/normalizeAdminNotifications'
+import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
 
 export async function fetchAdminNotifications({ page = 1, perPage = NOTIFICATION_PAGE_SIZE } = {}) {
   const { data } = await apiClient.get(NOTIFICATION_ADMIN_ENDPOINTS.LIST, {
@@ -18,6 +19,7 @@ export async function fetchAdminNotifications({ page = 1, perPage = NOTIFICATION
       user_type: NOTIFICATION_USER_TYPE,
       page,
       per_page: perPage,
+      ...LATEST_FIRST_QUERY,
     },
   })
   const envelope = assertAuthEnvelope(data, 'Could not load notifications.')

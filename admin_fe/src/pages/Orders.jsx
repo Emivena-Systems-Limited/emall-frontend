@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Search, ShoppingCart } from 'lucide-react'
+import { Search, ShoppingCart, SlidersHorizontal, X } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
@@ -9,12 +9,10 @@ import OrderStatsGrid from '../components/orders/OrderStatsGrid'
 import OrderPaymentStatusModal from '../components/orders/OrderPaymentStatusModal'
 import OrderDeliveryStatusModal from '../components/orders/OrderDeliveryStatusModal'
 import OrderCancelModal from '../components/orders/OrderCancelModal'
-import {
-  ORDER_DELIVERY_OPTIONS,
-  ORDER_PAYMENT_OPTIONS,
-  ORDER_STATUS_TABS,
-} from '../constants/adminOrders'
+import OrderFiltersDrawer from '../components/orders/OrderFiltersDrawer'
+import { ORDER_STATUS_TABS } from '../constants/adminOrders'
 import { useAdminOrderRoster, useAdminOrderStats } from '../hooks/useAdminOrders'
+import { countOrderDrawerFilters, getOrderFilterChips } from '../utils/orderFilters'
 import { formatCount } from '../utils/formatters'
 import { parseApiError } from '../utils/parseApiError'
 
@@ -30,6 +28,7 @@ export default function Orders() {
   const [userId, setUserId] = useState(searchParams.get('user_id') || '')
   const [userLabel, setUserLabel] = useState('')
   const [page, setPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [paymentOrder, setPaymentOrder] = useState(null)
   const [deliveryOrder, setDeliveryOrder] = useState(null)
   const [cancelling, setCancelling] = useState(null)
@@ -71,7 +70,16 @@ export default function Orders() {
     return [...map.entries()]
   }, [orders, userId, userLabel])
 
-  const hasFilters = Boolean(query.trim() || status || paymentStatus || deliveryStatus || vendorId || userId)
+  const drawerFilterCount = countOrderDrawerFilters({ paymentStatus, deliveryStatus, vendorId, userId })
+  const chips = getOrderFilterChips({
+    paymentStatus,
+    deliveryStatus,
+    vendorId,
+    vendorLabel,
+    userId,
+    userLabel,
+  })
+  const hasFilters = Boolean(query.trim() || status || drawerFilterCount)
   const activeTab = ORDER_STATUS_TABS.find((tab) => tab.status === status)?.key ?? 'all'
   const tabCounts = {
     all: stats.total,
@@ -87,16 +95,34 @@ export default function Orders() {
     setPage(1)
   }
 
-  const clearFilters = () => {
-    setQuery('')
-    setSearch('')
-    setStatus('')
+  const clearDrawerFilters = () => {
     setPaymentStatus('')
     setDeliveryStatus('')
     setVendorId('')
     setVendorLabel('')
     setUserId('')
     setUserLabel('')
+    setPage(1)
+  }
+
+  const clearFilters = () => {
+    setQuery('')
+    setSearch('')
+    setStatus('')
+    clearDrawerFilters()
+  }
+
+  const removeChip = (key) => {
+    if (key === 'paymentStatus') setPaymentStatus('')
+    if (key === 'deliveryStatus') setDeliveryStatus('')
+    if (key === 'vendorId') {
+      setVendorId('')
+      setVendorLabel('')
+    }
+    if (key === 'userId') {
+      setUserId('')
+      setUserLabel('')
+    }
     setPage(1)
   }
 
@@ -163,8 +189,8 @@ export default function Orders() {
               })}
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-              <label htmlFor="order-search" className="relative min-w-0 xl:col-span-2">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label htmlFor="order-search" className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-400" />
                 <input
                   id="order-search"
@@ -175,69 +201,46 @@ export default function Orders() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pr-3 pl-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
                 />
               </label>
-              <label htmlFor="order-payment" className="sr-only">Payment</label>
-              <select
-                id="order-payment"
-                value={paymentStatus}
-                onChange={(event) => {
-                  setPaymentStatus(event.target.value)
-                  setPage(1)
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(true)}
+                aria-expanded={filtersOpen}
+                aria-haspopup="dialog"
+                className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-brand/40 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
               >
-                {ORDER_PAYMENT_OPTIONS.map((option) => (
-                  <option key={option.key} value={option.key}>{option.label}</option>
-                ))}
-              </select>
-              <label htmlFor="order-delivery" className="sr-only">Delivery</label>
-              <select
-                id="order-delivery"
-                value={deliveryStatus}
-                onChange={(event) => {
-                  setDeliveryStatus(event.target.value)
-                  setPage(1)
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
-              >
-                {ORDER_DELIVERY_OPTIONS.map((option) => (
-                  <option key={option.key} value={option.key}>{option.label}</option>
-                ))}
-              </select>
-              <label htmlFor="order-vendor" className="sr-only">Store</label>
-              <select
-                id="order-vendor"
-                value={vendorId}
-                onChange={(event) => {
-                  const nextId = event.target.value
-                  setVendorId(nextId)
-                  setVendorLabel(vendorOptions.find(([id]) => id === nextId)?.[1] ?? '')
-                  setPage(1)
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
-              >
-                <option value="">Any store</option>
-                {vendorOptions.map(([id, name]) => (
-                  <option key={id} value={id}>{name}</option>
-                ))}
-              </select>
-              <label htmlFor="order-user" className="sr-only">Shopper</label>
-              <select
-                id="order-user"
-                value={userId}
-                onChange={(event) => {
-                  const nextId = event.target.value
-                  setUserId(nextId)
-                  setUserLabel(userOptions.find(([id]) => id === nextId)?.[1] ?? '')
-                  setPage(1)
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
-              >
-                <option value="">Any shopper</option>
-                {userOptions.map(([id, name]) => (
-                  <option key={id} value={id}>{name}</option>
-                ))}
-              </select>
+                <SlidersHorizontal className="size-3.5" />
+                Filters
+                {drawerFilterCount > 0 && (
+                  <span className="flex min-h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+                    {drawerFilterCount}
+                  </span>
+                )}
+              </button>
             </div>
+
+            {chips.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {chips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => removeChip(chip.key)}
+                    aria-label={`Remove ${chip.label} filter`}
+                    className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  >
+                    <span className="min-w-0 break-words">{chip.label}</span>
+                    <X className="size-3.5 shrink-0 text-slate-400" />
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={clearDrawerFilters}
+                  className="cursor-pointer text-xs font-semibold text-slate-500 hover:text-brand"
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
           </section>
         </DashboardReveal>
 
@@ -280,6 +283,36 @@ export default function Orders() {
         </DashboardReveal>
       </div>
 
+      <OrderFiltersDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        paymentStatus={paymentStatus}
+        deliveryStatus={deliveryStatus}
+        vendorId={vendorId}
+        userId={userId}
+        vendorOptions={vendorOptions}
+        userOptions={userOptions}
+        onPaymentChange={(value) => {
+          setPaymentStatus(value)
+          setPage(1)
+        }}
+        onDeliveryChange={(value) => {
+          setDeliveryStatus(value)
+          setPage(1)
+        }}
+        onVendorChange={(nextId) => {
+          setVendorId(nextId)
+          setVendorLabel(vendorOptions.find(([id]) => id === nextId)?.[1] ?? '')
+          setPage(1)
+        }}
+        onUserChange={(nextId) => {
+          setUserId(nextId)
+          setUserLabel(userOptions.find(([id]) => id === nextId)?.[1] ?? '')
+          setPage(1)
+        }}
+        onClear={clearDrawerFilters}
+        resultCount={pagination.total}
+      />
       <OrderPaymentStatusModal
         open={Boolean(paymentOrder)}
         order={paymentOrder}

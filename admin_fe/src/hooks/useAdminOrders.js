@@ -102,8 +102,8 @@ function findCachedOrder(queryClient, id) {
     if (!Array.isArray(list)) continue
     const match = list.find((item) => (
       String(item.apiId) === String(id)
+      || String(item.orderId) === String(id)
       || String(item.id) === String(id)
-      || String(item.orderNumber) === String(id)
     ))
     if (match) return match
   }

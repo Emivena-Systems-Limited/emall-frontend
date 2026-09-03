@@ -1,26 +1,25 @@
 import {
   Award,
   Bell,
-  CircleDollarSign,
+  Boxes,
+  CreditCard,
   FolderTree,
-  Headset,
+  Heart,
   LayoutDashboard,
   Package,
-  Settings,
+  Search,
   Shield,
+  ShoppingBag,
   ShoppingCart,
   Star,
   Store,
-  Tag,
+  TicketPercent,
   User,
   UserCog,
   Users,
 } from 'lucide-react'
 
-export const SIDEBAR_NAV_BADGES = {
-  support: 5,
-  finance: 2,
-}
+export const SIDEBAR_NAV_BADGES = {}
 
 export function formatBadgeCount(count) {
   if (!count || count <= 0) return null
@@ -36,23 +35,31 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    label: 'Marketplace',
+    label: 'Catalogue',
     items: [
       { to: '/vendors', icon: Store, label: 'Vendors' },
       { to: '/categories', icon: FolderTree, label: 'Categories', end: true },
       { to: '/brands', icon: Award, label: 'Brands' },
-      { to: '/products', icon: Package, label: 'Catalogue' },
-      { to: '/orders', icon: ShoppingCart, label: 'Orders' },
-      { to: '/customers', icon: Users, label: 'Customers', comingSoon: true },
+      { to: '/products', icon: Package, label: 'Products' },
+      { to: '/inventory', icon: Boxes, label: 'Inventory' },
     ],
   },
   {
-    label: 'Operations',
+    label: 'Sales',
     items: [
-      { to: '/finance', icon: CircleDollarSign, label: 'Finance', comingSoon: true, badgeKey: 'finance' },
-      { to: '/promotions', icon: Tag, label: 'Promotions', comingSoon: true },
-      { to: '/reviews', icon: Star, label: 'Trust & reviews', comingSoon: true },
-      { to: '/support', icon: Headset, label: 'Support', comingSoon: true, badgeKey: 'support' },
+      { to: '/orders', icon: ShoppingCart, label: 'Orders' },
+      { to: '/carts', icon: ShoppingBag, label: 'Carts' },
+      { to: '/payments', icon: CreditCard, label: 'Payments' },
+      { to: '/coupons', icon: TicketPercent, label: 'Coupons' },
+    ],
+  },
+  {
+    label: 'Customers',
+    items: [
+      { to: '/users', icon: Users, label: 'Users' },
+      { to: '/wishlists', icon: Heart, label: 'Wishlist' },
+      { to: '/reviews', icon: Star, label: 'Reviews' },
+      { to: '/searches', icon: Search, label: 'Search' },
     ],
   },
   {
@@ -60,7 +67,6 @@ export const NAV_SECTIONS = [
     items: [
       { to: '/staff', icon: UserCog, label: 'Staff & roles', comingSoon: true },
       { to: '/audit', icon: Shield, label: 'Audit log', comingSoon: true },
-      { to: '/settings', icon: Settings, label: 'Platform settings', comingSoon: true },
       { to: '/profile', icon: User, label: 'My profile' },
     ],
   },

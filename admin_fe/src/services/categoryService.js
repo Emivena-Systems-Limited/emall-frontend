@@ -2,6 +2,7 @@ import apiClient from '../lib/apiClient'
 import { CATEGORY_ENDPOINTS, CATEGORY_WRITE_ENABLED } from '../constants/categories'
 import { assertAuthEnvelope } from '../utils/parseApiError'
 import { extractCategoryList } from '../utils/normalizeAdminCategories'
+import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
 
 function writePendingError() {
   const error = new Error('This category cannot be saved yet.')
@@ -37,13 +38,17 @@ export function buildCategoryFormData({
 }
 
 export async function fetchParentCategories() {
-  const { data } = await apiClient.get(CATEGORY_ENDPOINTS.GET_PARENTS)
+  const { data } = await apiClient.get(CATEGORY_ENDPOINTS.GET_PARENTS, {
+    params: { ...LATEST_FIRST_QUERY },
+  })
   const envelope = assertAuthEnvelope(data, 'Could not load parent categories.')
   return extractCategoryList(envelope)
 }
 
 export async function fetchCategoriesWithChildren() {
-  const { data } = await apiClient.get(CATEGORY_ENDPOINTS.GET_WITH_CHILDREN)
+  const { data } = await apiClient.get(CATEGORY_ENDPOINTS.GET_WITH_CHILDREN, {
+    params: { ...LATEST_FIRST_QUERY },
+  })
   const envelope = assertAuthEnvelope(data, 'Could not load categories.')
   return extractCategoryList(envelope)
 }

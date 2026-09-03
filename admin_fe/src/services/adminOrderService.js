@@ -10,6 +10,7 @@ import {
   toAdminOrder,
 } from '../utils/normalizeAdminOrders'
 import { extractVendorOrderRecord } from '../utils/normalizeVendorOrders'
+import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
 
 function compactParams(params) {
   return Object.fromEntries(
@@ -37,6 +38,7 @@ export async function fetchAdminOrders({
       search: String(search ?? '').trim(),
       page,
       per_page: perPage,
+      ...LATEST_FIRST_QUERY,
     }),
   })
   const envelope = assertAuthEnvelope(data, 'Could not load orders.')

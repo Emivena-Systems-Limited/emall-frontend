@@ -10,6 +10,7 @@ import {
   toProductApiStatus,
 } from '../utils/normalizeAdminProducts'
 import { extractProductRecord } from '../utils/normalizeProducts'
+import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
 
 function compactParams(params) {
   return Object.fromEntries(
@@ -35,6 +36,7 @@ export async function fetchAdminProducts({
       search: String(search ?? '').trim(),
       page,
       per_page: perPage,
+      ...LATEST_FIRST_QUERY,
     }),
   })
   const envelope = assertAuthEnvelope(data, 'Could not load products.')

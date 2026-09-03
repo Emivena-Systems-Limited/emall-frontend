@@ -16,6 +16,20 @@ import EditProduct from '../pages/products/EditProduct'
 import Orders from '../pages/Orders'
 import OrderDetail from '../pages/OrderDetail'
 import Profile from '../pages/Profile'
+import Users from '../pages/Users'
+import UserDetail from '../pages/UserDetail'
+import Coupons from '../pages/Coupons'
+import CouponDetail from '../pages/CouponDetail'
+import CouponUsage from '../pages/CouponUsage'
+import Reviews from '../pages/Reviews'
+import ReviewDetail from '../pages/ReviewDetail'
+import Inventory from '../pages/Inventory'
+import InventoryDetail from '../pages/InventoryDetail'
+import Payments from '../pages/Payments'
+import PaymentDetail from '../pages/PaymentDetail'
+import Carts from '../pages/Carts'
+import Wishlists from '../pages/Wishlists'
+import Searches from '../pages/Searches'
 import ResetPassword from '../pages/ResetPassword'
 import VendorDetail from '../pages/VendorDetail'
 import VendorProducts from '../pages/VendorProducts'
@@ -37,6 +51,11 @@ function ComingSoonRoute() {
 function RedirectVendorDetail() {
   const { vendorId } = useParams()
   return <Navigate to={`/vendors/${vendorId}`} replace />
+}
+
+function RedirectCustomerDetail() {
+  const { userId } = useParams()
+  return <Navigate to={`/users/${userId}`} replace />
 }
 
 function RootRedirect() {
@@ -174,6 +193,22 @@ export default function AppRoutes() {
         )}
       />
       <Route
+        path="/inventory"
+        element={(
+          <ProtectedRoute>
+            <Inventory />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/inventory/:inventoryId"
+        element={(
+          <ProtectedRoute>
+            <InventoryDetail />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
         path="/orders"
         element={(
           <ProtectedRoute>
@@ -189,10 +224,106 @@ export default function AppRoutes() {
           </ProtectedRoute>
         )}
       />
-      <Route path="/customers" element={<ComingSoonRoute />} />
+      <Route
+        path="/carts"
+        element={(
+          <ProtectedRoute>
+            <Carts />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/wishlists"
+        element={(
+          <ProtectedRoute>
+            <Wishlists />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/searches"
+        element={(
+          <ProtectedRoute>
+            <Searches />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/payments"
+        element={(
+          <ProtectedRoute>
+            <Payments />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/payments/:paymentId"
+        element={(
+          <ProtectedRoute>
+            <PaymentDetail />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/users"
+        element={(
+          <ProtectedRoute>
+            <Users />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/users/:userId"
+        element={(
+          <ProtectedRoute>
+            <UserDetail />
+          </ProtectedRoute>
+        )}
+      />
+      <Route path="/customers" element={<Navigate to="/users" replace />} />
+      <Route path="/customers/:userId" element={<RedirectCustomerDetail />} />
+      <Route
+        path="/coupons"
+        element={(
+          <ProtectedRoute>
+            <Coupons />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/coupons/usage"
+        element={(
+          <ProtectedRoute>
+            <CouponUsage />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/coupons/:couponId"
+        element={(
+          <ProtectedRoute>
+            <CouponDetail />
+          </ProtectedRoute>
+        )}
+      />
+      <Route path="/promotions" element={<Navigate to="/coupons" replace />} />
+      <Route
+        path="/reviews"
+        element={(
+          <ProtectedRoute>
+            <Reviews />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/reviews/:reviewId"
+        element={(
+          <ProtectedRoute>
+            <ReviewDetail />
+          </ProtectedRoute>
+        )}
+      />
       <Route path="/finance" element={<ComingSoonRoute />} />
-      <Route path="/promotions" element={<ComingSoonRoute />} />
-      <Route path="/reviews" element={<ComingSoonRoute />} />
       <Route path="/support" element={<ComingSoonRoute />} />
       <Route path="/staff" element={<ComingSoonRoute />} />
       <Route path="/audit" element={<ComingSoonRoute />} />

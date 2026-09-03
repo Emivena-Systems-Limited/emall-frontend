@@ -1,5 +1,6 @@
 import { EMPTY_ORDER_STATS, ORDER_PAGE_SIZE } from '../constants/adminOrders'
 import { unwrapApiEnvelope } from './parseApiError'
+import { sortLatestFirst } from './sortLatestFirst'
 import {
   extractVendorOrderList,
   extractVendorOrderRecord,
@@ -58,13 +59,15 @@ function vendorFrom(record) {
 }
 
 export function getOrderApiId(order) {
+  const raw = isRecord(order?.raw) ? order.raw : order
+  const parent = isRecord(raw?.order) ? raw.order : null
+
   return firstText(
-    order?.orderNumber,
+    raw?.id,
+    parent?.id,
     order?.orderId,
     order?.id,
-    order?.raw?.order_number,
-    order?.raw?.id,
-  ).replace(/^#+/, '')
+  )
 }
 
 export function toAdminOrder(record) {
@@ -82,7 +85,10 @@ export function toAdminOrder(record) {
 }
 
 export function normalizeAdminOrders(body) {
-  return extractVendorOrderList(body).map(toAdminOrder).filter(Boolean)
+  return sortLatestFirst(
+    extractVendorOrderList(body).map(toAdminOrder).filter(Boolean),
+    ['orderDate', 'id'],
+  )
 }
 
 export function extractAdminOrderRecord(body, orderId) {
@@ -92,8 +98,8 @@ export function extractAdminOrderRecord(body, orderId) {
   const match = extractVendorOrderList(body).find((item) => {
     const normalized = toAdminOrder(item)
     return String(normalized?.apiId) === String(orderId)
+      || String(normalized?.orderId) === String(orderId)
       || String(normalized?.id) === String(orderId)
-      || String(normalized?.orderNumber) === String(orderId)
   })
 
   return match ?? null

@@ -1,4 +1,5 @@
 import { unwrapApiEnvelope } from './parseApiError'
+import { sortLatestFirst } from './sortLatestFirst'
 
 function isRecord(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
@@ -134,9 +135,13 @@ export function normalizeCategoryRecord(record, parentId = null, nestedLevel = 0
     productCount: record.products_count == null && record.product_count == null
       ? null
       : toNumber(record.products_count ?? record.product_count),
-    children: childList(record)
-      .map((child) => normalizeCategoryRecord(child, id, inferredLevel + 1))
-      .filter(Boolean),
+    children: sortLatestFirst(
+      childList(record)
+        .map((child) => normalizeCategoryRecord(child, id, inferredLevel + 1))
+        .filter(Boolean),
+      ['createdAt', 'id'],
+    ),
+    createdAt: firstText(record.created_at, record.createdAt) || null,
   }
 }
 
@@ -156,7 +161,10 @@ export function extractCategoryList(body) {
     }
   }
 
-  return list.map((item) => normalizeCategoryRecord(item)).filter(Boolean)
+  return sortLatestFirst(
+    list.map((item) => normalizeCategoryRecord(item)).filter(Boolean),
+    ['createdAt', 'id'],
+  )
 }
 
 export function flattenCategories(categories, depth = 0, parent = null) {

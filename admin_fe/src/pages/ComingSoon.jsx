@@ -22,7 +22,8 @@ export default function ComingSoon() {
               }}
             />
             <div aria-hidden className="pointer-events-none absolute -top-8 -right-8 size-40 rounded-full bg-brand/30 blur-3xl" />
-            <p className="relative text-[11px] font-bold tracking-[0.18em] text-brand-muted uppercase">{page.eyebrow}</p>
+            <div aria-hidden className="pointer-events-none absolute -bottom-10 left-8 size-32 rounded-full bg-cyan-500/10 blur-3xl" />
+            <p className="relative text-[11px] font-bold tracking-[0.18em] text-cyan-300/80 uppercase">{page.eyebrow}</p>
             <div className="relative mt-4 flex items-start gap-4">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/15">
                 <Icon className="size-5" />

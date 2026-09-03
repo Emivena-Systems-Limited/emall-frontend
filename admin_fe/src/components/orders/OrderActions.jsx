@@ -1,5 +1,6 @@
 import { Ban, CreditCard, Eye, Truck } from 'lucide-react'
 import { canCancelOrder, canUpdateOrderDelivery } from '../../constants/adminOrders'
+import ActionTooltip from '../common/ActionTooltip'
 
 export default function OrderActions({
   order,
@@ -14,56 +15,93 @@ export default function OrderActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
-      <button
-        type="button"
-        onClick={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          onView?.(order)
-        }}
-        aria-label={`View ${name}`}
-        className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      <ActionTooltip
+        icon={Eye}
+        label="View order"
+        hint="Open the shopper, items, and fulfilment details"
       >
-        <Eye className="size-3.5" strokeWidth={2} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          onPayment?.(order)
-        }}
-        aria-label={`Update payment for ${name}`}
-        className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-brand-light hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onView?.(order)
+          }}
+          aria-label={`View ${name}`}
+          className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <Eye className="size-3.5" strokeWidth={2} aria-hidden="true" />
+        </button>
+      </ActionTooltip>
+
+      <ActionTooltip
+        icon={CreditCard}
+        tone="brand"
+        label="Update payment"
+        hint="Mark paid, pending, failed, or refunded"
       >
-        <CreditCard className="size-3.5" strokeWidth={2} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        disabled={!canDeliver}
-        onClick={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          if (canDeliver) onDelivery?.(order)
-        }}
-        aria-label={`Update delivery for ${name}`}
-        className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-30"
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onPayment?.(order)
+          }}
+          aria-label={`Update payment for ${name}`}
+          className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-brand-light hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <CreditCard className="size-3.5" strokeWidth={2} aria-hidden="true" />
+        </button>
+      </ActionTooltip>
+
+      <ActionTooltip
+        icon={Truck}
+        label={canDeliver ? 'Update delivery' : 'Delivery locked'}
+        hint={
+          canDeliver
+            ? 'Move this order through packing, shipping, and delivery'
+            : 'Cancelled or refunded orders cannot be shipped'
+        }
       >
-        <Truck className="size-3.5" strokeWidth={2} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        disabled={!canCancel}
-        onClick={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          if (canCancel) onCancel?.(order)
-        }}
-        aria-label={`Cancel ${name}`}
-        className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-30"
+        <button
+          type="button"
+          disabled={!canDeliver}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (canDeliver) onDelivery?.(order)
+          }}
+          aria-label={canDeliver ? `Update delivery for ${name}` : `Delivery cannot be updated for ${name}`}
+          className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <Truck className="size-3.5" strokeWidth={2} aria-hidden="true" />
+        </button>
+      </ActionTooltip>
+
+      <ActionTooltip
+        icon={Ban}
+        tone="danger"
+        label={canCancel ? 'Cancel order' : 'Cannot cancel'}
+        hint={
+          canCancel
+            ? 'Stop fulfilment for this checkout'
+            : 'Delivered, refunded, or already cancelled orders stay as they are'
+        }
       >
-        <Ban className="size-3.5" strokeWidth={2} aria-hidden="true" />
-      </button>
+        <button
+          type="button"
+          disabled={!canCancel}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (canCancel) onCancel?.(order)
+          }}
+          aria-label={canCancel ? `Cancel ${name}` : `${name} cannot be cancelled`}
+          className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <Ban className="size-3.5" strokeWidth={2} aria-hidden="true" />
+        </button>
+      </ActionTooltip>
     </div>
   )
 }
