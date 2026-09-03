@@ -4,6 +4,7 @@ import Container from '../layout/Container'
 import { topCategories } from '../../constants/topCategories'
 import { getParentCategories } from '../../services/categoryService'
 import { mapApiCategory } from '../../utils/categoryDisplay'
+import { toCategoryListingHref } from '../../utils/listingFilterParams'
 import TopCategoriesCarousel from './TopCategoriesCarousel'
 
 export default function TopCategoriesSection() {
@@ -15,7 +16,12 @@ export default function TopCategoriesSection() {
   })
 
   const categories = useMemo(() => {
-    if (!apiCategories.length) return topCategories
+    if (!apiCategories.length) {
+      return topCategories.map((category) => ({
+        ...category,
+        href: toCategoryListingHref(category.href),
+      }))
+    }
     return apiCategories.map((category, index) => mapApiCategory(category, index))
   }, [apiCategories])
 

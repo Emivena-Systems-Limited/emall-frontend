@@ -89,7 +89,7 @@ export const ANALYTICS_ENDPOINTS = {
   SALES_BY_REGION: '/api/vendor/analytics/sales-by-region',
   TOP_PRODUCTS: '/api/vendor/analytics/top-products',
   FULFILLMENT: '/api/vendor/analytics/fulfillments',
-  EXPORT: '/api/vendor/analytics/reports',
+  EXPORT: '/api/vendor/analytics/reports/export',
 }
 
 export const REPORT_TABS = {

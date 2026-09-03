@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate, useParams, useSearchParams } from 'react-router'
+import { Navigate, useLocation, useParams, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { SlidersHorizontal } from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
@@ -9,8 +9,16 @@ import CategoryQuickFilterTabs from '../components/category/CategoryQuickFilterT
 import CategoryBreadcrumb from '../components/category/CategoryBreadcrumb'
 import CategoryFilterSidebar from '../components/category/CategoryFilterSidebar'
 import CategoryFilterDrawer from '../components/category/CategoryFilterDrawer'
-import CategoryProductsEmptyState from '../components/category/CategoryProductsEmptyState'
+import CategoryProductsPanel from '../components/category/CategoryProductsPanel'
+import { useProductCatalog } from '../hooks/useProductCatalog'
 import { getParentCategories } from '../services/categoryService'
+import {
+  CATALOG_BRAND_PARAM,
+  CATALOG_COLOR_PARAM,
+  CATALOG_PAGE_PARAM,
+  CATALOG_SIZE_PARAM,
+  CATALOG_STORE_PARAM,
+} from '../constants/productCatalog'
 import {
   findCategoryBySlug,
   formatCategorySlugLabel,
@@ -18,13 +26,44 @@ import {
 import {
   FILTER_CATEGORY_PARAM,
   FILTER_SUBCATEGORY_PARAM,
+  buildCategoryListingHref,
   formatMultiFilterLabel,
   getSelectedFilterValues,
 } from '../utils/listingFilterParams'
+import {
+  buildCatalogApiParams,
+  countSidebarCatalogFilters,
+} from '../utils/catalogQueryParams'
+import { collectProductFacets, mergeCatalogFacets } from '../utils/normalizeProductCatalog'
+
+const EMPTY_PRODUCTS = []
+
+function selectedFacetOptions(searchParams, key) {
+  return getSelectedFilterValues(searchParams, key).map((value) => ({ id: value, label: value }))
+}
+
+function buildCategoryPageUrl(categorySlug, subcategorySlug, searchParams) {
+  if (!categorySlug) return '/categories'
+
+  const next = new URLSearchParams(searchParams)
+  if (next.getAll(FILTER_CATEGORY_PARAM).length === 0) {
+    next.set(FILTER_CATEGORY_PARAM, categorySlug)
+  }
+  if (subcategorySlug && next.getAll(FILTER_SUBCATEGORY_PARAM).length === 0) {
+    next.set(FILTER_SUBCATEGORY_PARAM, subcategorySlug)
+  }
+
+  const path = subcategorySlug
+    ? `/categories/${categorySlug}/${subcategorySlug}`
+    : `/categories/${categorySlug}`
+  const query = next.toString()
+  return query ? `${path}?${query}` : path
+}
 
 export default function CategoryPage() {
   const { slug, subSlug } = useParams()
-  const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
 
   useEffect(() => {
@@ -54,18 +93,11 @@ export default function CategoryPage() {
     slug !== canonicalSlug
     || (subSlug && currentSubcategory && subSlug !== canonicalSubSlug)
   )
-
-  if (shouldRedirect) {
-    const redirectPath = canonicalSubSlug
-      ? `/categories/${canonicalSlug}/${canonicalSubSlug}`
-      : `/categories/${canonicalSlug}`
-
-    return <Navigate to={redirectPath} replace />
-  }
-
-  const categoryLabel = currentCategory?.name ?? formatCategorySlugLabel(slug)
-  const subcategoryLabel = subSlug ? currentSubcategory?.name ?? formatCategorySlugLabel(subSlug) : null
-  const pageSubcategories = currentCategory?.children?.filter((child) => child.isActive) ?? []
+  const targetUrl = buildCategoryPageUrl(canonicalSlug, canonicalSubSlug, searchParams)
+  const currentUrl = `${location.pathname}${location.search}`
+  const shouldSyncUrl = Boolean(canonicalSlug) && currentUrl !== targetUrl && (
+    shouldRedirect || searchParams.getAll(FILTER_CATEGORY_PARAM).length === 0
+  )
 
   const selectedCategorySlugs = getSelectedFilterValues(
     searchParams,
@@ -78,6 +110,51 @@ export default function CategoryPage() {
     canonicalSubSlug ? [canonicalSubSlug] : [],
   )
 
+  const catalogParams = useMemo(
+    () => buildCatalogApiParams({
+      searchParams,
+      categorySlugs: selectedCategorySlugs,
+      subcategorySlugs: selectedSubcategorySlugs,
+    }),
+    [searchParams, selectedCategorySlugs, selectedSubcategorySlugs],
+  )
+
+  const catalogQuery = useProductCatalog(catalogParams, {
+    enabled: !shouldSyncUrl && (
+      selectedCategorySlugs.length > 0 || selectedSubcategorySlugs.length > 0
+    ),
+  })
+
+  const products = catalogQuery.data?.products ?? EMPTY_PRODUCTS
+  const pagination = catalogQuery.data?.pagination ?? {
+    currentPage: catalogParams.page,
+    lastPage: 1,
+    perPage: catalogParams.per_page,
+    total: 0,
+  }
+
+  const facetOptions = useMemo(
+    () => mergeCatalogFacets(
+      catalogQuery.data?.facets,
+      collectProductFacets(products),
+      {
+        brands: selectedFacetOptions(searchParams, CATALOG_BRAND_PARAM),
+        colors: selectedFacetOptions(searchParams, CATALOG_COLOR_PARAM),
+        sizes: selectedFacetOptions(searchParams, CATALOG_SIZE_PARAM),
+        stores: selectedFacetOptions(searchParams, CATALOG_STORE_PARAM),
+      },
+    ),
+    [catalogQuery.data?.facets, products, searchParams],
+  )
+
+  if (shouldSyncUrl) {
+    return <Navigate to={targetUrl} replace />
+  }
+
+  const categoryLabel = currentCategory?.name ?? formatCategorySlugLabel(slug)
+  const subcategoryLabel = subSlug ? currentSubcategory?.name ?? formatCategorySlugLabel(subSlug) : null
+  const pageSubcategories = currentCategory?.children?.filter((child) => child.isActive) ?? []
+
   const selectedCategoryLabels = selectedCategorySlugs.map(
     (itemSlug) => findCategoryBySlug(parentCategories, itemSlug)?.name ?? formatCategorySlugLabel(itemSlug),
   )
@@ -89,6 +166,18 @@ export default function CategoryPage() {
     selectedSubcategoryLabels.length ? selectedSubcategoryLabels : selectedCategoryLabels,
     subcategoryLabel ?? categoryLabel,
   )
+
+  const activeFilterCount = countSidebarCatalogFilters(searchParams)
+
+  const handlePageChange = (page) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (page <= 1) next.delete(CATALOG_PAGE_PARAM)
+      else next.set(CATALOG_PAGE_PARAM, String(page))
+      return next
+    }, { replace: true })
+    document.getElementById('category-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <SiteLayout>
@@ -115,31 +204,47 @@ export default function CategoryPage() {
           <div className="mb-4 flex items-center justify-between gap-3 sm:mb-5">
             <CategoryBreadcrumb
               categoryLabel={categoryLabel}
-              categoryHref={`/categories/${canonicalSlug}`}
+              categoryHref={buildCategoryListingHref(canonicalSlug)}
               subcategoryLabel={subcategoryLabel}
             />
 
             <button
               type="button"
               onClick={() => setIsFilterDrawerOpen(true)}
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-auth-primary hover:text-auth-primary sm:text-sm lg:hidden"
+              className="relative flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-auth-primary hover:text-auth-primary sm:text-sm lg:hidden"
             >
               <SlidersHorizontal className="size-3.5 sm:size-4" strokeWidth={2.25} aria-hidden />
               Filters
+              {activeFilterCount > 0 ? (
+                <span className="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-auth-primary px-1.5 text-[0.65rem] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              ) : null}
             </button>
           </div>
 
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6 xl:gap-8">
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6 xl:gap-8">
             <CategoryFilterSidebar
               parentCategories={parentCategories}
               defaultCategorySlug={canonicalSlug}
               defaultSubcategorySlug={canonicalSubSlug}
               isLoading={isLoading}
+              isFacetsLoading={catalogQuery.isPending && products.length === 0}
+              facetOptions={facetOptions}
             />
 
-            <div className="flex min-w-0 flex-1 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60 sm:p-4">
-              <CategoryProductsEmptyState categoryLabel={emptyStateLabel} />
-            </div>
+            <CategoryProductsPanel
+              products={products}
+              pagination={pagination}
+              isPending={catalogQuery.isPending}
+              isFetching={catalogQuery.isFetching}
+              isError={catalogQuery.isError}
+              isPlaceholderData={catalogQuery.isPlaceholderData}
+              error={catalogQuery.error}
+              emptyLabel={emptyStateLabel}
+              onRetry={() => catalogQuery.refetch()}
+              onPageChange={handlePageChange}
+            />
           </div>
         </Container>
       </section>
@@ -151,6 +256,8 @@ export default function CategoryPage() {
         defaultCategorySlug={canonicalSlug}
         defaultSubcategorySlug={canonicalSubSlug}
         isLoading={isLoading}
+        isFacetsLoading={catalogQuery.isPending && products.length === 0}
+        facetOptions={facetOptions}
       />
     </SiteLayout>
   )

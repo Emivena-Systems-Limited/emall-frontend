@@ -3,6 +3,18 @@ import { useQuery } from '@tanstack/react-query'
 import { categoryMenuItems } from '../constants/categoriesMenu'
 import { getCategoriesWithChildren } from '../services/categoryService'
 import { buildNavbarCategoryMenuItems } from '../utils/buildNavbarCategoryMenuItems'
+import { toCategoryListingHref } from '../utils/listingFilterParams'
+
+function withCatalogQueryHrefs(item) {
+  return {
+    ...item,
+    href: toCategoryListingHref(item.href),
+    subcategories: (item.subcategories ?? []).map((sub) => ({
+      ...sub,
+      href: toCategoryListingHref(sub.href),
+    })),
+  }
+}
 
 export function useNavbarCategoryMenu() {
   const { data: categoryTree = [], isLoading } = useQuery({
@@ -14,7 +26,8 @@ export function useNavbarCategoryMenu() {
 
   const menuItems = useMemo(() => {
     const apiItems = buildNavbarCategoryMenuItems(categoryTree)
-    return apiItems.length ? apiItems : categoryMenuItems
+    const source = apiItems.length ? apiItems : categoryMenuItems
+    return source.map(withCatalogQueryHrefs)
   }, [categoryTree])
 
   const defaultCategoryId = menuItems[0]?.id ?? null

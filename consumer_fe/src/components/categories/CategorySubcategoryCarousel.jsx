@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router'
 import Container from '../layout/Container'
 import SubcategoryCarouselCard from './SubcategoryCarouselCard'
 
@@ -54,7 +55,12 @@ const FULL_WIDTH_GRID_COLUMNS = {
   4: 'grid-cols-2 lg:grid-cols-4',
 }
 
-export default function CategorySubcategoryCarousel({ title, subcategories = [], isLoading = false }) {
+export default function CategorySubcategoryCarousel({
+  title,
+  viewAllHref,
+  subcategories = [],
+  isLoading = false,
+}) {
   const trackRef = useRef(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
@@ -127,7 +133,16 @@ export default function CategorySubcategoryCarousel({ title, subcategories = [],
               id={headingId}
               className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl"
             >
-              {title}
+              {viewAllHref ? (
+                <Link
+                  to={viewAllHref}
+                  className="transition-colors hover:text-auth-primary"
+                >
+                  {title}
+                </Link>
+              ) : (
+                title
+              )}
             </h2>
 
             {showControls ? (

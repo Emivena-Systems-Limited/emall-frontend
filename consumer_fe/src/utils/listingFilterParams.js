@@ -72,3 +72,29 @@ export function buildPromotionsHref(categorySlug, subcategoryId) {
 
   return `/promotions?${params.toString()}`
 }
+
+export function buildCategoryListingHref(categorySlug, subcategorySlug) {
+  if (!categorySlug) return '/categories'
+
+  const params = new URLSearchParams()
+  params.set(FILTER_CATEGORY_PARAM, categorySlug)
+
+  if (subcategorySlug && subcategorySlug !== 'all') {
+    params.set(FILTER_SUBCATEGORY_PARAM, subcategorySlug)
+    return `/categories/${categorySlug}/${subcategorySlug}?${params.toString()}`
+  }
+
+  return `/categories/${categorySlug}?${params.toString()}`
+}
+
+export function getCategoryListingPathname(href = '') {
+  return String(href).split('?')[0]
+}
+
+/** Upgrade a /categories/:slug path (with or without query) to include catalog query params. */
+export function toCategoryListingHref(href) {
+  const pathname = getCategoryListingPathname(href)
+  const match = pathname.match(/^\/categories\/([^/]+)(?:\/([^/]+))?$/)
+  if (!match) return href
+  return buildCategoryListingHref(match[1], match[2])
+}

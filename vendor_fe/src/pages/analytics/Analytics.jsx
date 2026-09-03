@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import AnalyticsPageHeader from '../../components/analytics/AnalyticsPageHeader'
@@ -14,12 +14,9 @@ import {
   TopProductsTable,
 } from '../../components/analytics/AnalyticsCharts'
 import { DEV_ANALYTICS, EMPTY_ANALYTICS, EMPTY_ANALYTICS_SUMMARY } from '../../constants/analyticsData'
-import { useAnalyticsCustomerGrowth, useAnalyticsFulfillment, useAnalyticsRevenueOrders, useAnalyticsSalesByCategory, useAnalyticsSalesByRegion, useAnalyticsSummary, useAnalyticsTopProducts } from '../../hooks/useAnalyticsSummary'
+import { useAnalyticsCustomerGrowth, useAnalyticsFulfillment, useAnalyticsRevenueOrders, useAnalyticsSalesByCategory, useAnalyticsSalesByRegion, useAnalyticsSummary, useAnalyticsTopProducts, useExportAnalyticsReport } from '../../hooks/useAnalyticsSummary'
 import notify from '../../lib/notify'
-import {
-  exportAnalyticsReport,
-  getDefaultAnalyticsDateRange,
-} from '../../utils/analyticsUtils'
+import { getDefaultAnalyticsDateRange } from '../../utils/analyticsUtils'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -34,6 +31,7 @@ export default function Analytics() {
   const [fulfillmentYear, setFulfillmentYear] = useState(CURRENT_YEAR)
 
   const [exportOpen, setExportOpen] = useState(false)
+  const exportReportMutation = useExportAnalyticsReport()
 
   const {
     data: apiSummary,
@@ -120,8 +118,6 @@ export default function Analytics() {
     enabled: !devDataEnabled,
   })
 
-  const remainingChartData = devDataEnabled ? DEV_ANALYTICS : EMPTY_ANALYTICS
-
   const summary = devDataEnabled
     ? DEV_ANALYTICS.summary
     : (apiSummary?.summary ?? EMPTY_ANALYTICS_SUMMARY)
@@ -156,21 +152,6 @@ export default function Analytics() {
     ? DEV_ANALYTICS.fulfillmentStats
     : (apiFulfillment?.stats ?? EMPTY_ANALYTICS.fulfillmentStats)
   const fulfillmentTotal = devDataEnabled ? undefined : apiFulfillment?.total
-
-  const exportData = useMemo(
-    () => ({
-      ...remainingChartData,
-      summary,
-      previousSummary,
-      revenueTimeline,
-      categoryBreakdown,
-      customerGrowth,
-      salesByRegion,
-      topProducts,
-      fulfillmentStats,
-    }),
-    [remainingChartData, summary, previousSummary, revenueTimeline, categoryBreakdown, customerGrowth, salesByRegion, topProducts, fulfillmentStats],
-  )
 
   const showSummaryLoader = !devDataEnabled && isSummaryLoading
   const showSummaryError = !devDataEnabled && isSummaryError
@@ -234,10 +215,18 @@ export default function Analytics() {
     notify.info(enabled ? 'Loaded dummy analytics data.' : 'Showing live analytics data.')
   }
 
-  const handleExport = ({ reportKey, reportLabel, startDate, endDate, periodLabel }) => {
-    exportAnalyticsReport(exportData, { reportKey, reportLabel, startDate, endDate, periodLabel })
-    setExportOpen(false)
-    notify.success(`${reportLabel} exported.`)
+  const handleExport = async ({ reportKey, reportLabel, startDate, endDate }) => {
+    try {
+      await exportReportMutation.mutateAsync({
+        report: reportKey,
+        startDate,
+        endDate,
+      })
+      setExportOpen(false)
+      notify.success(`${reportLabel} exported.`)
+    } catch (error) {
+      notify.fromError(error, 'Unable to export report')
+    }
   }
 
   return (
@@ -254,9 +243,13 @@ export default function Analytics() {
 
         <AnalyticsExportDrawer
           open={exportOpen}
-          onClose={() => setExportOpen(false)}
+          onClose={() => {
+            if (exportReportMutation.isPending) return
+            setExportOpen(false)
+          }}
           initialRange={dateRange}
           onExport={handleExport}
+          isExporting={exportReportMutation.isPending}
         />
 
         {showSummaryLoader ? (

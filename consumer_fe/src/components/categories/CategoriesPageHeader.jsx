@@ -3,6 +3,7 @@ import {
   CATEGORIES_PAGE_HEADER,
   FEATURED_CATEGORY_SPOTLIGHTS,
 } from '../../constants/featuredCategorySpotlights'
+import { toCategoryListingHref } from '../../utils/listingFilterParams'
 import FeaturedDepartmentCard from './FeaturedDepartmentCard'
 
 export default function CategoriesPageHeader() {
@@ -26,12 +27,16 @@ export default function CategoriesPageHeader() {
         {primarySpotlight && secondarySpotlight ? (
           <div className="mt-6 grid gap-4 sm:mt-8 sm:gap-5 lg:grid-cols-3 lg:items-stretch">
             <FeaturedDepartmentCard
-              spotlight={primarySpotlight}
+              spotlight={{ ...primarySpotlight, href: toCategoryListingHref(primarySpotlight.href) }}
               featured={primarySpotlight.featured}
               imageOnly
               className="lg:col-span-2"
             />
-            <FeaturedDepartmentCard spotlight={secondarySpotlight} imageOnly fillHeight />
+            <FeaturedDepartmentCard
+              spotlight={{ ...secondarySpotlight, href: toCategoryListingHref(secondarySpotlight.href) }}
+              imageOnly
+              fillHeight
+            />
           </div>
         ) : null}
       </Container>

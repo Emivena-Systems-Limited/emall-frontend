@@ -1,6 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { useSearchParams } from 'react-router'
+import {
+  CATALOG_BRAND_PARAM,
+  CATALOG_COLOR_PARAM,
+  CATALOG_FILTER_PARAM,
+  CATALOG_PRICE_MAX_PARAM,
+  CATALOG_PRICE_MIN_PARAM,
+  CATALOG_PRICE_QUICK_FILTERS,
+  CATALOG_SEARCH_PARAM,
+  CATALOG_SIZE_PARAM,
+  CATALOG_STORE_PARAM,
+} from '../../constants/productCatalog'
+import { PRICE_PRESETS } from '../../utils/categoryProductFilters'
+import { isLightProductColor, resolveProductColor } from '../../utils/colorSwatches'
 import {
   FILTER_CATEGORY_PARAM,
   FILTER_SUBCATEGORY_PARAM,
@@ -10,6 +23,9 @@ import {
   setMultiParam,
   toggleMultiParamValue,
 } from '../../utils/listingFilterParams'
+import { clearCatalogQueryParams, resetCatalogPage } from '../../utils/catalogQueryParams'
+
+const SEARCH_DEBOUNCE_MS = 350
 
 function FilterAccordionSection({ title, defaultOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -34,7 +50,9 @@ function FilterAccordionSection({ title, defaultOpen = false, children }) {
   )
 }
 
-function FilterCheckbox({ label, checked, onToggle }) {
+function FilterCheckbox({ label, checked, onToggle, swatch = null }) {
+  const isLightSwatch = swatch ? isLightProductColor(label) || swatch === '#ffffff' : false
+
   return (
     <button
       type="button"
@@ -51,6 +69,13 @@ function FilterCheckbox({ label, checked, onToggle }) {
       >
         <Check className="size-3" strokeWidth={3} aria-hidden />
       </span>
+      {swatch ? (
+        <span
+          className={`size-3.5 shrink-0 rounded-full ${isLightSwatch ? 'border border-slate-300' : 'border border-black/10'}`}
+          style={{ background: swatch }}
+          aria-hidden
+        />
+      ) : null}
       <span
         className={`truncate text-sm ${
           checked ? 'font-semibold text-slate-900' : 'text-slate-600 group-hover:text-slate-900'
@@ -76,16 +101,148 @@ function FilterOptionsSkeleton({ count = 4 }) {
   )
 }
 
+function DebouncedSearchInput({ value, onCommit }) {
+  const [draft, setDraft] = useState(value)
+  const [syncedValue, setSyncedValue] = useState(value)
+  const timeoutRef = useRef(null)
+
+  if (value !== syncedValue) {
+    setSyncedValue(value)
+    setDraft(value)
+  }
+
+  const handleChange = (event) => {
+    const nextValue = event.target.value
+    setDraft(nextValue)
+    window.clearTimeout(timeoutRef.current)
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null
+      onCommit(nextValue)
+    }, SEARCH_DEBOUNCE_MS)
+  }
+
+  useEffect(() => () => window.clearTimeout(timeoutRef.current), [])
+
+  return (
+    <div className="relative">
+      <Search
+        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+        strokeWidth={2}
+        aria-hidden
+      />
+      <input
+        type="search"
+        value={draft}
+        onChange={handleChange}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return
+          window.clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+          onCommit(draft)
+        }}
+        placeholder="Search products"
+        aria-label="Search products"
+        className="w-full rounded-lg border border-black bg-slate-50 py-2.5 pr-3 pl-9 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-black focus:bg-white focus:ring-1 focus:ring-black/15"
+      />
+    </div>
+  )
+}
+
+function FilterDropdown({
+  label,
+  placeholder,
+  emptyText,
+  options = [],
+  selectedIds = [],
+  onToggle,
+  isLoading = false,
+  withSwatch = false,
+  defaultOpen = false,
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const selectedLabels = selectedIds
+    .map((id) => options.find((option) => option.id === id)?.label ?? id)
+    .filter(Boolean)
+  const summary = selectedLabels.length === 0
+    ? placeholder
+    : selectedLabels.length === 1
+      ? selectedLabels[0]
+      : `${selectedLabels.length} selected`
+
+  return (
+    <div className="border-b border-slate-100 py-4 last:border-b-0">
+      <p className="mb-2 text-sm font-bold text-slate-900">{label}</p>
+      {isLoading ? (
+        <FilterOptionsSkeleton count={1} />
+      ) : (
+        <div>
+          <button
+            type="button"
+            onClick={() => setOpen((prev) => !prev)}
+            disabled={!options.length}
+            aria-expanded={open}
+            className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-sm outline-none ${
+              options.length
+                ? 'cursor-pointer border-slate-200 bg-white text-slate-800 hover:border-auth-primary focus:border-auth-primary focus:ring-1 focus:ring-auth-primary/20'
+                : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
+            }`}
+          >
+            <span className={`min-w-0 truncate ${selectedLabels.length ? 'text-slate-800' : ''}`}>
+              {options.length ? summary : emptyText}
+            </span>
+            <ChevronDown
+              className={`size-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+              strokeWidth={2.25}
+              aria-hidden
+            />
+          </button>
+          {open && options.length ? (
+            <ul className="mt-2 max-h-52 space-y-2 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2.5 [scrollbar-width:thin]">
+              {options.map((option) => (
+                <li key={option.id}>
+                  <FilterCheckbox
+                    label={option.label}
+                    checked={selectedIds.includes(option.id)}
+                    onToggle={() => onToggle(option.id)}
+                    swatch={withSwatch ? resolveProductColor(option.label) : null}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function isPricePresetSelected(preset, priceMin, priceMax) {
+  const minMatches = (preset.min ?? null) === priceMin
+  const maxMatches = (preset.max ?? null) === priceMax
+  return minMatches && maxMatches
+}
+
 export default function CategoryFilterPanelContent({
   parentCategories = [],
   defaultCategorySlug,
   defaultSubcategorySlug,
   isLoading = false,
+  isFacetsLoading = false,
   showHeading = true,
   variant = 'category',
+  facetOptions = { brands: [], colors: [], sizes: [], stores: [] },
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const isPromotions = variant === 'promotions'
+  const searchValue = searchParams.get(CATALOG_SEARCH_PARAM) ?? ''
+  const selectedBrands = getSelectedFilterValues(searchParams, CATALOG_BRAND_PARAM)
+  const selectedColors = getSelectedFilterValues(searchParams, CATALOG_COLOR_PARAM)
+  const selectedSizes = getSelectedFilterValues(searchParams, CATALOG_SIZE_PARAM)
+  const selectedStores = getSelectedFilterValues(searchParams, CATALOG_STORE_PARAM)
+  const priceMin = searchParams.get(CATALOG_PRICE_MIN_PARAM)
+  const priceMax = searchParams.get(CATALOG_PRICE_MAX_PARAM)
+  const numericPriceMin = priceMin === '' || priceMin == null ? null : Number(priceMin)
+  const numericPriceMax = priceMax === '' || priceMax == null ? null : Number(priceMax)
 
   const categoryFallbacks = useMemo(
     () => (defaultCategorySlug ? [defaultCategorySlug] : []),
@@ -122,9 +279,9 @@ export default function CategoryFilterPanelContent({
     collectSubcategoriesForParents(parentCategories, categorySlugs).map((item) => item.slug)
   )
 
-  const updateParams = (next) => {
-    setSearchParams(next, { replace: true })
-  }
+  const updateParams = useCallback((next) => {
+    setSearchParams(resetCatalogPage(next), { replace: true })
+  }, [setSearchParams])
 
   const handleSelectAllCategories = () => {
     updateParams(clearCategoryFilters(searchParams))
@@ -152,22 +309,63 @@ export default function CategoryFilterPanelContent({
     )
   }
 
-  const handleClearAll = () => {
-    if (isPromotions) {
-      updateParams(clearCategoryFilters(searchParams))
-      return
+  const handleToggleFacet = (key, value) => {
+    updateParams(toggleMultiParamValue(searchParams, key, value))
+  }
+
+  const handleSearchCommit = useCallback((nextValue) => {
+    const trimmed = nextValue.trim()
+    if (trimmed === searchValue) return
+    const next = new URLSearchParams(searchParams)
+    if (trimmed) next.set(CATALOG_SEARCH_PARAM, trimmed)
+    else next.delete(CATALOG_SEARCH_PARAM)
+    updateParams(next)
+  }, [searchParams, searchValue, updateParams])
+
+  const handlePricePreset = (preset) => {
+    const next = new URLSearchParams(searchParams)
+    const alreadySelected = isPricePresetSelected(preset, numericPriceMin, numericPriceMax)
+
+    if (alreadySelected) {
+      next.delete(CATALOG_PRICE_MIN_PARAM)
+      next.delete(CATALOG_PRICE_MAX_PARAM)
+    } else {
+      if (preset.min == null) next.delete(CATALOG_PRICE_MIN_PARAM)
+      else next.set(CATALOG_PRICE_MIN_PARAM, String(preset.min))
+      if (preset.max == null) next.delete(CATALOG_PRICE_MAX_PARAM)
+      else next.set(CATALOG_PRICE_MAX_PARAM, String(preset.max))
     }
 
-    let next = clearCategoryFilters(searchParams)
-    if (defaultCategorySlug) {
+    if (CATALOG_PRICE_QUICK_FILTERS[next.get(CATALOG_FILTER_PARAM)]) {
+      next.delete(CATALOG_FILTER_PARAM)
+    }
+
+    updateParams(next)
+  }
+
+  const handleStoreChange = (storeId) => {
+    const next = new URLSearchParams(searchParams)
+    if (!storeId || storeId === 'all') next.delete(CATALOG_STORE_PARAM)
+    else next.set(CATALOG_STORE_PARAM, storeId)
+    updateParams(next)
+  }
+
+  const handleClearAll = () => {
+    let next = clearCatalogQueryParams(clearCategoryFilters(searchParams))
+    if (!isPromotions && defaultCategorySlug) {
       next = setMultiParam(next, FILTER_CATEGORY_PARAM, [defaultCategorySlug])
     }
     updateParams(next)
   }
 
+  const brandOptions = facetOptions.brands ?? []
+  const colorOptions = facetOptions.colors ?? []
+  const sizeOptions = facetOptions.sizes ?? []
+  const storeOptions = facetOptions.stores ?? []
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b border-slate-100 p-5 pb-4 sm:p-6 sm:pb-5">
+    <div className="flex flex-col">
+      <div className="border-b border-slate-100 p-5 pb-4 sm:p-6 sm:pb-5">
         {showHeading ? (
           <>
             <h2 className="text-base font-bold text-slate-950 sm:text-lg">Filters</h2>
@@ -175,22 +373,12 @@ export default function CategoryFilterPanelContent({
           </>
         ) : null}
 
-        <div className={`relative ${showHeading ? 'mt-4' : ''}`}>
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
-            strokeWidth={2}
-            aria-hidden
-          />
-          <input
-            type="search"
-            placeholder="Search products"
-            aria-label="Search products"
-            className="w-full rounded-lg border border-black bg-slate-50 py-2.5 pr-3 pl-9 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-black focus:bg-white focus:ring-1 focus:ring-black/15"
-          />
+        <div className={showHeading ? 'mt-4' : ''}>
+          <DebouncedSearchInput value={searchValue} onCommit={handleSearchCommit} />
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 sm:px-6">
+      <div className="px-5 sm:px-6">
         <FilterAccordionSection title="Categories" defaultOpen>
           {isLoading ? (
             <FilterOptionsSkeleton />
@@ -246,34 +434,75 @@ export default function CategoryFilterPanelContent({
           )}
         </FilterAccordionSection>
 
-        <FilterAccordionSection title="Brand">
-          <FilterEmptyMessage text="Brand filters will appear once products are live." />
-        </FilterAccordionSection>
+        <FilterDropdown
+          label="Brand"
+          placeholder="All Brands"
+          emptyText="No brands on these products"
+          options={brandOptions}
+          selectedIds={selectedBrands}
+          onToggle={(value) => handleToggleFacet(CATALOG_BRAND_PARAM, value)}
+          isLoading={isFacetsLoading}
+        />
 
-        <FilterAccordionSection title="Color">
-          <FilterEmptyMessage text="Color filters will appear once products are live." />
-        </FilterAccordionSection>
+        <FilterDropdown
+          label="Color"
+          placeholder="All Colors"
+          emptyText="No colors on these products"
+          options={colorOptions}
+          selectedIds={selectedColors}
+          onToggle={(value) => handleToggleFacet(CATALOG_COLOR_PARAM, value)}
+          isLoading={isFacetsLoading}
+          withSwatch
+          defaultOpen
+        />
 
-        <FilterAccordionSection title="Size">
-          <FilterEmptyMessage text="Size filters will appear once products are live." />
-        </FilterAccordionSection>
+        <FilterDropdown
+          label="Size"
+          placeholder="All Sizes"
+          emptyText="No sizes on these products"
+          options={sizeOptions}
+          selectedIds={selectedSizes}
+          onToggle={(value) => handleToggleFacet(CATALOG_SIZE_PARAM, value)}
+          isLoading={isFacetsLoading}
+          defaultOpen
+        />
 
         <FilterAccordionSection title="Price">
-          <FilterEmptyMessage text="Price filters will appear once products are live." />
+          <ul className="space-y-2.5">
+            {PRICE_PRESETS.map((preset) => (
+              <li key={preset.id}>
+                <FilterCheckbox
+                  label={preset.label}
+                  checked={isPricePresetSelected(preset, numericPriceMin, numericPriceMax)}
+                  onToggle={() => handlePricePreset(preset)}
+                />
+              </li>
+            ))}
+          </ul>
         </FilterAccordionSection>
       </div>
 
-      <div className="shrink-0 border-t border-slate-200 p-5 sm:p-6">
+      <div className="border-t border-slate-200 p-5 sm:p-6">
         <label htmlFor="category-store-filter" className="mb-2 block text-sm font-semibold text-slate-900">
           Stores
         </label>
         <select
           id="category-store-filter"
-          disabled
-          defaultValue="all"
-          className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500"
+          value={selectedStores[0] || 'all'}
+          onChange={(event) => handleStoreChange(event.target.value)}
+          disabled={!storeOptions.length}
+          className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none ${
+            storeOptions.length
+              ? 'cursor-pointer border-slate-200 bg-white text-slate-800 focus:border-auth-primary focus:ring-1 focus:ring-auth-primary/20'
+              : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-500'
+          }`}
         >
           <option value="all">All Stores</option>
+          {storeOptions.map((store) => (
+            <option key={store.id} value={store.id}>
+              {store.label}
+            </option>
+          ))}
         </select>
 
         <button

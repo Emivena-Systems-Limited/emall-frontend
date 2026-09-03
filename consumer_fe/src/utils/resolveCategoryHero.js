@@ -1,5 +1,6 @@
 import heroLifestyle from '../assets/images/hero-banners/category-lifestyle.png'
 import heroProduct from '../assets/images/hero-banners/category-product.png'
+import { buildCategoryListingHref } from './listingFilterParams'
 import { normalizeCategorySlug } from './normalizeCategories'
 
 const HERO_TAGLINES = {
@@ -41,9 +42,9 @@ export function resolveCategoryHeroContent({
   const displayLabel = subcategory?.name ?? category?.name ?? categoryLabel
 
   const ctaHref = subcategory?.slug
-    ? `/categories/${slug}/${subcategory.slug}`
+    ? buildCategoryListingHref(slug, subcategory.slug)
     : slug
-      ? `/categories/${slug}`
+      ? buildCategoryListingHref(slug)
       : '/categories'
 
   const rawTitle = HERO_TAGLINES[canonicalSlug] ?? `Discover More,\nShop ${displayLabel}`

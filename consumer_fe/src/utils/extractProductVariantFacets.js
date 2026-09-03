@@ -140,10 +140,11 @@ export function extractSlimVariants(product) {
       : {}
 
     const color = getVariantAttributeValue(variant, 'color')
-      || (String(attributeKey).toLowerCase() === 'color' ? String(attributeValue) : '')
-      || firstValue(variant.colour, variant.variant_name)
+      || (String(attributeKey).toLowerCase() === 'color' ? attributeValue : '')
+      || firstValue(variant.colour)
 
     const size = getVariantAttributeValue(variant, 'size')
+      || (['size', 'storage'].includes(String(attributeKey).toLowerCase()) ? attributeValue : '')
       || firstValue(
         variant.size,
         attributes.size,
@@ -172,7 +173,13 @@ export function extractVariantFacets(product) {
   for (const variant of variants) {
     if (variant.color) addFacetValue(facets, 'color', variant.color)
     if (variant.size) addFacetValue(facets, 'size', variant.size)
-    if (variant.variantName) addFacetValue(facets, 'style', variant.variantName)
+    if (
+      variant.variantName
+      && variant.variantName !== variant.color
+      && variant.variantName !== variant.size
+    ) {
+      addFacetValue(facets, 'style', variant.variantName)
+    }
 
     Object.entries(variant.attributes ?? {}).forEach(([key, value]) => {
       if (key === 'color') return
@@ -208,7 +215,7 @@ export function extractProductPriceRange(product) {
   }
 }
 
-export function enrichLandingProductForFilters(product, index = 0, options = {}) {
+export function enrichLandingProductForFilters(product) {
   const metadata = toArray(product.metadata)
   const variants = extractSlimVariants(product)
   const priceRange = extractProductPriceRange(product)

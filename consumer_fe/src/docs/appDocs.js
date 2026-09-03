@@ -6,10 +6,10 @@
  */
 
 export const appMeta = {
-  lastUpdated: '2026-08-24',
-  currentPhase: 'Customer account dashboard',
+  lastUpdated: '2026-08-31',
+  currentPhase: 'Category catalog listing',
   summary:
-    'Public home landing at / uses Laravel landing-page data where available. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout with selected cart_item_ids, and product cards open a responsive product details page.',
+    'Public home landing at / uses Laravel landing-page data where available. Category pages fetch GET /product/catalog with pagination and filter query params. Auth flows call the Laravel API, then authenticated users return to the landing page with a session dropdown and logout. Cart flows continue to checkout with selected cart_item_ids, and product cards open a responsive product details page.',
 }
 
 export const updateInstructions = [
@@ -21,6 +21,15 @@ export const updateInstructions = [
 ]
 
 export const progressLog = [
+  {
+    date: '2026-08-31',
+    title: 'Category page live product catalog',
+    items: [
+      'Category pages now fetch GET /product/catalog with page, per_page, category[], brand[], color[], size[], store[], price_min, price_max, filter, and search',
+      'Sidebar search, price, brand, color, size, and store filters stay in the URL and reset pagination on change',
+      'Quick filters map onto catalog filter and price_max values, with loading, empty, error, and pagination states in the product grid',
+    ],
+  },
   {
     date: '2026-08-24',
     title: 'Selected cart items for checkout preview and place order',
@@ -507,6 +516,13 @@ export const routes = [
     notes: 'View All page for random_products with static fallback',
   },
   {
+    path: '/categories/:slug/:subSlug?',
+    name: 'Category listing',
+    status: 'done',
+    file: 'src/pages/CategoryPage.jsx',
+    notes: 'Live GET /product/catalog listing with URL-synced filters, pagination, and category/subcategory defaults from the route',
+  },
+  {
     path: '/:slug',
     name: 'Product Details',
     status: 'done',
@@ -540,6 +556,11 @@ export const reduxSlices = [
 ]
 
 export const queryHooks = [
+  {
+    name: 'useProductCatalog',
+    file: 'src/hooks/useProductCatalog.js',
+    purpose: 'GET /product/catalog for category listing with pagination and filter query params',
+  },
   {
     name: 'useLandingPageData',
     file: 'src/hooks/useLandingPageData.js',
@@ -627,6 +648,12 @@ export const apiIntegrations = [
     method: 'GET',
     endpoint: '/landing-page/home',
     purpose: 'Fetch homepage product sections: recommended_products, best_sellers, flash_sales, and random_products',
+    status: 'wired',
+  },
+  {
+    method: 'GET',
+    endpoint: '/product/catalog',
+    purpose: 'Paginated public product catalog with category[], brand[], color[], size[], store[], price_min, price_max, filter, search, page, and per_page',
     status: 'wired',
   },
   {

@@ -2,6 +2,7 @@ import { getSubcategoriesForParent } from './normalizeCategories'
 import { getSubcategoryFallbacksForParent } from '../constants/categorySubcategoryFallbacks'
 import { resolveSubcategoryImage } from './resolveCategoryImage'
 import { getDepartmentAccent, resolveCategoryLayout, resolveGridColumns } from '../constants/categoryPageLayouts'
+import { buildCategoryListingHref } from './listingFilterParams'
 
 function resolveDepartmentChildren(parentSlug, categoryTree = []) {
   const apiChildren = getSubcategoriesForParent(categoryTree, parentSlug)
@@ -17,7 +18,7 @@ export function buildSubcategoryDisplay(parentSlug, child) {
     id: child.id ?? slug,
     slug,
     label: child.name ?? child.label ?? slug.replace(/-/g, ' '),
-    href: `/categories/${parentSlug}/${slug}`,
+    href: buildCategoryListingHref(parentSlug, slug),
     image: resolveSubcategoryImage(child, parentSlug),
     productCount: 0,
   }
@@ -32,7 +33,7 @@ export function buildCategoryDepartment(parentCategory, categoryTree = [], index
     id: parentCategory.id ?? parentCategory.slug,
     parentSlug: parentCategory.slug,
     title: parentCategory.name ?? parentCategory.label ?? parentCategory.slug,
-    viewAllHref: `/categories/${parentCategory.slug}`,
+    viewAllHref: buildCategoryListingHref(parentCategory.slug),
     layout: resolveCategoryLayout(parentCategory.slug, index),
     gridColumns: resolveGridColumns(parentCategory.slug),
     accent: getDepartmentAccent(index),
@@ -94,7 +95,7 @@ export function buildDepartmentSubcategories(department, categoryTree = []) {
       id: item.id ?? slug,
       slug,
       label: item.name ?? item.label ?? staticMatch?.label ?? slug.replace(/-/g, ' '),
-      href: `/categories/${department.parentSlug}/${slug}`,
+      href: buildCategoryListingHref(department.parentSlug, slug),
       image: resolveSubcategoryImage(
         { ...item, image: item.image ?? staticMatch?.image },
         department.parentSlug,

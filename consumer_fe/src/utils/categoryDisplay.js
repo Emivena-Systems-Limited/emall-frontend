@@ -6,6 +6,7 @@ import {
   isUsableCategoryThumbnail,
 } from './topCategoryIcons'
 import { resolveSubcategoryImage } from './resolveCategoryImage'
+import { buildCategoryListingHref, getCategoryListingPathname } from './listingFilterParams'
 
 export function formatProductCount(count) {
   if (!count || count <= 0) return null
@@ -37,7 +38,7 @@ export function getCategoryImage(category, index = 0) {
   if (topIcon) return topIcon
 
   const localMatch = topCategories.find(
-    (item) => item.href === `/categories/${category.slug}`,
+    (item) => getCategoryListingPathname(item.href) === `/categories/${category.slug}`,
   )
   if (localMatch?.image) return localMatch.image
 
@@ -49,7 +50,7 @@ export function mapApiCategory(category, index) {
     id: category.id ?? category.slug,
     slug: category.slug,
     label: category.name,
-    href: `/categories/${category.slug}`,
+    href: buildCategoryListingHref(category.slug),
     image: getCategoryImage(category, index),
   }
 }
@@ -59,20 +60,22 @@ export function mapSubcategoryForDisplay(subcategory, parentSlug) {
     id: subcategory.id ?? subcategory.slug,
     slug: subcategory.slug,
     label: subcategory.name,
-    href: `/categories/${parentSlug}/${subcategory.slug}`,
+    href: buildCategoryListingHref(parentSlug, subcategory.slug),
     image: resolveSubcategoryImage(subcategory, parentSlug),
   }
 }
 
 export function getStaticSubcategoriesForSlug(slug) {
-  const menuCategory = categoryMenuItems.find((item) => item.href === `/categories/${slug}`)
+  const menuCategory = categoryMenuItems.find(
+    (item) => getCategoryListingPathname(item.href) === `/categories/${slug}`,
+  )
   if (!menuCategory) return []
 
   return menuCategory.subcategories
     .filter((sub) => sub.id !== 'all')
     .map((sub) => ({
       id: sub.id,
-      slug: sub.href.split('/').pop(),
+      slug: getCategoryListingPathname(sub.href).split('/').pop(),
       name: sub.label,
     }))
 }

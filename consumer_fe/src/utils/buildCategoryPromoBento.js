@@ -1,5 +1,6 @@
 import { sortParentCategoriesForDisplay } from './buildCategoryDepartments'
 import { resolveParentCategoryImage } from './resolveCategoryImage'
+import { buildCategoryListingHref } from './listingFilterParams'
 
 function orderCategoriesForPage(parentCategories = [], deprioritizeSlugs = []) {
   const sorted = sortParentCategoriesForDisplay(parentCategories)
@@ -15,7 +16,7 @@ function toFeaturedPromo(category) {
     id: category.slug,
     title: category.name,
     description: `Explore ${category.name} and discover products curated for your lifestyle.`,
-    href: `/categories/${category.slug}`,
+    href: buildCategoryListingHref(category.slug),
     cta: 'Shop Now',
     image: resolveParentCategoryImage(category),
   }
@@ -25,7 +26,7 @@ function toTilePromo(category) {
   return {
     id: category.slug,
     title: category.name,
-    href: `/categories/${category.slug}`,
+    href: buildCategoryListingHref(category.slug),
     image: resolveParentCategoryImage(category),
   }
 }

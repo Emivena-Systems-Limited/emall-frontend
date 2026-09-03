@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { getAnalyticsCustomerGrowth, getAnalyticsFulfillment, getAnalyticsRevenueOrders, getAnalyticsSalesByCategory, getAnalyticsSalesByRegion, getAnalyticsSummary, getAnalyticsTopProducts } from '../services/analyticsService'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { exportAnalyticsReportFile, getAnalyticsCustomerGrowth, getAnalyticsFulfillment, getAnalyticsRevenueOrders, getAnalyticsSalesByCategory, getAnalyticsSalesByRegion, getAnalyticsSummary, getAnalyticsTopProducts } from '../services/analyticsService'
 
 const STALE_TIME = 60 * 1000
 
@@ -95,5 +95,11 @@ export function useAnalyticsFulfillment({ year, enabled = true } = {}) {
     queryFn: () => getAnalyticsFulfillment({ year: parsedYear }),
     enabled: Boolean(enabled && Number.isInteger(parsedYear) && parsedYear > 0),
     staleTime: STALE_TIME,
+  })
+}
+
+export function useExportAnalyticsReport() {
+  return useMutation({
+    mutationFn: exportAnalyticsReportFile,
   })
 }

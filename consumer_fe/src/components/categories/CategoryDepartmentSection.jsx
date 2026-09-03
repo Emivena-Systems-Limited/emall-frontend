@@ -4,6 +4,7 @@ import { ELECTRONICS_DEPARTMENT_SECTION, FASHION_DEPARTMENT_SECTION } from '../.
 import { getParentCategories } from '../../services/categoryService'
 import { buildDepartmentSubcategories } from '../../utils/buildCategoryDepartments'
 import { findCategoryBySlug } from '../../utils/normalizeCategories'
+import { buildCategoryListingHref } from '../../utils/listingFilterParams'
 import CategorySubcategoryCarousel from './CategorySubcategoryCarousel'
 
 export default function CategoryDepartmentSection({ parentSlug, staticFallback }) {
@@ -36,6 +37,7 @@ export default function CategoryDepartmentSection({ parentSlug, staticFallback }
   return (
     <CategorySubcategoryCarousel
       title={title}
+      viewAllHref={buildCategoryListingHref(parentSlug)}
       subcategories={subcategories}
       isLoading={isLoading}
     />

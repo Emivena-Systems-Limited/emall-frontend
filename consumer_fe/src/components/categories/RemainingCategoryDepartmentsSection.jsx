@@ -6,6 +6,7 @@ import {
   buildDepartmentSubcategories,
   sortParentCategoriesForDisplay,
 } from '../../utils/buildCategoryDepartments'
+import { buildCategoryListingHref } from '../../utils/listingFilterParams'
 import CategorySubcategoryCarousel from './CategorySubcategoryCarousel'
 
 export default function RemainingCategoryDepartmentsSection({
@@ -44,6 +45,7 @@ export default function RemainingCategoryDepartmentsSection({
           id: parent.id ?? parent.slug,
           parentSlug: parent.slug,
           title: parent.name ?? staticFallback?.title ?? parent.slug.replace(/-/g, ' '),
+          viewAllHref: buildCategoryListingHref(parent.slug),
           subcategories,
         }
       })
@@ -83,6 +85,7 @@ export default function RemainingCategoryDepartmentsSection({
         <CategorySubcategoryCarousel
           key={department.parentSlug}
           title={department.title}
+          viewAllHref={department.viewAllHref}
           subcategories={department.subcategories}
         />
       ))}

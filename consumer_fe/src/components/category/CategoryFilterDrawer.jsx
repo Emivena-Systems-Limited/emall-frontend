@@ -13,7 +13,9 @@ export default function CategoryFilterDrawer({
   defaultCategorySlug,
   defaultSubcategorySlug,
   isLoading = false,
+  isFacetsLoading = false,
   variant = 'category',
+  facetOptions,
 }) {
   useEffect(() => {
     if (!isOpen) return undefined
@@ -35,11 +37,16 @@ export default function CategoryFilterDrawer({
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-80 lg:hidden" role="dialog" aria-modal="true" aria-label="Filters">
+        <div
+          className="fixed inset-0 z-[130] lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filters"
+        >
           <motion.button
             type="button"
             aria-label="Close filters"
-            className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px]"
+            className="absolute inset-0 bg-slate-950/50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -48,13 +55,13 @@ export default function CategoryFilterDrawer({
           />
 
           <motion.aside
-            className="absolute inset-y-0 left-0 flex w-[min(100vw-2.5rem,20rem)] flex-col border-r border-slate-200/80 bg-white shadow-[8px_0_32px_-12px_rgba(15,23,42,0.28)]"
+            className="absolute inset-y-0 left-0 flex h-dvh max-h-dvh w-[min(100vw-2.5rem,20rem)] flex-col overflow-hidden border-r border-slate-200/80 bg-white shadow-[8px_0_32px_-12px_rgba(15,23,42,0.28)]"
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ duration: 0.3, ease: drawerEase }}
           >
-            <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3.5">
+            <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 px-4 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-auth-primary/10 text-auth-primary">
                   <SlidersHorizontal className="size-4" strokeWidth={2} />
@@ -65,9 +72,9 @@ export default function CategoryFilterDrawer({
                 type="button"
                 onClick={onClose}
                 aria-label="Close filters"
-                className="flex size-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-800"
               >
-                <X className="size-4" strokeWidth={2.25} />
+                <X className="size-5" strokeWidth={2.25} />
               </button>
             </header>
 
@@ -77,16 +84,18 @@ export default function CategoryFilterDrawer({
                 defaultCategorySlug={defaultCategorySlug}
                 defaultSubcategorySlug={defaultSubcategorySlug}
                 isLoading={isLoading}
+                isFacetsLoading={isFacetsLoading}
                 showHeading={false}
                 variant={variant}
+                facetOptions={facetOptions}
               />
             </div>
 
-            <footer className="shrink-0 border-t border-slate-200/80 bg-slate-50/60 px-4 py-3.5">
+            <footer className="shrink-0 border-t border-slate-200/80 bg-white px-4 pt-3 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex w-full items-center justify-center rounded-lg bg-auth-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-auth-primary-hover"
+                className="flex min-h-11 w-full items-center justify-center rounded-lg bg-auth-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-auth-primary-hover"
               >
                 Show results
               </button>

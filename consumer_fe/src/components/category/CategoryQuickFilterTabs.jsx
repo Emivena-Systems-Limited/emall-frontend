@@ -77,11 +77,17 @@ export default function CategoryQuickFilterTabs() {
   const handleSelect = (filterId) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
+      next.delete('page')
 
       if (filterId === DEFAULT_FILTER_ID) {
         next.delete('filter')
       } else {
         next.set('filter', filterId)
+      }
+
+      if (filterId === 'under-50' || filterId === 'under-100') {
+        next.delete('price_min')
+        next.delete('price_max')
       }
 
       return next

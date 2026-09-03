@@ -69,14 +69,22 @@ function getProductImage(product) {
   const variationImages = toArray(
     product.variants?.[0]?.images || product.variations?.[0]?.images,
   );
+  const rankedImages = [...images].sort((left, right) => {
+    const leftPrimary =
+      left?.is_primary === true || left?.is_primary === 1 || left?.is_primary === '1';
+    const rightPrimary =
+      right?.is_primary === true || right?.is_primary === 1 || right?.is_primary === '1';
+    if (leftPrimary !== rightPrimary) return leftPrimary ? -1 : 1;
+    return Number(left?.sort_order ?? 0) - Number(right?.sort_order ?? 0);
+  });
 
   return firstValue(
+    getNestedImage(rankedImages[0]),
     getNestedImage(product.primary_image),
     getNestedImage(product.featured_image),
     getNestedImage(product.thumbnail),
     getNestedImage(product.image),
     getNestedImage(product.image_url),
-    getNestedImage(images[0]),
     getNestedImage(gallery[0]),
     getNestedImage(productImages[0]),
     getNestedImage(variationImages[0]),
@@ -158,21 +166,33 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
     product.product_slug,
     slugify(`${name}-${id}`),
   );
-  const { price, compareAt } = resolveProductCardPrices(product, variation);
-  const discountPercent = getDiscountPercent(
-    product,
-    variation,
-    price,
-    compareAt,
+  let { price, compareAt } = resolveProductCardPrices(product, variation);
+  const effectivePrice = toNumber(
+    firstValue(product.effective_price, product.effectivePrice),
+    null,
   );
+  const regularPrice = toNumber(
+    firstValue(product.regular_price, product.regularPrice),
+    null,
+  );
+  if (effectivePrice != null && effectivePrice > 0) {
+    price = effectivePrice;
+    compareAt =
+      regularPrice != null && regularPrice > effectivePrice
+        ? regularPrice
+        : compareAt;
+  }
+  const discountPercent = getDiscountPercent(product, variation, price, compareAt);
   const categoryRecord =
     product.category && typeof product.category === 'object'
       ? product.category
       : null;
   const subcategoryRecord =
-    product.subcategory && typeof product.subcategory === 'object'
-      ? product.subcategory
-      : null;
+    [product.subcategory, product.sub_category].find(
+      (value) => value && typeof value === 'object',
+    ) ?? null;
+  const storeRecord =
+    product.store && typeof product.store === 'object' ? product.store : null;
   const filterFields = enrichLandingProductForFilters(product, index, options);
   const priceRange = { min: filterFields.minPrice, max: filterFields.maxPrice };
 
@@ -220,12 +240,21 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
       subcategoryRecord?.name,
       product.subcategory_name,
       typeof product.subcategory === 'string' ? product.subcategory : null,
+      typeof product.sub_category === 'string' ? product.sub_category : null,
     ),
+    subcategoryId: firstValue(subcategoryRecord?.id, product.subcategory_id),
     subcategorySlug: firstValue(
       subcategoryRecord?.slug,
       product.subcategory_slug,
+      product.sub_category_slug,
     ),
-    subcategoryId: firstValue(subcategoryRecord?.id, product.subcategory_id),
+    storeId: firstValue(storeRecord?.id, product.store_id, product.vendor_id),
+    storeName: firstValue(
+      storeRecord?.store_name,
+      storeRecord?.name,
+      product.store_name,
+      product.vendor?.name,
+    ),
     variants: filterFields.variants,
     variantFacets: filterFields.variantFacets,
     brand: filterFields.brand,

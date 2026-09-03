@@ -1,17 +1,18 @@
 import { getSubcategoryFallbacksForParent } from '../constants/categorySubcategoryFallbacks'
 import { sortParentCategoriesForDisplay } from './buildCategoryDepartments'
 import { getCategoryImage } from './categoryDisplay'
+import { buildCategoryListingHref } from './listingFilterParams'
 import { getSubcategoriesForParent } from './normalizeCategories'
 
 function buildSubcategoryLinks(parentSlug, children = []) {
   const subcategories = [
-    { id: 'all', label: 'All', href: `/categories/${parentSlug}` },
+    { id: 'all', label: 'All', href: buildCategoryListingHref(parentSlug) },
     ...children.map((child) => {
       const slug = child.slug ?? child.id
       return {
         id: slug,
         label: child.name ?? child.label ?? slug.replace(/-/g, ' '),
-        href: `/categories/${parentSlug}/${slug}`,
+        href: buildCategoryListingHref(parentSlug, slug),
       }
     }),
   ]
@@ -36,7 +37,7 @@ export function buildNavbarCategoryMenuItems(parentCategories = []) {
     return {
       id: slug,
       label: parent.name,
-      href: `/categories/${slug}`,
+      href: buildCategoryListingHref(slug),
       image: getCategoryImage(parent),
       subcategories: buildSubcategoryLinks(slug, children),
       featuredTitle: `FEATURED ${(parent.name ?? slug).toUpperCase()}`,

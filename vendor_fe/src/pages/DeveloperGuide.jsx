@@ -196,7 +196,7 @@ const integrationRows = [
   { area: 'Reviews', status: 'live', notes: 'List, summary, reply' },
   { area: 'Profile', status: 'live', notes: 'Personal, business, documents, avatar, password' },
   { area: 'Users & permissions', status: 'live', notes: 'Invite, roles, deactivate / reactivate' },
-  { area: 'Analytics', status: 'partial', notes: 'All GET widgets live; POST /api/vendor/analytics/reports still dummy' },
+  { area: 'Analytics', status: 'live', notes: 'GET widgets and POST /api/vendor/analytics/reports/export' },
   { area: 'Promotions', status: 'mock', notes: 'promotionService → mocks/promotionMockData.js' },
   { area: 'Messages', status: 'mock', notes: 'constants/messagesData.js; nav marked coming soon' },
   { area: 'Inventory', status: 'mock', notes: 'constants/lowStockData.js' },
@@ -516,13 +516,13 @@ export default function DeveloperGuide() {
               id="analytics"
               icon={BarChart3}
               title="Analytics & Reports"
-              badge="partial"
-              description="/analytics — GET widgets for summary, order-revenues, sales-by-category, customer-growth, sales-by-region, top-products, and fulfillments are live. Toggle dummy data in the header to skip APIs."
+              badge="live"
+              description="/analytics — GET widgets and Excel export are live. Toggle dummy data in the header to skip chart APIs; export always hits the backend."
             >
               <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
                 <li>• <strong>KPI cards</strong> — five stats (revenue, orders, customers, AOV, returns) from <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsSummary()</code>. Conversion is commented out for now. Filtered by inclusive <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> + <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> (7d / 30d / 90d / 12m / From–To).</li>
                 <li>• <strong>Charts &amp; tables</strong> — each has its own year dropdown, defaulting to the current year. They do not use the page date range. Live widgets: <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsRevenueOrders()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsSalesByCategory()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsCustomerGrowth()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsSalesByRegion()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsTopProducts()</code>, <code className="rounded bg-slate-100 px-1 text-xs">useAnalyticsFulfillment()</code>.</li>
-                <li>• <strong>Export drawer</strong> — pick a report, set duration, download CSV. Order fulfilment duration uses year/month chips; those resolve to the same <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> / <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> payload as every other report.</li>
+                <li>• <strong>Export drawer</strong> — pick a report, set duration, then <code className="rounded bg-slate-100 px-1 text-xs">POST /api/vendor/analytics/reports/export</code> downloads an Excel (.xlsx) file. Order fulfilment duration uses year/month chips; those resolve to the same <code className="rounded bg-slate-100 px-1 text-xs">start_date</code> / <code className="rounded bg-slate-100 px-1 text-xs">end_date</code> payload as every other report.</li>
                 <li>• <strong>Contracts</strong> — <code className="rounded bg-slate-100 px-1 text-xs">src/constants/analytics*ApiSpec.json</code>.</li>
               </ul>
 
@@ -560,13 +560,13 @@ GET /api/vendor/analytics/fulfillments?year=2026                             // 
 
               <CodeBlock
                 title="Export report — same payload for every report type"
-                code={`POST /api/vendor/analytics/reports
+                code={`POST /api/vendor/analytics/reports/export
 
 {
   "report": "order_fulfillment",
   "start_date": "2026-01-01",
   "end_date": "2026-08-24",
-  "format": "csv"
+  "format": "xlsx"
 }
 
 // report: summary | sales_by_category | customer_growth
@@ -910,8 +910,8 @@ notify.promise(saveProduct(), {
               </ul>
 
               <div className="rounded-xl border border-brand-muted bg-brand-light p-4 text-sm text-slate-800">
-                <p><strong className="text-brand">Done:</strong> auth, landing, dashboard, products (including variants + presigned media), orders, customers, finance, reviews, profile, users &amp; permissions, analytics GET widgets.</p>
-                <p className="mt-2"><strong className="text-brand">Next:</strong> wire <code className="rounded bg-white/80 px-1 text-xs">POST /api/vendor/analytics/reports</code>; connect promotions, messages, inventory, and notifications; replace sidebar badge placeholders with API counts.</p>
+                <p><strong className="text-brand">Done:</strong> auth, landing, dashboard, products (including variants + presigned media), orders, customers, finance, reviews, profile, users &amp; permissions, analytics GET widgets and Excel export.</p>
+                <p className="mt-2"><strong className="text-brand">Next:</strong> connect promotions, messages, inventory, and notifications; replace sidebar badge placeholders with API counts.</p>
               </div>
             </GuideSection>
           </div>

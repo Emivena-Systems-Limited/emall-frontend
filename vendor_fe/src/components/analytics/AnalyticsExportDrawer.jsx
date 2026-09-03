@@ -7,6 +7,7 @@ import {
   Download,
   FileSpreadsheet,
   LayoutDashboard,
+  Loader2,
   MapPin,
   Package,
   PieChart,
@@ -324,6 +325,7 @@ export default function AnalyticsExportDrawer({
   onClose,
   initialRange,
   onExport,
+  isExporting = false,
 }) {
   const today = getTodayDateParam()
   const [reportKey, setReportKey] = useState('summary')
@@ -346,7 +348,7 @@ export default function AnalyticsExportDrawer({
     if (!open) return undefined
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !isExporting) onClose()
     }
 
     document.body.style.overflow = 'hidden'
@@ -356,7 +358,7 @@ export default function AnalyticsExportDrawer({
       document.body.style.overflow = ''
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, onClose])
+  }, [open, onClose, isExporting])
 
   const selectedReport = ANALYTICS_EXPORT_REPORTS.find((report) => report.key === reportKey)
   const activePreset = matchAnalyticsPreset(range.startDate, range.endDate)
@@ -387,7 +389,7 @@ export default function AnalyticsExportDrawer({
   }
 
   const handleExport = () => {
-    if (!canExport) return
+    if (!canExport || isExporting) return
     onExport({
       reportKey,
       reportLabel: selectedReport?.label,
@@ -401,13 +403,14 @@ export default function AnalyticsExportDrawer({
     <>
       <div
         className="overlay-appear fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={isExporting ? undefined : onClose}
         aria-hidden="true"
       />
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="analytics-export-title"
+        aria-busy={isExporting}
         className="slide-in-right fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-white shadow-2xl"
       >
         <div className="relative shrink-0 overflow-hidden border-b border-slate-200 bg-linear-to-br from-brand-light/50 via-white to-slate-50 px-5 py-5 sm:px-6">
@@ -419,7 +422,7 @@ export default function AnalyticsExportDrawer({
               </span>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-brand/70">
-                  Generate CSV
+                  Generate Excel
                 </p>
                 <h2 id="analytics-export-title" className="text-lg font-bold text-slate-900">
                   Export report
@@ -432,7 +435,8 @@ export default function AnalyticsExportDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-xl bg-white p-2 text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              disabled={isExporting}
+              className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-xl bg-white p-2 text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="Close export drawer"
             >
               <X className="size-4" />
@@ -518,7 +522,7 @@ export default function AnalyticsExportDrawer({
             <p className="mt-1.5 text-sm font-semibold text-slate-900">
               {selectedReport?.label} · {rangeLabel}
             </p>
-            <p className="mt-1 text-xs text-slate-500">Downloads as a Excel file.</p>
+            <p className="mt-1 text-xs text-slate-500">Downloads as an Excel file.</p>
           </section>
         </div>
 
@@ -527,18 +531,19 @@ export default function AnalyticsExportDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              disabled={isExporting}
+              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleExport}
-              disabled={!canExport}
+              disabled={!canExport || isExporting}
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Download className="size-4" />
-              Export CSV
+              {isExporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {isExporting ? 'Exporting…' : 'Export Excel'}
             </button>
           </div>
         </div>
