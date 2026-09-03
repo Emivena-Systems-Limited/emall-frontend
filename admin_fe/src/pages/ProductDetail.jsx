@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
   AlertTriangle,
-  ArrowLeft,
   Loader2,
   Package,
   RefreshCw,
@@ -10,6 +9,7 @@ import {
 } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import ConfirmModal from '../components/common/ConfirmModal'
+import SmartBackLink from '../components/navigation/SmartBackLink'
 import ProductStorefrontPreview from '../components/products/ProductStorefrontPreview'
 import ProductStatusBadge from '../components/products/ProductStatusBadge'
 import ProductStatusModal from '../components/products/ProductStatusModal'
@@ -62,13 +62,11 @@ export default function ProductDetail() {
               <RefreshCw className="size-4" />
               Retry
             </button>
-            <Link
-              to="/products"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
-            >
-              <ArrowLeft className="size-4" />
-              Back to catalogue
-            </Link>
+            <SmartBackLink
+              fallback="/products"
+              fallbackLabel="Back to catalogue"
+              variant="button-primary"
+            />
           </div>
         </div>
       </DashboardLayout>
@@ -95,13 +93,11 @@ export default function ProductDetail() {
     <DashboardLayout pageTitle={product.name}>
       <div className="page-enter space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link
-            to="/products"
-            className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800"
-          >
-            <ArrowLeft className="size-4" />
-            All products
-          </Link>
+          <SmartBackLink
+            fallback="/products"
+            fallbackLabel="All products"
+            labelStyle="short"
+          />
           <div className="flex flex-wrap items-center gap-2">
             <ProductStatusBadge status={product.approvalStatus} isActive={product.isActive} />
             {product.vendorId ? (

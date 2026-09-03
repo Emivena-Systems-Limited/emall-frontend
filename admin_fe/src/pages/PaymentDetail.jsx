@@ -1,7 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router'
 import { useState } from 'react'
 import {
-  ArrowLeft,
   Calendar,
   Clock,
   CreditCard,
@@ -17,6 +16,8 @@ import {
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
+import SmartBackButton from '../components/navigation/SmartBackButton'
+import SmartBackLink from '../components/navigation/SmartBackLink'
 import OrderLineItems from '../components/orders/OrderLineItems'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge'
 import PaymentStatusBadge from '../components/orders/PaymentStatusBadge'
@@ -130,13 +131,11 @@ export default function PaymentDetail() {
               title="This payment is not on the list"
               description="The link may be out of date, or this checkout charge is no longer returned by the API."
               action={(
-                <button
-                  type="button"
-                  onClick={() => navigate('/payments')}
+                <SmartBackButton
+                  fallback="/payments"
+                  fallbackLabel="Back to payments"
                   className="cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                >
-                  Back to payments
-                </button>
+                />
               )}
             />
           </section>
@@ -166,13 +165,13 @@ export default function PaymentDetail() {
           <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
             <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-brand" />
 
-            <Link
-              to="/payments"
+            <SmartBackLink
+              fallback="/payments"
+              fallbackLabel="Back to payments"
+              variant="text-subtle"
+              iconClassName="size-3.5"
               className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-brand"
-            >
-              <ArrowLeft className="size-3.5" />
-              Back to payments
-            </Link>
+            />
 
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">

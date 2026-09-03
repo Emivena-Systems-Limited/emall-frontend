@@ -2,12 +2,15 @@ export const ORDER_ADMIN_ENDPOINTS = {
   LIST: '/api/orders/admin/orders',
   STATS: '/api/orders/admin/orders/stats',
   byId: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}`,
+  byVendor: (vendorId) => `/api/orders/admin/vendor/${encodeURIComponent(vendorId)}`,
   paymentStatus: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}/payment-status`,
   deliveryStatus: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}/delivery-status`,
   cancel: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}/cancel`,
 }
 
 export const ORDER_PAGE_SIZE = 20
+export const VENDOR_ORDER_PAGE_SIZE = 20
+export const MAX_VENDOR_ORDER_PAGES = 10
 
 export const ORDER_STATUSES = {
   ordered: {

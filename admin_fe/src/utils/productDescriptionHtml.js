@@ -14,6 +14,25 @@ export function stripHtmlToPlainText(value) {
     .trim()
 }
 
+/** Normalize API/editor HTML before TipTap ingests it. */
+export function prepareDescriptionHtmlForEditor(html = '') {
+  const source = String(html ?? '').trim()
+  if (!source) return ''
+
+  if (typeof document === 'undefined') return source
+
+  const decoded = (() => {
+    if (!source.includes('&lt;') && !source.includes('&gt;') && !source.includes('&amp;')) {
+      return source
+    }
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = source
+    return textarea.value.trim() || source
+  })()
+
+  return decoded.replace(/<p>\s*(?:<br\s*\/?>)?\s*<\/p>\s*$/i, '')
+}
+
 /** Split API/editor HTML from a plain-text fallback for product detail views. */
 export function normalizeProductDescription(raw) {
   const source = String(raw ?? '').trim()
@@ -27,7 +46,7 @@ export function normalizeProductDescription(raw) {
 
   if (hasHtmlDescription(source)) {
     return {
-      descriptionHtml: source,
+      descriptionHtml: prepareDescriptionHtmlForEditor(source) || source,
       description: stripHtmlToPlainText(source) || 'No description available for this product.',
     }
   }

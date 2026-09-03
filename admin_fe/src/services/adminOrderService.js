@@ -1,5 +1,5 @@
 import apiClient from '../lib/apiClient'
-import { ORDER_ADMIN_ENDPOINTS, ORDER_PAGE_SIZE } from '../constants/adminOrders'
+import { ORDER_ADMIN_ENDPOINTS, ORDER_PAGE_SIZE, VENDOR_ORDER_PAGE_SIZE } from '../constants/adminOrders'
 import { assertAuthEnvelope } from '../utils/parseApiError'
 import {
   extractAdminOrderPagination,
@@ -7,6 +7,8 @@ import {
   getOrderApiId,
   normalizeAdminOrders,
   normalizeOrderStats,
+  paginateAdminVendorOrders,
+  parseAdminVendorOrdersEnvelope,
   toAdminOrder,
 } from '../utils/normalizeAdminOrders'
 import { extractVendorOrderRecord } from '../utils/normalizeVendorOrders'
@@ -46,6 +48,117 @@ export async function fetchAdminOrders({
   return {
     orders: normalizeAdminOrders(envelope),
     pagination: extractAdminOrderPagination(envelope),
+  }
+}
+
+export async function fetchAdminVendorOrders({
+  vendorId,
+  status = '',
+  paymentStatus = '',
+  deliveryStatus = '',
+  search = '',
+  page = 1,
+  perPage = VENDOR_ORDER_PAGE_SIZE,
+} = {}) {
+  if (!vendorId) {
+    return {
+      orders: [],
+      pagination: extractAdminOrderPagination({ data: [] }),
+    }
+  }
+
+  const { data } = await apiClient.get(ORDER_ADMIN_ENDPOINTS.byVendor(vendorId), {
+    params: compactParams({
+      status,
+      payment_status: paymentStatus,
+      delivery_status: deliveryStatus,
+      search: String(search ?? '').trim(),
+      page,
+      per_page: perPage,
+      ...LATEST_FIRST_QUERY,
+    }),
+  })
+  const envelope = assertAuthEnvelope(data, 'Could not load vendor orders.')
+  const parsed = parseAdminVendorOrdersEnvelope(envelope)
+
+  if (!parsed.hasOrders) {
+    const fallback = await fetchAdminOrders({
+      vendorId,
+      status,
+      paymentStatus,
+      deliveryStatus,
+      search,
+      page,
+      perPage,
+    })
+
+    return {
+      ...fallback,
+      salesSummary: parsed.salesSummary,
+      usedOrdersListFallback: parsed.isVendorProfileOnly,
+    }
+  }
+
+  const normalizedOrders = normalizeAdminOrders(parsed.ordersBody)
+
+  if (parsed.isUnpaginatedBundle) {
+    const paged = paginateAdminVendorOrders(normalizedOrders, {
+      total: parsed.totalOrders ?? parsed.salesSummary?.totalOrders ?? normalizedOrders.length,
+      page,
+      perPage,
+    })
+
+    return {
+      orders: paged.orders,
+      pagination: paged.pagination,
+      salesSummary: parsed.salesSummary,
+      usedOrdersListFallback: false,
+    }
+  }
+
+  return {
+    orders: normalizedOrders,
+    pagination: extractAdminOrderPagination(parsed.ordersBody),
+    salesSummary: parsed.salesSummary,
+    usedOrdersListFallback: false,
+  }
+}
+
+export async function fetchAdminVendorOrderSnapshot(vendorId) {
+  if (!vendorId) {
+    return { orders: [], total: 0, salesSummary: null }
+  }
+
+  const { data } = await apiClient.get(ORDER_ADMIN_ENDPOINTS.byVendor(vendorId), {
+    params: compactParams({
+      page: 1,
+      per_page: VENDOR_ORDER_PAGE_SIZE,
+      ...LATEST_FIRST_QUERY,
+    }),
+  })
+  const envelope = assertAuthEnvelope(data, 'Could not load vendor orders.')
+  const parsed = parseAdminVendorOrdersEnvelope(envelope)
+
+  if (!parsed.hasOrders) {
+    const fallback = await fetchAdminVendorOrders({
+      vendorId,
+      page: 1,
+      perPage: VENDOR_ORDER_PAGE_SIZE,
+    })
+
+    return {
+      orders: fallback.orders,
+      total: fallback.pagination.total,
+      salesSummary: parsed.salesSummary,
+    }
+  }
+
+  const normalizedOrders = normalizeAdminOrders(parsed.ordersBody)
+
+  return {
+    orders: normalizedOrders,
+    total: parsed.totalOrders ?? parsed.salesSummary?.totalOrders ?? normalizedOrders.length,
+    salesSummary: parsed.salesSummary,
   }
 }
 

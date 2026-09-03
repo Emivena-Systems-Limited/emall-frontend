@@ -1,5 +1,9 @@
 import apiClient from '../lib/apiClient'
-import { PRODUCT_ADMIN_ENDPOINTS, PRODUCT_PAGE_SIZE } from '../constants/adminProducts'
+import {
+  PRODUCT_ADMIN_ENDPOINTS,
+  PRODUCT_PAGE_SIZE,
+  VENDOR_PRODUCT_PAGE_SIZE,
+} from '../constants/adminProducts'
 import { assertAuthEnvelope } from '../utils/parseApiError'
 import {
   extractAdminProductRecord,
@@ -49,6 +53,64 @@ export async function fetchAdminProducts({
 
 export async function fetchAdminPendingProducts(params = {}) {
   return fetchAdminProducts({ ...params, pending: true, status: 'pending' })
+}
+
+export async function fetchAdminVendorProducts({
+  vendorId,
+  status = '',
+  visibility = '',
+  search = '',
+  page = 1,
+  perPage = VENDOR_PRODUCT_PAGE_SIZE,
+} = {}) {
+  if (!vendorId) {
+    return {
+      products: [],
+      pagination: extractProductPagination({ data: [] }),
+    }
+  }
+
+  const { data } = await apiClient.get(PRODUCT_ADMIN_ENDPOINTS.byVendor(vendorId), {
+    params: compactParams({
+      status: toProductApiStatus(status),
+      is_active: toProductActiveParam(visibility),
+      search: String(search ?? '').trim(),
+      page,
+      per_page: perPage,
+      ...LATEST_FIRST_QUERY,
+    }),
+  })
+  const envelope = assertAuthEnvelope(data, 'Could not load vendor products.')
+
+  return {
+    products: normalizeAdminProducts(envelope),
+    pagination: extractProductPagination(envelope),
+  }
+}
+
+const MAX_VENDOR_PRODUCT_PAGES = 50
+
+export async function fetchAllAdminVendorProducts(vendorId) {
+  if (!vendorId) return []
+
+  const first = await fetchAdminVendorProducts({
+    vendorId,
+    page: 1,
+    perPage: PRODUCT_PAGE_SIZE,
+  })
+  const products = [...first.products]
+  const lastPage = Math.min(first.pagination.lastPage, MAX_VENDOR_PRODUCT_PAGES)
+
+  for (let page = 2; page <= lastPage; page += 1) {
+    const next = await fetchAdminVendorProducts({
+      vendorId,
+      page,
+      perPage: PRODUCT_PAGE_SIZE,
+    })
+    products.push(...next.products)
+  }
+
+  return products
 }
 
 export async function fetchAdminProductById(productId) {

@@ -2,6 +2,7 @@ export const PRODUCT_ADMIN_ENDPOINTS = {
   LIST: '/api/product/admin/products',
   PENDING: '/api/product/admin/products/pending',
   byId: (id) => `/api/product/admin/products/${encodeURIComponent(id)}`,
+  byVendor: (vendorId) => `/api/product/admin/vendor/${encodeURIComponent(vendorId)}`,
   status: (id) => `/api/product/admin/products/${encodeURIComponent(id)}/status`,
   isActive: (id) => `/api/product/admin/products/${encodeURIComponent(id)}/is-active`,
 }
@@ -13,6 +14,7 @@ export const PRODUCT_API_STATUS = {
 }
 
 export const PRODUCT_PAGE_SIZE = 20
+export const VENDOR_PRODUCT_PAGE_SIZE = 12
 
 export const PRODUCT_REJECTION_REASON_MAX_LENGTH = 500
 

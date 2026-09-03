@@ -322,7 +322,7 @@ function resolveItemsMoney(items) {
 }
 
 function resolveNamedDiscount(record) {
-  const lineDiscount = Number(record?.total_discount_amount)
+  const lineDiscount = Number(record?.total_discount_amount ?? record?.total_discount ?? 0)
   if (Number.isFinite(lineDiscount) && lineDiscount > 0) return lineDiscount
 
   const named = Number(record?.discount_total ?? record?.discount_amount ?? record?.discount ?? 0)
@@ -337,11 +337,9 @@ function normalizeOrderItem(item, index, orderRecord = null) {
   const paidUnit = unitDiscount > 0 && unitDiscount < listUnit
     ? Math.max(0, listUnit - unitDiscount)
     : (catalogSale != null && catalogSale < listUnit ? catalogSale : listUnit)
-  const rawTotal = Number(item?.total_price)
+  const rawTotal = Number(item?.total_discounted_price ?? item?.total_discounted_amount ?? item?.total_price ?? 0)
   const discountedTotal = paidUnit * quantity
-  const totalPrice = paidUnit < listUnit
-    ? discountedTotal
-    : (Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : discountedTotal)
+  const totalPrice = Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : discountedTotal
   const product = item?.product ?? {}
   const variant = item?.variant ?? {}
   const brand = product?.brand_id ?? product?.brand ?? {}
@@ -599,7 +597,9 @@ export function normalizeVendorOrderRecord(record) {
   const deliveryFee = Number(record?.delivery_fee ?? record?.shipping_fee ?? parentOrder?.delivery_fee ?? 0)
   const taxTotal = Number(record?.tax_total ?? parentOrder?.tax_total ?? 0)
   const recordTotal = Number(
-    record?.grand_total
+    record?.total_discounted_price
+    ?? record?.total_discounted_amount
+    ?? record?.grand_total
     ?? record?.total
     ?? record?.total_amount
     ?? record?.total_price

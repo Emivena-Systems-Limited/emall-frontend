@@ -1,6 +1,7 @@
-import { Link, useLocation } from 'react-router'
+import { useLocation } from 'react-router'
 import { ArrowRight } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
+import SmartBackLink from '../components/navigation/SmartBackLink'
 import { getComingSoon } from '../constants/comingSoon'
 
 export default function ComingSoon() {
@@ -46,13 +47,16 @@ export default function ComingSoon() {
               ))}
             </ul>
 
-            <Link
-              to="/dashboard"
+            <SmartBackLink
+              fallback="/dashboard"
+              fallbackLabel="Back to command center"
+              variant="button-primary"
+              showIcon={false}
               className="mt-8 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
             >
               Back to command center
               <ArrowRight className="size-4" />
-            </Link>
+            </SmartBackLink>
           </div>
         </section>
       </div>

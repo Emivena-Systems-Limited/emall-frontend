@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PRODUCT_PAGE_SIZE, PRODUCT_STATUS_TABS } from '../constants/adminProducts'
+import { ADMIN_VENDOR_PRODUCTS_QUERY_KEY } from './useAdminVendorProducts'
 import {
   deleteAdminProduct,
   fetchAdminPendingProducts,
@@ -192,11 +193,17 @@ function rememberProduct(queryClient, record) {
 }
 
 function refreshActiveProductLists(queryClient) {
-  return queryClient.invalidateQueries({
-    queryKey: ADMIN_PRODUCTS_QUERY_KEY,
-    predicate: (query) => query.queryKey.includes('list') || query.queryKey.includes('pending'),
-    refetchType: 'active',
-  })
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: ADMIN_PRODUCTS_QUERY_KEY,
+      predicate: (query) => query.queryKey.includes('list') || query.queryKey.includes('pending'),
+      refetchType: 'active',
+    }),
+    queryClient.invalidateQueries({
+      queryKey: ADMIN_VENDOR_PRODUCTS_QUERY_KEY,
+      refetchType: 'active',
+    }),
+  ])
 }
 
 export function useUpdateProductStatusMutation() {

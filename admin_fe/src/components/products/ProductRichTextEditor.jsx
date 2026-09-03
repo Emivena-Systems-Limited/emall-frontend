@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react'
 import FieldError from '../auth/FieldError'
+import { prepareDescriptionHtmlForEditor } from '../../utils/productDescriptionHtml'
 import { isRichTextEmpty } from '../../utils/richText'
 
 const normalState = 'border-slate-200 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-light'
@@ -427,7 +428,7 @@ export default function ProductRichTextEditor({
   const panelRef = useRef(null)
   const tableMenuRef = useRef(null)
   const editorRef = useRef(null)
-  const lastEmittedHtmlRef = useRef(value ?? '')
+  const lastEmittedHtmlRef = useRef(prepareDescriptionHtmlForEditor(value))
   const onChangeRef = useRef(onChange)
   const onBlurRef = useRef(onBlur)
   const [expanded, setExpanded] = useState(false)
@@ -470,7 +471,7 @@ export default function ProductRichTextEditor({
         },
       }),
     ],
-    content: value || '',
+    content: prepareDescriptionHtmlForEditor(value),
     onUpdate: ({ editor: currentEditor }) => {
       const html = readEditorHtml(currentEditor)
       lastEmittedHtmlRef.current = html
@@ -516,11 +517,11 @@ export default function ProductRichTextEditor({
   useEffect(() => {
     if (!editor) return
 
-    const next = value ?? ''
+    const next = prepareDescriptionHtmlForEditor(value)
     if (next === lastEmittedHtmlRef.current) return
 
     lastEmittedHtmlRef.current = next
-    editor.commands.setContent(next || '', false)
+    editor.commands.setContent(next || '', { emitUpdate: false })
   }, [editor, value])
 
   const insertImage = (src) => {

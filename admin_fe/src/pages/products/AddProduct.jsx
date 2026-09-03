@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import SmartBackLink from '../../components/navigation/SmartBackLink'
 import ProductStepper from '../../components/products/ProductStepper'
 import ProductRichTextEditor from '../../components/products/ProductRichTextEditor'
 import ProductImageUploader from '../../components/products/ProductImageUploader'
@@ -1977,13 +1978,11 @@ export function ProductListingForm({
               </p>
             </div>
 
-            <Link
-              to="/products"
-              className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
-            >
-              <ArrowLeft className="size-4" />
-              Back to products
-            </Link>
+            <SmartBackLink
+              fallback="/products"
+              fallbackLabel="Back to products"
+              variant="button-outline"
+            />
           </div>
         </section>
 

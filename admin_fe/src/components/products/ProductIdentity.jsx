@@ -1,7 +1,12 @@
 import { Link } from 'react-router'
 import { Package } from 'lucide-react'
 
-export default function ProductIdentity({ product }) {
+export default function ProductIdentity({ product, hideVendor = false }) {
+  const subtitle = hideVendor
+    ? (product.category && product.category !== '—' ? product.category : null)
+    : product.vendorName || 'Unknown store'
+  const skuSuffix = product.sku && product.sku !== '—' ? ` · ${product.sku}` : ''
+
   return (
     <div className="flex min-w-0 items-center gap-3">
       {product.image ? (
@@ -17,10 +22,12 @@ export default function ProductIdentity({ product }) {
       )}
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-slate-900">{product.name || 'Untitled listing'}</p>
-        <p className="mt-0.5 truncate text-xs text-slate-500">
-          {product.vendorName || 'Unknown store'}
-          {product.sku && product.sku !== '—' ? ` · ${product.sku}` : ''}
-        </p>
+        {(subtitle || skuSuffix) && (
+          <p className="mt-0.5 truncate text-xs text-slate-500">
+            {subtitle}
+            {skuSuffix}
+          </p>
+        )}
       </div>
     </div>
   )

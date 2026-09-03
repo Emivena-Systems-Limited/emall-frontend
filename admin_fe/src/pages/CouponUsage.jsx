@@ -1,8 +1,10 @@
 import { Link } from 'react-router'
-import { ArrowLeft, Banknote, ShoppingBag, TicketPercent, Users } from 'lucide-react'
+import { Banknote, ShoppingBag, TicketPercent, Users } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
+import SmartBackButton from '../components/navigation/SmartBackButton'
+import SmartBackLink from '../components/navigation/SmartBackLink'
 import CouponUsageCharts from '../components/coupons/CouponUsageCharts'
 import { useAdminCouponUsage } from '../hooks/useAdminCoupons'
 import { formatCount, formatOrderMoney } from '../utils/formatters'
@@ -84,13 +86,13 @@ export default function CouponUsage() {
         <DashboardReveal index={0}>
           <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
             <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-brand" />
-            <Link
-              to="/coupons"
+            <SmartBackLink
+              fallback="/coupons"
+              fallbackLabel="Back to coupons"
+              variant="text-subtle"
+              iconClassName="size-3.5"
               className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-brand"
-            >
-              <ArrowLeft className="size-3.5" />
-              Back to coupons
-            </Link>
+            />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Growth</p>
             <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
               Coupon usage
@@ -109,12 +111,11 @@ export default function CouponUsage() {
                 title="No redemptions yet"
                 description="When shoppers use a code at checkout, usage and savings will show up here."
                 action={(
-                  <Link
-                    to="/coupons"
+                  <SmartBackButton
+                    fallback="/coupons"
+                    fallbackLabel="Back to coupons"
                     className="cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-                  >
-                    Back to coupons
-                  </Link>
+                  />
                 )}
               />
             </section>

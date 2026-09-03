@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import {
   Area,
@@ -8,14 +9,25 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { CircleDollarSign, ShoppingCart } from 'lucide-react'
+import { AlertTriangle, CircleDollarSign, RefreshCw, ShoppingCart } from 'lucide-react'
+import DashboardReveal from '../components/dashboard/DashboardReveal'
+import EmptyState from '../components/dashboard/EmptyState'
+import OrderPagination from '../components/orders/OrderPagination'
+import VendorCatalogOrderTable, { VendorCatalogOrderTableSkeleton } from '../components/orders/VendorCatalogOrderTable'
 import VendorWorkspace from '../components/vendors/VendorWorkspace'
-import { getOrderStatusMeta } from '../constants/adminDashboardData'
-import { getVendorRecentOrders, getVendorSalesTrend } from '../constants/vendorsData'
 import { CHART_AXIS_TICK, CHART_AXIS_TICK_Y } from '../constants/chartTheme'
+import {
+  useAdminVendorOrderRoster,
+  useAdminVendorOrderSnapshot,
+} from '../hooks/useAdminVendorOrders'
 import { formatCedi, formatCediCompact, formatCount } from '../utils/formatters'
+import { parseApiError } from '../utils/parseApiError'
+import {
+  buildVendorSalesTrend,
+  computeVendorSalesSummary,
+} from '../utils/vendorOrderAnalytics'
 
-function Tip({ active, payload }) {
+function ChartTip({ active, payload }) {
   if (!active || !payload?.length) return null
   const point = payload[0]?.payload
   return (
@@ -26,115 +38,189 @@ function Tip({ active, payload }) {
   )
 }
 
+function SalesSkeleton() {
+  return (
+    <div className="space-y-5" aria-busy="true" aria-label="Loading store sales">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="skeleton-shimmer h-28 rounded-2xl" />
+        <div className="skeleton-shimmer h-28 rounded-2xl" />
+      </div>
+      <div className="skeleton-shimmer h-72 rounded-2xl" />
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+        <VendorCatalogOrderTableSkeleton />
+      </section>
+    </div>
+  )
+}
+
+function resolveSummaryMetrics(vendor, snapshotOrders) {
+  const computed = computeVendorSalesSummary(snapshotOrders)
+
+  return {
+    sales30d: computed.salesTotal,
+    orders30d: computed.orderCount > 0
+      ? computed.orderCount
+      : (vendor?.orders30d != null ? Number(vendor.orders30d) : 0),
+  }
+}
+
 export default function VendorSales() {
   const { vendorId } = useParams()
+  const [page, setPage] = useState(1)
+
+  const {
+    orders,
+    pagination,
+    isLoading: rosterLoading,
+    isFetching: rosterFetching,
+    isError: rosterError,
+    error: rosterLoadError,
+    refetch: refetchRoster,
+  } = useAdminVendorOrderRoster(vendorId, page)
+
+  const {
+    orders: snapshotOrders,
+    isLoading: snapshotLoading,
+    isError: snapshotError,
+    error: snapshotLoadError,
+    refetch: refetchSnapshot,
+  } = useAdminVendorOrderSnapshot(vendorId)
+
+  const isLoading = rosterLoading || snapshotLoading
+  const isError = rosterError || snapshotError
+  const loadError = rosterLoadError || snapshotLoadError
+
+  const trend = useMemo(
+    () => buildVendorSalesTrend(snapshotOrders, { months: 7 }),
+    [snapshotOrders],
+  )
+  const trendTotal = useMemo(
+    () => trend.reduce((sum, point) => sum + point.sales, 0),
+    [trend],
+  )
+
+  const refetchAll = () => {
+    refetchRoster()
+    refetchSnapshot()
+  }
 
   return (
     <VendorWorkspace vendorId={vendorId} current="sales" pageTitle="Sales">
       {(vendor) => {
-        const trend = getVendorSalesTrend(vendor)
-        const orders = getVendorRecentOrders(vendor)
-        const total = trend.reduce((sum, point) => sum + point.sales, 0)
+        if (isLoading) return <SalesSkeleton />
+
+        if (isError) {
+          return (
+            <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+              <EmptyState
+                icon={AlertTriangle}
+                title="Could not load store sales"
+                description={parseApiError(loadError, 'Vendor order history is unavailable right now.').message}
+                action={(
+                  <button
+                    type="button"
+                    onClick={refetchAll}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+                  >
+                    <RefreshCw className="size-4" />
+                    Try again
+                  </button>
+                )}
+              />
+            </section>
+          )
+        }
+
+        const { sales30d, orders30d } = resolveSummaryMetrics(vendor, snapshotOrders)
 
         return (
           <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sales (30d)</p>
-                <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-slate-950">{formatCedi(vendor.sales30d)}</p>
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                  <CircleDollarSign className="size-3.5" /> Paid order value
-                </p>
-              </article>
-              <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Orders (30d)</p>
-                <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-slate-950">{formatCount(vendor.orders30d)}</p>
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                  <ShoppingCart className="size-3.5" /> Completed + open
-                </p>
-              </article>
-            </div>
+            <DashboardReveal index={0}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Total sales</p>
+                  <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-slate-950">{formatCedi(sales30d)}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                    <CircleDollarSign className="size-3.5" />
+                    Paid order value
+                  </p>
+                </article>
+                <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Total orders</p>
+                  <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-slate-950">{formatCount(orders30d)}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                    <ShoppingCart className="size-3.5" />
+                    Completed + open
+                  </p>
+                </article>
+              </div>
+            </DashboardReveal>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Sales trend</h3>
-                  <p className="text-xs text-slate-500">Paid value for this store, last seven months</p>
+            <DashboardReveal index={1}>
+              <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Sales trend</h3>
+                    <p className="text-xs text-slate-500">Paid value for this store, last seven months</p>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums text-slate-950">{formatCediCompact(trendTotal)}</p>
                 </div>
-                <p className="text-sm font-bold tabular-nums text-slate-950">{formatCediCompact(total)}</p>
-              </div>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="vendorSalesFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#0284c7" stopOpacity={0.28} />
-                        <stop offset="100%" stopColor="#0284c7" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
-                    <YAxis
-                      tick={CHART_AXIS_TICK_Y}
-                      axisLine={false}
-                      tickLine={false}
-                      width={52}
-                      tickFormatter={(value) => formatCediCompact(value)}
-                    />
-                    <Tooltip content={<Tip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="sales"
-                      stroke="#0284c7"
-                      strokeWidth={2.2}
-                      fill="url(#vendorSalesFill)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="vendorSalesFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#0284c7" stopOpacity={0.28} />
+                          <stop offset="100%" stopColor="#0284c7" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
+                      <YAxis
+                        tick={CHART_AXIS_TICK_Y}
+                        axisLine={false}
+                        tickLine={false}
+                        width={52}
+                        tickFormatter={(value) => formatCediCompact(value)}
+                      />
+                      <Tooltip content={<ChartTip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="sales"
+                        stroke="#0284c7"
+                        strokeWidth={2.2}
+                        fill="url(#vendorSalesFill)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            </DashboardReveal>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-              <div className="border-b border-slate-100 px-5 py-4">
-                <h3 className="text-sm font-bold text-slate-900">Recent orders</h3>
-                <p className="text-xs text-slate-500">Latest checkouts attributed to this store</p>
-              </div>
-              {orders.length === 0 ? (
-                <p className="px-5 py-8 text-sm text-slate-500">No orders yet for this account.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-5 py-2.5">Order</th>
-                        <th className="px-5 py-2.5">Region</th>
-                        <th className="px-5 py-2.5">Total</th>
-                        <th className="px-5 py-2.5">Status</th>
-                        <th className="px-5 py-2.5">Placed</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {orders.map((order) => {
-                        const meta = getOrderStatusMeta(order.status)
-                        return (
-                          <tr key={order.id}>
-                            <td className="px-5 py-3 font-semibold tabular-nums text-slate-900">{order.id}</td>
-                            <td className="px-5 py-3 text-slate-600">{order.region}</td>
-                            <td className="px-5 py-3 font-semibold tabular-nums text-slate-900">{formatCedi(order.total)}</td>
-                            <td className="px-5 py-3">
-                              <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${meta.badgeClass}`}>
-                                {meta.name}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3 text-slate-500">{order.placed}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+            <DashboardReveal index={2}>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-end justify-between gap-3 px-1">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Recent orders</h3>
+                    <p className="text-xs text-slate-500">Latest checkouts attributed to this store</p>
+                  </div>
+                  {rosterFetching ? (
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Refreshing…</span>
+                  ) : null}
                 </div>
-              )}
-            </section>
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+                  <VendorCatalogOrderTable orders={orders} />
+                  <OrderPagination
+                    page={pagination.page}
+                    pageCount={pagination.lastPage}
+                    totalItems={pagination.total}
+                    startIndex={pagination.from}
+                    endIndex={pagination.to}
+                    onPageChange={setPage}
+                  />
+                </section>
+              </div>
+            </DashboardReveal>
           </div>
         )
       }}

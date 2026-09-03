@@ -1,5 +1,17 @@
 import { useRef, useState } from 'react'
-import { Copy, Eye, Layers3, MoreHorizontal, Package, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  Eye,
+  EyeOff,
+  Layers3,
+  MoreHorizontal,
+  Package,
+  Pencil,
+  Power,
+  PowerOff,
+  Shield,
+  Trash2,
+} from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import { canActivateProduct, canDeactivateProduct } from '../../utils/productStatusActions'
 
@@ -51,6 +63,105 @@ function ProductThumbnail({ product }) {
     <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200">
       <Package className="size-5" strokeWidth={1.5} />
     </span>
+  )
+}
+
+function AdminProductActionsMenu({
+  product,
+  onView,
+  onEditProductInfo,
+  onEditVariations,
+  onReview,
+  onVisibility,
+  onDelete,
+}) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
+
+  const run = (action) => {
+    action(product)
+    setOpen(false)
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="inline-flex cursor-pointer items-center justify-center rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+        aria-label={`Actions for ${product.name}`}
+      >
+        <MoreHorizontal className="size-4" />
+      </button>
+
+      <PortalMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        triggerRef={triggerRef}
+        menuWidth={220}
+      >
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onView)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Eye className="size-4" /> View listing
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onEditProductInfo)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Pencil className="size-4" /> Edit product info
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onEditVariations)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Layers3 className="size-4" /> Manage variations
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onReview)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Shield className="size-4" /> Review status
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onVisibility)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        >
+          {product.isActive === false ? (
+            <>
+              <Eye className="size-4" /> Show on storefront
+            </>
+          ) : (
+            <>
+              <EyeOff className="size-4" /> Hide from storefront
+            </>
+          )}
+        </button>
+        <div className="my-1 border-t border-slate-100" role="separator" />
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => run(onDelete)}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+        >
+          <Trash2 className="size-4" /> Remove listing
+        </button>
+      </PortalMenu>
+    </>
   )
 }
 
@@ -189,7 +300,21 @@ function ProductNameCell({ product }) {
   )
 }
 
-function ProductActionsCell(props) {
+function ProductActionsCell({ mode = 'vendor', ...props }) {
+  if (mode === 'admin') {
+    return (
+      <AdminProductActionsMenu
+        product={props.product}
+        onView={props.onView}
+        onEditProductInfo={props.onEditProductInfo}
+        onEditVariations={props.onEditVariations}
+        onReview={props.onReview}
+        onVisibility={props.onVisibility}
+        onDelete={props.onDelete}
+      />
+    )
+  }
+
   return (
     <ProductActionsMenu
       product={props.product}
@@ -208,6 +333,7 @@ function ProductMobileCard({
   product,
   isSelected,
   onToggleOne,
+  mode,
   ...actionProps
 }) {
   const salePrice = formatProductPrice(product.salePrice ?? product.price)
@@ -236,7 +362,7 @@ function ProductMobileCard({
               <p className="mt-1 truncate text-xs text-slate-500">{product.sku}</p>
             </div>
             <div className="shrink-0">
-              <ProductActionsCell product={product} {...actionProps} />
+              <ProductActionsCell product={product} mode={mode} {...actionProps} />
             </div>
           </div>
 
@@ -294,6 +420,7 @@ function ProductMobileList({
   allSelected,
   someSelected,
   actionProps,
+  mode,
 }) {
   return (
     <div className="lg:hidden">
@@ -320,6 +447,7 @@ function ProductMobileList({
             product={product}
             isSelected={selectedIds.has(product.id)}
             onToggleOne={onToggleOne}
+            mode={mode}
             {...actionProps}
           />
         ))}
@@ -336,6 +464,7 @@ function ProductDesktopTable({
   allSelected,
   someSelected,
   actionProps,
+  mode,
 }) {
   return (
     <div className="hidden overflow-x-auto lg:block">
@@ -411,7 +540,7 @@ function ProductDesktopTable({
                   <ProductStatusBadge status={product.status} />
                 </td>
                 <td className="px-4 py-4 text-right">
-                  <ProductActionsCell product={product} {...actionProps} />
+                  <ProductActionsCell product={product} mode={mode} {...actionProps} />
                 </td>
               </tr>
             )
@@ -423,6 +552,7 @@ function ProductDesktopTable({
 }
 
 export default function ProductTable({
+  mode = 'vendor',
   products,
   selectedIds,
   onToggleAll,
@@ -434,19 +564,30 @@ export default function ProductTable({
   onDeactivate,
   onDuplicate,
   onDelete,
+  onReview,
+  onVisibility,
 }) {
   const allSelected = products.length > 0 && products.every((product) => selectedIds.has(product.id))
   const someSelected = products.some((product) => selectedIds.has(product.id))
 
-  const actionProps = {
-    onView,
-    onEditProductInfo,
-    onEditVariations,
-    onActivate,
-    onDeactivate,
-    onDuplicate,
-    onDelete,
-  }
+  const actionProps = mode === 'admin'
+    ? {
+      onView,
+      onEditProductInfo,
+      onEditVariations,
+      onReview,
+      onVisibility,
+      onDelete,
+    }
+    : {
+      onView,
+      onEditProductInfo,
+      onEditVariations,
+      onActivate,
+      onDeactivate,
+      onDuplicate,
+      onDelete,
+    }
 
   const sharedProps = {
     products,
@@ -456,6 +597,7 @@ export default function ProductTable({
     allSelected,
     someSelected,
     actionProps,
+    mode,
   }
 
   return (

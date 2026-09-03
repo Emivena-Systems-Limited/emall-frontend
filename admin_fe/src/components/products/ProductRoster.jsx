@@ -1,10 +1,12 @@
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Package } from 'lucide-react'
 import EmptyState from '../dashboard/EmptyState'
+import SmartNavLink from '../navigation/SmartNavLink'
 import { formatCount, formatCedi } from '../../utils/formatters'
 import { formatProductDate } from '../../utils/normalizeAdminProducts'
 import { prefetchAdminProduct } from '../../hooks/useAdminProducts'
+import useNavigationState from '../../hooks/useNavigationState'
 import ProductActions from './ProductActions'
 import ProductIdentity, { ProductRosterSkeleton } from './ProductIdentity'
 import ProductStatusBadge from './ProductStatusBadge'
@@ -27,6 +29,7 @@ export default function ProductRoster({
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const navigationState = useNavigationState()
   const prefetch = (id) => prefetchAdminProduct(queryClient, id)
 
   if (total === 0) {
@@ -71,14 +74,14 @@ export default function ProductRoster({
             {products.map((product) => (
               <tr key={product.id} className="transition-colors hover:bg-slate-50/80">
                 <td className="px-5 py-3">
-                  <Link
+                  <SmartNavLink
                     to={`/products/${product.id}`}
                     onMouseEnter={() => prefetch(product.id)}
                     onFocus={() => prefetch(product.id)}
                     className="block rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand"
                   >
                     <ProductIdentity product={product} />
-                  </Link>
+                  </SmartNavLink>
                 </td>
                 <td className="px-5 py-3 font-semibold tabular-nums text-slate-900">
                   {formatCedi(product.price)}
@@ -90,8 +93,8 @@ export default function ProductRoster({
                 <td className="px-5 py-3 text-right">
                   <ProductActions
                     product={product}
-                    onView={() => navigate(`/products/${product.id}`)}
-                    onEdit={() => navigate(`/products/${product.id}/edit`)}
+                    onView={() => navigate(`/products/${product.id}`, { state: navigationState })}
+                    onEdit={() => navigate(`/products/${product.id}/edit`, { state: navigationState })}
                     onStatus={onStatus}
                     onVisibility={onVisibility}
                     onRemove={onRemove}
@@ -107,18 +110,18 @@ export default function ProductRoster({
         {products.map((product) => (
           <li key={product.id} className="px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <Link
+              <SmartNavLink
                 to={`/products/${product.id}`}
                 onMouseEnter={() => prefetch(product.id)}
                 onFocus={() => prefetch(product.id)}
                 className="min-w-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <ProductIdentity product={product} />
-              </Link>
+              </SmartNavLink>
               <ProductActions
                 product={product}
-                onView={() => navigate(`/products/${product.id}`)}
-                onEdit={() => navigate(`/products/${product.id}/edit`)}
+                onView={() => navigate(`/products/${product.id}`, { state: navigationState })}
+                onEdit={() => navigate(`/products/${product.id}/edit`, { state: navigationState })}
                 onStatus={onStatus}
                 onVisibility={onVisibility}
                 onRemove={onRemove}

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowLeft, CheckCircle2, Layers3, Link2, Pin, Plus } from 'lucide-react'
+import { CheckCircle2, Layers3, Link2, Pin, Plus } from 'lucide-react'
 import ConfirmModal from '../common/ConfirmModal'
+import SmartBackLink from '../navigation/SmartBackLink'
 import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
 import { useSyncDefaultVariantMutation } from '../../hooks/useProductMutations'
 import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
@@ -199,13 +200,11 @@ export default function VariantListView({
           </div>
 
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
-            <Link
-              to="/products"
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
-            >
-              <ArrowLeft className="size-4 shrink-0" />
-              Back to products
-            </Link>
+            <SmartBackLink
+              fallback="/products"
+              fallbackLabel="Back to products"
+              variant="button-outline"
+            />
             <Link
               to={`/products/${productId}/edit`}
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-brand/25 bg-brand-light/60 px-4 py-2.5 text-sm font-bold text-brand shadow-sm transition-colors hover:border-brand/40 hover:bg-brand-light"

@@ -13,6 +13,7 @@ import {
   Package,
 } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import SmartBackLink from '../../components/navigation/SmartBackLink'
 import EditProductImagesStep from '../../components/products/EditProductImagesStep'
 import ProductStepper from '../../components/products/ProductStepper'
 import { InfoStep, PricingStep, ReviewStep, ShippingStep } from './AddProduct'
@@ -150,13 +151,11 @@ function EditModeChooser({ productId }) {
   return (
     <div className="page-enter space-y-5">
       <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
-        <Link
-          to="/products"
+        <SmartBackLink
+          fallback="/products"
+          fallbackLabel="Back to products"
           className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
-        >
-          <ArrowLeft className="size-4" />
-          Back to products
-        </Link>
+        />
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">Choose edit action</p>
         <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">What would you like to edit?</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
@@ -223,14 +222,12 @@ function EditSuccessPanel({ productId }) {
             Edit variants
           </Link>
         </div>
-        <Link
-          to="/products"
+        <SmartBackLink
+          fallback="/products"
+          fallbackLabel="Back to products"
           onClick={handleBackToProducts}
           className="inline-flex cursor-pointer items-center justify-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
-        >
-          <ArrowLeft className="size-4" />
-          Back to products
-        </Link>
+        />
       </div>
     </div>
   )
@@ -502,13 +499,11 @@ function ProductInfoEditForm({
           </div>
 
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
-            <Link
-              to="/products"
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
-            >
-              <ArrowLeft className="size-4 shrink-0" />
-              Back to products
-            </Link>
+            <SmartBackLink
+              fallback="/products"
+              fallbackLabel="Back to products"
+              variant="button-outline"
+            />
             <Link
               to={`/products/${productId}/edit`}
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-brand/25 bg-brand-light/60 px-4 py-2.5 text-sm font-bold text-brand shadow-sm transition-colors hover:border-brand/40 hover:bg-brand-light"
@@ -793,13 +788,11 @@ export default function EditProduct() {
             >
               Try again
             </button>
-            <Link
-              to="/products"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
-            >
-              <ArrowLeft className="size-4" />
-              Back to products
-            </Link>
+            <SmartBackLink
+              fallback="/products"
+              fallbackLabel="Back to products"
+              variant="button-primary"
+            />
           </div>
         </div>
       </DashboardLayout>

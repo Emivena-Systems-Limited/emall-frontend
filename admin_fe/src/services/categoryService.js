@@ -1,7 +1,7 @@
 import apiClient from '../lib/apiClient'
 import { CATEGORY_ENDPOINTS, CATEGORY_WRITE_ENABLED } from '../constants/categories'
 import { assertAuthEnvelope } from '../utils/parseApiError'
-import { extractCategoryList } from '../utils/normalizeAdminCategories'
+import { extractCategoryList, normalizeCategoryRecord } from '../utils/normalizeAdminCategories'
 import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
 
 function writePendingError() {
@@ -53,16 +53,27 @@ export async function fetchCategoriesWithChildren() {
   return extractCategoryList(envelope)
 }
 
+function extractSavedCategory(envelope) {
+  const payload = envelope?.data ?? envelope
+
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const normalized = normalizeCategoryRecord(payload)
+    if (normalized) return normalized
+  }
+
+  return extractCategoryList(envelope)[0]
+    ?? extractCategoryList({ data: payload })[0]
+    ?? null
+}
+
 export async function createAdminCategory(fields) {
   if (!CATEGORY_WRITE_ENABLED) throw writePendingError()
 
   const { data } = await apiClient.post(CATEGORY_ENDPOINTS.CREATE, buildCategoryFormData(fields))
   const envelope = assertAuthEnvelope(data, 'Could not create category.')
-  const record = extractCategoryList(envelope)[0]
-    ?? extractCategoryList({ data: envelope?.data })[0]
 
   return {
-    category: record,
+    category: extractSavedCategory(envelope),
     message: envelope?.reason || envelope?.message || 'Category created.',
   }
 }
@@ -72,11 +83,9 @@ export async function updateAdminCategory({ id, ...fields }) {
 
   const { data } = await apiClient.post(CATEGORY_ENDPOINTS.update(id), buildCategoryFormData(fields))
   const envelope = assertAuthEnvelope(data, 'Could not update category.')
-  const record = extractCategoryList(envelope)[0]
-    ?? extractCategoryList({ data: envelope?.data })[0]
 
   return {
-    category: record,
+    category: extractSavedCategory(envelope),
     message: envelope?.reason || envelope?.message || 'Category updated.',
   }
 }

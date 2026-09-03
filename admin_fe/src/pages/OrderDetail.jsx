@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
   AlertTriangle,
-  ArrowLeft,
   Ban,
   ChevronRight,
   CreditCard,
@@ -14,6 +13,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
+import SmartBackLink from '../components/navigation/SmartBackLink'
 import OrderLineItems from '../components/orders/OrderLineItems'
 import OrderCustomerDeliveryDrawer from '../components/orders/OrderCustomerDeliveryDrawer'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge'
@@ -105,13 +105,11 @@ export default function OrderDetail() {
               <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} />
               Retry
             </button>
-            <Link
-              to="/orders"
-              className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
-            >
-              <ArrowLeft className="size-4" />
-              Back to orders
-            </Link>
+            <SmartBackLink
+              fallback="/orders"
+              fallbackLabel="Back to orders"
+              variant="button-primary"
+            />
           </div>
         </div>
       </DashboardLayout>
@@ -126,13 +124,11 @@ export default function OrderDetail() {
     <DashboardLayout pageTitle={order.orderNumber}>
       <div className="page-enter space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link
-            to="/orders"
-            className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand"
-          >
-            <ArrowLeft className="size-4" />
-            All orders
-          </Link>
+          <SmartBackLink
+            fallback="/orders"
+            fallbackLabel="All orders"
+            labelStyle="short"
+          />
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"

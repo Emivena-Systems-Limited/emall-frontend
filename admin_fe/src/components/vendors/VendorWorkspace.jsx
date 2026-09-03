@@ -1,12 +1,13 @@
-import { Link, useNavigate } from 'react-router'
+import { Link, useParams } from 'react-router'
 import {
-  ArrowLeft,
   CircleDollarSign,
   Package,
   Store,
 } from 'lucide-react'
 import DashboardLayout from '../dashboard/DashboardLayout'
 import EmptyState from '../dashboard/EmptyState'
+import SmartBackButton from '../navigation/SmartBackButton'
+import SmartBackLink from '../navigation/SmartBackLink'
 import VendorStatusBadge from './VendorStatusBadge'
 import VendorActionsMenu from './VendorActionsMenu'
 import { getStoreInitials, getVendorAvatarTone } from '../../utils/vendorFilters'
@@ -44,7 +45,6 @@ function VendorWorkspaceSkeleton() {
 
 export default function VendorWorkspace({ vendorId, current, pageTitle, children }) {
   const { vendor, isLoading, isError, error, refetch } = useVendor(vendorId)
-  const navigate = useNavigate()
 
   if (isLoading) return <VendorWorkspaceSkeleton />
 
@@ -83,13 +83,10 @@ export default function VendorWorkspace({ vendorId, current, pageTitle, children
               title="This vendor is not on the roster"
               description="The link may be out of date, or this store is no longer returned by the vendor API."
               action={(
-                <button
-                  type="button"
-                  onClick={() => navigate('/vendors')}
-                  className="cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-                >
-                  Back to vendors
-                </button>
+                <SmartBackButton
+                  fallback="/vendors"
+                  fallbackLabel="Back to vendors"
+                />
               )}
             />
           </section>
@@ -104,13 +101,12 @@ export default function VendorWorkspace({ vendorId, current, pageTitle, children
         <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
           <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-brand" />
 
-          <Link
-            to="/vendors"
-            className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-brand"
-          >
-            <ArrowLeft className="size-3.5" />
-            Back to roster
-          </Link>
+          <SmartBackLink
+            fallback="/vendors"
+            fallbackLabel="Back to roster"
+            variant="text-subtle"
+            iconClassName="size-3.5"
+          />
 
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-start gap-4">

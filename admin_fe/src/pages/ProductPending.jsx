@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
-import { ArrowLeft, Inbox, Package } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import { Inbox, Package } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
+import SmartBackLink from '../components/navigation/SmartBackLink'
 import ProductPendingStage from '../components/products/ProductPendingStage'
 import { ProductRosterSkeleton } from '../components/products/ProductIdentity'
 import { useAdminProductRoster } from '../hooks/useAdminProducts'
@@ -27,13 +28,13 @@ export default function ProductPending() {
         <DashboardReveal index={0}>
           <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
             <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-brand" />
-            <Link
-              to="/products"
+            <SmartBackLink
+              fallback="/products"
+              fallbackLabel="Back to catalogue"
+              variant="text-subtle"
+              iconClassName="size-3.5"
               className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-brand"
-            >
-              <ArrowLeft className="size-3.5" />
-              Back to catalogue
-            </Link>
+            />
             <div className="flex min-w-0 items-start gap-4">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700 ring-1 ring-amber-100">
                 <Inbox className="size-5" strokeWidth={2} />

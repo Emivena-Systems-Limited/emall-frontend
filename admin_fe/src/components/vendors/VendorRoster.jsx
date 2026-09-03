@@ -1,7 +1,7 @@
-import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Store } from 'lucide-react'
 import EmptyState from '../dashboard/EmptyState'
+import SmartNavLink from '../navigation/SmartNavLink'
 import { formatCount } from '../../utils/formatters'
 import {
   formatJoinedDate,
@@ -108,18 +108,26 @@ export default function VendorRoster({
             {vendors.map((vendor) => (
               <tr key={vendor.id} className="transition-colors hover:bg-slate-50/80">
                 <td className="px-5 py-3">
-                  <Link
+                  <SmartNavLink
                     to={`/vendors/${vendor.id}`}
                     onMouseEnter={() => prefetch(vendor.id)}
                     onFocus={() => prefetch(vendor.id)}
                     className="block rounded-xl outline-none transition-colors hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand"
                   >
                     <VendorIdentity vendor={vendor} />
-                  </Link>
+                  </SmartNavLink>
                 </td>
                 <td className="px-5 py-3 text-slate-600">{vendor.region}</td>
                 <td className="px-5 py-3"><VendorStatusBadge status={vendor.status} /></td>
-                <td className="px-5 py-3 tabular-nums text-slate-600">{formatCount(vendor.listings)}</td>
+                <td className="px-5 py-3 tabular-nums text-slate-600">
+                  <SmartNavLink
+                    to={`/vendors/${vendor.id}/products`}
+                    onMouseEnter={() => prefetch(vendor.id)}
+                    className="font-semibold text-slate-700 transition-colors hover:text-brand"
+                  >
+                    {formatCount(vendor.listings)}
+                  </SmartNavLink>
+                </td>
                 <td className="px-5 py-3 tabular-nums text-slate-600">{formatCount(vendor.reviewsCount)}</td>
                 <td className="px-5 py-3 text-slate-500">{formatJoinedDate(vendor.joinedAt)}</td>
                 <td className="px-5 py-3 text-right">
@@ -135,14 +143,14 @@ export default function VendorRoster({
         {vendors.map((vendor) => (
           <li key={vendor.id} className="px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <Link
+              <SmartNavLink
                 to={`/vendors/${vendor.id}`}
                 onMouseEnter={() => prefetch(vendor.id)}
                 onFocus={() => prefetch(vendor.id)}
                 className="min-w-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <VendorIdentity vendor={vendor} />
-              </Link>
+              </SmartNavLink>
               <VendorActionsMenu vendor={vendor} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
