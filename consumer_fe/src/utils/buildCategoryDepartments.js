@@ -7,6 +7,7 @@ import { buildCategoryListingHref } from './listingFilterParams'
 function resolveDepartmentChildren(parentSlug, categoryTree = []) {
   const apiChildren = getSubcategoriesForParent(categoryTree, parentSlug)
   if (apiChildren.length) return apiChildren
+  if (categoryTree.length) return []
 
   return getSubcategoryFallbacksForParent(parentSlug)
 }

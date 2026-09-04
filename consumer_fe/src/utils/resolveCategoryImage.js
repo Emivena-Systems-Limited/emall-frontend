@@ -95,10 +95,11 @@ export function resolveCategoryImage({
 }
 
 export function resolveParentCategoryImage(category = {}) {
+  if (isUsableImageUrl(category?.image)) return category.image.trim()
+  if (isUsableImageUrl(category?.thumbnail)) return category.thumbnail.trim()
+
   const local = getLocalCategoryImage(category.slug)
   if (local) return local
-
-  if (isUsableImageUrl(category?.image)) return category.image.trim()
 
   return resolveCategoryImage({
     slug: category.slug,
@@ -108,10 +109,12 @@ export function resolveParentCategoryImage(category = {}) {
 
 export function resolveSubcategoryImage(subcategory = {}, parentSlug = '') {
   const slug = subcategory.slug ?? subcategory.id
+
+  if (isUsableImageUrl(subcategory?.thumbnail)) return subcategory.thumbnail.trim()
+  if (isUsableImageUrl(subcategory?.image)) return subcategory.image.trim()
+
   const local = getLocalCategoryImage(slug, parentSlug)
   if (local) return local
-
-  if (isUsableImageUrl(subcategory?.image)) return subcategory.image.trim()
 
   return resolveCategoryImage({
     slug,

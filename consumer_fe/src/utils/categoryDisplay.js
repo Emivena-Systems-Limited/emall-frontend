@@ -28,7 +28,9 @@ export function formatProductCount(count) {
  */
 export function getCategoryImage(category, index = 0) {
   const apiThumbnail =
-    category?.image ?? category?.image_url ?? category?.icon ?? category?.thumbnail
+    category?.thumbnail
+    ?? category?.thumbnail_image_url
+    ?? category?.icon
 
   if (isUsableCategoryThumbnail(apiThumbnail)) {
     return apiThumbnail.trim()

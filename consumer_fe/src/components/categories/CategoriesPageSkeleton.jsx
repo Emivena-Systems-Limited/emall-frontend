@@ -29,7 +29,7 @@ function DepartmentCarouselSkeleton() {
 
         <div className="flex gap-4 overflow-hidden pt-4 sm:gap-5 sm:pt-5">
           {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className="w-[12rem] shrink-0 sm:w-[13.5rem] lg:w-[15rem]">
+            <div key={index} className="w-[14rem] shrink-0 sm:w-[16rem] lg:w-[18rem]">
               <div className="aspect-[4/3] animate-pulse rounded-2xl bg-slate-100" />
               <div className="mt-3.5 h-4 w-3/4 animate-pulse rounded bg-slate-100" />
               <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
@@ -56,10 +56,10 @@ function BentoSkeleton() {
   )
 }
 
-export default function CategoriesPageSkeleton() {
+export default function CategoriesPageSkeleton({ includeHeader = true }) {
   return (
     <div aria-busy="true" aria-label="Loading categories">
-      <CategoriesHeaderSkeleton />
+      {includeHeader ? <CategoriesHeaderSkeleton /> : null}
       <DepartmentCarouselSkeleton />
       <DepartmentCarouselSkeleton />
       <section aria-hidden="true" className="bg-white pb-8 sm:pb-10 lg:pb-12">

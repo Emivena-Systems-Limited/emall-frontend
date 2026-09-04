@@ -27,3 +27,7 @@ export const FEATURED_CATEGORY_SPOTLIGHTS = [
     image:Images.categories.home_and_kitchenImage
   },
 ]
+
+export const FEATURED_SPOTLIGHT_SLUGS = FEATURED_CATEGORY_SPOTLIGHTS.map(
+  (spotlight) => spotlight.slug,
+)

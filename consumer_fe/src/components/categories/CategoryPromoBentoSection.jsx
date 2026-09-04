@@ -1,11 +1,6 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
 import Container from '../layout/Container'
-import { CATEGORY_PROMO_BENTO_FALLBACK } from '../../constants/categoryDepartmentSections'
-import { getParentCategories } from '../../services/categoryService'
-import { buildCategoryPromoBento } from '../../utils/buildCategoryPromoBento'
 
 function PromoImageCard({ href, image, alt, className = '', children }) {
   return (
@@ -81,62 +76,58 @@ function BentoSkeleton() {
 }
 
 export default function CategoryPromoBentoSection({
-  skip = 2,
-  deprioritizeSlugs = ['fashion'],
+  content,
+  isLoading = false,
 }) {
-  const { data: parentCategories = [], isLoading } = useQuery({
-    queryKey: ['parent-categories'],
-    queryFn: getParentCategories,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  })
+  if (isLoading) {
+    return (
+      <section aria-label="Featured category highlights" className="bg-white pb-8 sm:pb-10 lg:pb-12">
+        <Container>
+          <BentoSkeleton />
+        </Container>
+      </section>
+    )
+  }
 
-  const promoContent = useMemo(() => {
-    const apiContent = buildCategoryPromoBento(parentCategories, { skip, deprioritizeSlugs })
-    return apiContent ?? CATEGORY_PROMO_BENTO_FALLBACK
-  }, [parentCategories, skip, deprioritizeSlugs])
+  if (!content?.featured) return null
 
-  const { featured, tiles } = promoContent
+  const { featured, tiles = [] } = content
   const [primaryTile, secondaryTile, tertiaryTile, quaternaryTile] = tiles
 
   return (
     <section aria-label="Featured category highlights" className="bg-white pb-8 sm:pb-10 lg:pb-12">
       <Container>
-        {isLoading && !parentCategories.length ? (
-          <BentoSkeleton />
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-12 lg:grid-rows-2 lg:gap-4 lg:min-h-[32rem]">
-            <FeaturedPromoCard featured={featured} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-12 lg:grid-rows-2 lg:gap-4 lg:min-h-[32rem]">
+          <FeaturedPromoCard featured={featured} />
 
-            {primaryTile ? (
-              <PromoTileCard
-                tile={primaryTile}
-                className="sm:col-span-2 lg:col-span-5 lg:col-start-5 lg:row-start-1 lg:min-h-0"
-              />
-            ) : null}
+          {primaryTile ? (
+            <PromoTileCard
+              tile={primaryTile}
+              className="sm:col-span-2 lg:col-span-5 lg:col-start-5 lg:row-start-1 lg:min-h-0"
+            />
+          ) : null}
 
-            {secondaryTile ? (
-              <PromoTileCard
-                tile={secondaryTile}
-                className="lg:col-span-2 lg:col-start-5 lg:row-start-2 lg:min-h-0"
-              />
-            ) : null}
+          {secondaryTile ? (
+            <PromoTileCard
+              tile={secondaryTile}
+              className="lg:col-span-2 lg:col-start-5 lg:row-start-2 lg:min-h-0"
+            />
+          ) : null}
 
-            {tertiaryTile ? (
-              <PromoTileCard
-                tile={tertiaryTile}
-                className="lg:col-span-3 lg:col-start-7 lg:row-start-2 lg:min-h-0"
-              />
-            ) : null}
+          {tertiaryTile ? (
+            <PromoTileCard
+              tile={tertiaryTile}
+              className="lg:col-span-3 lg:col-start-7 lg:row-start-2 lg:min-h-0"
+            />
+          ) : null}
 
-            {quaternaryTile ? (
-              <PromoTileCard
-                tile={quaternaryTile}
-                className="sm:col-span-2 lg:col-span-3 lg:col-start-10 lg:row-span-2 lg:row-start-1 lg:min-h-0"
-              />
-            ) : null}
-          </div>
-        )}
+          {quaternaryTile ? (
+            <PromoTileCard
+              tile={quaternaryTile}
+              className="sm:col-span-2 lg:col-span-3 lg:col-start-10 lg:row-span-2 lg:row-start-1 lg:min-h-0"
+            />
+          ) : null}
+        </div>
       </Container>
     </section>
   )

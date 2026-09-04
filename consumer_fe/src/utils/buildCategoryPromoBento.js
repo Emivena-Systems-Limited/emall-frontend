@@ -1,12 +1,17 @@
 import { sortParentCategoriesForDisplay } from './buildCategoryDepartments'
+import { normalizeCategorySlug } from './normalizeCategories'
 import { resolveParentCategoryImage } from './resolveCategoryImage'
 import { buildCategoryListingHref } from './listingFilterParams'
 
 function orderCategoriesForPage(parentCategories = [], deprioritizeSlugs = []) {
   const sorted = sortParentCategoriesForDisplay(parentCategories)
-  const deprioritizeSet = new Set(deprioritizeSlugs)
-  const prioritized = sorted.filter((category) => !deprioritizeSet.has(category.slug))
-  const deprioritized = sorted.filter((category) => deprioritizeSet.has(category.slug))
+  const deprioritizeSet = new Set(deprioritizeSlugs.map((slug) => normalizeCategorySlug(slug)))
+  const prioritized = sorted.filter(
+    (category) => !deprioritizeSet.has(normalizeCategorySlug(category.slug)),
+  )
+  const deprioritized = sorted.filter(
+    (category) => deprioritizeSet.has(normalizeCategorySlug(category.slug)),
+  )
 
   return [...prioritized, ...deprioritized]
 }
@@ -33,7 +38,7 @@ function toTilePromo(category) {
 
 export function buildCategoryPromoBento(
   parentCategories = [],
-  { skip = 2, count = 5, deprioritizeSlugs = ['fashion'] } = {},
+  { skip = 2, count = 5, deprioritizeSlugs = [] } = {},
 ) {
   const ordered = orderCategoriesForPage(parentCategories, deprioritizeSlugs)
   const selected = ordered.slice(skip, skip + count)

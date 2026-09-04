@@ -38,7 +38,7 @@ function SubcategoryCarouselSkeleton({ fluid = false }) {
   return (
     <div className="flex gap-4 sm:gap-5">
       {Array.from({ length: 4 }, (_, index) => (
-        <div key={index} className="w-[12rem] shrink-0 sm:w-[13.5rem] lg:w-[15rem]">
+        <div key={index} className="w-[14rem] shrink-0 sm:w-[16rem] lg:w-[18rem]">
           <div className="aspect-[4/3] animate-pulse rounded-2xl bg-slate-100" />
           <div className="mt-3.5 h-4 w-3/4 animate-pulse rounded bg-slate-100" />
           <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
@@ -48,8 +48,11 @@ function SubcategoryCarouselSkeleton({ fluid = false }) {
   )
 }
 
+function usesContainedCategoryImage(parentSlug = '', title = '') {
+  return /electronic/i.test(`${parentSlug} ${title}`)
+}
+
 const FULL_WIDTH_GRID_COLUMNS = {
-  1: 'grid-cols-1',
   2: 'grid-cols-2',
   3: 'grid-cols-2 lg:grid-cols-3',
   4: 'grid-cols-2 lg:grid-cols-4',
@@ -60,14 +63,16 @@ export default function CategorySubcategoryCarousel({
   viewAllHref,
   subcategories = [],
   isLoading = false,
+  parentSlug = '',
 }) {
   const trackRef = useRef(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const headingId = `${title.toLowerCase().replace(/\s+/g, '-')}-subcategories-heading`
   const itemCount = subcategories.length
-  const useFullWidthGrid = !isLoading && itemCount > 0 && itemCount <= 4
+  const useFullWidthGrid = !isLoading && itemCount >= 2 && itemCount <= 4
   const gridClass = FULL_WIDTH_GRID_COLUMNS[itemCount] ?? FULL_WIDTH_GRID_COLUMNS[4]
+  const containImage = usesContainedCategoryImage(parentSlug, title)
 
   const syncScrollState = useCallback(() => {
     const el = trackRef.current
@@ -176,7 +181,11 @@ export default function CategorySubcategoryCarousel({
               >
                 {subcategories.map((subcategory) => (
                   <div key={subcategory.id} role="listitem">
-                    <SubcategoryCarouselCard subcategory={subcategory} fluid />
+                    <SubcategoryCarouselCard
+                      subcategory={subcategory}
+                      fluid
+                      containImage={containImage}
+                    />
                   </div>
                 ))}
               </div>
@@ -196,7 +205,10 @@ export default function CategorySubcategoryCarousel({
                     data-subcategory-item
                     className="snap-start"
                   >
-                    <SubcategoryCarouselCard subcategory={subcategory} />
+                    <SubcategoryCarouselCard
+                      subcategory={subcategory}
+                      containImage={containImage}
+                    />
                   </div>
                 ))}
               </div>

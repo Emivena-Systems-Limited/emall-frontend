@@ -27,10 +27,10 @@ export const CATEGORY_SLUG_ALIASES = {
   'construction-and-tools-equipment': 'construction-tools',
   'computer-laptop': 'computing',
   computers: 'computing',
-  'baby-and-maternity': 'baby-and-maternity',
-  baby_maternity: 'baby-and-maternity',
-  'bags-and-luggage': 'bags-and-luggage',
-  bags_luggage: 'bags-and-luggage',
+  'baby-and-maternity': 'baby-maternity',
+  baby_maternity: 'baby-maternity',
+  'bags-and-luggage': 'bags-luggage',
+  bags_luggage: 'bags-luggage',
 }
 
 export function normalizeCategorySlug(slug = '') {
@@ -47,8 +47,65 @@ export function formatCategorySlugLabel(slug = '') {
   return label ? label.replace(/\b\w/g, (char) => char.toUpperCase()) : ''
 }
 
+function firstText(...values) {
+  for (const value of values) {
+    const text = String(value ?? '').trim()
+    if (text) return text
+  }
+  return ''
+}
+
+function toBoolean(value, fallback = false) {
+  if (value == null) return fallback
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  const text = String(value).trim().toLowerCase()
+  if (['1', 'true', 'yes', 'active'].includes(text)) return true
+  if (['0', 'false', 'no', 'inactive'].includes(text)) return false
+  return fallback
+}
+
+export function extractCategoryImages(record) {
+  const images = record?.images
+  let imageUrl = ''
+  let thumbnailUrl = ''
+
+  if (Array.isArray(images)) {
+    for (const item of images) {
+      if (typeof item === 'string') {
+        imageUrl = imageUrl || firstText(item)
+        continue
+      }
+      if (!item || typeof item !== 'object') continue
+      imageUrl = imageUrl || firstText(item.image_url, item.imageUrl, item.url)
+      thumbnailUrl = thumbnailUrl || firstText(
+        item.thumbnail_image_url,
+        item.thumbnailImageUrl,
+        item.thumbnail,
+      )
+    }
+  } else if (images && typeof images === 'object') {
+    imageUrl = firstText(images.image_url, images.imageUrl)
+    thumbnailUrl = firstText(images.thumbnail_image_url, images.thumbnailImageUrl)
+  }
+
+  imageUrl = imageUrl || firstText(record?.image_url, record?.imageUrl, record?.image, record?.icon)
+  thumbnailUrl = thumbnailUrl || firstText(
+    record?.thumbnail_image_url,
+    record?.thumbnailImageUrl,
+    record?.thumbnail,
+  )
+
+  return {
+    image: imageUrl || null,
+    thumbnail: thumbnailUrl || null,
+  }
+}
+
 export function normalizeCategoryRecord(record) {
   if (!record || typeof record !== 'object') return null
+
+  const { image, thumbnail } = extractCategoryImages(record)
 
   return {
     id: record.id,
@@ -57,11 +114,50 @@ export function normalizeCategoryRecord(record) {
     parentId: record.parent_id ?? null,
     nestedLevel: record.nested_level ?? 0,
     isActive: record.is_active ?? true,
-    image: record.image ?? record.image_url ?? record.icon ?? record.thumbnail ?? null,
+    isFeatured: toBoolean(record.is_featured, false),
+    image,
+    thumbnail,
     children: (record.children ?? [])
       .map(normalizeCategoryRecord)
-      .filter(Boolean),
+      .filter((child) => child && child.isActive),
   }
+}
+
+export function mergeParentsWithTree(parents = [], tree = []) {
+  if (!parents.length) return tree
+
+  const byId = new Map()
+  const bySlug = new Map()
+
+  for (const node of tree) {
+    if (node?.id) byId.set(node.id, node)
+    if (node?.slug) bySlug.set(normalizeCategorySlug(node.slug), node)
+  }
+
+  const seen = new Set()
+  const merged = parents.map((parent) => {
+    const match = (parent.id && byId.get(parent.id))
+      || bySlug.get(normalizeCategorySlug(parent.slug))
+
+    if (!match) return parent
+
+    seen.add(match.id)
+
+    return {
+      ...parent,
+      name: match.name || parent.name,
+      image: match.image || parent.image,
+      thumbnail: match.thumbnail || parent.thumbnail,
+      isFeatured: match.isFeatured ?? parent.isFeatured,
+      children: match.children?.length ? match.children : (parent.children ?? []),
+    }
+  })
+
+  for (const node of tree) {
+    if (node?.id && !seen.has(node.id)) merged.push(node)
+  }
+
+  return merged
 }
 
 export function extractCategoryList(body) {
