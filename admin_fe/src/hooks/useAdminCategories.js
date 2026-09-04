@@ -1,15 +1,31 @@
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createAdminCategory,
   deleteAdminCategory,
   fetchCategoriesWithChildren,
   fetchParentCategories,
+  toggleAdminCategoryFeatured,
   updateAdminCategory,
 } from '../services/categoryService'
+import { findCategoryById } from '../utils/normalizeAdminCategories'
 import notify from '../lib/notify'
 import { parseApiError } from '../utils/parseApiError'
 
 export const ADMIN_CATEGORIES_QUERY_KEY = ['admin-categories']
+
+function withNestedChildren(parents, tree) {
+  if (!Array.isArray(parents) || parents.length === 0) return tree ?? []
+  if (!Array.isArray(tree) || tree.length === 0) return parents
+
+  return parents.map((parent) => {
+    const match = findCategoryById(tree, parent.id)
+    const children = match?.children?.length ? match.children : parent.children
+    const nestedCount = children?.length || match?.nestedCount || parent.nestedCount || 0
+    if (children === parent.children && nestedCount === parent.nestedCount) return parent
+    return { ...parent, children: children ?? [], nestedCount }
+  })
+}
 
 const STALE_TIME = 5 * 60 * 1000
 
@@ -43,7 +59,10 @@ export function useAdminCategories() {
   const parentsQuery = useParentCategories()
   const treeQuery = useCategoriesWithChildren()
   const tree = treeQuery.data ?? parentsQuery.data ?? []
-  const parents = parentsQuery.data ?? treeQuery.data ?? []
+  const parents = useMemo(
+    () => withNestedChildren(parentsQuery.data ?? [], treeQuery.data ?? []),
+    [parentsQuery.data, treeQuery.data],
+  )
   const hasRows = tree.length > 0
   const isLoading = !hasRows && (parentsQuery.isLoading || treeQuery.isLoading)
   const isError = !hasRows && !isLoading && parentsQuery.isError && treeQuery.isError
@@ -80,13 +99,31 @@ export function useUpdateCategoryMutation() {
 
   return useMutation({
     mutationKey: [...ADMIN_CATEGORIES_QUERY_KEY, 'update'],
-    mutationFn: updateAdminCategory,
-    onSuccess: async (data) => {
+    mutationFn: ({ silent, ...payload }) => updateAdminCategory(payload),
+    onSuccess: async (data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ADMIN_CATEGORIES_QUERY_KEY })
-      notify.success(data?.message || 'Category updated.')
+      if (!variables?.silent) {
+        notify.success(data?.message || 'Category updated.')
+      }
     },
     onError: (error) => {
       notifyWriteError(error, 'Could not update category.')
+    },
+  })
+}
+
+export function useToggleCategoryFeaturedMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: [...ADMIN_CATEGORIES_QUERY_KEY, 'toggle-featured'],
+    mutationFn: toggleAdminCategoryFeatured,
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ADMIN_CATEGORIES_QUERY_KEY })
+      notify.success(data?.message || 'Category featured status updated.')
+    },
+    onError: (error) => {
+      notifyWriteError(error, 'Could not update featured category.')
     },
   })
 }

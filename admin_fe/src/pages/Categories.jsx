@@ -8,6 +8,7 @@ import CategoryTree from '../components/categories/CategoryTree'
 import CategoryParentsList from '../components/categories/CategoryParentsList'
 import { CategoryRosterSkeleton } from '../components/categories/CategoryIdentity'
 import CategoryFormDrawer from '../components/categories/CategoryFormDrawer'
+import CategoryFeaturedModal from '../components/categories/CategoryFeaturedModal'
 import CategoryRemoveModal from '../components/categories/CategoryRemoveModal'
 import { CATEGORY_VIEWS } from '../constants/categories'
 import { useAdminCategories } from '../hooks/useAdminCategories'
@@ -19,6 +20,7 @@ export default function Categories() {
   const [view, setView] = useState('tree')
   const [query, setQuery] = useState('')
   const [composer, setComposer] = useState(null)
+  const [featuring, setFeaturing] = useState(null)
   const [removing, setRemoving] = useState(null)
   const { parents, tree, isLoading, isError, error, refetch } = useAdminCategories()
 
@@ -137,6 +139,7 @@ export default function Categories() {
               onClearQuery={() => setQuery('')}
               onAdd={() => openCreate()}
               onAddChild={(category) => openCreate(category.id)}
+              onToggleFeatured={setFeaturing}
               onEdit={openEdit}
               onRemove={setRemoving}
             />
@@ -146,6 +149,7 @@ export default function Categories() {
               query={query}
               onClearQuery={() => setQuery('')}
               onAddChild={(category) => openCreate(category.id)}
+              onToggleFeatured={setFeaturing}
               onEdit={openEdit}
               onRemove={setRemoving}
             />
@@ -167,6 +171,11 @@ export default function Categories() {
         parentId={composer?.parentId ?? null}
         tree={tree}
         onClose={() => setComposer(null)}
+      />
+      <CategoryFeaturedModal
+        open={Boolean(featuring)}
+        category={featuring}
+        onClose={() => setFeaturing(null)}
       />
       <CategoryRemoveModal
         open={Boolean(removing)}

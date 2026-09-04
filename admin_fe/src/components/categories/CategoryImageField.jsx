@@ -55,64 +55,64 @@ export default function CategoryImageField({
   }
 
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={id} className="text-xs font-semibold text-slate-700">
-          {label}
-        </label>
-        {file ? (
-          <span className="truncate text-[11px] font-medium text-slate-400">{file.name}</span>
-        ) : null}
-      </div>
+    <div className="min-w-0">
+      <p id={`${id}-label`} className="text-xs font-semibold text-slate-700">{label}</p>
+      {file ? (
+        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400" title={file.name}>
+          {file.name}
+        </p>
+      ) : null}
 
-      <div
-        onDragOver={(event) => {
-          event.preventDefault()
-          if (!disabled) setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        className={`relative mt-1.5 overflow-hidden rounded-2xl border border-dashed transition-colors ${aspectClass} ${
-          error
-            ? 'border-rose-300 bg-rose-50/40'
-            : dragOver
-              ? 'border-brand bg-brand-light/70'
-              : 'border-slate-200 bg-slate-50/80'
-        }`}
-      >
-        {displayUrl ? (
-          <img src={displayUrl} alt="" className="absolute inset-0 h-full w-full max-w-full object-cover" />
-        ) : (
-          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-200 text-slate-400">
-            <ImageIcon className="size-7" strokeWidth={1.6} aria-hidden="true" />
-            <span className="px-3 text-center text-[11px] font-semibold tracking-wide uppercase">
-              {hint}
+      <div className="relative mt-1.5 min-w-0">
+        <label
+          htmlFor={disabled ? undefined : id}
+          aria-labelledby={`${id}-label`}
+          onDragOver={(event) => {
+            event.preventDefault()
+            if (!disabled) setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          className={`relative block overflow-hidden rounded-2xl border border-dashed transition-colors focus-within:ring-2 focus-within:ring-brand ${aspectClass} ${
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+          } ${
+            error
+              ? 'border-rose-300 bg-rose-50/40'
+              : dragOver
+                ? 'border-brand bg-brand-light/70'
+                : 'border-slate-200 bg-slate-50/80'
+          }`}
+        >
+          {displayUrl ? (
+            <img src={displayUrl} alt="" className="absolute inset-0 h-full w-full max-w-full object-contain" />
+          ) : (
+            <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-200 text-slate-400">
+              <ImageIcon className="size-7" strokeWidth={1.6} aria-hidden="true" />
+              <span className="px-3 text-center text-[11px] font-semibold tracking-wide uppercase">
+                {hint}
+              </span>
+            </span>
+          )}
+
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/70 to-transparent p-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 shadow-sm">
+              <Upload className="size-3.5" aria-hidden="true" />
+              {displayUrl ? 'Replace' : 'Upload'}
             </span>
           </span>
-        )}
+        </label>
 
-        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-slate-950/70 to-transparent p-2.5">
-          <label
-            htmlFor={id}
-            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 shadow-sm ${
-              disabled ? 'pointer-events-none opacity-60' : 'hover:bg-white'
-            }`}
+        {file ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onFileChange(null)}
+            className="absolute right-2.5 bottom-2.5 z-10 inline-flex size-8 cursor-pointer items-center justify-center rounded-lg bg-white/95 text-slate-600 shadow-sm hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed"
+            aria-label={`Remove ${label}`}
           >
-            <Upload className="size-3.5" aria-hidden="true" />
-            {displayUrl ? 'Replace' : 'Upload'}
-          </label>
-          {file ? (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onFileChange(null)}
-              className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg bg-white/95 text-slate-600 shadow-sm hover:text-rose-700 disabled:cursor-not-allowed"
-              aria-label={`Remove ${label}`}
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
+            <X className="size-3.5" aria-hidden="true" />
+          </button>
+        ) : null}
 
         <input
           id={id}

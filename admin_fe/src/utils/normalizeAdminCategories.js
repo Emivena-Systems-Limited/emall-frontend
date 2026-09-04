@@ -39,7 +39,21 @@ function childList(record) {
   if (Array.isArray(record?.children)) return record.children
   if (Array.isArray(record?.subcategories)) return record.subcategories
   if (Array.isArray(record?.sub_categories)) return record.sub_categories
+  if (Array.isArray(record?.child_categories)) return record.child_categories
+  if (Array.isArray(record?.nested_categories)) return record.nested_categories
   return []
+}
+
+function nestedCountFromRecord(record, children) {
+  if (children.length > 0) return children.length
+  return toNumber(
+    record?.children_count
+    ?? record?.child_count
+    ?? record?.subcategories_count
+    ?? record?.sub_categories_count
+    ?? record?.nested_count,
+    0,
+  )
 }
 
 function pickImageUrl(source) {
@@ -120,6 +134,12 @@ export function normalizeCategoryRecord(record, parentId = null, nestedLevel = 0
     ? toNumber(record.nested_level ?? record.level, nestedLevel)
     : nestedLevel
   const { imageUrl, thumbnailUrl } = extractCategoryImages(record)
+  const children = sortLatestFirst(
+    childList(record)
+      .map((child) => normalizeCategoryRecord(child, id, inferredLevel + 1))
+      .filter(Boolean),
+    ['createdAt', 'id'],
+  )
 
   return {
     id,
@@ -135,12 +155,8 @@ export function normalizeCategoryRecord(record, parentId = null, nestedLevel = 0
     productCount: record.products_count == null && record.product_count == null
       ? null
       : toNumber(record.products_count ?? record.product_count),
-    children: sortLatestFirst(
-      childList(record)
-        .map((child) => normalizeCategoryRecord(child, id, inferredLevel + 1))
-        .filter(Boolean),
-      ['createdAt', 'id'],
-    ),
+    nestedCount: nestedCountFromRecord(record, children),
+    children,
     createdAt: firstText(record.created_at, record.createdAt) || null,
   }
 }
@@ -234,37 +250,41 @@ export function findCategoryById(categories, id) {
   return null
 }
 
+export function findParentIdInTree(categories, id) {
+  if (id == null || id === '') return ''
+  const target = String(id)
+
+  for (const category of categories ?? []) {
+    if ((category.children ?? []).some((child) => String(child.id) === target)) {
+      return String(category.id)
+    }
+    const nested = findParentIdInTree(category.children, id)
+    if (nested) return nested
+  }
+
+  return ''
+}
+
 export function countNestedCategories(category) {
-  return flattenCategories(category?.children ?? []).length
+  if (category?.children?.length) return flattenCategories(category.children).length
+  return toNumber(category?.nestedCount, 0)
 }
 
 export function getCategoryParentOptions(tree, categoryId) {
-  const blocked = new Set()
-  const current = findCategoryById(tree, categoryId)
+  const blocked = categoryId == null || categoryId === '' ? '' : String(categoryId)
 
-  const block = (node) => {
-    if (!node) return
-    blocked.add(String(node.id))
-    node.children?.forEach(block)
-  }
-  block(current)
+  return (tree ?? [])
+    .filter((category) => !category.parentId && String(category.id) !== blocked)
+    .map((category) => ({
+      value: String(category.id),
+      label: category.name,
+    }))
+}
 
-  const options = [{ value: '', label: 'None · top-level department' }]
-
-  const add = (nodes, depth) => {
-    for (const category of nodes ?? []) {
-      if (!blocked.has(String(category.id))) {
-        options.push({
-          value: String(category.id),
-          label: `${depth ? `${'— '.repeat(depth)}` : ''}${category.name}`,
-        })
-      }
-      add(category.children, depth + 1)
-    }
-  }
-
-  add(tree, 0)
-  return options
+export function getSubcategoriesUnderParent(tree, parentId) {
+  if (parentId == null || parentId === '') return []
+  const parent = findCategoryById(tree, parentId)
+  return parent?.children ?? []
 }
 
 export function slugifyCategoryName(value) {

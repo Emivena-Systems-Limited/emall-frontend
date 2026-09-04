@@ -2,7 +2,8 @@ export const CATEGORY_ENDPOINTS = {
   GET_PARENTS: '/api/category/get_parents',
   GET_WITH_CHILDREN: '/api/category/get_with_children',
   CREATE: '/api/category/admin/store',
-  update: (id) => `/api/category/update/${encodeURIComponent(id)}`,
+  update: (id) => `/api/category/admin/update/${encodeURIComponent(id)}`,
+  toggleFeatured: (id) => `/api/category/admin/${encodeURIComponent(id)}/toggle_featured`,
   remove: (id) => `/api/category/delete/${encodeURIComponent(id)}`,
 }
 

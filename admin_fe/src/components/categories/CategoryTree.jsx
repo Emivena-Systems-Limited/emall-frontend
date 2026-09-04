@@ -12,8 +12,8 @@ function nestedLabel(count) {
   return `${formatCount(count)} subcategories`
 }
 
-function AccordionNode({ category, depth, expandedIds, onToggle, onAddChild, onEdit, onRemove }) {
-  const childCount = category.children?.length ?? 0
+function AccordionNode({ category, depth, expandedIds, onToggle, onAddChild, onToggleFeatured, onEdit, onRemove }) {
+  const childCount = category.children?.length || category.nestedCount || 0
   const expanded = expandedIds.has(category.id)
   const isRoot = depth === 0
   const nested = depth > 0
@@ -90,6 +90,7 @@ function AccordionNode({ category, depth, expandedIds, onToggle, onAddChild, onE
         <CategoryActions
           category={category}
           onAddChild={isRoot ? onAddChild : undefined}
+          onToggleFeatured={onToggleFeatured}
           onEdit={onEdit}
           onRemove={onRemove}
         />
@@ -127,6 +128,7 @@ function AccordionNode({ category, depth, expandedIds, onToggle, onAddChild, onE
                     depth={depth + 1}
                     expandedIds={expandedIds}
                     onToggle={onToggle}
+                    onToggleFeatured={onToggleFeatured}
                     onEdit={onEdit}
                     onRemove={onRemove}
                   />
@@ -146,6 +148,7 @@ export default function CategoryTree({
   onClearQuery,
   onAdd,
   onAddChild,
+  onToggleFeatured,
   onEdit,
   onRemove,
 }) {
@@ -239,6 +242,7 @@ export default function CategoryTree({
             expandedIds={expandedIds}
             onToggle={toggle}
             onAddChild={onAddChild}
+            onToggleFeatured={onToggleFeatured}
             onEdit={onEdit}
             onRemove={onRemove}
           />

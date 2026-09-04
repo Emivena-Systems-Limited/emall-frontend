@@ -11,6 +11,7 @@ export default function CategoryParentsList({
   query = '',
   onClearQuery,
   onAddChild,
+  onToggleFeatured,
   onEdit,
   onRemove,
 }) {
@@ -61,13 +62,13 @@ export default function CategoryParentsList({
                   <CategoryIdentity category={category} />
                 </td>
                 <td className="px-5 py-3 tabular-nums text-slate-600">
-                  {formatCount(category.children?.length ?? 0)}
+                  {formatCount(category.children?.length || category.nestedCount || 0)}
                 </td>
                 <td className="px-5 py-3">
                   <CategoryStatusBadge active={category.isActive} featured={category.isFeatured} />
                 </td>
                 <td className="px-5 py-3">
-                  <CategoryActions category={category} onAddChild={onAddChild} onEdit={onEdit} onRemove={onRemove} />
+                  <CategoryActions category={category} onAddChild={onAddChild} onToggleFeatured={onToggleFeatured} onEdit={onEdit} onRemove={onRemove} />
                 </td>
               </tr>
             ))}
@@ -80,12 +81,12 @@ export default function CategoryParentsList({
           <li key={category.id} className="px-4 py-4">
             <div className="flex items-start justify-between gap-2">
               <CategoryIdentity category={category} />
-              <CategoryActions category={category} onAddChild={onAddChild} onEdit={onEdit} onRemove={onRemove} />
+              <CategoryActions category={category} onAddChild={onAddChild} onToggleFeatured={onToggleFeatured} onEdit={onEdit} onRemove={onRemove} />
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <CategoryStatusBadge active={category.isActive} featured={category.isFeatured} />
               <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
-                {formatCount(category.children?.length ?? 0)} nested
+                {formatCount(category.children?.length || category.nestedCount || 0)} nested
               </span>
             </div>
           </li>

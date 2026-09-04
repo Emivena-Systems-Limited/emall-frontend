@@ -24,11 +24,13 @@ export default function CategoryImage({
 
   if (src) {
     return (
-      <img
-        src={src}
-        alt={alt}
-        className={`${frame} ${roundedClass} shrink-0 object-cover ring-1 ring-slate-200 ${className}`}
-      />
+      <span className={`${frame} ${roundedClass} shrink-0 overflow-hidden bg-slate-100 ring-1 ring-slate-200 ${className}`}>
+        <img
+          src={src}
+          alt={alt}
+          className="h-full w-full max-w-full object-contain"
+        />
+      </span>
     )
   }
 

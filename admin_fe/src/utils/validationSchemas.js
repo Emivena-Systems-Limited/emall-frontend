@@ -680,3 +680,19 @@ export const paymentRefundSchema = Yup.object({
     .required('A reason is required.'),
 })
 
+export function getCategoryFormSchema() {
+  return Yup.object({
+    kind: Yup.string().oneOf(['department', 'subcategory']).required(),
+    name: Yup.string().trim().required('Add a category name.'),
+    parentId: Yup.string().when('kind', {
+      is: 'subcategory',
+      then: (schema) => schema.trim().required('Choose the department this sits under.'),
+      otherwise: (schema) => schema,
+    }),
+    isActive: Yup.boolean(),
+    isFeatured: Yup.boolean(),
+    imageFile: Yup.mixed().nullable(),
+    thumbnailFile: Yup.mixed().nullable(),
+  })
+}
+
