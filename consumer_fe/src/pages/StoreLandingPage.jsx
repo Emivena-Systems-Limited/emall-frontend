@@ -4,20 +4,23 @@ import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { useSelector } from "react-redux";
 import {
   ArrowLeft,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Heart,
   MapPin,
   PackageOpen,
   Phone,
   Share2,
+  SlidersHorizontal,
   Star,
   Truck,
 } from "lucide-react";
 import Container from "../components/layout/Container";
 import SiteLayout from "../components/layout/SiteLayout";
 import ProductCard from "../components/shared/ProductCard";
+import StoreFilterDrawer from "../components/store/StoreFilterDrawer";
+import StoreFilterSidebar from "../components/store/StoreFilterSidebar";
+import StoreProductPagination from "../components/store/StoreProductPagination";
+import Images from "../utils/Images";
+import { extractCatalogPagination } from "../utils/normalizeProductCatalog";
 import { useLandingPageData } from "../hooks/useLandingPageData";
 import {
   followStore,
@@ -35,6 +38,14 @@ import {
   resolveShoppingLocationDetails,
   resolveStoreEligibility,
 } from "../utils/storefront";
+import {
+  countStoreSidebarFilters,
+  groupStoreSubcategories,
+  toggleStoreFilterValue,
+  uniqueStoreOptions,
+  uniqueStoreVariantColors,
+  uniqueStoreVariantSizes,
+} from "../utils/storeProductFilters";
 
 const EMPTY_FILTERS = {
   categoryId: "",
@@ -47,69 +58,7 @@ const EMPTY_FILTERS = {
   maxPrice: "",
 };
 
-function uniqueOptions(products, valueKey, labelKey = valueKey) {
-  const options = new Map();
-  products.forEach((product) => {
-    const value = product[valueKey];
-    const label = product[labelKey];
-    if (value != null && value !== "" && label)
-      options.set(String(value), String(label));
-  });
-  return [...options].map(([value, label]) => ({ value, label }));
-}
-
-function uniqueFacetOptions(products, key) {
-  return [
-    ...new Set(
-      products
-        .flatMap((product) => product.variantFacets?.[key] ?? [])
-        .filter(Boolean),
-    ),
-  ]
-    .sort((a, b) => String(a).localeCompare(String(b)))
-    .map((value) => ({ value: String(value), label: String(value) }));
-}
-
-function FilterSection({ label, open, onToggle, children, disabled = false }) {
-  return (
-    <div className="border-b border-slate-100">
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={disabled}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between py-4 text-left text-sm font-bold disabled:cursor-not-allowed disabled:text-slate-400"
-      >
-        <span>{label}</span>
-        <ChevronDown
-          className={`size-4 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open ? <div className="space-y-2 pb-4">{children}</div> : null}
-    </div>
-  );
-}
-
-function RadioOptions({ name, value, options, onChange, emptyLabel }) {
-  if (!options.length)
-    return <p className="text-xs text-slate-400">{emptyLabel}</p>;
-  return options.map((option) => (
-    <label
-      key={option.value}
-      className="flex cursor-pointer items-center gap-2 text-xs text-slate-600"
-    >
-      <input
-        type="radio"
-        name={name}
-        value={option.value}
-        checked={value === option.value}
-        onChange={() => onChange(option.value)}
-        className="accent-auth-primary"
-      />
-      <span>{option.label}</span>
-    </label>
-  ));
-}
+const STORE_PRODUCTS_PER_PAGE = 10;
 
 function ReviewList({ reviews, isPending }) {
   if (isPending)
@@ -188,7 +137,7 @@ export default function StoreLandingPage() {
   const [sort, setSort] = useState("all");
   const [page, setPage] = useState(1);
   const [activeFilters, setActiveFilters] = useState(EMPTY_FILTERS);
-  const [openFilter, setOpenFilter] = useState("");
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const fallbackStores = useMemo(
     () => buildStoreDirectory(landingData),
     [landingData],
@@ -220,7 +169,7 @@ export default function StoreLandingPage() {
         sort: sort === "all" ? undefined : sort,
         ...activeFilters,
         page,
-        perPage: 10,
+        perPage: STORE_PRODUCTS_PER_PAGE,
       }),
     enabled: Boolean(storeId),
     staleTime: 60_000,
@@ -281,17 +230,16 @@ export default function StoreLandingPage() {
   );
   const filterOptions = useMemo(
     () => ({
-      categories: uniqueOptions(facetProducts, "categoryId", "category"),
-      subcategories: uniqueOptions(
+      categories: uniqueStoreOptions(facetProducts, "categoryId", "category"),
+      subcategoryGroups: groupStoreSubcategories(
         facetProducts,
-        "subcategoryId",
-        "subcategory",
+        activeFilters.categoryId,
       ),
-      brands: uniqueOptions(facetProducts, "brandId", "brand"),
-      colors: uniqueFacetOptions(facetProducts, "color"),
-      sizes: uniqueFacetOptions(facetProducts, "size"),
+      brands: uniqueStoreOptions(facetProducts, "brandId", "brand"),
+      colors: uniqueStoreVariantColors(facetProducts),
+      sizes: uniqueStoreVariantSizes(facetProducts),
     }),
-    [facetProducts],
+    [facetProducts, activeFilters.categoryId],
   );
   const store = liveStore ?? (storeQuery.isError ? fallbackStore : null);
   const products = productsQuery.isError
@@ -318,13 +266,12 @@ export default function StoreLandingPage() {
       store?.rating ??
       0,
   );
-  const productPagination =
-    productsQuery.data?.pagination ?? productsQuery.data?.meta ?? {};
-  const productPages = Math.max(
-    1,
-    Number(productPagination.last_page ?? productPagination.total_pages ?? 1),
+  const productPagination = extractCatalogPagination(
+    productsQuery.data,
+    products.length,
+    { page, per_page: STORE_PRODUCTS_PER_PAGE },
   );
-  const productTotal = Number(productPagination.total ?? products.length);
+  const productTotal = productPagination.total;
   const joinedYear = store?.joined_at
     ? new Date(store.joined_at).getFullYear()
     : null;
@@ -333,9 +280,65 @@ export default function StoreLandingPage() {
       ? Math.max(0, new Date().getFullYear() - joinedYear)
       : 0;
   const isPending = !store && (storeQuery.isPending || isLandingPending);
-  const updateFilter = (key, value) => {
-    setActiveFilters((current) => ({ ...current, [key]: value }));
+  const activeFilterCount = countStoreSidebarFilters(activeFilters, query);
+
+  const toggleFilter = (key, value) => {
+    setActiveFilters((current) => {
+      const next = {
+        ...current,
+        [key]: toggleStoreFilterValue(current[key], value),
+      };
+      if (key === "categoryId") next.subcategoryId = "";
+      return next;
+    });
     setPage(1);
+  };
+
+  const handleSearchCommit = (nextValue) => {
+    const trimmed = nextValue.trim();
+    if (trimmed === query) return;
+    setQuery(trimmed);
+    setPage(1);
+  };
+
+  const handlePricePreset = (preset) => {
+    setActiveFilters((current) => {
+      const numericMin =
+        current.minPrice === "" || current.minPrice == null
+          ? null
+          : Number(current.minPrice);
+      const numericMax =
+        current.maxPrice === "" || current.maxPrice == null
+          ? null
+          : Number(current.maxPrice);
+      const alreadySelected =
+        (preset.min ?? null) === numericMin &&
+        (preset.max ?? null) === numericMax;
+
+      return {
+        ...current,
+        minPrice:
+          alreadySelected || preset.min == null ? "" : String(preset.min),
+        maxPrice:
+          alreadySelected || preset.max == null ? "" : String(preset.max),
+      };
+    });
+    setPage(1);
+  };
+
+  const handleClearFilters = () => {
+    setQuery("");
+    setSort("all");
+    setActiveFilters(EMPTY_FILTERS);
+    setPage(1);
+  };
+
+  const handleProductPageChange = (nextPage) => {
+    setPage(nextPage);
+    document.getElementById("store-products")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   };
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -364,24 +367,13 @@ export default function StoreLandingPage() {
     <SiteLayout>
       <main className="bg-white pb-12">
         <Container className="pt-5">
-          <section className="relative h-52 overflow-hidden bg-gradient-to-r from-amber-100 to-orange-50 sm:h-72">
-            {store.bannerImage ? (
-              <img
-                src={store.bannerImage}
-                alt={`${store.name} banner`}
-                className="size-full object-cover"
-              />
-            ) : (
-              <div className="flex size-full flex-col items-center justify-center text-center">
-                <strong className="text-xl">{store.name}</strong>
-                <span className="mt-1 text-3xl font-black text-auth-primary sm:text-5xl">
-                  Welcome to our store
-                </span>
-                <span className="mt-3 text-sm">
-                  Discover products selected for you.
-                </span>
-              </div>
-            )}
+          <section className="relative h-52 overflow-hidden bg-white sm:h-72">
+            <img
+              // src={store.bannerImage || Images.shop.default_store_banner}
+              src={Images.shop.default_store_banner}
+              alt={store.bannerImage ? `${store.name} banner` : ""}
+              className={`size-full ${store.bannerImage ? "object-cover" : "object-contain"}`}
+            />
             <Link
               to="/stores"
               className="absolute left-4 top-4 flex items-center gap-1 rounded-full bg-white px-4 py-2 text-xs font-semibold text-auth-primary shadow"
@@ -462,192 +454,57 @@ export default function StoreLandingPage() {
               </div>
             </div>
           </section>
-          <section className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <aside className="border-r border-slate-300 pr-4">
-              <h2 className="text-xl font-black">Filters</h2>
-              <p className="text-xs text-slate-500">Narrow your search</p>
-              <label className="mt-5 block text-sm font-bold">
-                Search
-                <input
-                  value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="Product name"
-                  className="mt-2 h-11 w-full border border-slate-300 px-3 text-xs outline-none focus:border-auth-primary"
-                />
-              </label>
-              <FilterSection
-                label="Categories"
-                open={openFilter === "category"}
-                onToggle={() =>
-                  setOpenFilter((value) =>
-                    value === "category" ? "" : "category",
-                  )
-                }
-              >
-                <RadioOptions
-                  name="store-category"
-                  value={activeFilters.categoryId}
-                  options={filterOptions.categories}
-                  onChange={(value) => updateFilter("categoryId", value)}
-                  emptyLabel="No categories available"
-                />
-              </FilterSection>
-              <FilterSection
-                label="Sub-categories"
-                open={openFilter === "subcategory"}
-                onToggle={() =>
-                  setOpenFilter((value) =>
-                    value === "subcategory" ? "" : "subcategory",
-                  )
-                }
-              >
-                <RadioOptions
-                  name="store-subcategory"
-                  value={activeFilters.subcategoryId}
-                  options={filterOptions.subcategories}
-                  onChange={(value) => updateFilter("subcategoryId", value)}
-                  emptyLabel="No sub-categories available"
-                />
-              </FilterSection>
-              <FilterSection
-                label="Promotional Deals"
-                open={openFilter === "promotional"}
-                onToggle={() =>
-                  setOpenFilter((value) =>
-                    value === "promotional" ? "" : "promotional",
-                  )
-                }
-              >
-                <RadioOptions
-                  name="store-promotional"
-                  value={activeFilters.promotional}
-                  options={[{ value: "1", label: "Promotional products only" }]}
-                  onChange={(value) => updateFilter("promotional", value)}
-                />
-              </FilterSection>
-              <FilterSection
-                label="Brand"
-                open={openFilter === "brand"}
-                onToggle={() =>
-                  setOpenFilter((value) => (value === "brand" ? "" : "brand"))
-                }
-              >
-                <RadioOptions
-                  name="store-brand"
-                  value={activeFilters.brandId}
-                  options={filterOptions.brands}
-                  onChange={(value) => updateFilter("brandId", value)}
-                  emptyLabel="No brands available"
-                />
-              </FilterSection>
-              <FilterSection
-                label="Color"
-                open={openFilter === "color"}
-                onToggle={() =>
-                  setOpenFilter((value) => (value === "color" ? "" : "color"))
-                }
-              >
-                <RadioOptions
-                  name="store-color"
-                  value={activeFilters.color}
-                  options={filterOptions.colors}
-                  onChange={(value) => updateFilter("color", value)}
-                  emptyLabel="No colors available"
-                />
-              </FilterSection>
-              <FilterSection
-                label="Size"
-                open={openFilter === "size"}
-                onToggle={() =>
-                  setOpenFilter((value) => (value === "size" ? "" : "size"))
-                }
-              >
-                <RadioOptions
-                  name="store-size"
-                  value={activeFilters.size}
-                  options={filterOptions.sizes}
-                  onChange={(value) => updateFilter("size", value)}
-                  emptyLabel="No sizes available"
-                />
-              </FilterSection>
-              <FilterSection
-                label="Price"
-                open={openFilter === "price"}
-                onToggle={() =>
-                  setOpenFilter((value) => (value === "price" ? "" : "price"))
-                }
-              >
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="text-[0.68rem] text-slate-500">
-                    Minimum
-                    <input
-                      type="number"
-                      min="0"
-                      value={activeFilters.minPrice}
-                      onChange={(event) =>
-                        updateFilter("minPrice", event.target.value)
-                      }
-                      placeholder="GH₵ 0"
-                      className="mt-1 h-9 w-full border border-slate-200 px-2 text-xs outline-none focus:border-auth-primary"
-                    />
-                  </label>
-                  <label className="text-[0.68rem] text-slate-500">
-                    Maximum
-                    <input
-                      type="number"
-                      min="0"
-                      value={activeFilters.maxPrice}
-                      onChange={(event) =>
-                        updateFilter("maxPrice", event.target.value)
-                      }
-                      placeholder="Any"
-                      className="mt-1 h-9 w-full border border-slate-200 px-2 text-xs outline-none focus:border-auth-primary"
-                    />
-                  </label>
-                </div>
-              </FilterSection>
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  setSort("all");
-                  setActiveFilters(EMPTY_FILTERS);
-                  setOpenFilter("");
-                  setPage(1);
-                }}
-                className="mt-6 w-full rounded bg-blue-50 py-3 text-sm font-bold"
-              >
-                Clear All
-              </button>
-            </aside>
-            <div>
-              <div className="mb-5 flex items-center justify-between gap-4">
+          <section className="relative flex flex-col gap-5 overflow-visible lg:flex-row lg:items-stretch lg:gap-6 xl:gap-8">
+            <StoreFilterSidebar
+              filters={activeFilters}
+              filterOptions={filterOptions}
+              searchValue={query}
+              isFacetsLoading={facetsQuery.isPending && facetProducts.length === 0}
+              onToggleFilter={toggleFilter}
+              onSearchCommit={handleSearchCommit}
+              onPricePreset={handlePricePreset}
+              onClearAll={handleClearFilters}
+            />
+            <div id="store-products" className="min-w-0 flex-1">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-2xl font-black">
                   All Products{" "}
                   <span className="font-normal text-slate-400">
                     ({productTotal})
                   </span>
                 </h2>
-                <label className="flex items-center gap-2 text-xs">
-                  Sort by:
-                  <select
-                    value={sort}
-                    onChange={(event) => {
-                      setSort(event.target.value);
-                      setPage(1);
-                    }}
-                    className="h-10 min-w-28 border border-slate-300 bg-white px-3"
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsFilterDrawerOpen(true)}
+                    className="relative flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-auth-primary hover:text-auth-primary sm:text-sm lg:hidden"
                   >
-                    <option value="all">All</option>
-                    <option value="newest">Newest</option>
-                    <option value="top_rated">Top rated</option>
-                    <option value="price_asc">Price: Low to High</option>
-                    <option value="price_desc">Price: High to Low</option>
-                  </select>
-                </label>
+                    <SlidersHorizontal className="size-3.5 sm:size-4" strokeWidth={2.25} aria-hidden />
+                    Filters
+                    {activeFilterCount > 0 ? (
+                      <span className="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-auth-primary px-1.5 text-[0.65rem] font-bold text-white">
+                        {activeFilterCount}
+                      </span>
+                    ) : null}
+                  </button>
+                  <label className="flex items-center gap-2 text-xs">
+                    Sort by:
+                    <select
+                      value={sort}
+                      onChange={(event) => {
+                        setSort(event.target.value);
+                        setPage(1);
+                      }}
+                      className="h-10 min-w-28 border border-slate-300 bg-white px-3"
+                    >
+                      <option value="all">All</option>
+                      <option value="newest">Newest</option>
+                      <option value="top_rated">Top rated</option>
+                      <option value="price_asc">Price: Low to High</option>
+                      <option value="price_desc">Price: High to Low</option>
+                    </select>
+                  </label>
+                </div>
               </div>
               {productsQuery.isPending && !products.length ? (
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
@@ -673,29 +530,13 @@ export default function StoreLandingPage() {
                       />
                     ))}
                   </div>
-                  {productPages > 1 ? (
-                    <nav className="mt-10 flex justify-center gap-2">
-                      <button
-                        type="button"
-                        disabled={page === 1}
-                        onClick={() => setPage((value) => value - 1)}
-                        className="flex size-9 items-center justify-center border border-slate-200 disabled:opacity-30"
-                      >
-                        <ChevronLeft className="size-4" />
-                      </button>
-                      <span className="px-3 py-2 text-sm">
-                        Page {page} of {productPages}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={page === productPages}
-                        onClick={() => setPage((value) => value + 1)}
-                        className="flex size-9 items-center justify-center border border-slate-200 disabled:opacity-30"
-                      >
-                        <ChevronRight className="size-4" />
-                      </button>
-                    </nav>
-                  ) : null}
+                  <StoreProductPagination
+                    page={productPagination.currentPage}
+                    lastPage={productPagination.lastPage}
+                    total={productPagination.total}
+                    onPageChange={handleProductPageChange}
+                    disabled={productsQuery.isFetching}
+                  />
                 </>
               ) : (
                 <div className="flex min-h-80 flex-col items-center justify-center border border-slate-200 text-center">
@@ -710,6 +551,18 @@ export default function StoreLandingPage() {
               )}
             </div>
           </section>
+          <StoreFilterDrawer
+            isOpen={isFilterDrawerOpen}
+            onClose={() => setIsFilterDrawerOpen(false)}
+            filters={activeFilters}
+            filterOptions={filterOptions}
+            searchValue={query}
+            isFacetsLoading={facetsQuery.isPending && facetProducts.length === 0}
+            onToggleFilter={toggleFilter}
+            onSearchCommit={handleSearchCommit}
+            onPricePreset={handlePricePreset}
+            onClearAll={handleClearFilters}
+          />
           <ReviewList reviews={reviews} isPending={reviewsQuery.isPending} />
         </Container>
       </main>

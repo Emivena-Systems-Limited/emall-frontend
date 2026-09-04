@@ -32,6 +32,9 @@ import telecel_cash from "../assets/images/networks/telecel_cash.png";
 import at_cash from "../assets/images/networks/at_cash.png";
 import empty_wishlist_icon from "../assets/images/empty_wishlist.png";
 
+import default_store_banner from "../assets/images/default_store.png";
+import shop_logo from "../assets/images/shop_logo.png";
+
 import {
   CATEGORY_BANNER_ASSETS,
   categoryCatalogBySlug,
@@ -46,7 +49,10 @@ const brand = {
 
 const auth = {}
 
-const shop = {}
+const shop = {
+  default_store_banner,
+  shop_logo,
+}
 
 const sample_hero_banners = {
   hero_banner_one: heroBannerOne,

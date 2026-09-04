@@ -3,24 +3,26 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useSelector } from "react-redux";
 import {
+  ArrowRight,
   ChevronLeft,
   ChevronRight,
-  Grid2X2,
-  List,
   Search,
   Star,
-  StoreIcon,
 } from "lucide-react";
 import SiteLayout from "../components/layout/SiteLayout";
 import Container from "../components/layout/Container";
 import { getStores } from "../services/storeService";
 import {
+  buildStoreDirectory,
   normalizeStoreDirectory,
   resolveShoppingLocationDetails,
   resolveStoreEligibility,
 } from "../utils/storefront";
+import { useLandingPageData } from "../hooks/useLandingPageData";
+import { formatCedi } from "../utils/formatCurrency";
+import Images from "../utils/Images";
 
-const PAGE_SIZE = 6;
+const STORES_PER_PAGE = 5;
 const RECENT_SEARCHES_KEY = "emall:store-recent-searches";
 
 function readRecentSearches() {
@@ -36,9 +38,6 @@ function readRecentSearches() {
 }
 
 function resolveDirectoryEligibility(store, city) {
-  // The directory request is intentionally unfiltered so every store appears.
-  // Its delivery_eligible value therefore has no location context; calculate
-  // the badge from service areas and the shopper's resolved/default city.
   return resolveStoreEligibility(
     {
       ...store,
@@ -51,104 +50,197 @@ function resolveDirectoryEligibility(store, city) {
   );
 }
 
-function Rating({ store }) {
+function getPageItems(currentPage, lastPage) {
+  if (lastPage <= 7) {
+    return Array.from({ length: lastPage }, (_, i) => i + 1);
+  }
+  const items = new Set([1, lastPage, currentPage, currentPage - 1, currentPage + 1]);
+  if (currentPage <= 3) { items.add(2); items.add(3); items.add(4); }
+  if (currentPage >= lastPage - 2) { items.add(lastPage - 1); items.add(lastPage - 2); items.add(lastPage - 3); }
+  const pages = [...items].filter((p) => p >= 1 && p <= lastPage).sort((a, b) => a - b);
+  const withEllipsis = [];
+  pages.forEach((p, i) => {
+    if (i > 0 && p - pages[i - 1] > 1) withEllipsis.push("ellipsis");
+    withEllipsis.push(p);
+  });
+  return withEllipsis;
+}
+
+function StoresPagination({ page, lastPage, total, onPageChange }) {
+  if (!lastPage || lastPage <= 1) return null;
+  const items = getPageItems(page, lastPage);
+
+  return (
+    <nav className="mt-10 flex flex-col items-center gap-3" aria-label="Stores pagination">
+      <p className="text-xs text-slate-400">
+        Page {page} of {lastPage} · {total} {total === 1 ? "store" : "stores"}
+      </p>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          disabled={page === 1}
+          onClick={() => onPageChange(page - 1)}
+          className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition disabled:opacity-30 hover:border-auth-primary hover:text-auth-primary"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+
+        {items.map((item, i) =>
+          item === "ellipsis" ? (
+            <span key={`ellipsis-${i}`} className="px-1 text-sm text-slate-400">…</span>
+          ) : (
+            <button
+              key={item}
+              type="button"
+              onClick={() => onPageChange(item)}
+              className={`flex size-9 items-center justify-center rounded-lg text-sm font-medium transition ${
+                page === item
+                  ? "bg-auth-primary text-white shadow-sm"
+                  : "border border-slate-200 text-slate-600 hover:border-auth-primary hover:text-auth-primary"
+              }`}
+            >
+              {item}
+            </button>
+          ),
+        )}
+
+        <button
+          type="button"
+          disabled={page === lastPage}
+          onClick={() => onPageChange(page + 1)}
+          className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition disabled:opacity-30 hover:border-auth-primary hover:text-auth-primary"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function StoreMiniProductCard({ product }) {
+  return (
+    <Link
+      to={product.href}
+      className="group flex w-28 shrink-0 flex-col sm:w-[7.5rem]"
+    >
+      <div className="aspect-square w-full overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+        <img
+          src={product.image}
+          alt={product.name}
+          className="size-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+      </div>
+      <p className="mt-2 line-clamp-2 text-[0.7rem] font-medium leading-snug text-slate-700 group-hover:text-auth-primary">
+        {product.name}
+      </p>
+      <p className="mt-1 text-[0.72rem] font-bold text-slate-900">
+        {formatCedi(product.price)}
+      </p>
+    </Link>
+  );
+}
+
+function StoreRow({ store, products = [], location, showDelivery }) {
+  const eligible = resolveDirectoryEligibility(store, location.city);
   const rating = Number(store.rating ?? store.average_rating ?? 0);
-  const count = Number(
+  const ratingCount = Number(
     store.rating_count ?? store.reviews_count ?? store.review_count ?? 0,
   );
+  const displayProducts = products.slice(0, 5);
+
   return (
-    <div className="flex items-center gap-1.5 text-sm">
-      <strong>{rating.toFixed(1)}</strong>
-      <span className="flex text-auth-primary">
-        {Array.from({ length: 5 }, (_, index) => (
-          <Star
-            key={index}
-            className={`size-3.5 ${index < Math.round(rating) ? "fill-current" : ""}`}
+    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-100 transition-shadow hover:shadow-md">
+      {/* Store header */}
+      <div className="flex items-center gap-3.5 px-4 py-4 sm:gap-5 sm:px-6">
+        {/* Logo */}
+        <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-100 bg-slate-50 shadow-sm sm:size-[4.25rem]">
+          <img
+            src={store.logo ?? store.avatar ?? Images.shop.shop_logo}
+            alt={store.name}
+            className="size-full object-contain"
+            onError={(e) => { e.currentTarget.src = Images.shop.shop_logo; }}
           />
-        ))}
-      </span>
-      {count > 0 ? <span className="text-slate-400">({count})</span> : null}
-    </div>
-  );
-}
-
-function DeliveryBadge({ eligible }) {
-  return (
-    <span
-      className={`rounded-md px-2.5 py-1 text-[0.68rem] font-semibold text-white ${eligible ? "bg-green-600" : "bg-auth-primary"}`}
-    >
-      {eligible ? "Delivers to your location" : "Delivery unavailable here"}
-    </span>
-  );
-}
-
-function StoreArtwork({ store, className = "" }) {
-  return store.image ? (
-    <img
-      src={store.image}
-      alt={`${store.name} store`}
-      className={`size-full object-cover ${className}`}
-    />
-  ) : (
-    <div
-      className={`flex size-full items-center justify-center bg-gradient-to-br from-red-50 via-white to-slate-100 ${className}`}
-    >
-      <StoreIcon className="size-12 text-auth-primary" />
-    </div>
-  );
-}
-
-function StoreCard({ store, location, view, popular = false, showDelivery = true }) {
-  const eligible = resolveDirectoryEligibility(store, location.city);
-  if (view === "list")
-    return (
-      <Link
-        to={`/stores/${store.id}`}
-        className="group flex min-h-28 gap-4 border border-slate-200 bg-white p-3 transition hover:border-auth-primary/40"
-      >
-        <div className="h-24 w-28 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-          <StoreArtwork store={store} />
         </div>
-        <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h3 className="truncate text-lg font-bold group-hover:text-auth-primary">
-              {store.name}
-            </h3>
-            <Rating store={store} />
-            <p className="mt-2 text-xs text-slate-600">{store.city}</p>
-          </div>
-          {showDelivery ? <DeliveryBadge eligible={eligible} /> : null}
-        </div>
-      </Link>
-    );
-  return (
-    <Link to={`/stores/${store.id}`} className="group block min-w-0">
-      <div
-        className={`relative overflow-hidden rounded-xl bg-slate-100 ${popular ? "aspect-[1.9/1]" : "aspect-[1.85/1]"}`}
-      >
-        <StoreArtwork
-          store={store}
-          className="transition duration-500 group-hover:scale-105"
-        />
-        {!popular && showDelivery ? (
-          <span className="absolute right-3 top-3">
-            <DeliveryBadge eligible={eligible} />
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-3 flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="truncate text-lg font-bold group-hover:text-auth-primary">
+
+        {/* Name + meta */}
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-base font-extrabold tracking-tight text-slate-950 sm:text-[1.0625rem]">
             {store.name}
           </h3>
-          <p className="mt-1 text-xs text-slate-600">{store.city}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+            {rating > 0 ? (
+              <span className="flex items-center gap-1">
+                <span className="flex text-auth-primary">
+                  {Array.from({ length: 5 }, (_, i) => (
+                    <Star
+                      key={i}
+                      className={`size-3 ${i < Math.round(rating) ? "fill-current" : ""}`}
+                    />
+                  ))}
+                </span>
+                <span className="font-semibold text-slate-700">
+                  {rating.toFixed(1)}
+                </span>
+                {ratingCount > 0 && (
+                  <span className="text-slate-400">({ratingCount})</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-slate-400">No ratings yet</span>
+            )}
+            {store.city ? (
+              <span className="text-slate-400">{store.city}</span>
+            ) : null}
+            {showDelivery ? (
+              <span
+                className={`rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-white ${eligible ? "bg-green-600" : "bg-auth-primary"}`}
+              >
+                {eligible ? "Delivers to you" : "No delivery here"}
+              </span>
+            ) : null}
+          </div>
         </div>
-        {popular && showDelivery ? <DeliveryBadge eligible={eligible} /> : null}
+
+        {/* View More CTA */}
+        <Link
+          to={`/stores/${store.id}`}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-auth-primary px-3.5 py-2 text-[0.7rem] font-bold uppercase tracking-wide text-auth-primary transition-colors hover:bg-auth-primary hover:text-white sm:px-4 sm:text-xs"
+        >
+          View More <ArrowRight className="size-3" />
+        </Link>
       </div>
-      <div className="mt-2">
-        <Rating store={store} />
+
+      {/* Products strip */}
+      <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3.5 sm:px-6">
+        {displayProducts.length > 0 ? (
+          <div className="flex gap-3 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {displayProducts.map((product) => (
+              <StoreMiniProductCard key={product.id ?? product.backendId} product={product} />
+            ))}
+            <Link
+              to={`/stores/${store.id}`}
+              className="flex w-28 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-auth-primary/40 bg-red-50/40 text-auth-primary transition-colors hover:bg-auth-primary/10 sm:w-[7.5rem]"
+            >
+              <ArrowRight className="size-5" />
+              <span className="text-[0.65rem] font-bold uppercase tracking-wide">
+                See All
+              </span>
+            </Link>
+          </div>
+        ) : (
+          <p className="py-1 text-xs text-slate-400">
+            No products listed yet.{" "}
+            <Link
+              to={`/stores/${store.id}`}
+              className="font-semibold text-auth-primary underline-offset-2 hover:underline"
+            >
+              Visit store
+            </Link>
+          </p>
+        )}
       </div>
-    </Link>
+    </article>
   );
 }
 
@@ -156,16 +248,18 @@ function EmptyStoresState({ query }) {
   return (
     <section className="my-12 flex min-h-[420px] items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-red-50/50 px-6 text-center">
       <div className="max-w-xl">
-        <span className="mx-auto flex size-24 items-center justify-center rounded-3xl border border-red-100 bg-white text-auth-primary shadow-sm">
-          <StoreIcon className="size-10" />
+        <span className="mx-auto flex size-24 items-center justify-center overflow-hidden rounded-full border border-red-100 bg-white shadow-sm">
+          <img
+            src={Images.shop.shop_logo}
+            alt=""
+            className="size-full object-contain"
+          />
         </span>
         <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-auth-primary">
           Stores coming soon
         </p>
         <h2 className="mt-2 text-3xl font-extrabold tracking-tight">
-          {query
-            ? "No stores match your search"
-            : "No stores are available yet"}
+          {query ? "No stores match your search" : "No stores available yet"}
         </h2>
         <p className="mt-3 text-sm leading-6 text-slate-500">
           {query
@@ -183,25 +277,43 @@ export default function StoresPage() {
   const [draftQuery, setDraftQuery] = useState("");
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState(readRecentSearches);
-  const [view, setView] = useState("grid");
   const [page, setPage] = useState(1);
+
   const storesQuery = useQuery({
     queryKey: ["stores", "directory"],
-    // This is the complete marketplace directory. The shopper's location is
-    // used for delivery badges, not to remove stores from the catalogue.
     queryFn: () => getStores(null, { page: 1, perPage: 50 }),
     staleTime: 60_000,
     retry: 0,
   });
+  const landingQuery = useLandingPageData();
+
   const stores = useMemo(
     () => normalizeStoreDirectory(storesQuery.data),
     [storesQuery.data],
   );
+
+  // Build a product lookup keyed by store ID from landing page data
+  const landingProductsByStoreId = useMemo(() => {
+    const map = new Map();
+    const landingStores = buildStoreDirectory(landingQuery.data);
+    landingStores.forEach((s) => {
+      if (s.id && s.products?.length) {
+        map.set(String(s.id), s.products);
+      }
+    });
+    return map;
+  }, [landingQuery.data]);
+
+  const getStoreProducts = (store) => {
+    if (store.products?.length) return store.products;
+    return landingProductsByStoreId.get(String(store.id)) ?? [];
+  };
+
   const filteredStores = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return stores;
     return stores.filter((store) => {
-      const searchableValues = [
+      const searchable = [
         store.name,
         store.city,
         store.region,
@@ -210,29 +322,27 @@ export default function StoresPage() {
           : store.address?.address,
         ...(store.serviceAreas ?? []),
       ];
-      return searchableValues.some((value) =>
-        String(value ?? "")
-          .toLowerCase()
-          .includes(needle),
+      return searchable.some((v) =>
+        String(v ?? "").toLowerCase().includes(needle),
       );
     });
   }, [query, stores]);
-  const popularStores = useMemo(
-    () =>
-      query
-        ? []
-        : stores.filter((store) => store.is_popular === true).slice(0, 3),
-    [query, stores],
-  );
-  const pages = Math.max(1, Math.ceil(filteredStores.length / PAGE_SIZE));
+
+  const lastPage = Math.max(1, Math.ceil(filteredStores.length / STORES_PER_PAGE));
   const visibleStores = filteredStores.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
+    (page - 1) * STORES_PER_PAGE,
+    page * STORES_PER_PAGE,
   );
   const total = filteredStores.length;
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
   const search = (value) => {
     const normalized = value.trim();
     setDraftQuery(normalized);
@@ -254,11 +364,12 @@ export default function StoresPage() {
 
   return (
     <SiteLayout>
-      <main className="bg-white py-8 sm:py-10">
+      <main className="min-h-screen bg-white py-8 sm:py-10">
         <Container>
+          {/* Hero search */}
           <section className="mx-auto max-w-3xl text-center">
             <h1 className="text-3xl font-black tracking-tight text-black sm:text-5xl">
-              Find Stores In your Location
+              Find Stores In Your Location
             </h1>
             <form
               onSubmit={(event) => {
@@ -270,7 +381,7 @@ export default function StoresPage() {
               <input
                 value={draftQuery}
                 onChange={(event) => setDraftQuery(event.target.value)}
-                placeholder="Search"
+                placeholder="Search stores by name or city…"
                 className="h-14 w-full rounded-full border border-slate-300 px-6 pr-16 text-sm outline-none transition focus:border-auth-primary"
               />
               <button
@@ -278,18 +389,22 @@ export default function StoresPage() {
                 aria-label="Search stores"
                 className="absolute right-2 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-auth-primary text-white"
               >
-                <Search className="size-6" />
+                <Search className="size-5" />
               </button>
             </form>
             {recentSearches.length ? (
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
-                <strong className="mr-1">Recent Searches:</strong>
+                <strong className="mr-1 text-slate-500">Recent:</strong>
                 {recentSearches.map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => search(item)}
-                    className={`rounded-full border px-4 py-2.5 transition ${query.toLowerCase() === item.toLowerCase() ? "border-auth-primary bg-auth-primary text-white" : "border-slate-300 text-slate-600 hover:border-auth-primary hover:text-auth-primary"}`}
+                    className={`rounded-full border px-4 py-2 transition ${
+                      query.toLowerCase() === item.toLowerCase()
+                        ? "border-auth-primary bg-auth-primary text-white"
+                        : "border-slate-300 text-slate-500 hover:border-auth-primary hover:text-auth-primary"
+                    }`}
                   >
                     {item}
                   </button>
@@ -297,112 +412,51 @@ export default function StoresPage() {
               </div>
             ) : null}
           </section>
+
+          {/* Loading skeleton */}
           {storesQuery.isPending ? (
-            <div className="mt-12 grid gap-5 md:grid-cols-3">
-              {Array.from({ length: 3 }, (_, index) => (
+            <div className="mt-12 flex flex-col gap-5">
+              {Array.from({ length: 3 }, (_, i) => (
                 <div
-                  key={index}
-                  className="h-72 animate-pulse rounded-xl bg-slate-100"
+                  key={i}
+                  className="h-52 animate-pulse rounded-2xl bg-slate-100"
                 />
               ))}
             </div>
           ) : storesQuery.isError || !filteredStores.length ? (
             <EmptyStoresState query={query} />
           ) : (
-            <>
-              {popularStores.length ? (
-                <section className="mt-12">
+            <section className="mt-12">
+              <div className="flex items-center justify-between gap-4">
+                <div>
                   <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
-                    Popular Stores
+                    All Stores
                   </h2>
-                  <div className="mt-6 grid gap-6 md:grid-cols-3">
-                    {popularStores.map((store) => (
-                      <StoreCard
-                        key={store.id}
-                        store={store}
-                        location={location}
-                        popular
-                        showDelivery={isAuthenticated}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-              <section className="mt-12">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
-                      All Stores
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {total} {total === 1 ? "store" : "stores"}
-                    </p>
-                  </div>
-                  <div className="flex overflow-hidden rounded-lg border border-slate-900">
-                    <button
-                      type="button"
-                      onClick={() => setView("grid")}
-                      className={`flex items-center gap-2 px-3 py-2 text-xs ${view === "grid" ? "text-auth-primary" : ""}`}
-                    >
-                      <Grid2X2 className="size-4" /> Cards
-                    </button>
-                    <span className="my-2 border-l border-slate-300" />
-                    <button
-                      type="button"
-                      onClick={() => setView("list")}
-                      className={`flex items-center gap-2 px-3 py-2 text-xs ${view === "list" ? "text-auth-primary" : ""}`}
-                    >
-                      <List className="size-4" /> List
-                    </button>
-                  </div>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {total} {total === 1 ? "store" : "stores"} found
+                  </p>
                 </div>
-                <div
-                  className={`mt-5 grid gap-x-5 gap-y-7 ${view === "grid" ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2"}`}
-                >
-                  {visibleStores.map((store) => (
-                    <StoreCard
-                      key={store.id}
-                      store={store}
-                      location={location}
-                      view={view}
-                      showDelivery={isAuthenticated}
-                    />
-                  ))}
-                </div>
-                {pages > 1 ? (
-                  <nav className="mt-10 flex justify-center gap-2">
-                    <button
-                      type="button"
-                      disabled={page === 1}
-                      onClick={() => setPage((value) => value - 1)}
-                      className="flex size-9 items-center justify-center border border-slate-200 disabled:opacity-30"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </button>
-                    {Array.from({ length: pages }, (_, index) => index + 1).map(
-                      (number) => (
-                        <button
-                          type="button"
-                          key={number}
-                          onClick={() => setPage(number)}
-                          className={`size-9 text-sm ${page === number ? "bg-auth-primary text-white" : ""}`}
-                        >
-                          {number}
-                        </button>
-                      ),
-                    )}
-                    <button
-                      type="button"
-                      disabled={page === pages}
-                      onClick={() => setPage((value) => value + 1)}
-                      className="flex size-9 items-center justify-center border border-slate-200 disabled:opacity-30"
-                    >
-                      <ChevronRight className="size-4" />
-                    </button>
-                  </nav>
-                ) : null}
-              </section>
-            </>
+              </div>
+
+              <div className="mt-6 flex flex-col gap-5">
+                {visibleStores.map((store) => (
+                  <StoreRow
+                    key={store.id}
+                    store={store}
+                    products={getStoreProducts(store)}
+                    location={location}
+                    showDelivery={isAuthenticated}
+                  />
+                ))}
+              </div>
+
+              <StoresPagination
+                page={page}
+                lastPage={lastPage}
+                total={total}
+                onPageChange={setPage}
+              />
+            </section>
           )}
         </Container>
       </main>
