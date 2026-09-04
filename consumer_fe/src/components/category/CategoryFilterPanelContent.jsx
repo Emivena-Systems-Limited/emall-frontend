@@ -20,6 +20,7 @@ import {
   clearCategoryFilters,
   collectSubcategoriesForParents,
   getSelectedFilterValues,
+  groupSubcategoriesByParents,
   setMultiParam,
   toggleMultiParamValue,
 } from '../../utils/listingFilterParams'
@@ -84,6 +85,35 @@ function FilterCheckbox({ label, checked, onToggle, swatch = null }) {
         {label}
       </span>
     </button>
+  )
+}
+
+function SubcategoryFilterGroups({ groups, selectedSlugs, onToggle }) {
+  const showHeadings = groups.length > 1
+
+  return (
+    <div className={showHeadings ? 'space-y-4' : ''}>
+      {groups.map((group) => (
+        <div key={group.id}>
+          {showHeadings ? (
+            <p className="mb-2 text-[0.6875rem] font-bold tracking-[0.1em] text-slate-400 uppercase">
+              {group.name}
+            </p>
+          ) : null}
+          <ul className="space-y-2.5">
+            {group.children.map((subcategory) => (
+              <li key={subcategory.id}>
+                <FilterCheckbox
+                  label={subcategory.name}
+                  checked={selectedSlugs.includes(subcategory.slug)}
+                  onToggle={() => onToggle(subcategory.slug)}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -197,7 +227,7 @@ function FilterDropdown({
             />
           </button>
           {open && options.length ? (
-            <ul className="mt-2 max-h-52 space-y-2 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2.5 [scrollbar-width:thin]">
+            <ul className="scrollbar-theme mt-2 max-h-52 space-y-2 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2.5">
               {options.map((option) => (
                 <li key={option.id}>
                   <FilterCheckbox
@@ -225,7 +255,6 @@ function isPricePresetSelected(preset, priceMin, priceMax) {
 export default function CategoryFilterPanelContent({
   parentCategories = [],
   defaultCategorySlug,
-  defaultSubcategorySlug,
   isLoading = false,
   isFacetsLoading = false,
   showHeading = true,
@@ -248,11 +277,6 @@ export default function CategoryFilterPanelContent({
     () => (defaultCategorySlug ? [defaultCategorySlug] : []),
     [defaultCategorySlug],
   )
-  const subcategoryFallbacks = useMemo(
-    () => (defaultSubcategorySlug ? [defaultSubcategorySlug] : []),
-    [defaultSubcategorySlug],
-  )
-
   const hasCategoryParams = searchParams.getAll(FILTER_CATEGORY_PARAM).length > 0
   const allCategoriesActive = isPromotions && !hasCategoryParams
 
@@ -266,13 +290,13 @@ export default function CategoryFilterPanelContent({
   )
 
   const selectedSubcategorySlugs = useMemo(
-    () => getSelectedFilterValues(searchParams, FILTER_SUBCATEGORY_PARAM, subcategoryFallbacks),
-    [searchParams, subcategoryFallbacks],
+    () => getSelectedFilterValues(searchParams, FILTER_SUBCATEGORY_PARAM),
+    [searchParams],
   )
 
-  const availableSubcategories = useMemo(() => {
+  const availableSubcategoryGroups = useMemo(() => {
     if (allCategoriesActive) return []
-    return collectSubcategoriesForParents(parentCategories, selectedCategorySlugs)
+    return groupSubcategoriesByParents(parentCategories, selectedCategorySlugs)
   }, [allCategoriesActive, parentCategories, selectedCategorySlugs])
 
   const getAllowedSubSlugs = (categorySlugs) => (
@@ -302,11 +326,7 @@ export default function CategoryFilterPanelContent({
   }
 
   const handleToggleSubcategory = (slug) => {
-    updateParams(
-      toggleMultiParamValue(searchParams, FILTER_SUBCATEGORY_PARAM, slug, {
-        fallbackValues: subcategoryFallbacks,
-      }),
-    )
+    updateParams(toggleMultiParamValue(searchParams, FILTER_SUBCATEGORY_PARAM, slug))
   }
 
   const handleToggleFacet = (key, value) => {
@@ -411,18 +431,14 @@ export default function CategoryFilterPanelContent({
         <FilterAccordionSection title="Sub-categories" defaultOpen>
           {isLoading ? (
             <FilterOptionsSkeleton />
-          ) : availableSubcategories.length ? (
-            <ul className="space-y-2.5">
-              {availableSubcategories.map((subcategory) => (
-                <li key={subcategory.id}>
-                  <FilterCheckbox
-                    label={subcategory.name}
-                    checked={selectedSubcategorySlugs.includes(subcategory.slug)}
-                    onToggle={() => handleToggleSubcategory(subcategory.slug)}
-                  />
-                </li>
-              ))}
-            </ul>
+          ) : availableSubcategoryGroups.length ? (
+            <div className="scrollbar-theme max-h-72 overflow-y-auto pr-1">
+              <SubcategoryFilterGroups
+                groups={availableSubcategoryGroups}
+                selectedSlugs={selectedSubcategorySlugs}
+                onToggle={handleToggleSubcategory}
+              />
+            </div>
           ) : (
             <FilterEmptyMessage
               text={

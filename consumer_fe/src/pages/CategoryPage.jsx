@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
 import { SlidersHorizontal } from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
@@ -11,10 +10,9 @@ import CategoryFilterSidebar from '../components/category/CategoryFilterSidebar'
 import CategoryFilterDrawer from '../components/category/CategoryFilterDrawer'
 import CategoryProductsPanel from '../components/category/CategoryProductsPanel'
 import { useProductCatalog } from '../hooks/useProductCatalog'
-import { getParentCategories } from '../services/categoryService'
+import { useCategoryCatalog } from '../hooks/useCategoryCatalog'
 import {
   CATALOG_BRAND_PARAM,
-  CATALOG_COLOR_PARAM,
   CATALOG_PAGE_PARAM,
   CATALOG_SIZE_PARAM,
   CATALOG_STORE_PARAM,
@@ -34,9 +32,10 @@ import {
   buildCatalogApiParams,
   countSidebarCatalogFilters,
 } from '../utils/catalogQueryParams'
-import { collectProductFacets, mergeCatalogFacets } from '../utils/normalizeProductCatalog'
+import { mergeCatalogFacets } from '../utils/normalizeProductCatalog'
 
 const EMPTY_PRODUCTS = []
+const EMPTY_FACETS = { brands: [], colors: [], sizes: [], stores: [] }
 
 function selectedFacetOptions(searchParams, key) {
   return getSelectedFilterValues(searchParams, key).map((value) => ({ id: value, label: value }))
@@ -70,12 +69,7 @@ export default function CategoryPage() {
     window.scrollTo(0, 0)
   }, [slug, subSlug])
 
-  const { data: parentCategories = [], isLoading } = useQuery({
-    queryKey: ['parent-categories'],
-    queryFn: getParentCategories,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  })
+  const { parentCategories, isLoading } = useCategoryCatalog()
 
   const currentCategory = useMemo(
     () => findCategoryBySlug(parentCategories, slug),
@@ -107,7 +101,6 @@ export default function CategoryPage() {
   const selectedSubcategorySlugs = getSelectedFilterValues(
     searchParams,
     FILTER_SUBCATEGORY_PARAM,
-    canonicalSubSlug ? [canonicalSubSlug] : [],
   )
 
   const catalogParams = useMemo(
@@ -135,20 +128,31 @@ export default function CategoryPage() {
 
   const facetOptions = useMemo(
     () => mergeCatalogFacets(
-      catalogQuery.data?.facets,
-      collectProductFacets(products),
+      catalogQuery.data?.facets ?? EMPTY_FACETS,
       {
         brands: selectedFacetOptions(searchParams, CATALOG_BRAND_PARAM),
-        colors: selectedFacetOptions(searchParams, CATALOG_COLOR_PARAM),
         sizes: selectedFacetOptions(searchParams, CATALOG_SIZE_PARAM),
         stores: selectedFacetOptions(searchParams, CATALOG_STORE_PARAM),
       },
     ),
-    [catalogQuery.data?.facets, products, searchParams],
+    [catalogQuery.data?.facets, searchParams],
+  )
+
+  const shouldDropSubcategoryPath = Boolean(
+    canonicalSlug
+    && subSlug
+    && !shouldSyncUrl
+    && searchParams.getAll(FILTER_CATEGORY_PARAM).length > 0
+    && canonicalSubSlug
+    && !selectedSubcategorySlugs.includes(canonicalSubSlug)
   )
 
   if (shouldSyncUrl) {
     return <Navigate to={targetUrl} replace />
+  }
+
+  if (shouldDropSubcategoryPath) {
+    return <Navigate to={buildCategoryPageUrl(canonicalSlug, null, searchParams)} replace />
   }
 
   const categoryLabel = currentCategory?.name ?? formatCategorySlugLabel(slug)
@@ -227,7 +231,6 @@ export default function CategoryPage() {
             <CategoryFilterSidebar
               parentCategories={parentCategories}
               defaultCategorySlug={canonicalSlug}
-              defaultSubcategorySlug={canonicalSubSlug}
               isLoading={isLoading}
               isFacetsLoading={catalogQuery.isPending && products.length === 0}
               facetOptions={facetOptions}
@@ -254,7 +257,6 @@ export default function CategoryPage() {
         onClose={() => setIsFilterDrawerOpen(false)}
         parentCategories={parentCategories}
         defaultCategorySlug={canonicalSlug}
-        defaultSubcategorySlug={canonicalSubSlug}
         isLoading={isLoading}
         isFacetsLoading={catalogQuery.isPending && products.length === 0}
         facetOptions={facetOptions}

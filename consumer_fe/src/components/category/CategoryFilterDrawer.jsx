@@ -11,7 +11,6 @@ export default function CategoryFilterDrawer({
   onClose,
   parentCategories = [],
   defaultCategorySlug,
-  defaultSubcategorySlug,
   isLoading = false,
   isFacetsLoading = false,
   variant = 'category',
@@ -78,11 +77,10 @@ export default function CategoryFilterDrawer({
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="scrollbar-theme min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <CategoryFilterPanelContent
                 parentCategories={parentCategories}
                 defaultCategorySlug={defaultCategorySlug}
-                defaultSubcategorySlug={defaultSubcategorySlug}
                 isLoading={isLoading}
                 isFacetsLoading={isFacetsLoading}
                 showHeading={false}

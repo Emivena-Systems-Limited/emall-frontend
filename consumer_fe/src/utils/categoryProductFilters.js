@@ -203,6 +203,7 @@ export function buildCategoryFilterGroups(products, subcategories = [], category
   )
 
   anticipatedFacets.forEach(({ id, values }) => {
+    if (id === 'color' || id === 'size') return
     if (!facetMap.has(id)) facetMap.set(id, new Set())
     values.forEach((value) => facetMap.get(id).add(value))
   })
@@ -223,14 +224,12 @@ export function buildCategoryFilterGroups(products, subcategories = [], category
     priorityList,
   )
 
-  const colors = uniqueSorted([
-    ...products.flatMap((product) => product.variantFacets?.color ?? []),
-    ...(anticipatedFacets.find((facet) => facet.id === 'color')?.values ?? []),
-  ])
-  const sizes = uniqueSorted([
-    ...products.flatMap((product) => product.variantFacets?.size ?? []),
-    ...(anticipatedFacets.find((facet) => facet.id === 'size')?.values ?? []),
-  ])
+  const colors = uniqueSorted(
+    products.flatMap((product) => product.variantFacets?.color ?? []),
+  )
+  const sizes = uniqueSorted(
+    products.flatMap((product) => product.variantFacets?.size ?? []),
+  )
 
   // Anticipatory ordering: merge color/size with the dynamic attribute facets
   // and rank the combined set by what's predicted to matter most for this

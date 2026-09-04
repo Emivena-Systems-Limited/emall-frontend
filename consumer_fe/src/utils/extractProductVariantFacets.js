@@ -132,43 +132,41 @@ export function resolveProductDisplayPrices(product, variation = null) {
   return { price, compareAt, listPrice, salePrice: hasSale ? salePrice : null }
 }
 
-export function extractSlimVariants(product) {
-  return toArray(product.variants || product.variations).map((variant) => {
-    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
-    const attributes = variant.attributes && typeof variant.attributes === 'object'
-      ? variant.attributes
-      : {}
+const COLOR_ATTRIBUTE_KEYS = new Set(['color', 'colour'])
+const MAX_COLOR_LABEL_LENGTH = 40
 
-    const color = getVariantAttributeValue(variant, 'color')
-      || (String(attributeKey).toLowerCase() === 'color' ? attributeValue : '')
-      || firstValue(variant.colour)
-
-    const size = getVariantAttributeValue(variant, 'size')
-      || (['size', 'storage'].includes(String(attributeKey).toLowerCase()) ? attributeValue : '')
-      || firstValue(
-        variant.size,
-        attributes.size,
-        attributes.Size,
-        attributes.storage,
-        attributes.Storage,
-      )
-
-    return {
-      id: variant.id,
-      price: resolveProductDisplayPrices(product, variant).price,
-      color: color ? String(color) : null,
-      size: size ? String(size) : null,
-      variantName: variant.variant_name ? String(variant.variant_name) : null,
-      attributes: Object.fromEntries(
-        Object.entries(attributes).map(([key, value]) => [normalizeFacetKey(key), String(value)]),
-      ),
-    }
-  })
+function isColorAttributeKey(key) {
+  return COLOR_ATTRIBUTE_KEYS.has(normalizeFacetKey(key))
 }
 
-export function extractVariantFacets(product) {
+function isUsableColorLabel(value) {
+  const trimmed = String(value ?? '').trim()
+  return Boolean(trimmed) && trimmed.length <= MAX_COLOR_LABEL_LENGTH
+}
+
+/** Color filter values come from the variant Color/Colour attribute only — never variant_name. */
+function resolveVariantColorValue(variant, attributeKey) {
+  if (!variant || typeof variant !== 'object') return ''
+
+  if (isColorAttributeKey(variant.attribute) || isColorAttributeKey(attributeKey)) {
+    const fromValue = String(variant.value ?? '').trim()
+    if (isUsableColorLabel(fromValue)) return fromValue
+  }
+
+  if (variant.attributes && typeof variant.attributes === 'object' && !Array.isArray(variant.attributes)) {
+    for (const [key, value] of Object.entries(variant.attributes)) {
+      if (isColorAttributeKey(key) && isUsableColorLabel(value)) {
+        return String(value).trim()
+      }
+    }
+  }
+
+  const fromField = firstValue(variant.color, variant.colour)
+  return isUsableColorLabel(fromField) ? String(fromField).trim() : ''
+}
+
+function collectFacetsFromSlimVariants(variants) {
   const facets = {}
-  const variants = extractSlimVariants(product)
 
   for (const variant of variants) {
     if (variant.color) addFacetValue(facets, 'color', variant.color)
@@ -182,14 +180,9 @@ export function extractVariantFacets(product) {
     }
 
     Object.entries(variant.attributes ?? {}).forEach(([key, value]) => {
-      if (key === 'color') return
+      if (isColorAttributeKey(key)) return
       addFacetValue(facets, key, value)
     })
-  }
-
-  if (!variants.length) {
-    addFacetValue(facets, 'color', firstValue(product.color, product.colour))
-    addFacetValue(facets, 'size', firstValue(product.size, product.storage))
   }
 
   return Object.fromEntries(
@@ -197,8 +190,7 @@ export function extractVariantFacets(product) {
   )
 }
 
-export function extractProductPriceRange(product) {
-  const variants = extractSlimVariants(product)
+function priceRangeFromSlimVariants(product, variants) {
   const variantPrices = variants.map((variant) => variant.price).filter((price) => price > 0)
   const { price: basePrice } = resolveProductDisplayPrices(product)
 
@@ -215,14 +207,54 @@ export function extractProductPriceRange(product) {
   }
 }
 
+export function extractSlimVariants(product) {
+  return toArray(product.variants || product.variations).map((variant) => {
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
+    const attributes = variant.attributes && typeof variant.attributes === 'object'
+      ? variant.attributes
+      : {}
+
+    const color = resolveVariantColorValue(variant, attributeKey)
+
+    const size = getVariantAttributeValue(variant, 'size')
+      || (['size', 'storage'].includes(String(attributeKey).toLowerCase()) ? attributeValue : '')
+      || firstValue(
+        variant.size,
+        attributes.size,
+        attributes.Size,
+        attributes.storage,
+        attributes.Storage,
+      )
+
+    return {
+      id: variant.id,
+      price: resolveProductDisplayPrices(product, variant).price,
+      color: color || null,
+      size: size ? String(size) : null,
+      variantName: variant.variant_name ? String(variant.variant_name) : null,
+      attributes: Object.fromEntries(
+        Object.entries(attributes).map(([key, value]) => [normalizeFacetKey(key), String(value)]),
+      ),
+    }
+  })
+}
+
+export function extractVariantFacets(product) {
+  return collectFacetsFromSlimVariants(extractSlimVariants(product))
+}
+
+export function extractProductPriceRange(product) {
+  return priceRangeFromSlimVariants(product, extractSlimVariants(product))
+}
+
 export function enrichLandingProductForFilters(product) {
   const metadata = toArray(product.metadata)
   const variants = extractSlimVariants(product)
-  const priceRange = extractProductPriceRange(product)
+  const priceRange = priceRangeFromSlimVariants(product, variants)
 
   return {
     variants,
-    variantFacets: extractVariantFacets(product),
+    variantFacets: collectFacetsFromSlimVariants(variants),
     brand: firstValue(
       product.brand?.brand_name,
       product.brand?.name,

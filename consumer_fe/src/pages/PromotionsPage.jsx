@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
 import { SlidersHorizontal } from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
@@ -10,7 +9,7 @@ import PromotionsBreadcrumb from '../components/promotions/PromotionsBreadcrumb'
 import CategoryFilterSidebar from '../components/category/CategoryFilterSidebar'
 import CategoryFilterDrawer from '../components/category/CategoryFilterDrawer'
 import PromotionsProductsEmptyState from '../components/promotions/PromotionsProductsEmptyState'
-import { getParentCategories } from '../services/categoryService'
+import { useCategoryCatalog } from '../hooks/useCategoryCatalog'
 import {
   findCategoryBySlug,
   formatCategorySlugLabel,
@@ -30,12 +29,7 @@ export default function PromotionsPage() {
     window.scrollTo(0, 0)
   }, [])
 
-  const { data: parentCategories = [], isLoading } = useQuery({
-    queryKey: ['parent-categories'],
-    queryFn: getParentCategories,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  })
+  const { parentCategories, isLoading } = useCategoryCatalog()
 
   const hasCategoryParams = searchParams.getAll(FILTER_CATEGORY_PARAM).length > 0
   const allCategoriesActive = !hasCategoryParams

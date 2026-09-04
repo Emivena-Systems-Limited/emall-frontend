@@ -100,6 +100,26 @@ function PromoBanner({ promo, onNavigate }) {
   )
 }
 
+function MegaMenuSkeleton() {
+  return (
+    <div className="grid grid-cols-[minmax(14rem,max-content)_minmax(0,1fr)]" aria-hidden="true">
+      <div className="space-y-2 border-r border-slate-100 p-3">
+        {Array.from({ length: 8 }, (_, index) => (
+          <div key={index} className="flex items-center gap-2.5 px-3 py-2">
+            <span className="size-6 shrink-0 animate-pulse rounded-md bg-slate-200" />
+            <span className="h-3 flex-1 animate-pulse rounded bg-slate-200" />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-3 p-5">
+        <div className="h-3 w-40 animate-pulse rounded bg-slate-200" />
+        <div className="h-24 animate-pulse rounded-xl bg-slate-100" />
+        <div className="h-24 animate-pulse rounded-xl bg-slate-100" />
+      </div>
+    </div>
+  )
+}
+
 function CategoryMenuQuickLinks({ onNavigate }) {
   return (
     <div className="space-y-1 border-t border-slate-100 p-3">
@@ -160,7 +180,7 @@ function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChan
       transition={{ duration: 0.22, ease: panelEase }}
       className="grid min-h-88 grid-cols-[minmax(14rem,max-content)_minmax(0,1fr)_17.5rem] xl:grid-cols-[minmax(15rem,max-content)_minmax(0,1fr)_19rem]"
     >
-      <nav aria-label="Subcategories" className="shrink-0 border-r border-slate-100 py-2 pr-2">
+      <nav aria-label="Subcategories" className="scrollbar-theme max-h-[min(32rem,calc(100vh-8rem))] shrink-0 overflow-y-auto border-r border-slate-100 py-2 pr-2">
         <ul className="space-y-0.5">
           {category.subcategories.map((sub) => {
             const isActive = sub.id === activeSubcategoryId
@@ -283,11 +303,15 @@ export default function CategoriesMegaMenu({ open, onClose }) {
                 className="pointer-events-auto overflow-hidden rounded-b-2xl border border-slate-100 border-t-0 bg-white shadow-[0_28px_60px_-20px_rgba(15,23,42,0.22)]"
               >
                 {isLoading ? (
-                  <div className="px-6 py-8 text-sm text-slate-500">Loading categories...</div>
+                  <MegaMenuSkeleton />
+                ) : menuItems.length === 0 ? (
+                  <div className="px-6 py-8 text-sm text-slate-500">
+                    Categories are unavailable right now.
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-[minmax(14rem,max-content)_minmax(0,1fr)]">
-                    <nav aria-label="Product categories" className="shrink-0 border-r border-slate-100 py-3 pr-1">
-                      <ul className="space-y-0.5">
+                  <div className="grid grid-cols-[minmax(16rem,max-content)_minmax(0,1fr)]">
+                    <nav aria-label="Product categories" className="flex max-h-[min(36rem,calc(100vh-7rem))] shrink-0 flex-col border-r border-slate-100 py-3 pr-1">
+                      <ul className="scrollbar-theme min-h-0 flex-1 space-y-0.5 overflow-y-auto">
                         {menuItems.map((category) => {
                           const isActive = category.id === activeCategoryId
 
@@ -298,13 +322,23 @@ export default function CategoriesMegaMenu({ open, onClose }) {
                                 onClick={onClose}
                                 onMouseEnter={() => handleCategoryEnter(category)}
                                 onFocus={() => handleCategoryEnter(category)}
-                                className={`group flex items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors ${
+                                className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                                   isActive
                                     ? 'bg-slate-100 font-medium text-slate-900'
                                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                 }`}
                               >
-                                <span>{category.label}</span>
+                                <span className="flex min-w-0 items-center gap-2.5">
+                                  {category.image ? (
+                                    <img
+                                      src={category.image}
+                                      alt=""
+                                      className="size-6 shrink-0 object-contain"
+                                      loading="lazy"
+                                    />
+                                  ) : null}
+                                  <span className="truncate">{category.label}</span>
+                                </span>
                                 {isActive && (
                                   <ChevronRight
                                     className="size-4 shrink-0 text-slate-400"

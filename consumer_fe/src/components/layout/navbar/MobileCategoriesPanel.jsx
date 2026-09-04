@@ -204,7 +204,7 @@ function MobileCategoriesPanelContent({ onClose }) {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-1">
+      <div className="scrollbar-theme min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-1">
         {isLoading ? (
           <CategoryListSkeleton />
         ) : filteredItems.length === 0 ? (

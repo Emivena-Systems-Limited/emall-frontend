@@ -1,3 +1,5 @@
+import { normalizeCategorySlug } from './normalizeCategories'
+
 export const FILTER_CATEGORY_PARAM = 'category'
 export const FILTER_SUBCATEGORY_PARAM = 'subcategory'
 
@@ -45,11 +47,25 @@ export function clearCategoryFilters(searchParams) {
   return next
 }
 
-export function collectSubcategoriesForParents(parentCategories, selectedCategorySlugs) {
-  const selected = new Set(selectedCategorySlugs)
+export function groupSubcategoriesByParents(parentCategories, selectedCategorySlugs) {
+  const selected = new Set(
+    selectedCategorySlugs.map((slug) => normalizeCategorySlug(slug)).filter(Boolean),
+  )
+
   return parentCategories
-    .filter((category) => selected.has(category.slug))
-    .flatMap((category) => category.children?.filter((child) => child.isActive) ?? [])
+    .filter((category) => selected.has(normalizeCategorySlug(category.slug)))
+    .map((category) => ({
+      id: category.id ?? category.slug,
+      slug: category.slug,
+      name: category.name,
+      children: (category.children ?? []).filter((child) => child.isActive !== false),
+    }))
+    .filter((group) => group.children.length > 0)
+}
+
+export function collectSubcategoriesForParents(parentCategories, selectedCategorySlugs) {
+  return groupSubcategoriesByParents(parentCategories, selectedCategorySlugs)
+    .flatMap((group) => group.children)
 }
 
 export function formatMultiFilterLabel(labels, fallback = 'your selection') {

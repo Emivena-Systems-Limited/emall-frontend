@@ -83,44 +83,45 @@ export function extractCatalogPagination(payload, fallbackCount = 0, request = {
   }
 }
 
-function collectFacetValues(product, keys = []) {
-  const values = []
-  keys.forEach((key) => {
-    ;(product.variantFacets?.[key] ?? []).forEach((value) => values.push(value))
-  })
-  ;(product.variants ?? []).forEach((variant) => {
-    keys.forEach((key) => {
-      const fromVariant = variant?.[key]
-      if (fromVariant) values.push(fromVariant)
-    })
-  })
-  return values
+function addUniqueOption(map, value, label) {
+  const option = facetOptionFromValue(value, label)
+  if (!option || map.has(option.id)) return
+  map.set(option.id, option)
+}
+
+function sortedOptions(map) {
+  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
 }
 
 export function collectProductFacets(products = []) {
-  const brands = []
-  const colors = []
-  const sizes = []
-  const stores = []
+  const brands = new Map()
+  const colors = new Map()
+  const sizes = new Map()
+  const stores = new Map()
 
-  products.forEach((product) => {
-    if (product.brand) brands.push(facetOptionFromValue(product.brand, product.brand))
-    collectFacetValues(product, ['color', 'colour']).forEach((value) => {
-      colors.push(facetOptionFromValue(value, value))
-    })
-    collectFacetValues(product, ['size', 'storage']).forEach((value) => {
-      sizes.push(facetOptionFromValue(value, value))
-    })
-    if (product.storeId) {
-      stores.push(facetOptionFromValue(product.storeId, product.storeName || product.storeId))
+  for (let i = 0; i < products.length; i += 1) {
+    const product = products[i]
+    addUniqueOption(brands, product.brand, product.brand)
+
+    const variants = product.variants
+    if (Array.isArray(variants)) {
+      for (let j = 0; j < variants.length; j += 1) {
+        const variant = variants[j]
+        addUniqueOption(colors, variant?.color, variant?.color)
+        addUniqueOption(sizes, variant?.size, variant?.size)
+      }
     }
-  })
+
+    if (product.storeId) {
+      addUniqueOption(stores, product.storeId, product.storeName || product.storeId)
+    }
+  }
 
   return {
-    brands: uniqueOptions(brands),
-    colors: uniqueOptions(colors),
-    sizes: uniqueOptions(sizes),
-    stores: uniqueOptions(stores),
+    brands: sortedOptions(brands),
+    colors: sortedOptions(colors),
+    sizes: sortedOptions(sizes),
+    stores: sortedOptions(stores),
   }
 }
 

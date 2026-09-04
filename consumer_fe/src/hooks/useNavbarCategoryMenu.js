@@ -1,7 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { categoryMenuItems } from '../constants/categoriesMenu'
-import { getCategoriesWithChildren } from '../services/categoryService'
+import { useCategoryCatalog } from './useCategoryCatalog'
 import { buildNavbarCategoryMenuItems } from '../utils/buildNavbarCategoryMenuItems'
 import { toCategoryListingHref } from '../utils/listingFilterParams'
 
@@ -17,18 +15,12 @@ function withCatalogQueryHrefs(item) {
 }
 
 export function useNavbarCategoryMenu() {
-  const { data: categoryTree = [], isLoading } = useQuery({
-    queryKey: ['categories-with-children'],
-    queryFn: getCategoriesWithChildren,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  })
+  const { parentCategories, isLoading } = useCategoryCatalog()
 
-  const menuItems = useMemo(() => {
-    const apiItems = buildNavbarCategoryMenuItems(categoryTree)
-    const source = apiItems.length ? apiItems : categoryMenuItems
-    return source.map(withCatalogQueryHrefs)
-  }, [categoryTree])
+  const menuItems = useMemo(
+    () => buildNavbarCategoryMenuItems(parentCategories).map(withCatalogQueryHrefs),
+    [parentCategories],
+  )
 
   const defaultCategoryId = menuItems[0]?.id ?? null
 
@@ -40,7 +32,7 @@ export function useNavbarCategoryMenu() {
 
   return {
     menuItems,
-    isLoading: isLoading && !categoryTree.length,
+    isLoading,
     defaultCategoryId,
     getDefaultSubcategoryId,
   }
