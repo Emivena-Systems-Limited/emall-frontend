@@ -524,7 +524,7 @@ export default function StoreLandingPage() {
                         product={product}
                         disabledReason={
                           isAuthenticated && !eligible
-                            ? "Store does not deliver to your location"
+                            ? "Not Available in your location"
                             : ""
                         }
                       />

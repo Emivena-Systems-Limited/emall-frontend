@@ -3,7 +3,6 @@ import {
   CircleDollarSign,
   HelpCircle,
   LayoutDashboard,
-  MessageSquare,
   Package,
   Settings,
   ShoppingCart,
@@ -18,7 +17,6 @@ import {
 export const SIDEBAR_NAV_BADGES = {
   orders: 12,
   notifications: 8,
-  messages: 3,
   reviews: 5,
   finance: 1,
 }
@@ -45,7 +43,6 @@ export const NAV_SECTIONS = [
       { to: '/analytics', icon: BarChart3, label: 'Analytics & Reports', comingSoon: false },
       { to: '/finance', icon: CircleDollarSign, label: 'Finance' },
       { to: '/reviews', icon: Star, label: 'Reviews & Ratings' },
-      { to: '/messages', icon: MessageSquare, label: 'Messages', comingSoon: true },
     ],
   },
   {
@@ -54,7 +51,7 @@ export const NAV_SECTIONS = [
       { to: '/profile', icon: User, label: 'Profile' },
       // { to: '/settings', icon: Settings, label: 'Store Settings' },
       { to: '/users', icon: UserCog, label: 'Users & Permissions', comingSoon: false },
-      // { to: '/help', icon: HelpCircle, label: 'Help & Support' },
+      { to: '/help', icon: HelpCircle, label: 'Help & Support' },
     ],
   },
 ]

@@ -7,6 +7,7 @@ import { useCartActions } from '../../hooks/useCartActions'
 import { useOptionalMiniCart } from '../../context/MiniCartContext'
 import { STAR_EMPTY_FILL, STAR_FILL } from '../../constants/landingLayout'
 import { isProductInCart, selectCartItems } from '../../store/slices/cartSlice'
+import PortaledHoverTooltip from './PortaledHoverTooltip'
 
 function PriceDisplay({ price, compareAt }) {
   const [integer, decimal] = formatCedi(price).split('.')
@@ -71,6 +72,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
   const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
   const productId = product.backendId ?? product.id
   const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
+  const tooltipContent = disabledReason || (isInCart ? 'Already in cart' : '')
 
   const handleAddToCart = async (event) => {
     event.preventDefault()
@@ -148,7 +150,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
         <div className="mt-auto flex min-w-0 items-end justify-between gap-[0.5em] pt-[0.25em]">
           <PriceDisplay price={product.price} compareAt={product.compareAt} />
 
-          <span className="group/cart relative flex shrink-0">
+          <PortaledHoverTooltip content={tooltipContent}>
             <button
               type="button"
               aria-busy={isAdding}
@@ -177,15 +179,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
                 <ShoppingCart className="size-[1em]" strokeWidth={2} />
               )}
             </button>
-            {(isInCart || disabledReason) && (
-              <span
-                role="tooltip"
-                className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[0.6875rem] font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover/cart:opacity-100 group-focus-within/cart:opacity-100"
-              >
-                {disabledReason || 'Already in cart'}
-              </span>
-            )}
-          </span>
+          </PortaledHoverTooltip>
         </div>
       </div>
     </article>

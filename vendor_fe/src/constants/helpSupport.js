@@ -34,39 +34,15 @@ export const PLATFORM_CONTACT = {
 export const PLATFORM_FAQ = [
   {
     id: 'faq-1',
-    question: 'How do I receive payouts from my sales?',
-    answer: 'Go to Finance → Payout Account and add your bank details. Payouts are processed weekly once your balance exceeds the minimum threshold. You\'ll receive an email confirmation for each transfer.',
-    category: 'payments',
-  },
-  {
-    id: 'faq-2',
-    question: 'What happens when a customer requests a return?',
-    answer: 'You\'ll receive a notification and can approve or decline the return from the order details page. If approved, the customer ships the item back and you process the refund once received.',
-    category: 'orders',
-  },
-  {
-    id: 'faq-3',
-    question: 'How do I add team members to my store?',
-    answer: 'Navigate to Users & Permissions and click "Invite member". Choose a role (Manager, Staff, or Viewer) and send the invite. They\'ll receive an email to create their account.',
-    category: 'account',
-  },
-  {
-    id: 'faq-4',
-    question: 'Why is my product not showing on the marketplace?',
-    answer: 'Products must be approved and set to "Active" status with available inventory. Check that all required fields are filled and images meet our guidelines. Pending approval products appear in your Products list with a status badge.',
+    question: 'How do I add or update a product?',
+    answer: 'Go to Products in your dashboard to add a new product or edit an existing product\'s details, price, images and stock.',
     category: 'technical',
   },
   {
-    id: 'faq-5',
-    question: 'How are platform fees calculated?',
-    answer: 'A commission is applied to each completed sale. The exact rate depends on your seller tier and product category. View the breakdown in Finance → Earnings for each transaction.',
-    category: 'payments',
-  },
-  {
-    id: 'faq-6',
-    question: 'Can I pause my store temporarily?',
-    answer: 'Yes. Contact platform support to request a temporary store pause. While paused, your listings won\'t be visible to customers but your account data is preserved.',
-    category: 'policy',
+    id: 'faq-2',
+    question: 'How do I manage and process customer orders?',
+    answer: 'Go to Orders to view new orders, check order details and update the order status as it is processed and dispatched.',
+    category: 'orders',
   },
 ]
 
