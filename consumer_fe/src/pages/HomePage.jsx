@@ -5,6 +5,7 @@ import BestSellersSection from '../components/home/BestSellersSection'
 import FlashSalesSection from '../components/home/FlashSalesSection'
 import ExploreInterestsSection from '../components/home/ExploreInterestsSection'
 import SiteLayout from '../components/layout/SiteLayout'
+import { getPromotionsFilterHref, PROMOTION_FILTER_BESTSELLERS } from '../constants/categoryQuickFilters'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { normalizeLandingProducts } from '../utils/normalizeLandingProducts'
 
@@ -29,7 +30,7 @@ export default function HomePage() {
         {
           id: 'api-best-sellers',
           label: 'Best Sellers',
-          href: '/products/best-sellers',
+          href: getPromotionsFilterHref(PROMOTION_FILTER_BESTSELLERS),
           products: bestSellerProducts,
         },
       ]

@@ -25,7 +25,12 @@ import {
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import SearchableSelect from '../components/auth/SearchableSelect'
+import LineItemPrice from '../components/shared/LineItemPrice'
 import { notify } from '../lib/notify'
+import {
+  LINE_ITEM_TABLE_CELL_PADDING,
+  LINE_ITEM_TABLE_ROW_CLASS,
+} from '../constants/lineItemTable'
 import {
   buildBuyNowInitiatePayload,
   getBuyNowInitiateKey,
@@ -1222,41 +1227,52 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Order Summary</h2>
-      <div className="mt-4 divide-y divide-slate-300">
+      <div className="mt-4 border-t border-slate-200">
         {items.map((item) => {
           const optionLabel = formatCartItemOptions(item)
           const displayImage = resolveCartItemDisplayImage(item)
+          const compareAmount =
+            item.compareAt && Number(item.compareAt) > Number(item.price) ? item.compareAt : null
 
           return (
-          <article
-            key={item.key ?? item.id}
-            className="grid grid-cols-[5.25rem_minmax(0,1fr)_auto] gap-3 py-3 sm:grid-cols-[6.5rem_minmax(0,1fr)_auto] sm:gap-4"
-          >
-            <img
-              src={displayImage}
-              alt={item.name}
-              className="h-21 w-21 rounded-lg border border-red-100 object-contain p-0.5 sm:h-27 sm:w-27"
-            />
-            <div className="min-w-0">
-              <h3 className="truncate text-base font-bold text-slate-900">{item.name}</h3>
-              {optionLabel ? (
-                <p className="mt-1 truncate text-[0.6875rem] text-slate-500">{optionLabel}</p>
-              ) : null}
-              <div className="mt-5">
+            <article key={item.key ?? item.id} className={LINE_ITEM_TABLE_ROW_CLASS}>
+              <div className={`flex min-w-0 items-start gap-3 sm:items-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+                <img
+                  src={displayImage}
+                  alt={item.name}
+                  className="size-16 shrink-0 rounded-lg border border-slate-200 bg-slate-50 object-contain p-0.5 sm:size-20"
+                />
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold leading-snug text-slate-900 line-clamp-2">{item.name}</h3>
+                  {optionLabel ? (
+                    <p className="mt-0.5 truncate text-xs text-slate-500">{optionLabel}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onDelete(item.id)}
+                    aria-label={`Remove ${item.name}`}
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-auth-primary underline underline-offset-2 hover:text-auth-primary-hover"
+                  >
+                    <Trash2 className="size-3.5" strokeWidth={1.8} aria-hidden />
+                    Remove
+                  </button>
+                </div>
+              </div>
+
+              <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+                <span className="text-xs font-semibold text-slate-500 sm:hidden">Quantity</span>
                 <QuantityPill
                   value={item.quantity}
                   onDecrease={() => onQuantityChange(item.id, Math.max(1, item.quantity - 1))}
                   onIncrease={() => onQuantityChange(item.id, item.quantity + 1)}
                 />
               </div>
-            </div>
-            <div className="flex flex-col items-end justify-between">
-              <p className="text-base font-bold text-slate-950">{formatCheckoutAmount(item.price)}</p>
-              <button type="button" onClick={() => onDelete(item.id)} aria-label={`Remove ${item.name}`} className="text-auth-primary">
-                <Trash2 className="size-5" strokeWidth={1.8} />
-              </button>
-            </div>
-          </article>
+
+              <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+                <span className="text-xs font-semibold text-slate-500 sm:hidden">Price</span>
+                <LineItemPrice amount={item.price} compareAmount={compareAmount} />
+              </div>
+            </article>
           )
         })}
       </div>
@@ -1485,24 +1501,28 @@ function OrderSuccessScreen({ order, checkoutTotals, checkoutItems = [] }) {
         {items.length > 0 ? (
           <>
             <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Order Items</h2>
-            <div className="mt-3 divide-y divide-slate-100">
+            <div className="mt-3 border-t border-slate-200">
               {items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
-                    <p className="text-xs text-slate-500">
-                      Qty {item.quantity} · {formatCheckoutAmount(item.unitPrice)} each
-                      {item.comparePrice != null && item.comparePrice > item.unitPrice ? (
-                        <span className="ml-1 text-slate-400 line-through">
-                          {formatCheckoutAmount(item.comparePrice)}
-                        </span>
-                      ) : null}
-                    </p>
+                <article key={item.id} className={LINE_ITEM_TABLE_ROW_CLASS}>
+                  <div className={`min-w-0 ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+                    <p className="text-sm font-bold leading-snug text-slate-900">{item.name}</p>
                   </div>
-                  <p className="shrink-0 text-sm font-bold text-slate-950">
-                    {formatCheckoutAmount(item.totalPrice)}
-                  </p>
-                </div>
+                  <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+                    <span className="text-xs font-semibold text-slate-500 sm:hidden">Quantity</span>
+                    <span className="text-sm font-bold tabular-nums text-slate-950">{item.quantity}</span>
+                  </div>
+                  <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+                    <span className="text-xs font-semibold text-slate-500 sm:hidden">Price</span>
+                    <LineItemPrice
+                      amount={item.unitPrice}
+                      compareAmount={
+                        item.comparePrice != null && item.comparePrice > item.unitPrice
+                          ? item.comparePrice
+                          : null
+                      }
+                    />
+                  </div>
+                </article>
               ))}
             </div>
           </>

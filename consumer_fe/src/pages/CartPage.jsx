@@ -13,11 +13,16 @@ import { useGuestCart } from '../hooks/useGuestCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { notify } from '../lib/notify'
 import { collectSelectedCartItemIds, persistCheckoutCartItemIds } from '../utils/checkoutCartItems'
-import { formatCartItemOptions, resolveCartItemDisplayImage, resolveCartLineItemId } from '../utils/normalizeCart'
+import { formatCartItemOptions, resolveCartItemDisplayImage } from '../utils/normalizeCart'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
 import CartPageSkeleton from '../components/cart/CartPageSkeleton'
-import { SavedItemsFloatingTrigger, SavedItemsTrigger } from '../components/cart/SavedItemsDrawer'
 import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
+import LineItemPrice from '../components/shared/LineItemPrice'
+import {
+  LINE_ITEM_TABLE_CELL_PADDING,
+  LINE_ITEM_TABLE_ROW_CLASS,
+  LINE_ITEM_TABLE_ROW_FULL_WIDTH_CLASS,
+} from '../constants/lineItemTable'
 
 const clampQuantity = (value) => Math.max(1, value)
 
@@ -80,15 +85,20 @@ function QuantityStepper({ value, onChange }) {
   )
 }
 
-function ItemActions({ saved = false, showSaveForLater = true, onDelete, onSave, onShare }) {
+function ItemActions({ saved = false, showSaveForLater = true, onDelete, onSave, onShare, isSavingWishlist = false }) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold">
       <button type="button" onClick={onDelete} className="underline hover:text-auth-primary">
         Delete
       </button>
       {showSaveForLater && (
-        <button type="button" onClick={onSave} className="underline hover:text-auth-primary">
-          {saved ? 'Add to cart' : 'Save For Later'}
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={isSavingWishlist}
+          className="underline hover:text-auth-primary disabled:cursor-wait disabled:opacity-60"
+        >
+          {isSavingWishlist ? 'Saving…' : saved ? 'Add to cart' : 'Save For Later'}
         </button>
       )}
       <button type="button" onClick={onShare} className="underline hover:text-auth-primary">
@@ -109,16 +119,18 @@ function CartItemRow({
   showSaveForLater = true,
   readOnlyQuantity = false,
   selectable = true,
+  isSavingWishlist = false,
+  rowClassName = LINE_ITEM_TABLE_ROW_CLASS,
 }) {
   const optionLabel = formatCartItemOptions(item)
   const displayImage = resolveCartItemDisplayImage(item)
   const productHref = resolveProductHref(item)
 
   return (
-    <article className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-4 last:border-b-0 sm:px-4 lg:px-5 lg:py-5">
-      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+    <article className={rowClassName}>
+      <div className={`flex min-w-0 items-start gap-3 sm:items-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
         {selectable ? (
-          <label className="group relative -ml-1.5 mt-0 inline-flex size-10 shrink-0 cursor-pointer items-center justify-center sm:size-11 lg:size-10">
+          <label className="group relative -ml-1.5 mt-0 inline-flex size-10 shrink-0 cursor-pointer items-center justify-center sm:size-11 lg:mt-0 lg:size-10">
             <input
               type="checkbox"
               checked={selected}
@@ -142,13 +154,13 @@ function CartItemRow({
           <img
             src={displayImage}
             alt={item.name}
-            className="size-16 rounded-md border border-slate-200 bg-slate-50 object-contain p-0.5 sm:size-20"
+            className="size-16 rounded-lg border border-slate-200 bg-slate-50 object-contain p-0.5 sm:size-20"
           />
         </Link>
         <div className="min-w-0 flex-1 overflow-hidden">
           <Link
             to={productHref}
-            className="block text-sm font-bold leading-snug text-slate-900 hover:text-auth-primary line-clamp-2 wrap-anywhere"
+            className="block text-sm font-bold leading-snug text-slate-900 line-clamp-2 wrap-anywhere hover:text-auth-primary"
           >
             {item.name}
           </Link>
@@ -167,33 +179,84 @@ function CartItemRow({
               Sold by <span className="font-semibold text-slate-700">{item.seller}</span>
             </p>
           )}
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="min-w-0">
-              <p className="text-sm font-extrabold text-slate-900">{formatCedi(item.price)}</p>
-              {item.compareAt && item.compareAt > item.price && (
-                <p className="mt-1 text-[0.5625rem] font-semibold text-slate-400 line-through">
-                  {formatCedi(item.compareAt)}
-                </p>
-              )}
-            </div>
-            <div className="min-w-0">
-              {readOnlyQuantity ? (
-                <p className="text-sm font-bold text-slate-900">Qty: {item.quantity}</p>
-              ) : (
-                <QuantityStepper value={item.quantity} onChange={onQuantityChange} />
-              )}
-            </div>
-          </div>
           <ItemActions
             saved={saved}
             showSaveForLater={showSaveForLater}
             onDelete={onDelete}
             onSave={onSave}
             onShare={() => shareCartItem(item)}
+            isSavingWishlist={isSavingWishlist}
           />
         </div>
       </div>
+
+      <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+        <span className="text-xs font-semibold text-slate-500 sm:hidden">Quantity</span>
+        {readOnlyQuantity ? (
+          <span className="text-sm font-bold tabular-nums text-slate-950">{item.quantity}</span>
+        ) : (
+          <QuantityStepper value={item.quantity} onChange={onQuantityChange} />
+        )}
+      </div>
+
+      <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+        <span className="text-xs font-semibold text-slate-500 sm:hidden">Price</span>
+        <LineItemPrice
+          amount={item.price}
+          compareAmount={item.compareAt && item.compareAt > item.price ? item.compareAt : null}
+        />
+      </div>
     </article>
+  )
+}
+
+function CartItemList({
+  items,
+  selectedIds,
+  onSelect,
+  onQuantityChange,
+  onDelete,
+  onSave,
+  saved = false,
+  showSaveForLater = true,
+  readOnlyQuantity = false,
+  selectable = true,
+  savingWishlistId = null,
+  rowClassName = LINE_ITEM_TABLE_ROW_CLASS,
+  clearLabel,
+  onClear,
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50">
+      {items.map((item) => (
+        <CartItemRow
+          key={item.key ?? item.id}
+          item={item}
+          saved={saved}
+          showSaveForLater={showSaveForLater}
+          readOnlyQuantity={readOnlyQuantity}
+          selectable={selectable}
+          selected={selectedIds.has(item.id)}
+          onSelect={(checked) => onSelect(item.id, checked)}
+          onQuantityChange={(quantity) => onQuantityChange(item.id, quantity)}
+          onDelete={() => onDelete(item.id)}
+          onSave={() => onSave(item.id)}
+          isSavingWishlist={savingWishlistId === item.id}
+          rowClassName={rowClassName}
+        />
+      ))}
+      {onClear ? (
+        <div className="flex justify-end border-t border-slate-100 px-4 py-4 sm:px-5">
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-md border border-slate-400 px-4 py-2 text-xs font-semibold text-slate-600 hover:border-auth-primary hover:text-auth-primary"
+          >
+            {clearLabel}
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -213,49 +276,67 @@ function ItemTable({
   selectable = true,
   clearLabel,
   onClear,
+  savingWishlistId = null,
+  rowClassName = LINE_ITEM_TABLE_ROW_CLASS,
+  showHeader = true,
 }) {
-  return (
-    <section className="min-w-0" aria-labelledby={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`}>
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id={`${title.replace(/\s+/g, '-').toLowerCase()}-heading`} className="text-lg font-bold text-slate-950 sm:text-xl">
-            {title}
-          </h2>
-          <p className="mt-2 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
-        </div>
-        {headerAction}
-      </div>
+  const headingId = `${title.replace(/\s+/g, '-').toLowerCase()}-heading`
 
-      <div className="overflow-hidden rounded-xl bg-white">
-        {items.map((item) => (
-          <CartItemRow
-            key={item.key ?? item.id}
-            item={item}
-            saved={saved}
-            showSaveForLater={showSaveForLater}
-            readOnlyQuantity={readOnlyQuantity}
-            selectable={selectable}
-            selected={selectedIds.has(item.id)}
-            onSelect={(checked) => onSelect(item.id, checked)}
-            onQuantityChange={(quantity) => onQuantityChange(item.id, quantity)}
-            onDelete={() => onDelete(item.id)}
-            onSave={() => onSave(item.id)}
-          />
-        ))}
-        {/* Clear cart button — hidden for now */}
-        {onClear && (
-          <div className="flex justify-end px-4 py-5 lg:px-5">
-            <button
-              type="button"
-              onClick={onClear}
-              className="rounded-md border border-slate-400 px-4 py-2 text-xs font-semibold text-slate-600 hover:border-auth-primary hover:text-auth-primary"
-            >
-              {clearLabel}
-            </button>
+  return (
+    <section className="min-w-0" aria-labelledby={showHeader ? headingId : undefined}>
+      {showHeader ? (
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 id={headingId} className="text-lg font-bold text-slate-950 sm:text-xl">
+              {title}
+            </h2>
+            <p className="mt-2 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
           </div>
-        )}
-      </div>
+          {headerAction}
+        </div>
+      ) : null}
+
+      <CartItemList
+        items={items}
+        selectedIds={selectedIds}
+        onSelect={onSelect}
+        onQuantityChange={onQuantityChange}
+        onDelete={onDelete}
+        onSave={onSave}
+        saved={saved}
+        showSaveForLater={showSaveForLater}
+        readOnlyQuantity={readOnlyQuantity}
+        selectable={selectable}
+        savingWishlistId={savingWishlistId}
+        rowClassName={rowClassName}
+        clearLabel={clearLabel}
+        onClear={onClear}
+      />
     </section>
+  )
+}
+
+function CartSectionHeader({ title, subtitle }) {
+  return (
+    <div className="mb-4 min-w-0">
+      <h2 className="text-lg font-bold text-slate-950 sm:text-xl">{title}</h2>
+      <p className="mt-2 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
+    </div>
+  )
+}
+
+function CartWithSummaryLayout({ cartHeader, cartItems, summary, savedSection }) {
+  return (
+    <div className="min-w-0 space-y-6 sm:space-y-8">
+      <div className="min-w-0 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-x-8">
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1">{cartHeader}</div>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-2">{cartItems}</div>
+        <div className="min-w-0 lg:col-start-2 lg:row-start-2 lg:self-start">
+          <div className="mt-6 lg:sticky lg:top-20 lg:mt-0">{summary}</div>
+        </div>
+      </div>
+      {savedSection}
+    </div>
   )
 }
 
@@ -275,7 +356,7 @@ function CartSummary({
   const isFreeDelivery = netDelivery === 0
 
   return (
-    <aside className="rounded-xl bg-white p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start">
+    <aside className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-slate-900">Order Total</h2>
         {isLoadingTotals && (
@@ -456,41 +537,35 @@ function DeliveryModal({ open, onClose, onProceedCheckout }) {
   )
 }
 
-function MobileSavedItemsSection({ cartHasItems }) {
+function SavedForLaterSection() {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const savedItems = useSelector(selectSavedCartItems)
   const { restoreSavedItem, deleteSaved, clearSaved } = useCartActions()
 
   if (!isAuthenticated) return null
-  if (savedItems.length === 0 && !cartHasItems) return null
 
   if (savedItems.length === 0) {
-    return (
-      <div className="lg:hidden">
-        <CartSavedItemsEmptyState />
-      </div>
-    )
+    return <CartSavedItemsEmptyState />
   }
 
   return (
-    <div className="lg:hidden">
-      <ItemTable
-        title="Saved items"
-        subtitle="Items you saved for later"
-        items={savedItems}
-        saved
-        selectable={false}
-        showSaveForLater
-        readOnlyQuantity
-        selectedIds={new Set()}
-        onSelect={() => {}}
-        onQuantityChange={() => {}}
-        onDelete={deleteSaved}
-        onSave={restoreSavedItem}
-        clearLabel="Clear saved items"
-        onClear={clearSaved}
-      />
-    </div>
+    <ItemTable
+      title="Saved For Later"
+      subtitle="Items you saved for later"
+      items={savedItems}
+      saved
+      selectable={false}
+      showSaveForLater
+      readOnlyQuantity
+      selectedIds={new Set()}
+      onSelect={() => {}}
+      onQuantityChange={() => {}}
+      onDelete={deleteSaved}
+      onSave={restoreSavedItem}
+      clearLabel="Clear saved items"
+      onClear={clearSaved}
+      rowClassName={LINE_ITEM_TABLE_ROW_FULL_WIDTH_CLASS}
+    />
   )
 }
 
@@ -529,6 +604,16 @@ export default function CartPage() {
     saveItem,
   } = useCartActions()
   const [deliveryOpen, setDeliveryOpen] = useState(false)
+  const [savingWishlistId, setSavingWishlistId] = useState(null)
+
+  const handleSaveToWishlist = async (itemId) => {
+    setSavingWishlistId(itemId)
+    try {
+      await saveItem(itemId)
+    } finally {
+      setSavingWishlistId(null)
+    }
+  }
 
   const selectedItems = useMemo(
     () => items.filter((item) => item.selected !== false),
@@ -564,8 +649,6 @@ export default function CartPage() {
     navigate('/checkout', { state: { cartItemIds } })
   }
 
-  const savedItemsTrigger = <SavedItemsTrigger className="hidden lg:inline-flex" />
-  const elevateSavedFab = items.length > 0 && selectedItems.length > 0
 
   return (
     <SiteLayout>
@@ -576,37 +659,37 @@ export default function CartPage() {
           ) : items.length === 0 ? (
             <div className="min-w-0 space-y-6 sm:space-y-8">
               <section className="min-w-0">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-bold text-slate-950 sm:text-xl">Shopping Cart</h2>
-                    <p className="mt-2 text-xs text-slate-500 sm:text-sm">
-                      View your shopping cart and proceed to checkout
-                    </p>
-                  </div>
-                  {savedItemsTrigger}
+                <div className="mb-4">
+                  <h2 className="text-lg font-bold text-slate-950 sm:text-xl">Shopping Cart</h2>
+                  <p className="mt-2 text-xs text-slate-500 sm:text-sm">
+                    View your shopping cart and proceed to checkout
+                  </p>
                 </div>
                 <EmptyCartState />
               </section>
-              <MobileSavedItemsSection cartHasItems={false} />
+              <SavedForLaterSection />
             </div>
           ) : (
-            <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8">
-              <div className="min-w-0">
-                <ItemTable
+            <CartWithSummaryLayout
+              cartHeader={(
+                <CartSectionHeader
                   title="Shopping Cart"
                   subtitle="View your shopping cart and proceed to checkout"
-                  headerAction={savedItemsTrigger}
+                />
+              )}
+              cartItems={(
+                <CartItemList
                   items={items}
                   showSaveForLater={isAuthenticated}
                   selectedIds={new Set(items.filter((item) => item.selected !== false).map((item) => item.id))}
                   onSelect={selectItem}
                   onQuantityChange={updateQuantity}
                   onDelete={deleteItem}
-                  onSave={saveItem}
+                  onSave={handleSaveToWishlist}
+                  savingWishlistId={savingWishlistId}
                 />
-              </div>
-
-              <div className="min-w-0 space-y-6">
+              )}
+              summary={(
                 <CartSummary
                   itemCount={orderAmounts.itemCount}
                   listSubtotal={orderAmounts.listSubtotal}
@@ -618,9 +701,9 @@ export default function CartPage() {
                   onOpenDelivery={() => setDeliveryOpen(true)}
                   onProceedCheckout={handleProceedCheckout}
                 />
-                <MobileSavedItemsSection cartHasItems />
-              </div>
-            </div>
+              )}
+              savedSection={<SavedForLaterSection />}
+            />
           )}
 
           <div className="min-w-0 space-y-6 sm:space-y-8">
@@ -645,10 +728,6 @@ export default function CartPage() {
           </div>
         </Container>
       </main>
-
-      {!isLoadingCart ? (
-        <SavedItemsFloatingTrigger elevateForMobileBar={elevateSavedFab} />
-      ) : null}
 
       {!isLoadingCart ? (
         <MobileCheckoutBar

@@ -1,5 +1,10 @@
 import Images from '../utils/Images'
 
+/** Native hero banner artwork size — keeps containers aligned with source assets. */
+export const HERO_BANNER_WIDTH = 1286
+export const HERO_BANNER_HEIGHT = 1223
+export const HERO_BANNER_ASPECT_RATIO = `${HERO_BANNER_WIDTH} / ${HERO_BANNER_HEIGHT}`
+
 export const heroBanners = [
   {
     id: 'hero-banner-one',

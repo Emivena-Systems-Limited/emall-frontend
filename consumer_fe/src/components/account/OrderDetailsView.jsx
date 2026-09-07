@@ -2,7 +2,6 @@ import { Link, useNavigate } from 'react-router'
 import { useState } from 'react'
 import { useSelector } from 'react-redux'
 import { ChevronRight, Download, Loader2, Package, Star } from 'lucide-react'
-import { formatCediPriceParts } from '../../utils/formatCurrency'
 import {
   buildBuyAgainCartArgs,
   canReturnOrderItem,
@@ -27,11 +26,11 @@ import { useCartActions } from '../../hooks/useCartActions'
 import { hasBackendProductId } from '../../utils/normalizeCart'
 import OrderManagePanel from './OrderManagePanel'
 import OrderTrackingTimeline from './OrderTrackingTimeline'
-
-const tableColumns =
-  'sm:grid-cols-[minmax(0,1fr)_minmax(5.5rem,7rem)_minmax(5.5rem,6.5rem)_minmax(5.5rem,7rem)] sm:gap-x-6'
-
-const tableCellPadding = 'px-3 sm:px-4'
+import LineItemPrice from '../shared/LineItemPrice'
+import {
+  LINE_ITEM_TABLE_CELL_PADDING,
+  LINE_ITEM_TABLE_ROW_CLASS,
+} from '../../constants/lineItemTable'
 
 const itemDeliveryStatusStyles = {
   'Pending Delivery': 'bg-amber-50 text-amber-700',
@@ -63,37 +62,6 @@ function ItemDeliveryBadge({ status }) {
   )
 }
 
-function OrderTablePrice({ amountGhs, compareAmountGhs, align = 'center' }) {
-  const priceParts = formatCediPriceParts(amountGhs)
-  const compareParts = compareAmountGhs != null ? formatCediPriceParts(compareAmountGhs) : null
-  const alignClass = align === 'right' ? 'items-end text-right' : 'items-center text-center'
-  const rowAlignClass = align === 'right' ? 'justify-end' : 'justify-center'
-
-  return (
-    <div className={`flex flex-col gap-0.5 ${alignClass}`}>
-      <span className={`inline-flex items-baseline leading-none text-slate-950 ${rowAlignClass}`}>
-        <span className="mr-0.5 self-start text-[0.625rem] font-normal leading-none">{priceParts.currency}</span>
-        <span className="text-base font-bold tabular-nums">{priceParts.whole}</span>
-        <span className="relative -top-1 text-[0.625rem] font-bold tabular-nums leading-none">
-          .{priceParts.fraction}
-        </span>
-      </span>
-      {compareParts ? (
-        <span
-          className={`inline-flex items-baseline leading-none text-slate-400 line-through ${rowAlignClass}`}
-          aria-label={`Regular price ${compareParts.currency}${compareParts.whole}.${compareParts.fraction}`}
-        >
-          <span className="mr-0.5 self-start text-[0.5625rem] font-normal leading-none">{compareParts.currency}</span>
-          <span className="text-[0.6875rem] font-medium tabular-nums">{compareParts.whole}</span>
-          <span className="relative -top-0.5 text-[0.5625rem] font-medium tabular-nums leading-none">
-            .{compareParts.fraction}
-          </span>
-        </span>
-      ) : null}
-    </div>
-  )
-}
-
 function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
   const navigate = useNavigate()
   const { addToCart } = useCartActions()
@@ -104,7 +72,7 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
   const reviewCount = resolveOrderItemVendorReviewCount(item)
   const productHref = resolveOrderItemProductHref(item) || '/'
   const productName = item.product_name ?? item.name ?? 'Product'
-  const { unitPrice, comparePrice, lineTotal, compareLineTotal } = resolveOrderItemPricing(item)
+  const { unitPrice, comparePrice } = resolveOrderItemPricing(item)
   const canReview = canReviewOrderItem(item)
   const canReturn = canReturnOrderItem(item)
   const reviewLink = buildLeaveReviewLink({ item, orderId })
@@ -133,8 +101,8 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
   }
 
   return (
-    <article className={`grid grid-cols-1 gap-3 border-b border-slate-200 py-5 last:border-b-0 sm:items-center ${tableColumns}`}>
-      <div className={`flex min-w-0 items-center gap-3 ${tableCellPadding}`}>
+    <article className={LINE_ITEM_TABLE_ROW_CLASS}>
+      <div className={`flex min-w-0 items-center gap-3 ${LINE_ITEM_TABLE_CELL_PADDING}`}>
         {image ? (
           <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
             <img src={image} alt="" className="size-full object-contain p-1" />
@@ -199,19 +167,14 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
         </div>
       </div>
 
-      <div className={`flex items-center justify-between sm:justify-center ${tableCellPadding}`}>
-        <span className="text-xs font-semibold text-slate-500 sm:hidden">Price</span>
-        <OrderTablePrice amountGhs={unitPrice} compareAmountGhs={comparePrice} />
-      </div>
-
-      <div className={`flex items-center justify-between sm:justify-center ${tableCellPadding}`}>
+      <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
         <span className="text-xs font-semibold text-slate-500 sm:hidden">Quantity</span>
         <span className="text-sm font-bold tabular-nums text-slate-950">{Math.max(1, Number(item.quantity) || 1)}</span>
       </div>
 
-      <div className={`flex items-center justify-between sm:justify-end ${tableCellPadding}`}>
-        <span className="text-xs font-semibold text-slate-500 sm:hidden">Subtotal</span>
-        <OrderTablePrice amountGhs={lineTotal} compareAmountGhs={compareLineTotal} align="right" />
+      <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
+        <span className="text-xs font-semibold text-slate-500 sm:hidden">Price</span>
+        <LineItemPrice amount={unitPrice} compareAmount={comparePrice} />
       </div>
     </article>
   )
@@ -315,15 +278,8 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
       <OrderTrackingTimeline record={raw} variant="status" compact />
 
       <section className="w-full pt-1">
-        <div className={`hidden bg-auth-primary py-3 text-sm font-bold text-white sm:grid sm:items-center ${tableColumns}`}>
-          <span className={tableCellPadding}>Product</span>
-          <span className={`text-center ${tableCellPadding}`}>Price</span>
-          <span className={`text-center ${tableCellPadding}`}>Quantity</span>
-          <span className={`text-right ${tableCellPadding}`}>Subtotal</span>
-        </div>
-
         {items.length ? (
-          <div>
+          <div className="border-t border-slate-200">
             {items.map((item) => (
               <OrderDetailsTableRow
                 key={item.id ?? `${item.product_id}-${item.sku}`}

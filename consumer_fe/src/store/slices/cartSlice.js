@@ -171,6 +171,24 @@ export function preserveCartDisplayFields(incomingItems, localItems = []) {
   })
 }
 
+function findCartItemByRef(items, itemId) {
+  const target = String(itemId ?? '')
+  return items.find((current) => (
+    String(current.id) === target
+    || String(current.key) === target
+    || String(current.cartItemId ?? '') === target
+  ))
+}
+
+function filterOutCartItemByRef(items, itemId) {
+  const target = String(itemId ?? '')
+  return items.filter((current) => (
+    String(current.id) !== target
+    && String(current.key) !== target
+    && String(current.cartItemId ?? '') !== target
+  ))
+}
+
 export function buildCartItem(product, options = {}) {
   const productId = options.productId ?? getProductId(product)
   const variantId = options.variantId ?? getVariantId(product)
@@ -373,17 +391,17 @@ const cartSlice = createSlice({
       if (item) item.selected = Boolean(selected)
     },
     saveForLater(state, action) {
-      const item = state.items.find((current) => current.id === action.payload || current.key === action.payload)
+      const item = findCartItemByRef(state.items, action.payload)
       if (!item) return
-      state.items = state.items.filter((current) => current.id !== action.payload && current.key !== action.payload)
+      state.items = filterOutCartItemByRef(state.items, action.payload)
       if (!state.savedItems.some((saved) => saved.key === item.key)) {
         state.savedItems.push(item)
       }
     },
     moveSavedToCart(state, action) {
-      const item = state.savedItems.find((current) => current.id === action.payload || current.key === action.payload)
+      const item = findCartItemByRef(state.savedItems, action.payload)
       if (!item) return
-      state.savedItems = state.savedItems.filter((current) => current.id !== action.payload && current.key !== action.payload)
+      state.savedItems = filterOutCartItemByRef(state.savedItems, action.payload)
 
       const existing = state.items.find((current) => current.key === item.key)
       if (existing) {
@@ -398,7 +416,7 @@ const cartSlice = createSlice({
       state.items.push({ ...item, selected: true })
     },
     removeSavedItem(state, action) {
-      state.savedItems = state.savedItems.filter((item) => item.id !== action.payload && item.key !== action.payload)
+      state.savedItems = filterOutCartItemByRef(state.savedItems, action.payload)
     },
     clearSavedItems(state) {
       state.savedItems = []

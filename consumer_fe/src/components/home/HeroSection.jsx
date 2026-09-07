@@ -6,9 +6,6 @@ import HeroQuickActions from './HeroQuickActions'
 
 const revealEase = [0.16, 1, 0.3, 1]
 
-/** Repeat slides so each page can show a fresh set on navigation */
-const carouselBanners = [...heroBanners, ...heroBanners, ...heroBanners]
-
 export default function HeroSection() {
   return (
     <section aria-label="Promotions and quick actions" className="bg-[#f2f2f2] pt-4 sm:pt-5 lg:pt-6">
@@ -18,7 +15,7 @@ export default function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: revealEase }}
         >
-          <HeroBannerCarousel banners={carouselBanners} />
+          <HeroBannerCarousel banners={heroBanners} />
         </motion.div>
       </Container>
 

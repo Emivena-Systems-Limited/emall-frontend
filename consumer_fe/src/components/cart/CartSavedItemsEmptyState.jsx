@@ -6,14 +6,14 @@ export default function CartSavedItemsEmptyState() {
     <section aria-labelledby="saved-items-heading" className="min-w-0">
       <div className="mb-4">
         <h2 id="saved-items-heading" className="text-lg font-bold text-slate-950 sm:text-xl">
-          Saved items
+          Saved For Later
         </h2>
         <p className="mt-2 text-xs text-slate-500 sm:text-sm">
-          View your shopping cart online and checkout
+          Items you saved for later
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl bg-white">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50">
         <CartSectionEmptyState
           icon={Bookmark}
           eyebrow="Nothing saved"

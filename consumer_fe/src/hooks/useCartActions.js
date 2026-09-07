@@ -1,6 +1,8 @@
 import { useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useQueryClient } from '@tanstack/react-query'
 import { notify } from '../lib/notify'
+import { addToWishlist } from '../services/wishlistService'
 import {
   addItem,
   buildCartItem,
@@ -40,6 +42,7 @@ import {
   parseAddToCartResponse,
   resolveCartLineItemId,
   applyCartLineMutationResponse,
+  hasBackendProductId,
 } from '../utils/normalizeCart'
 import { isValidGuestCartId } from '../utils/guestCartId'
 import { coalesceQuantitySync } from '../utils/cartQuantitySync'
@@ -67,6 +70,34 @@ function findLocalCartItem(itemId) {
     || String(current.key) === target
     || String(current.cartItemId ?? '') === target
   ))
+}
+
+async function removeCartLineFromBackend(item) {
+  const isAuthenticated = store.getState().auth.isAuthenticated
+  const lineItemId = resolveCartLineItemId(item)
+  if (!lineItemId) return
+
+  if (isAuthenticated) {
+    await ensureAuthCartReady()
+    await removeCartItem(lineItemId)
+    return
+  }
+
+  const guestCartId = store.getState().cart.guestCartId
+  if (isValidGuestCartId(guestCartId)) {
+    await removeGuestCartItem(lineItemId, guestCartId)
+  }
+}
+
+function isWishlistDuplicateError(error) {
+  const message = String(
+    error?.response?.data?.message
+    ?? error?.response?.data?.reason
+    ?? error?.message
+    ?? '',
+  ).toLowerCase()
+
+  return /already|exist|duplicate/.test(message)
 }
 
 function syncCartLineMutation(dispatch, itemId, response) {
@@ -153,6 +184,7 @@ function withAddedLineQuantity(mergedItem, apiItem, existing, addedItem) {
 
 export function useCartActions() {
   const dispatch = useDispatch()
+  const queryClient = useQueryClient()
   const items = useSelector(selectCartItems)
 
   const addToCart = useCallback(async (product, options = {}) => {
@@ -367,10 +399,50 @@ export function useCartActions() {
     }
   }, [dispatch, items])
 
-  const saveItem = useCallback((itemId) => {
-    bumpCartFetchEpoch()
-    dispatch(saveForLater(itemId))
-  }, [dispatch])
+  const saveItem = useCallback(async (itemId) => {
+    const isAuthenticated = store.getState().auth.isAuthenticated
+    if (!isAuthenticated) {
+      notify.error('Please sign in to save items to your wishlist')
+      return false
+    }
+
+    const item = findLocalCartItem(itemId)
+    if (!item) {
+      notify.error('Unable to find this cart item')
+      return false
+    }
+
+    const productId = String(item.productId ?? item.product_id ?? '').trim()
+    if (!hasBackendProductId(productId)) {
+      notify.error('This product cannot be saved to your wishlist yet.')
+      return false
+    }
+
+    const wishlistPayload = {
+      product_id: productId,
+      product_variant_id: item.variantId ? String(item.variantId) : null,
+    }
+
+    try {
+      try {
+        await addToWishlist(wishlistPayload)
+      } catch (error) {
+        if (!isWishlistDuplicateError(error)) {
+          throw error
+        }
+      }
+
+      await removeCartLineFromBackend(item)
+      bumpCartFetchEpoch()
+      dispatch(saveForLater(itemId))
+      await queryClient.invalidateQueries({ queryKey: ['user-wishlist'] })
+      notify.success(`${item.name} saved to wishlist`)
+      return true
+    } catch (error) {
+      notify.fromError(error, 'Could not save item to your wishlist')
+      return false
+    }
+  }, [dispatch, queryClient])
 
   const restoreSavedItem = useCallback((itemId) => {
     const item = store.getState().cart.savedItems.find(

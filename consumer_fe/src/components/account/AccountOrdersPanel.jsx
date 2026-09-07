@@ -319,7 +319,6 @@ function OrderDetailsSkeleton() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="hidden h-11 bg-slate-100 sm:block" />
         {Array.from({ length: 3 }, (_, index) => (
           <div key={index} className="flex items-center gap-3 border-t border-slate-100 px-4 py-5 first:border-t-0 sm:first:border-t">
             <SkeletonBlock className="size-16 shrink-0 rounded-lg" />

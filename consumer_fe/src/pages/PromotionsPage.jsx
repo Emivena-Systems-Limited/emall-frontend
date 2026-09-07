@@ -8,8 +8,17 @@ import CategoryQuickFilterTabs from '../components/category/CategoryQuickFilterT
 import PromotionsBreadcrumb from '../components/promotions/PromotionsBreadcrumb'
 import CategoryFilterSidebar from '../components/category/CategoryFilterSidebar'
 import CategoryFilterDrawer from '../components/category/CategoryFilterDrawer'
-import PromotionsProductsEmptyState from '../components/promotions/PromotionsProductsEmptyState'
+import CategoryProductsPanel from '../components/category/CategoryProductsPanel'
 import { useCategoryCatalog } from '../hooks/useCategoryCatalog'
+import { useProductCatalog } from '../hooks/useProductCatalog'
+import {
+  CATALOG_BRAND_PARAM,
+  CATALOG_FILTER_PARAM,
+  CATALOG_PAGE_PARAM,
+  CATALOG_SIZE_PARAM,
+  CATALOG_STORE_PARAM,
+} from '../constants/productCatalog'
+import { getQuickFilterLabel } from '../constants/categoryQuickFilters'
 import {
   findCategoryBySlug,
   formatCategorySlugLabel,
@@ -20,9 +29,21 @@ import {
   formatMultiFilterLabel,
   getSelectedFilterValues,
 } from '../utils/listingFilterParams'
+import {
+  buildCatalogApiParams,
+  countSidebarCatalogFilters,
+} from '../utils/catalogQueryParams'
+import { mergeCatalogFacets } from '../utils/normalizeProductCatalog'
+
+const EMPTY_PRODUCTS = []
+const EMPTY_FACETS = { brands: [], colors: [], sizes: [], stores: [] }
+
+function selectedFacetOptions(searchParams, key) {
+  return getSelectedFilterValues(searchParams, key).map((value) => ({ id: value, label: value }))
+}
 
 export default function PromotionsPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
 
   useEffect(() => {
@@ -48,6 +69,9 @@ export default function PromotionsPage() {
     [searchParams],
   )
 
+  const activeQuickFilterId = searchParams.get(CATALOG_FILTER_PARAM) || 'all'
+  const activeQuickFilterLabel = getQuickFilterLabel(activeQuickFilterId)
+
   const selectedCategoryLabels = selectedCategorySlugs.map(
     (slug) => findCategoryBySlug(parentCategories, slug)?.name ?? formatCategorySlugLabel(slug),
   )
@@ -63,14 +87,61 @@ export default function PromotionsPage() {
     ? formatMultiFilterLabel(selectedSubcategoryLabels, null)
     : null
 
-  const emptyStateLabel = formatMultiFilterLabel(
+  const catalogParams = useMemo(
+    () => buildCatalogApiParams({
+      searchParams,
+      categorySlugs: selectedCategorySlugs,
+      subcategorySlugs: selectedSubcategorySlugs,
+    }),
+    [searchParams, selectedCategorySlugs, selectedSubcategorySlugs],
+  )
+
+  const catalogQuery = useProductCatalog(catalogParams)
+
+  const products = catalogQuery.data?.products ?? EMPTY_PRODUCTS
+  const pagination = catalogQuery.data?.pagination ?? {
+    currentPage: catalogParams.page,
+    lastPage: 1,
+    perPage: catalogParams.per_page,
+    total: 0,
+  }
+
+  const facetOptions = useMemo(
+    () => mergeCatalogFacets(
+      catalogQuery.data?.facets ?? EMPTY_FACETS,
+      {
+        brands: selectedFacetOptions(searchParams, CATALOG_BRAND_PARAM),
+        sizes: selectedFacetOptions(searchParams, CATALOG_SIZE_PARAM),
+        stores: selectedFacetOptions(searchParams, CATALOG_STORE_PARAM),
+      },
+    ),
+    [catalogQuery.data?.facets, searchParams],
+  )
+
+  const categoryFilterLabel = formatMultiFilterLabel(
     selectedSubcategoryLabels.length ? selectedSubcategoryLabels : selectedCategoryLabels,
     'all categories',
   )
 
+  const emptyStateLabel = activeQuickFilterId !== 'all' && activeQuickFilterLabel
+    ? activeQuickFilterLabel
+    : categoryFilterLabel
+
   const categoryHref = selectedCategorySlugs.length === 1
     ? `/promotions?category=${selectedCategorySlugs[0]}`
     : '/promotions'
+
+  const activeFilterCount = countSidebarCatalogFilters(searchParams)
+
+  const handlePageChange = (page) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (page <= 1) next.delete(CATALOG_PAGE_PARAM)
+      else next.set(CATALOG_PAGE_PARAM, String(page))
+      return next
+    }, { replace: true })
+    document.getElementById('promotions-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <SiteLayout>
@@ -93,15 +164,21 @@ export default function PromotionsPage() {
               categoryLabel={categoryLabel}
               categoryHref={categoryHref}
               subcategoryLabel={subcategoryLabel}
+              quickFilterLabel={activeQuickFilterId !== 'all' ? activeQuickFilterLabel : null}
             />
 
             <button
               type="button"
               onClick={() => setIsFilterDrawerOpen(true)}
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-auth-primary hover:text-auth-primary sm:text-sm lg:hidden"
+              className="relative flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-auth-primary hover:text-auth-primary sm:text-sm lg:hidden"
             >
               <SlidersHorizontal className="size-3.5 sm:size-4" strokeWidth={2.25} aria-hidden />
               Filters
+              {activeFilterCount > 0 ? (
+                <span className="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-auth-primary px-1.5 text-[0.65rem] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              ) : null}
             </button>
           </div>
 
@@ -109,12 +186,24 @@ export default function PromotionsPage() {
             <CategoryFilterSidebar
               parentCategories={parentCategories}
               isLoading={isLoading}
+              isFacetsLoading={catalogQuery.isPending && products.length === 0}
+              facetOptions={facetOptions}
               variant="promotions"
             />
 
-            <div className="flex min-w-0 flex-1 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60 sm:p-4">
-              <PromotionsProductsEmptyState categoryLabel={emptyStateLabel} />
-            </div>
+            <CategoryProductsPanel
+              id="promotions-products"
+              products={products}
+              pagination={pagination}
+              isPending={catalogQuery.isPending}
+              isFetching={catalogQuery.isFetching}
+              isError={catalogQuery.isError}
+              isPlaceholderData={catalogQuery.isPlaceholderData}
+              error={catalogQuery.error}
+              emptyLabel={emptyStateLabel}
+              onRetry={() => catalogQuery.refetch()}
+              onPageChange={handlePageChange}
+            />
           </div>
         </Container>
       </section>
@@ -124,6 +213,8 @@ export default function PromotionsPage() {
         onClose={() => setIsFilterDrawerOpen(false)}
         parentCategories={parentCategories}
         isLoading={isLoading}
+        isFacetsLoading={catalogQuery.isPending && products.length === 0}
+        facetOptions={facetOptions}
         variant="promotions"
       />
     </SiteLayout>

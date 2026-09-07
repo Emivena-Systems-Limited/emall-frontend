@@ -5,6 +5,7 @@ import HeroBannerCard from './HeroBannerCard'
 
 const ease = [0.16, 1, 0.3, 1]
 const AUTOPLAY_MS = 5000
+
 function useSlidesPerView(containerRef) {
   const [slidesPerView, setSlidesPerView] = useState(1)
 
@@ -19,11 +20,6 @@ function useSlidesPerView(containerRef) {
 
       if (width < 1024) {
         setSlidesPerView(2)
-        return
-      }
-
-      if (width < 1280) {
-        setSlidesPerView(3)
         return
       }
 

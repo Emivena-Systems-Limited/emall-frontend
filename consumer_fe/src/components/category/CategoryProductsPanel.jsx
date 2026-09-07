@@ -133,6 +133,7 @@ function CatalogPagination({ page, lastPage, total, onPageChange, disabled }) {
 }
 
 export default function CategoryProductsPanel({
+  id = 'category-products',
   products = [],
   pagination = { currentPage: 1, lastPage: 1, perPage: 20, total: 0 },
   isPending = false,
@@ -149,7 +150,7 @@ export default function CategoryProductsPanel({
 
   return (
     <div
-      id="category-products"
+      id={id}
       aria-busy={isPending || isFetching}
       className="flex min-w-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60 sm:p-4"
     >

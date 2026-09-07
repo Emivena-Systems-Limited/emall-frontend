@@ -5,7 +5,12 @@ function BreadcrumbSeparator() {
   return <ChevronRight className="size-3.5 shrink-0 text-slate-300" strokeWidth={2.5} aria-hidden />
 }
 
-export default function PromotionsBreadcrumb({ categoryLabel, categoryHref, subcategoryLabel }) {
+export default function PromotionsBreadcrumb({
+  categoryLabel,
+  categoryHref,
+  subcategoryLabel,
+  quickFilterLabel,
+}) {
   return (
     <nav aria-label="Breadcrumb">
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -23,7 +28,7 @@ export default function PromotionsBreadcrumb({ categoryLabel, categoryHref, subc
           <BreadcrumbSeparator />
         </li>
 
-        {categoryLabel ? (
+        {categoryLabel || quickFilterLabel ? (
           <>
             <li>
               <Link
@@ -55,10 +60,16 @@ export default function PromotionsBreadcrumb({ categoryLabel, categoryHref, subc
                   </span>
                 </li>
               </>
-            ) : (
+            ) : categoryLabel ? (
               <li aria-current="page">
                 <span className="rounded-md bg-[#FFF4C2] px-2 py-1 text-xs font-semibold text-slate-800 sm:text-sm">
                   {categoryLabel}
+                </span>
+              </li>
+            ) : (
+              <li aria-current="page">
+                <span className="rounded-md bg-[#FFF4C2] px-2 py-1 text-xs font-semibold text-slate-800 sm:text-sm">
+                  {quickFilterLabel}
                 </span>
               </li>
             )}

@@ -8,3 +8,16 @@ export const CATEGORY_QUICK_FILTERS = [
   { id: 'under-100', label: 'Under 100GH₵' },
   { id: 'under-50', label: 'Under GH₵50' },
 ]
+
+export const PROMOTION_FILTER_RECOMMENDED = 'recommended'
+export const PROMOTION_FILTER_BESTSELLERS = 'bestsellers'
+export const PROMOTION_FILTER_FLASH_SALES = 'flash-sales'
+
+export function getPromotionsFilterHref(filterId) {
+  if (!filterId || filterId === 'all') return '/promotions'
+  return `/promotions?filter=${filterId}`
+}
+
+export function getQuickFilterLabel(filterId) {
+  return CATEGORY_QUICK_FILTERS.find((filter) => filter.id === filterId)?.label ?? null
+}
