@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useDispatch, useSelector } from 'react-redux'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronDown, Loader2, LogOut, Package, UserRound } from 'lucide-react'
+import { ChevronDown, Loader2, LogOut, UserRound } from 'lucide-react'
 import notify from '../../../lib/notify'
 import { useLogoutMutation } from '../../../hooks/useAuthMutations'
 import { logout } from '../../../store/slices/authSlice'
@@ -29,14 +29,6 @@ function AccountDropdownPanel({ open, onClose, onLogout, isLoggingOut }) {
           >
             <UserRound className="size-4 text-auth-primary" />
             My Account
-          </Link>
-          <Link
-            to="/account/orders"
-            onClick={onClose}
-            className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-slate-50"
-          >
-            <Package className="size-4 text-auth-primary" />
-            My Orders
           </Link>
           <button
             type="button"
@@ -128,14 +120,6 @@ export default function NavbarAuthLinks({ stacked = false, compact = false, onNa
           >
             <UserRound className="size-5" />
             My Account
-          </Link>
-          <Link
-            to="/account/orders"
-            onClick={onNavigate}
-            className="flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium text-white transition-colors hover:bg-white/10"
-          >
-            <Package className="size-5" />
-            My Orders
           </Link>
           <button
             type="button"

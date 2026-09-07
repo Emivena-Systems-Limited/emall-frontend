@@ -247,24 +247,61 @@ function resolveGroupPresentation(group) {
   return everyValueHasImage ? 'images' : 'chips'
 }
 
-function QuantitySelector({ value, onChange, disabled }) {
+function QuantitySelector({ value, onChange, disabled, max }) {
+  const [draftValue, setDraftValue] = useState(String(value))
+  const maximum = Number.isFinite(max) && max > 0 ? Math.floor(max) : undefined
+
+  const commitValue = (nextValue) => {
+    const parsed = Number.parseInt(nextValue, 10)
+    const normalized = Number.isFinite(parsed)
+      ? Math.min(maximum ?? parsed, Math.max(1, parsed))
+      : 1
+    setDraftValue(String(normalized))
+    onChange(normalized)
+  }
+
   return (
     <div className="inline-flex h-12 min-w-36 items-center justify-between rounded-full bg-slate-50 px-2.5 sm:h-14 sm:min-w-40 sm:px-3">
       <button
         type="button"
         aria-label="Decrease quantity"
         disabled={disabled || value <= 1}
-        onClick={() => onChange(Math.max(1, value - 1))}
+        onClick={() => commitValue(String(Math.max(1, value - 1)))}
         className="flex size-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary disabled:cursor-not-allowed disabled:opacity-40 sm:size-10"
       >
         <Minus className="size-5" />
       </button>
-      <span className="min-w-10 text-center text-base font-bold text-auth-primary sm:min-w-12 sm:text-lg">{value}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        min="1"
+        max={maximum}
+        step="1"
+        value={draftValue}
+        disabled={disabled}
+        aria-label="Product quantity"
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => {
+          const nextValue = event.target.value
+          if (nextValue === '') {
+            setDraftValue('')
+            return
+          }
+          if (!/^\d+$/.test(nextValue)) return
+          commitValue(nextValue)
+        }}
+        onBlur={() => commitValue(draftValue)}
+        onKeyDown={(event) => {
+          if (['e', 'E', '+', '-', '.'].includes(event.key)) event.preventDefault()
+          if (event.key === 'Enter') event.currentTarget.blur()
+        }}
+        className="h-9 w-12 appearance-none rounded-lg border border-transparent bg-transparent px-1 text-center text-base font-bold text-auth-primary outline-none transition focus:border-auth-primary/30 focus:bg-white focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-14 sm:text-lg [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
       <button
         type="button"
         aria-label="Increase quantity"
-        disabled={disabled}
-        onClick={() => onChange(value + 1)}
+        disabled={disabled || (maximum != null && value >= maximum)}
+        onClick={() => commitValue(String(maximum == null ? value + 1 : Math.min(maximum, value + 1)))}
         className="flex size-9 items-center justify-center rounded-full text-auth-primary transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 sm:size-10"
       >
         <Plus className="size-5" />
@@ -421,6 +458,12 @@ function ProductInfoPanel({
   const outOfStock = activeVariant?.quantity != null
     ? toNumber(activeVariant.quantity, 0) <= 0
     : !product.inStock
+  const maximumQuantity = Math.max(1, Math.floor(
+    activeVariant?.quantity != null
+      ? toNumber(activeVariant.quantity, 0)
+      : toNumber(product.stockCount, 1),
+  ))
+  const purchaseQuantity = Math.min(quantity, maximumQuantity)
   const compatibleModelValues = compatibleModelOptions
   const variantOptionGroups = product.variantOptionGroups ?? []
   const selectedGroupValues = new Set(
@@ -471,7 +514,7 @@ function ProductInfoPanel({
       silentSuccess: true,
       productId: product.backendId ?? product.id,
       syncable: Boolean(product.backendId ?? product.id),
-      quantity,
+      quantity: purchaseQuantity,
       price: displayPriceInfo.price,
       compareAt: displayPriceInfo.compareAt,
       variantId: activeVariant?.id ?? null,
@@ -648,7 +691,13 @@ function ProductInfoPanel({
       <div className="mt-4 border-t border-slate-200 pt-4">
         <p className="text-xs font-bold text-slate-950">Quantity</p>
         <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
-          <QuantitySelector value={quantity} onChange={setQuantity} disabled={outOfStock} />
+          <QuantitySelector
+            key={`${activeVariant?.id ?? 'product'}-${maximumQuantity}`}
+            value={purchaseQuantity}
+            onChange={setQuantity}
+            disabled={outOfStock}
+            max={maximumQuantity}
+          />
           <p className="text-sm leading-5">
             <span
               className={
