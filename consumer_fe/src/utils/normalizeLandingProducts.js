@@ -255,6 +255,13 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
       product.store_name,
       product.vendor?.name,
     ),
+    deliverySource: {
+      store: product.store,
+      vendor: product.vendor,
+      delivers_to_user_location: product.delivers_to_user_location,
+      delivery_eligible: product.delivery_eligible,
+      serves_location: product.serves_location,
+    },
     variants: filterFields.variants,
     variantFacets: filterFields.variantFacets,
     brand: filterFields.brand,

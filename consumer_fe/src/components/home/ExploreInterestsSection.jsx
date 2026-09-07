@@ -26,6 +26,9 @@ export default function ExploreInterestsSection({ products = [] }) {
     0,
     HOMEPAGE_PRODUCT_LIMIT,
   )
+  const productSetKey = displayProducts
+    .map((product) => product.backendId ?? product.id)
+    .join('|')
 
   return (
     <section
@@ -52,7 +55,7 @@ export default function ExploreInterestsSection({ products = [] }) {
           </div>
 
           <motion.div
-            key={displayProducts.length}
+            key={productSetKey}
             variants={containerVariants}
             initial="hidden"
             whileInView="show"

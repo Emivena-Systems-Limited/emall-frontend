@@ -5,6 +5,7 @@ import Container from '../Container'
 import StoreLogo from '../StoreLogo'
 import NavbarAuthLinks from './NavbarAuthLinks'
 import NavbarCartButton from './NavbarCartButton'
+import NavbarNotificationButton from './NavbarNotificationButton'
 import NavbarCategoriesButton from './NavbarCategoriesButton'
 import NavbarSearch from './NavbarSearch'
 import MobileCategoriesPanel from './MobileCategoriesPanel'
@@ -70,6 +71,7 @@ export default function Navbar({ cartCount = 0 }) {
             <StoreLogo variant="light" showText size="sm" className="min-w-0 flex-1" />
 
             <div className="flex shrink-0 items-center gap-2">
+              <NavbarNotificationButton />
               <NavbarCartButton count={cartCount} />
               <NavbarAuthLinks compact />
             </div>
@@ -95,6 +97,7 @@ export default function Navbar({ cartCount = 0 }) {
             </div>
 
             <div className="ml-auto flex items-center gap-3 xl:gap-4">
+              <NavbarNotificationButton />
               <NavbarAuthLinks />
               <NavbarCartButton count={cartCount} />
             </div>

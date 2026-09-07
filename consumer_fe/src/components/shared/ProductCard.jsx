@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Loader2, ShoppingCart, Star } from 'lucide-react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
@@ -8,6 +9,9 @@ import { useOptionalMiniCart } from '../../context/MiniCartContext'
 import { STAR_EMPTY_FILL, STAR_FILL } from '../../constants/landingLayout'
 import { isProductInCart, selectCartItems } from '../../store/slices/cartSlice'
 import PortaledHoverTooltip from './PortaledHoverTooltip'
+import { getProductDeliveryEligibility } from '../../services/storeService'
+import { STORE_DELIVERY_ELIGIBILITY_ENABLED } from '../../config/featureFlags'
+import { resolveProductStoreEligibility, resolveShoppingLocationDetails } from '../../utils/storefront'
 
 function PriceDisplay({ price, compareAt }) {
   const [integer, decimal] = formatCedi(price).split('.')
@@ -68,17 +72,39 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
   const miniCart = useOptionalMiniCart()
   const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const user = useSelector((state) => state.auth.user)
   const [isAdding, setIsAdding] = useState(false)
   const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
   const productId = product.backendId ?? product.id
+  const shoppingLocation = resolveShoppingLocationDetails(user)
+  const eligibilityQuery = useQuery({
+    queryKey: ['product-delivery-eligibility', product.backendId, shoppingLocation.region, shoppingLocation.city],
+    queryFn: () => getProductDeliveryEligibility(product.backendId, shoppingLocation),
+    enabled: Boolean(isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && product.backendId && !disabledReason),
+    staleTime: 60 * 1000,
+    retry: 0,
+  })
+  const liveEligibility = eligibilityQuery.data?.delivery_eligible
+  const fallbackEligibility = resolveProductStoreEligibility(product.deliverySource ?? product, shoppingLocation.city)
+  const deliveryEligible = !STORE_DELIVERY_ELIGIBILITY_ENABLED
+    ? true
+    : typeof liveEligibility === 'boolean'
+      ? liveEligibility
+      : eligibilityQuery.isError
+        ? false
+        : fallbackEligibility
+  const isCheckingDelivery = eligibilityQuery.isPending && eligibilityQuery.fetchStatus === 'fetching'
+  const effectiveDisabledReason = disabledReason
+    || (isCheckingDelivery ? 'Checking delivery availability' : '')
+    || (!deliveryEligible ? `Not available in ${shoppingLocation.city}` : '')
   const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
-  const tooltipContent = disabledReason || (isInCart ? 'Already in cart' : '')
+  const tooltipContent = effectiveDisabledReason || (isInCart ? 'Already in cart' : '')
 
   const handleAddToCart = async (event) => {
     event.preventDefault()
     event.stopPropagation()
 
-    if (!isAuthenticated || isAdding || isInCart || disabledReason) return
+    if (!isAuthenticated || isAdding || isInCart || effectiveDisabledReason) return
 
     if (onAddToCart) {
       onAddToCart(product)
@@ -155,20 +181,20 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
               type="button"
               aria-busy={isAdding}
               aria-label={
-                disabledReason
-                  ? disabledReason
+                effectiveDisabledReason
+                  ? effectiveDisabledReason
                   : isInCart
                   ? `${product.name} is already in cart`
                   : isAdding
                     ? `Adding ${product.name} to cart`
                     : `Add ${product.name} to cart`
               }
-              disabled={!isAuthenticated || isAdding || isInCart || Boolean(disabledReason)}
+              disabled={!isAuthenticated || isAdding || isInCart || Boolean(effectiveDisabledReason)}
               onClick={handleAddToCart}
               className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed ${
                 isAdding
                   ? 'border-auth-primary bg-auth-primary text-white'
-                  : !isAuthenticated || isInCart || disabledReason
+                  : !isAuthenticated || isInCart || effectiveDisabledReason
                     ? 'border-slate-200 bg-slate-100 text-slate-400 shadow-none'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'
               }`}

@@ -7,10 +7,8 @@ import AccountReviewsPanel from './AccountReviewsPanel'
 import AccountReturnsPanel from './AccountReturnsPanel'
 import AccountFollowedStoresPanel from './AccountFollowedStoresPanel'
 import AccountSupportPanel from './AccountSupportPanel'
-import {
-  AccountNotificationsPanel,
-  AccountSettingsPanel,
-} from './AccountPlaceholderPanels'
+import AccountNotificationsPanel from './AccountNotificationsPanel'
+import { AccountSettingsPanel } from './AccountPlaceholderPanels'
 import { resolveAccountSectionId } from './accountNavigation'
 
 export default function AccountSectionContent({ pathname }) {

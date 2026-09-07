@@ -7,6 +7,14 @@ import { accountNavigationItems, isAccountNavItemActive, isAccountNavItemEnabled
 const panelEase = [0.16, 1, 0.3, 1]
 
 function AccountNavList({ pathname, onNavigate, itemClassName }) {
+  const [unreadCount, setUnreadCount] = useState(4)
+
+  useEffect(() => {
+    const handleUpdate = (event) => setUnreadCount(event.detail?.unreadCount ?? 0)
+    window.addEventListener('account-notifications-updated', handleUpdate)
+    return () => window.removeEventListener('account-notifications-updated', handleUpdate)
+  }, [])
+
   return (
     <>
       {accountNavigationItems.map((item) => {
@@ -45,6 +53,11 @@ function AccountNavList({ pathname, onNavigate, itemClassName }) {
           >
             <Icon className="size-4 shrink-0" strokeWidth={2} />
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            {item.id === 'notifications' && unreadCount > 0 ? (
+              <span className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold ${active ? 'bg-white text-auth-primary' : 'bg-red-50 text-auth-primary'}`}>
+                {unreadCount}
+              </span>
+            ) : null}
             <ChevronRight
               className={`size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 ${
                 active ? 'opacity-100' : 'opacity-35'
