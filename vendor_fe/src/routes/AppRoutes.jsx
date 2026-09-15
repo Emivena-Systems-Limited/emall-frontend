@@ -18,6 +18,7 @@ import EditPromotion from '../pages/promotions/EditPromotion'
 import ViewPromotion from '../pages/promotions/ViewPromotion'
 import Inventory from '../pages/inventory/Inventory'
 import Notifications from '../pages/notifications/Notifications'
+import NotificationSettings from '../pages/notifications/NotificationSettings'
 import Finance from '../pages/finance/Finance'
 import Reviews from '../pages/reviews/Reviews'
 import ReviewedProducts from '../pages/reviews/ReviewedProducts'
@@ -72,6 +73,7 @@ export default function AppRoutes() {
       <Route path="/promotions/:promotionId" element={protectedPage(<ViewPromotion />)} />
       <Route path="/inventory" element={protectedPage(<Inventory />)} />
       <Route path="/notifications" element={protectedPage(<Notifications />)} />
+      <Route path="/notifications/settings" element={protectedPage(<NotificationSettings />)} />
       <Route path="/finance" element={protectedPage(<Finance />)} />
       <Route path="/analytics" element={protectedPage(<Analytics />)} />
       <Route path="/reviews" element={protectedPage(<Reviews />)} />

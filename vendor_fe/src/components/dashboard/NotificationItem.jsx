@@ -1,12 +1,13 @@
 import { Link } from 'react-router'
-import { NOTIFICATION_TYPES } from '../../constants/notificationsData'
+import { getNotificationType } from '../../utils/notificationUtils'
+import { useVendorNotifications } from '../notifications/VendorNotificationsProvider'
 
 export default function NotificationTypeBadge({ type }) {
-  const config = NOTIFICATION_TYPES[type] ?? NOTIFICATION_TYPES.new_order
+  const config = getNotificationType(type)
   const Icon = config.icon
 
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${config.badgeClass}`}>
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">
       <Icon className="size-3" strokeWidth={2} />
       {config.label}
     </span>
@@ -14,20 +15,20 @@ export default function NotificationTypeBadge({ type }) {
 }
 
 export function NotificationIcon({ type }) {
-  const config = NOTIFICATION_TYPES[type] ?? NOTIFICATION_TYPES.new_order
+  const config = getNotificationType(type)
   const Icon = config.icon
 
   return (
-    <span
-      className="flex size-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-slate-100"
-      style={{ background: `${config.accent}14` }}
-    >
-      <Icon className="size-4" style={{ color: config.accent }} strokeWidth={2} />
+    <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ring-1 ${config.iconWrap}`}>
+      <Icon className="size-4" strokeWidth={2} />
     </span>
   )
 }
 
 export function NotificationItem({ notification, asLink = true }) {
+  const { markRead } = useVendorNotifications()
+  const href = notification.link || getNotificationType(notification.type).defaultTo
+
   const content = (
     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start">
       <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -58,11 +59,17 @@ export function NotificationItem({ notification, asLink = true }) {
 
   const className = `flex items-start gap-3 px-5 py-4 transition-colors ${
     asLink ? 'cursor-pointer hover:bg-slate-50/80' : ''
-  } ${!notification.read ? 'bg-brand-light/30' : ''}`
+  } ${!notification.read ? 'bg-brand-light/40' : ''}`
 
-  if (asLink && notification.link) {
+  if (asLink && href) {
     return (
-      <Link to={notification.link} className={className}>
+      <Link
+        to={href}
+        onClick={() => {
+          if (!notification.read) markRead(notification.id, true)
+        }}
+        className={className}
+      >
         {content}
       </Link>
     )

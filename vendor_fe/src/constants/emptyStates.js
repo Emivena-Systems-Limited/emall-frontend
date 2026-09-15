@@ -31,8 +31,8 @@ export const EMPTY_STATE_PRESETS = {
   },
   notifications: {
     icon: Bell,
-    title: 'No notifications yet',
-    description: 'Updates about orders, stock, and reviews will appear here.',
+    title: 'You\'re all caught up!',
+    description: 'There are no new notifications at the moment.',
   },
   products: {
     icon: Package,

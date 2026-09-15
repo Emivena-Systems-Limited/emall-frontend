@@ -206,6 +206,11 @@ const variantReservedQuantitySchema = nullableNumber
   .min(0, 'Cannot be negative')
   .default(0)
 
+const variantLowStockThresholdSchema = nullableNumber
+  .integer('Must be a whole number')
+  .min(1, 'Must be at least 1')
+  .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest())
+
 function getRootFormValues(from = []) {
   return from[from.length - 1]?.value ?? {}
 }
@@ -227,7 +232,7 @@ function stockQuantityNotBelowThresholdTest(
 ) {
   return function validateQuantity(value) {
     const threshold = parseOptionalStockThreshold(
-      this.parent.minimum_threshold ?? this.parent.low_stock_threshold,
+      this.parent.low_stock_threshold ?? this.parent.minimum_threshold,
     )
     if (threshold == null) return true
 
@@ -285,11 +290,44 @@ export function getVariantQuantityMainStockError(quantity, mainProductQuantity) 
 function sumVariantStockQuantities(variations = []) {
   return (variations ?? []).reduce((total, variation) => {
     const variationTotal = (variation.values ?? []).reduce((sum, value) => {
+      const secondaries = (value.secondary_variants ?? []).filter((item) => (
+        String(item?.attribute ?? '').trim() && String(item?.value ?? '').trim()
+      ))
+      if (secondaries.length > 0) {
+        return secondaries.reduce((inner, item) => {
+          const quantity = parseVariantQuantity(item.quantity)
+          return quantity == null ? inner : inner + quantity
+        }, sum)
+      }
+
       const quantity = parseVariantQuantity(value.quantity)
       return quantity == null ? sum : sum + quantity
     }, 0)
     return total + variationTotal
   }, 0)
+}
+
+function uniqueSecondaryVariantValuesTest() {
+  return function validateUniqueSecondaryValues(items) {
+    const list = Array.isArray(items) ? items : []
+    const seen = new Set()
+
+    for (let index = 0; index < list.length; index += 1) {
+      const value = String(list[index]?.value ?? '').trim()
+      if (!value) continue
+      const attribute = String(list[index]?.attribute ?? '').trim().toLowerCase()
+      const key = `${attribute}::${value.toLowerCase()}`
+      if (seen.has(key)) {
+        return this.createError({
+          path: `${this.path}[${index}].value`,
+          message: `"${value}" is already used. Each sub-option needs its own value.`,
+        })
+      }
+      seen.add(key)
+    }
+
+    return true
+  }
 }
 
 function withVariantStockCapValidation(schema) {
@@ -364,10 +402,8 @@ const productVariationValueSchema = Yup.object({
     )
     .test('variant-qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
   reserved_quantity: variantReservedQuantitySchema,
-  minimum_threshold: nullableNumber
-    .integer('Must be a whole number')
-    .min(1, 'Threshold must be at least 1')
-    .test('variant-threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
+  low_stock_threshold: variantLowStockThresholdSchema,
+  minimum_threshold: variantLowStockThresholdSchema,
   barcode: variantBarcodeSchema,
   barcode_type: variantBarcodeTypeSchema,
   weight: nullableNumber.min(0, 'Cannot be negative'),
@@ -384,6 +420,41 @@ const productVariationValueSchema = Yup.object({
     then: (schema) => schema.min(1, 'Add at least one compatible model, or turn this off'),
     otherwise: (schema) => schema,
   }),
+  secondary_variants: Yup.array()
+    .of(Yup.object({
+      id: Yup.string(),
+      attribute: Yup.string().trim().required('Secondary option type is required'),
+      value: Yup.string().trim().required('Secondary option value is required'),
+      sku: Yup.string()
+        .trim()
+        .matches(/^[A-Z0-9-]*$/i, 'SKU format: letters, numbers, hyphens')
+        .nullable(),
+      quantity: Yup.number()
+        .typeError('Quantity must be a number')
+        .integer('Must be a whole number')
+        .min(0, 'Cannot be negative')
+        .required('Stock quantity is required')
+        .test('qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
+      reserved_quantity: variantReservedQuantitySchema,
+      low_stock_threshold: variantLowStockThresholdSchema,
+      minimum_threshold: variantLowStockThresholdSchema,
+      price: nullableNumber.min(0.01, 'Price must be at least 0.01').required('Price is required'),
+      discount_price: nullableNumber
+        .min(0.01, 'Sale price must be at least 0.01')
+        .test('sv-sale-less-than-list', 'Sale price must be less than the list price', function validateSale(value) {
+          if (value == null) return true
+          const { price } = this.parent
+          if (price != null && price !== '' && !Number.isNaN(Number(price))) {
+            return value < Number(price)
+          }
+          return true
+        }),
+    }))
+    .default([])
+    .test({
+      name: 'unique-secondary-values',
+      test: uniqueSecondaryVariantValuesTest(),
+    }),
   images: Yup.array()
     .of(
       Yup.object({
@@ -437,12 +508,23 @@ export const productListingSchemaBase = Yup.object({
     .required('Product condition is required'),
   tags: Yup.array().of(Yup.string().trim().min(1)).default([]),
   key_details: Yup.array().of(productKeyDetailPairSchema).default([]),
+  listing_type: Yup.string()
+    .oneOf(['simple', 'variants'], 'Choose a simple product or one with variants')
+    .required('Choose whether this is a simple product or one with variants'),
   main_attribute: Yup.string()
     .trim()
-    .required('Choose an option type such as Color, Size, or Material'),
+    .when('listing_type', {
+      is: (type) => type !== 'simple',
+      then: (schema) => schema.required('Choose an option type such as Color, Size, or Material'),
+      otherwise: (schema) => schema.nullable(),
+    }),
   main_attribute_value: Yup.string()
     .trim()
-    .required('Enter the value for this listing, such as Navy or Cotton'),
+    .when('listing_type', {
+      is: (type) => type !== 'simple',
+      then: (schema) => schema.required('Enter the value for this listing, such as Navy or Cotton'),
+      otherwise: (schema) => schema.nullable(),
+    }),
   has_compatible_models: Yup.boolean().default(false),
   compatible_models: Yup.array().of(Yup.string().trim()).default([]).when('has_compatible_models', {
     is: true,
@@ -485,11 +567,19 @@ export const productListingSchemaBase = Yup.object({
     .min(0, 'Quantity cannot be negative')
     .required('Quantity is required')
     .test('qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
+  reserved_quantity: variantReservedQuantitySchema,
   low_stock_threshold: nullableNumber
     .integer('Must be a whole number')
     .min(1, 'Threshold must be at least 1')
     .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
   barcode: Yup.string().trim().nullable(),
+
+  secondary_variants: Yup.array()
+    .default([])
+    .test({
+      name: 'unique-secondary-values',
+      test: uniqueSecondaryVariantValuesTest(),
+    }),
 
   // Optional — when empty at publish, we auto-create one inferred variation from listing details.
   variations: Yup.array()
@@ -549,10 +639,8 @@ export const singleVariantSchema = Yup.object({
     })
     .test('qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
   reserved_quantity: variantReservedQuantitySchema,
-  minimum_threshold: nullableNumber
-    .integer('Must be a whole number')
-    .min(1, 'Must be at least 1')
-    .test('threshold-not-above-qty', lowStockThresholdNotAboveQuantityTest()),
+  low_stock_threshold: variantLowStockThresholdSchema,
+  minimum_threshold: variantLowStockThresholdSchema,
   barcode: variantBarcodeSchema,
   barcode_type: variantBarcodeTypeSchema,
   weight: nullableNumber.min(0, 'Cannot be negative'),
@@ -569,6 +657,32 @@ export const singleVariantSchema = Yup.object({
     then: (schema) => schema.min(1, 'Add at least one compatible model, or turn this off'),
     otherwise: (schema) => schema,
   }),
+  secondary_variants: Yup.array()
+    .of(Yup.object({
+      id: Yup.string(),
+      attribute: Yup.string().trim().required('Secondary option type is required'),
+      value: Yup.string().trim().required('Secondary option value is required'),
+      sku: Yup.string()
+        .trim()
+        .matches(/^[A-Z0-9-]*$/i, 'SKU format: letters, numbers, hyphens')
+        .nullable(),
+      quantity: Yup.number()
+        .typeError('Quantity must be a number')
+        .integer('Must be a whole number')
+        .min(0, 'Cannot be negative')
+        .required('Stock quantity is required')
+        .test('qty-not-below-threshold', stockQuantityNotBelowThresholdTest()),
+      reserved_quantity: variantReservedQuantitySchema,
+      low_stock_threshold: variantLowStockThresholdSchema,
+      minimum_threshold: variantLowStockThresholdSchema,
+      price: nullableNumber.min(0.01, 'Price must be at least 0.01').required('Price is required'),
+      discount_price: nullableNumber.min(0.01, 'Sale price must be at least 0.01'),
+    }))
+    .default([])
+    .test({
+      name: 'unique-secondary-values',
+      test: uniqueSecondaryVariantValuesTest(),
+    }),
   images: Yup.array()
     .max(MAX_VARIANT_IMAGE_COUNT, `You can add up to ${MAX_VARIANT_IMAGE_COUNT} photos for this option`)
     .default([])
@@ -594,6 +708,7 @@ export const productInfoSchema = productListingSchemaBase.pick([
   'condition',
   'tags',
   'key_details',
+  'listing_type',
   'main_attribute',
   'main_attribute_value',
   'has_compatible_models',
@@ -603,6 +718,7 @@ export const productInfoSchema = productListingSchemaBase.pick([
   'discount_price',
   'discount_percent',
   'quantity',
+  'reserved_quantity',
   'low_stock_threshold',
   'barcode',
   'shipping_weight',
@@ -610,7 +726,11 @@ export const productInfoSchema = productListingSchemaBase.pick([
   'shipping_width',
   'shipping_height',
   'status',
-])
+]).shape({
+  listing_type: Yup.string()
+    .oneOf(['simple', 'variants'], 'Choose a simple product or one with variants')
+    .nullable(),
+})
 
 export const productVariationsSchema = withVariantStockCapValidation(
   productListingSchemaBase.pick([
@@ -619,6 +739,7 @@ export const productVariationsSchema = withVariantStockCapValidation(
     'discount_price',
     'discount_percent',
     'quantity',
+    'reserved_quantity',
     'variations',
   ]),
 )

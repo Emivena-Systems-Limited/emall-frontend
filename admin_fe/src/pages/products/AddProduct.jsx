@@ -162,6 +162,7 @@ const productListingInitialValues = {
   main_attribute_value:'',
   has_compatible_models: false,
   compatible_models:  [],
+  secondary_variants:  [],
   price:              '',
   discount_mode:      'amount',
   discount_price:     '',
@@ -236,6 +237,7 @@ function createVariantValue(value) {
     description: '',
     has_compatible_models: false,
     compatible_models: [],
+    secondary_variants: [],
     images: [],
   }
 }

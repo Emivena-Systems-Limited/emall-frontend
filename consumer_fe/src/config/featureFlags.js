@@ -1,2 +1,3 @@
 export const STORE_DIRECTORY_ENABLED = true
 export const STORE_DELIVERY_ELIGIBILITY_ENABLED = true
+export const LOCK_PURCHASE_ACTIONS = false

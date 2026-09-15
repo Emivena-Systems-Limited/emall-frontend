@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router'
 import { Copy, Eye, Layers3, MoreHorizontal, Package, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
+import ProductListingTypeBadge from './ProductListingTypeBadge'
 import { canActivateProduct, canDeactivateProduct } from '../../utils/productStatusActions'
 
 const STATUS_CONFIG = {
@@ -108,14 +110,16 @@ function ProductActionsMenu({
         >
           <Pencil className="size-4" /> Edit product info
         </button>
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => run(onEditVariations)}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-        >
-          <Layers3 className="size-4" /> Manage variations
-        </button>
+        {!product.isSimpleListing && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => run(onEditVariations)}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            <Layers3 className="size-4" /> Manage variations
+          </button>
+        )}
         <button
           type="button"
           role="menuitem"
@@ -179,11 +183,19 @@ function ProductNameCell({ product }) {
       <ProductThumbnail product={product} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-900" title={product.name}>
-          {product.name}
+          <Link
+            to={`/products/${product.id}/view`}
+            className="transition-colors hover:text-brand hover:underline"
+          >
+            {product.name}
+          </Link>
         </p>
-        <p className="mt-0.5 truncate text-xs text-slate-500" title={product.sku}>
-          {product.sku}
-        </p>
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          <p className="min-w-0 truncate text-xs text-slate-500" title={product.sku}>
+            {product.sku}
+          </p>
+          <ProductListingTypeBadge isSimpleListing={product.isSimpleListing} size="sm" />
+        </div>
       </div>
     </div>
   )
@@ -231,7 +243,12 @@ function ProductMobileCard({
             <ProductThumbnail product={product} />
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900">
-                {product.name}
+                <Link
+                  to={`/products/${product.id}/view`}
+                  className="transition-colors hover:text-brand hover:underline"
+                >
+                  {product.name}
+                </Link>
               </p>
               <p className="mt-1 truncate text-xs text-slate-500">{product.sku}</p>
             </div>
@@ -242,6 +259,7 @@ function ProductMobileCard({
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <ProductStatusBadge status={product.status} />
+            <ProductListingTypeBadge isSimpleListing={product.isSimpleListing} />
             <span className="text-xs text-slate-500">
               Stock:{' '}
               <span className="font-semibold text-slate-800">

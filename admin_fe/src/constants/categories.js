@@ -11,6 +11,16 @@ export const CATEGORY_WRITE_ENABLED = true
 
 export const CATEGORY_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp'
 export const CATEGORY_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+export const CATEGORY_IMAGE_TYPE_REGULAR = 'regular_image'
+export const CATEGORY_IMAGE_TYPE_THUMBNAIL = 'thumbnail'
+
+export function normalizeCategoryImageType(type) {
+  const value = String(type ?? '').trim().toLowerCase()
+  if (value === CATEGORY_IMAGE_TYPE_THUMBNAIL || value.includes('thumb')) {
+    return CATEGORY_IMAGE_TYPE_THUMBNAIL
+  }
+  return CATEGORY_IMAGE_TYPE_REGULAR
+}
 
 export const CATEGORY_KINDS = [
   {

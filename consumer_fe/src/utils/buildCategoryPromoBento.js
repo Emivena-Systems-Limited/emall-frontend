@@ -24,6 +24,7 @@ function toFeaturedPromo(category) {
     href: buildCategoryListingHref(category.slug),
     cta: 'Shop Now',
     image: resolveParentCategoryImage(category),
+    fallbackImage: resolveParentCategoryImage({ ...category, image: null, thumbnail: null }),
   }
 }
 
@@ -33,6 +34,7 @@ function toTilePromo(category) {
     title: category.name,
     href: buildCategoryListingHref(category.slug),
     image: resolveParentCategoryImage(category),
+    fallbackImage: resolveParentCategoryImage({ ...category, image: null, thumbnail: null }),
   }
 }
 

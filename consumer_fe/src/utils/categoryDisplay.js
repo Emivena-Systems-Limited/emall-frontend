@@ -22,19 +22,25 @@ export function formatProductCount(count) {
   return count.toLocaleString('en-US')
 }
 
-/**
- * Resolve the circular thumbnail for homepage Top Categories.
- * API thumbnails take precedence; otherwise use backgroundless category icons.
- */
-export function getCategoryImage(category, index = 0) {
-  const apiThumbnail =
-    category?.thumbnail
-    ?? category?.thumbnail_image_url
-    ?? category?.icon
+function pickDirectApiImage(category) {
+  const candidates = [
+    category?.image,
+    category?.thumbnail,
+    category?.image_url,
+    category?.thumbnail_image_url,
+    category?.icon,
+  ]
 
-  if (isUsableCategoryThumbnail(apiThumbnail)) {
-    return apiThumbnail.trim()
+  for (const candidate of candidates) {
+    if (isUsableCategoryThumbnail(candidate)) return candidate.trim()
   }
+
+  return null
+}
+
+export function getCategoryImage(category, index = 0) {
+  const apiImage = pickDirectApiImage(category)
+  if (apiImage) return apiImage
 
   const topIcon = getTopCategoryIcon(category?.slug)
   if (topIcon) return topIcon
@@ -54,7 +60,20 @@ export function mapApiCategory(category, index) {
     label: category.name,
     href: buildCategoryListingHref(category.slug),
     image: getCategoryImage(category, index),
+    featured: category.isFeatured === true,
   }
+}
+
+export function sortTopCategories(categories = []) {
+  const featured = []
+  const rest = []
+
+  for (const category of categories) {
+    if (category.featured) featured.push(category)
+    else rest.push(category)
+  }
+
+  return [...featured, ...rest]
 }
 
 export function mapSubcategoryForDisplay(subcategory, parentSlug) {

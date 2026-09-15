@@ -10,7 +10,7 @@ import notify from '../../lib/notify'
 import { isLocalEnvironment } from '../../utils/environment'
 
 export default function DevProductFormTools({
-  activeStep,
+  stepId,
   stepTitle,
   catalogContext,
   onFillStep,
@@ -20,27 +20,27 @@ export default function DevProductFormTools({
 
   if (!isLocalEnvironment()) return null
 
-  const notifyCatalogWarnings = (stepIndex) => {
-    if (stepIndex !== 0) return
+  const notifyCatalogWarnings = (targetStepId) => {
+    if (targetStepId !== 'info') return
     getDevProductCatalogFillWarnings(catalogContext).forEach((message) => {
       notify.info(message)
     })
   }
 
-  const handleFillStep = (stepIndex) => {
-    const fixture = getDevProductStepFixture(stepIndex, catalogContext)
+  const handleFillStep = (targetStepId) => {
+    const fixture = getDevProductStepFixture(targetStepId, catalogContext)
     if (!fixture) {
-      if (stepIndex === 1) {
+      if (targetStepId === 'images') {
         notify.info('Images are not auto-filled — upload manually.')
         return
       }
       notify.info('No dev data for this step.')
       return
     }
-    onFillStep(fixture, stepIndex)
-    notifyCatalogWarnings(stepIndex)
-    const label = DEV_PRODUCT_FILLABLE_STEPS.find((s) => s.index === stepIndex)?.label ?? stepTitle
-    if (stepIndex === 3) {
+    onFillStep(fixture, targetStepId)
+    notifyCatalogWarnings(targetStepId)
+    const label = DEV_PRODUCT_FILLABLE_STEPS.find((s) => s.id === targetStepId)?.label ?? stepTitle
+    if (targetStepId === 'variations') {
       notify.success(`Dev data loaded: ${label}. Add variant photos manually before publishing.`)
       return
     }
@@ -48,18 +48,18 @@ export default function DevProductFormTools({
   }
 
   const handleFillCurrent = () => {
-    if (activeStep === 1) {
+    if (stepId === 'images') {
       notify.info('Images are not auto-filled — upload manually.')
       return
     }
-    const fixture = getDevProductStepFixture(activeStep, catalogContext)
+    const fixture = getDevProductStepFixture(stepId, catalogContext)
     if (!fixture) {
       notify.info('No dev data for this step.')
       return
     }
-    onFillStep(fixture, activeStep)
-    notifyCatalogWarnings(activeStep)
-    if (activeStep === 3) {
+    onFillStep(fixture, stepId)
+    notifyCatalogWarnings(stepId)
+    if (stepId === 'variations') {
       notify.success(`Dev data loaded for ${stepTitle}. Add variant photos manually before publishing.`)
       return
     }
@@ -68,7 +68,7 @@ export default function DevProductFormTools({
 
   const handleFillAll = () => {
     onFillAll(getDevProductMergedFixtures(catalogContext))
-    notifyCatalogWarnings(0)
+    notifyCatalogWarnings('info')
     notify.success('Dev data loaded for all steps except product and variant images.')
   }
 
@@ -101,13 +101,13 @@ export default function DevProductFormTools({
           </button>
 
           <div className="grid grid-cols-2 gap-2">
-            {DEV_PRODUCT_FILLABLE_STEPS.map(({ index, label }) => (
+            {DEV_PRODUCT_FILLABLE_STEPS.map(({ id, label }) => (
               <button
-                key={index}
+                key={id}
                 type="button"
-                onClick={() => handleFillStep(index)}
+                onClick={() => handleFillStep(id)}
                 className={`cursor-pointer rounded-xl border px-2 py-2 text-[11px] font-bold transition-colors ${
-                  activeStep === index
+                  stepId === id
                     ? 'border-amber-500 bg-amber-200 text-amber-950'
                     : 'border-amber-200 bg-white text-amber-900 hover:border-amber-400'
                 }`}

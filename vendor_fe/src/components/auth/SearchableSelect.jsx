@@ -177,7 +177,7 @@ export default function SearchableSelect({
   }
 
   const filtered = mergedOptions.filter((o) =>
-    o.label.toLowerCase().includes(search.toLowerCase()),
+    String(o.label ?? '').toLowerCase().includes(search.toLowerCase()),
   )
 
   const selectedLabel = mergedOptions.find((o) => optionMatchesValue(o.value, value))?.label ?? ''

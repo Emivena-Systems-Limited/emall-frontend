@@ -10,6 +10,10 @@ import homeDecor from '../assets/images/categories/home_decor.jpg'
 import kitchenUtensils from '../assets/images/categories/kitchen_utensils.jpg'
 import bedding from '../assets/images/categories/bedding.jpg'
 import kitchenStorage from '../assets/images/categories/kitchen_storage.jpg'
+import bagsLuggageHero from '../assets/images/categories/catalog/bags-luggage-luggage.jpg'
+import cellPhonesAccessories from '../assets/images/categories/cell_phones_and_accessories.png'
+import toolsAndGarden from '../assets/images/categories/tools_and_garden.png'
+import automotive from '../assets/images/categories/automotive.png'
 
 const catalogJpgs = import.meta.glob('../assets/images/categories/catalog/*.jpg', {
   eager: true,
@@ -31,6 +35,12 @@ const CATEGORY_PHOTO_OVERRIDES = {
   'home-decor': homeDecor,
   bedding,
   'kitchen-storage': kitchenStorage,
+  'bags-luggage': bagsLuggageHero,
+  automotive,
+  'cell-phones-accessories': cellPhonesAccessories,
+  'cell-phones-and-accessories': cellPhonesAccessories,
+  'tools-and-garden': toolsAndGarden,
+  'tools-garden': toolsAndGarden,
 }
 
 /** Spotlight / legacy banner photos (not in catalog folder) */
@@ -45,9 +55,17 @@ const SLUG_ALIASES = {
   'beauty-personal-care': 'beauty-health',
   'baby-and-maternity': 'baby-maternity',
   'bags-and-luggage': 'bags-luggage',
+  'home-appliances': 'appliances',
   'phones-accessories': 'mobile-phones-accessories',
   'phones-tablets': 'mobile-phones-accessories',
   'phones-and-tablets': 'mobile-phones-accessories',
+  'bedding-bath': 'home-kitchen-bedding',
+  'bedding-and-bath': 'home-kitchen-bedding',
+  'home-improvement': 'home-kitchen',
+  'cell-phones-and-accessories': 'cell-phones-accessories',
+  'cell_phones_and_accessories': 'cell-phones-accessories',
+  'tools_and_garden': 'tools-and-garden',
+  'tools-garden': 'tools-and-garden',
 }
 
 function normalizeSlug(slug = '') {

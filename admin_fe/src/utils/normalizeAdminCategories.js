@@ -1,3 +1,8 @@
+import {
+  CATEGORY_IMAGE_TYPE_REGULAR,
+  CATEGORY_IMAGE_TYPE_THUMBNAIL,
+  normalizeCategoryImageType,
+} from '../constants/categories'
 import { unwrapApiEnvelope } from './parseApiError'
 import { sortLatestFirst } from './sortLatestFirst'
 
@@ -78,38 +83,53 @@ function pickThumbnailUrl(source) {
   )
 }
 
-export function extractCategoryImages(record) {
-  const images = record?.images
-  let imageUrl = ''
-  let thumbnailUrl = ''
+function listImageItems(source) {
+  if (Array.isArray(source)) return source
+  if (!isRecord(source)) return []
+  if (source.image_url || source.id || source.type != null) return [source]
+  return Object.values(source)
+}
 
-  if (Array.isArray(images)) {
-    for (const item of images) {
-      if (typeof item === 'string') {
-        imageUrl = imageUrl || firstText(item)
-        continue
-      }
-      if (!isRecord(item)) continue
-      const key = firstText(item.key, item.type, item.kind, item.name).toLowerCase()
-      const url = firstText(item.image_url, item.thumbnail_image_url, item.url, item.path)
-      if (key.includes('thumb')) thumbnailUrl = thumbnailUrl || url
-      else if (key.includes('image') || key.includes('cover')) imageUrl = imageUrl || url
-      else {
-        imageUrl = imageUrl || pickImageUrl(item)
-        thumbnailUrl = thumbnailUrl || pickThumbnailUrl(item)
-      }
-    }
-  } else if (isRecord(images)) {
-    imageUrl = pickImageUrl(images)
-    thumbnailUrl = pickThumbnailUrl(images)
+function toCategoryImage(item) {
+  if (typeof item === 'string') {
+    const url = firstText(item)
+    if (!url) return null
+    return { id: '', type: CATEGORY_IMAGE_TYPE_REGULAR, url }
   }
 
-  imageUrl = imageUrl || firstText(record?.image_url, record?.imageUrl, record?.image, record?.icon)
-  thumbnailUrl = thumbnailUrl || firstText(record?.thumbnail_image_url, record?.thumbnailImageUrl, record?.thumbnail)
+  if (!isRecord(item)) return null
+
+  const url = firstText(
+    item.image_url,
+    pickImageUrl(item),
+    pickThumbnailUrl(item),
+    item.url,
+    item.path,
+  )
+  const id = firstText(item.id, item.image_id)
+  if (!url && !id) return null
+
+  return {
+    id,
+    type: normalizeCategoryImageType(item.type),
+    url,
+  }
+}
+
+export function extractCategoryImages(record) {
+  const images = listImageItems(record?.images).map(toCategoryImage).filter(Boolean)
+  const regular = images.find((item) => item.type === CATEGORY_IMAGE_TYPE_REGULAR)
+  const thumbnail = images.find((item) => item.type === CATEGORY_IMAGE_TYPE_THUMBNAIL)
+  const imageUrl = regular?.url
+    || firstText(record?.image_url, record?.imageUrl, record?.image, record?.icon)
+  const thumbnailUrl = thumbnail?.url
+    || firstText(record?.thumbnail_image_url, record?.thumbnailImageUrl, record?.thumbnail)
 
   return {
     imageUrl: imageUrl || null,
     thumbnailUrl: thumbnailUrl || null,
+    images,
+    imageIds: images.map((item) => item.id).filter(Boolean),
   }
 }
 
@@ -133,7 +153,7 @@ export function normalizeCategoryRecord(record, parentId = null, nestedLevel = 0
   const inferredLevel = record.nested_level != null || record.level != null
     ? toNumber(record.nested_level ?? record.level, nestedLevel)
     : nestedLevel
-  const { imageUrl, thumbnailUrl } = extractCategoryImages(record)
+  const { imageUrl, thumbnailUrl, images, imageIds } = extractCategoryImages(record)
   const children = sortLatestFirst(
     childList(record)
       .map((child) => normalizeCategoryRecord(child, id, inferredLevel + 1))
@@ -151,7 +171,9 @@ export function normalizeCategoryRecord(record, parentId = null, nestedLevel = 0
     isFeatured: toBoolean(record.is_featured ?? record.featured, false),
     imageUrl,
     thumbnailUrl,
-    image: thumbnailUrl || imageUrl,
+    images: images ?? [],
+    imageIds: imageIds ?? [],
+    image: imageUrl || thumbnailUrl,
     productCount: record.products_count == null && record.product_count == null
       ? null
       : toNumber(record.products_count ?? record.product_count),

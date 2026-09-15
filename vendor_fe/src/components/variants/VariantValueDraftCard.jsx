@@ -17,7 +17,7 @@ export default function VariantValueDraftCard({
 }) {
   if (persistedEntry) {
     const { variantValue } = persistedEntry
-    const stock = resolveStockStatus(variantValue.quantity, variantValue.minimum_threshold)
+    const stock = resolveStockStatus(variantValue.quantity, variantValue.low_stock_threshold ?? variantValue.minimum_threshold)
     const thumbnail = variantValue.images?.[0]?.preview
     const priceDisplay = getVariantPriceDisplay(variantValue, productValues)
     const priceLabel = formatVariantPriceLabel(priceDisplay)

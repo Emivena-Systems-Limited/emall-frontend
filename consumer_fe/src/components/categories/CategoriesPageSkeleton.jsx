@@ -1,4 +1,6 @@
 import Container from '../layout/Container'
+import { BENTO_LAYOUTS } from './CategoryPromoBentoSection'
+import { CATEGORIES_PAGE_BENTO_SECTIONS } from '../../utils/buildCategoriesPageCatalog'
 
 function CategoriesHeaderSkeleton() {
   return (
@@ -8,6 +10,7 @@ function CategoriesHeaderSkeleton() {
           <div className="h-9 w-64 max-w-full animate-pulse rounded-lg bg-slate-100 sm:h-10 lg:h-11" />
           <div className="mt-3 h-4 w-full max-w-2xl animate-pulse rounded bg-slate-100" />
           <div className="mt-2 h-4 w-4/5 max-w-xl animate-pulse rounded bg-slate-100" />
+          <div className="mt-5 h-12 w-full max-w-xl animate-pulse rounded-full bg-slate-100 sm:mt-6" />
         </div>
 
         <div className="mt-6 grid gap-4 sm:mt-8 sm:gap-5 lg:grid-cols-3 lg:items-stretch">
@@ -41,18 +44,21 @@ function DepartmentCarouselSkeleton() {
   )
 }
 
-function BentoSkeleton() {
+function BentoSkeleton({ layout = 'featuredLeft' }) {
+  const slots = BENTO_LAYOUTS[layout] ?? BENTO_LAYOUTS.featuredLeft
+
   return (
-    <div
-      aria-hidden="true"
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-12 lg:grid-rows-2 lg:gap-4 lg:min-h-[32rem]"
-    >
-      <div className="min-h-[17.5rem] animate-pulse rounded-2xl bg-slate-100 sm:col-span-2 lg:col-span-4 lg:row-span-2 lg:min-h-0" />
-      <div className="min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 sm:col-span-2 lg:col-span-5 lg:col-start-5 lg:row-start-1 lg:min-h-0" />
-      <div className="min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 lg:col-span-2 lg:col-start-5 lg:row-start-2 lg:min-h-0" />
-      <div className="min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 lg:col-span-3 lg:col-start-7 lg:row-start-2 lg:min-h-0" />
-      <div className="min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 sm:col-span-2 lg:col-span-3 lg:col-start-10 lg:row-span-2 lg:row-start-1 lg:min-h-0" />
-    </div>
+    <section aria-hidden="true" className="bg-white pb-8 sm:pb-10 lg:pb-12">
+      <Container>
+        <div className={slots.grid}>
+          <div className={`animate-pulse rounded-2xl bg-slate-100 ${slots.featured}`} />
+          <div className={`min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 ${slots.primary}`} />
+          <div className={`min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 ${slots.secondary}`} />
+          <div className={`min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 ${slots.tertiary}`} />
+          <div className={`min-h-[11rem] animate-pulse rounded-2xl bg-slate-100 ${slots.quaternary}`} />
+        </div>
+      </Container>
+    </section>
   )
 }
 
@@ -62,14 +68,13 @@ export default function CategoriesPageSkeleton({ includeHeader = true }) {
       {includeHeader ? <CategoriesHeaderSkeleton /> : null}
       <DepartmentCarouselSkeleton />
       <DepartmentCarouselSkeleton />
-      <section aria-hidden="true" className="bg-white pb-8 sm:pb-10 lg:pb-12">
-        <Container>
-          <BentoSkeleton />
-        </Container>
-      </section>
-      <DepartmentCarouselSkeleton />
-      <DepartmentCarouselSkeleton />
-      <DepartmentCarouselSkeleton />
+      {CATEGORIES_PAGE_BENTO_SECTIONS.map((section) => (
+        <div key={section.layout}>
+          <BentoSkeleton layout={section.layout} />
+          <DepartmentCarouselSkeleton />
+          <DepartmentCarouselSkeleton />
+        </div>
+      ))}
     </div>
   )
 }

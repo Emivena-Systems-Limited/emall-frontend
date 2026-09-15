@@ -14,6 +14,7 @@ import { useLogoutVendorMutation } from '../../hooks/useAuthMutations'
 import { formatBadgeCount, getNavBadgeCount } from '../../constants/sidebarNav'
 import Images from '../../utils/Images'
 import { isLocalEnvironment } from '../../utils/environment'
+import { useVendorNotifications } from '../notifications/VendorNotificationsProvider'
 
 function getVendorDisplayName(user) {
   return user?.admin_full_name?.trim() || user?.business_name || user?.store_name || 'Vendor'
@@ -153,7 +154,8 @@ function UserMenu({ user, logoutMutation }) {
 export default function Navbar({ onMobileMenuOpen, pageTitle }) {
   const { user } = useSelector((state) => state.auth)
   const logoutMutation = useLogoutVendorMutation()
-  const notificationCount = getNavBadgeCount('notifications')
+  const { unreadCount } = useVendorNotifications()
+  const notificationCount = unreadCount
   const messageCount = getNavBadgeCount('messages')
 
   return (
@@ -180,6 +182,11 @@ export default function Navbar({ onMobileMenuOpen, pageTitle }) {
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <DevGuideButton />
 
+        <span className="sr-only" role="status" aria-atomic="true">
+          {notificationCount > 0
+            ? `${notificationCount} unread notifications`
+            : 'No unread notifications'}
+        </span>
         <NavIconButton
           icon={Bell}
           label={`Notifications${notificationCount ? `, ${notificationCount} unread` : ''}`}

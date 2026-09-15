@@ -3,7 +3,9 @@ import { ProductInput } from '../products/ProductFormControls'
 import AttributeIcon from './AttributeIcon'
 import { ATTRIBUTE_PRESETS, CUSTOM_ATTRIBUTE_LABEL } from './variantConstants'
 
-/** Option type chips + collapsible custom option type input, shared by the single-variant form and the add-variant flow. */
+/** Option type chips + collapsible custom option type input, shared by the single-variant form and the add-variant flow.
+ *  Pass `excludeAttributes` (array of strings) to hide specific preset chips — used by SecondaryVariantSection
+ *  to prevent the secondary attribute from duplicating the primary attribute type. */
 export default function AttributeTypePicker({
   value,
   showCustom,
@@ -13,12 +15,19 @@ export default function AttributeTypePicker({
   onCustomChange,
   onCustomBlur,
   error,
+  excludeAttributes = [],
 }) {
+  const visiblePresets = excludeAttributes.length > 0
+    ? ATTRIBUTE_PRESETS.filter(
+      (p) => !excludeAttributes.some((ex) => ex?.toLowerCase() === p.toLowerCase()),
+    )
+    : ATTRIBUTE_PRESETS
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-2">
-          {ATTRIBUTE_PRESETS.map((preset) => {
+          {visiblePresets.map((preset) => {
             const active = !showCustom && value === preset
             return (
               <button

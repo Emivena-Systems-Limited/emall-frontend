@@ -2,6 +2,8 @@ import { getProductConditionLabel } from './productMetadata'
 import { findCategoryById, getSubcategoriesForParentId } from './normalizeCategories'
 import { isUsableProductImage } from './productImageUtils'
 import { MAX_VARIANT_IMAGE_COUNT } from '../components/variants/variantConstants'
+import { LISTING_TYPES, isSimpleListing } from '../constants/productListing'
+import { getParentProductPricing } from './productPricing'
 
 const VARIANT_DESCRIPTION_MAX_LENGTH = 300
 
@@ -271,10 +273,79 @@ export function serializeCompatibleModels(models = []) {
   return list.length ? JSON.stringify(list) : ''
 }
 
+function getRecordSku(record = {}) {
+  return String(record?.sku ?? '').trim().toLowerCase()
+}
+
+function getVariantPrimaryOption(variant = {}) {
+  const attrs = Array.isArray(variant.attributes) ? variant.attributes : []
+  const named = attrs
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const name = String(item.name ?? item.attribute ?? '').trim()
+      const value = String(item.value ?? '').trim()
+      if (!name || !value) return null
+      return {
+        name,
+        value,
+        is_primary: item.is_primary === true || item.is_primary === 1 || item.is_primary === '1',
+      }
+    })
+    .filter(Boolean)
+  const primary = named.find((item) => item.is_primary) ?? named[0]
+
+  return {
+    attribute: primary?.name ?? variant.attribute,
+    value: primary?.value ?? variant.value,
+    extraCount: named.filter((item) => item !== primary).length,
+  }
+}
+
 export function findMainProductVariant(variants = [], productValues = {}) {
-  return (Array.isArray(variants) ? variants : []).find((variant) => (
-    isMainProductOption(productValues, variant?.attribute, variant?.value)
-  )) ?? null
+  const list = Array.isArray(variants) ? variants : []
+  const productSku = getRecordSku(productValues)
+
+  if (productSku) {
+    const bySku = list.find((variant) => getRecordSku(variant) === productSku)
+    if (bySku) return bySku
+  }
+
+  const matches = list.filter((variant) => {
+    const option = getVariantPrimaryOption(variant)
+    return isMainProductOption(productValues, option.attribute, option.value)
+  })
+
+  return matches.find((variant) => getVariantPrimaryOption(variant).extraCount === 0) ?? null
+}
+
+export function isSimpleProductRecord(record = {}) {
+  const name = String(record.name ?? '').trim()
+  const variants = Array.isArray(record.variants) ? record.variants : []
+  const metadata = Array.isArray(record.metadata) ? record.metadata : []
+  const metaMap = metadata.reduce((map, item) => {
+    const key = String(item?.key ?? '').trim()
+    if (key) map[key] = String(item?.value ?? '').trim()
+    return map
+  }, {})
+  const productValues = {
+    name,
+    main_attribute: metaMap.main_attribute ?? '',
+    main_attribute_value: metaMap.main_attribute_value ?? '',
+  }
+  const namedAsSimple = Boolean(name) && isMainProductOption(productValues, name, name)
+
+  if (variants.length > 1) return false
+
+  if (variants.length === 1) {
+    const option = getVariantPrimaryOption(variants[0])
+    if (option.extraCount > 0) return false
+    if (namedAsSimple) return true
+    return Boolean(name)
+      && isSameProductOption(option.attribute, name)
+      && isSameProductOption(option.value, name)
+  }
+
+  return namedAsSimple
 }
 
 function normalizeOptionText(value) {
@@ -292,6 +363,15 @@ export function isMainProductOption(values = {}, attribute, value) {
     && isSameProductOption(values.main_attribute_value, value)
 }
 
+export function getVariantEntrySku(entry = {}) {
+  const value = entry?.variantValue ?? {}
+  const secondarySku = (Array.isArray(value.secondary_variants) ? value.secondary_variants : [])
+    .map((item) => String(item?.sku ?? '').trim())
+    .find(Boolean)
+
+  return String(value.sku ?? '').trim() || secondarySku || ''
+}
+
 export function isMainProductVariantEntry(productValues = {}, entry) {
   return isMainProductOption(
     productValues,
@@ -300,10 +380,46 @@ export function isMainProductVariantEntry(productValues = {}, entry) {
   )
 }
 
+export function findDefaultVariantFormEntry(entries = [], productValues = {}) {
+  const list = Array.isArray(entries) ? entries : []
+  const productSku = String(productValues.sku ?? '').trim().toLowerCase()
+
+  if (productSku) {
+    const bySku = list.find((entry) => getVariantEntrySku(entry).toLowerCase() === productSku)
+    if (bySku) return bySku
+  }
+
+  return list.find((entry) => isMainProductVariantEntry(productValues, entry)) ?? null
+}
+
 export function filterOptionalVariantEntries(entries = [], productValues = {}) {
-  return (Array.isArray(entries) ? entries : []).filter(
-    (entry) => !isMainProductVariantEntry(productValues, entry),
+  const list = Array.isArray(entries) ? entries : []
+  const defaultEntry = findDefaultVariantFormEntry(list, productValues)
+  const defaultId = defaultEntry?.variantValue?.id
+
+  if (!defaultId) {
+    return list.filter((entry) => !isMainProductVariantEntry(productValues, entry))
+  }
+
+  return list.filter((entry) => String(entry?.variantValue?.id) !== String(defaultId))
+}
+
+export function inferListingTypeFromValues(values = {}) {
+  const extras = filterOptionalVariantEntries(
+    (values.variations ?? []).flatMap((group) => (
+      (group?.values ?? []).map((variantValue) => ({ variation: group, variantValue }))
+    )),
+    values,
   )
+
+  if (extras.length > 0) return LISTING_TYPES.VARIANTS
+
+  const name = String(values.name ?? '').trim()
+  if (name && isMainProductOption(values, name, name)) {
+    return LISTING_TYPES.SIMPLE
+  }
+
+  return LISTING_TYPES.VARIANTS
 }
 
 export function hasMatchingVariationValue(variations = [], attribute, value) {
@@ -321,7 +437,24 @@ export function hasMatchingVariationValue(variations = [], attribute, value) {
  * Infer attribute, value, display name, and SKU for the auto-created variation.
  * Prefers the vendor-defined main option, then key details, then category context.
  */
+export function resolveSimpleVariationIdentity(values = {}) {
+  const name = String(values.name ?? '').trim() || 'Product'
+  const sku = String(values.sku ?? '').trim()
+
+  return {
+    attribute: name,
+    value: name,
+    variant_name: name,
+    sku: resolveDefaultVariantSku(sku, name, name),
+    source: 'simple',
+  }
+}
+
 export function resolveDefaultVariationIdentity(values = {}, catalogContext = {}) {
+  if (isSimpleListing(values.listing_type)) {
+    return resolveSimpleVariationIdentity(values)
+  }
+
   const name = String(values.name ?? '').trim()
   const sku = String(values.sku ?? '').trim()
   const mainAttribute = String(values.main_attribute ?? '').trim()
@@ -440,16 +573,20 @@ export function buildDefaultProductVariationGroup(
   values = {},
   mainImage = null,
   catalogContext = {},
+  subImages = [],
 ) {
-  const image = cloneMainImageForDefaultVariation(mainImage)
+  const images = cloneImagesForDefaultVariant(
+    collectProductImagesForDefaultVariant(mainImage, subImages, MAX_VARIANT_IMAGE_COUNT),
+  )
 
-  if (!image || !isUsableProductImage(image)) {
+  if (!images[0] || !isUsableProductImage(images[0])) {
     throw new Error(
       'A main product photo is required to publish without custom variations.',
     )
   }
 
   const identity = resolveDefaultVariationIdentity(values, catalogContext)
+  const parentPricing = getParentProductPricing(values)
 
   return {
     id: createLocalId('var-default'),
@@ -460,12 +597,17 @@ export function buildDefaultProductVariationGroup(
         value: identity.value,
         variant_name: identity.variant_name,
         sku: '',
-        price: '',
-        discount_price: '',
+        price: values.price === '' || values.price == null ? '' : values.price,
+        discount_price: parentPricing.hasDiscount ? parentPricing.salePrice : '',
         quantity: values.quantity === '' || values.quantity == null
           ? ''
           : values.quantity,
-        reserved_quantity: '',
+        reserved_quantity: values.reserved_quantity === '' || values.reserved_quantity == null
+          ? ''
+          : values.reserved_quantity,
+        low_stock_threshold: values.low_stock_threshold === '' || values.low_stock_threshold == null
+          ? ''
+          : values.low_stock_threshold,
         minimum_threshold: values.low_stock_threshold === '' || values.low_stock_threshold == null
           ? ''
           : values.low_stock_threshold,
@@ -478,7 +620,8 @@ export function buildDefaultProductVariationGroup(
         description: truncateDescription(values.description),
         has_compatible_models: Boolean(values.has_compatible_models) && (values.compatible_models ?? []).length > 0,
         compatible_models: Array.isArray(values.compatible_models) ? values.compatible_models.filter(Boolean) : [],
-        images: [image],
+        secondary_variants: Array.isArray(values.secondary_variants) ? values.secondary_variants : [],
+        images,
       },
     ],
   }
@@ -492,16 +635,24 @@ export function ensureDefaultProductVariations({
   variations = [],
   values = {},
   mainImage = null,
+  subImages = [],
   catalogContext = {},
 } = {}) {
-  const groups = Array.isArray(variations) ? variations : []
+  const groups = isSimpleListing(values.listing_type)
+    ? []
+    : (Array.isArray(variations) ? variations : [])
   const identity = resolveDefaultVariationIdentity(values, catalogContext)
 
   if (hasMatchingVariationValue(groups, identity.attribute, identity.value)) {
     return groups
   }
 
-  const defaultGroup = buildDefaultProductVariationGroup(values, mainImage, catalogContext)
+  const defaultGroup = buildDefaultProductVariationGroup(
+    values,
+    mainImage,
+    catalogContext,
+    subImages,
+  )
   const existingIndex = groups.findIndex(
     (group) => normalizeOptionText(group?.attribute) === normalizeOptionText(identity.attribute),
   )
@@ -546,9 +697,13 @@ export function buildDefaultVariationCardValues(productValues = {}, mainImage = 
     compatible_models: Array.isArray(productValues.compatible_models)
       ? productValues.compatible_models
       : [],
+    secondary_variants: Array.isArray(productValues.secondary_variants)
+      ? productValues.secondary_variants
+      : [],
     images: collectProductImagesForDefaultVariant(mainImage, subImages),
     variant_name: '',
-    reserved_quantity: '',
+    reserved_quantity: productValues.reserved_quantity ?? '',
+    low_stock_threshold: productValues.low_stock_threshold ?? '',
     minimum_threshold: productValues.low_stock_threshold ?? '',
     barcode: productValues.barcode ?? '',
     barcode_type: 'UPC',
@@ -560,16 +715,30 @@ export function buildDefaultVariationCardValues(productValues = {}, mainImage = 
   }
 }
 
+function preferDraftField(draftValue, leafValue) {
+  if (draftValue !== '' && draftValue != null) return draftValue
+  return leafValue ?? draftValue
+}
+
 export function applyDefaultVariationDraftToProduct(draft = {}) {
   const { mainImage, subImages } = splitDefaultVariantImages(draft.images)
+  const secondaries = (Array.isArray(draft.secondary_variants) ? draft.secondary_variants : [])
+    .filter((item) => String(item?.attribute ?? '').trim() && String(item?.value ?? '').trim())
+  const leaf = secondaries.find((item) => String(item.id) === String(draft.id))
+    ?? (secondaries.length === 1 ? secondaries[0] : null)
 
   return {
     productPatch: {
       main_attribute_value: draft.value ?? '',
-      quantity: draft.quantity,
-      price: draft.price,
-      discount_price: draft.discount_price,
+      quantity: preferDraftField(draft.quantity, leaf?.quantity),
+      reserved_quantity: preferDraftField(draft.reserved_quantity, leaf?.reserved_quantity),
+      price: preferDraftField(draft.price, leaf?.price),
+      discount_price: preferDraftField(draft.discount_price, leaf?.discount_price),
       discount_mode: 'amount',
+      low_stock_threshold: preferDraftField(
+        draft.low_stock_threshold ?? draft.minimum_threshold,
+        leaf?.low_stock_threshold ?? leaf?.minimum_threshold,
+      ),
       has_compatible_models: Boolean(draft.has_compatible_models)
         && (draft.compatible_models ?? []).length > 0,
       compatible_models: Array.isArray(draft.compatible_models) ? draft.compatible_models : [],
@@ -601,9 +770,7 @@ export function mergeDefaultVariantImagesIntoProduct(
 export const SYNTHETIC_DEFAULT_VARIANT_ID = 'val-synthetic-default'
 
 export function resolveDefaultVariantEntry(entries = [], productValues = {}, media = {}) {
-  const found = (Array.isArray(entries) ? entries : []).find((entry) => (
-    isMainProductVariantEntry(productValues, entry)
-  ))
+  const found = findDefaultVariantFormEntry(entries, productValues)
   if (found) return { ...found, synthetic: false }
 
   const attribute = String(productValues.main_attribute ?? '').trim() || 'Option'
@@ -632,16 +799,40 @@ export function overlayProductFieldsOnVariantDraft(
 ) {
   const productCard = buildDefaultVariationCardValues(productValues, mainImage, subImages)
 
-  return {
+  const next = {
     ...baseDraft,
     value: productCard.value || baseDraft.value,
     quantity: productCard.quantity !== '' && productCard.quantity != null
       ? productCard.quantity
       : baseDraft.quantity,
+    reserved_quantity: productCard.reserved_quantity !== '' && productCard.reserved_quantity != null
+      ? productCard.reserved_quantity
+      : baseDraft.reserved_quantity,
+    low_stock_threshold: productCard.low_stock_threshold !== '' && productCard.low_stock_threshold != null
+      ? productCard.low_stock_threshold
+      : baseDraft.low_stock_threshold,
+    minimum_threshold: productCard.minimum_threshold !== '' && productCard.minimum_threshold != null
+      ? productCard.minimum_threshold
+      : baseDraft.minimum_threshold,
     price: productCard.price,
     discount_price: productCard.discount_price,
     has_compatible_models: productCard.has_compatible_models,
     compatible_models: productCard.compatible_models,
     images: productCard.images.length > 0 ? productCard.images : (baseDraft.images ?? []),
   }
+
+  const secondaries = Array.isArray(baseDraft.secondary_variants) ? baseDraft.secondary_variants : []
+  if (secondaries.length === 1) {
+    next.secondary_variants = [{
+      ...secondaries[0],
+      quantity: next.quantity,
+      reserved_quantity: next.reserved_quantity,
+      low_stock_threshold: next.low_stock_threshold,
+      minimum_threshold: next.minimum_threshold,
+      price: next.price,
+      discount_price: next.discount_price,
+    }]
+  }
+
+  return next
 }

@@ -632,9 +632,32 @@ function resolveImageUrl(image) {
   return normalized
 }
 
-function toSavedProductImage(image, index) {
-  const uploadId = resolveImageUploadId(image)
+/**
+ * JSON image ref for create/edit.
+ * Existing unchanged images → { id } only.
+ * Newly uploaded images → { upload_id } only.
+ * Never include both on the same entry.
+ */
+export function toSavedProductImage(image, index, { label = 'Image' } = {}) {
   const remoteId = resolveRemoteProductImageId(image)
+  const uploadId = resolveImageUploadId(image)
+  const isFreshUpload = Boolean(uploadId) && image?.isRemote !== true
+
+  if (isFreshUpload) {
+    return {
+      upload_id: uploadId,
+      sort_order: index,
+      is_primary: index === 0,
+    }
+  }
+
+  if (remoteId) {
+    return {
+      id: String(remoteId),
+      sort_order: index,
+      is_primary: index === 0,
+    }
+  }
 
   if (uploadId) {
     return {
@@ -644,53 +667,17 @@ function toSavedProductImage(image, index) {
     }
   }
 
-  // Kept existing images must reference backend id — not preview/storage URLs.
-  if (remoteId) {
-    return {
-      id: remoteId,
-      sort_order: index,
-      is_primary: index === 0,
-    }
-  }
-
-  // Edit/create JSON payloads must reference images by backend id or upload id only.
   if (resolveImageUrl(image)) {
     throw new Error(
-      `Image ${index + 1} is missing a backend id or upload id. Remove and re-add the image, then try again.`,
+      `${label} ${index + 1} is missing a backend id or upload id. Remove and re-add the image, then try again.`,
     )
   }
 
   return null
 }
 
-/** Description images: existing → { id }; new upload → { upload_id }. */
 function toSavedDescriptionImage(image, index) {
-  const uploadId = resolveImageUploadId(image)
-  const remoteId = resolveRemoteProductImageId(image)
-
-  if (remoteId) {
-    return {
-      id: remoteId,
-      sort_order: index,
-      is_primary: index === 0,
-    }
-  }
-
-  if (uploadId) {
-    return {
-      upload_id: uploadId,
-      sort_order: index,
-      is_primary: index === 0,
-    }
-  }
-
-  if (resolveImageUrl(image)) {
-    throw new Error(
-      `Detail image ${index + 1} is missing a backend id or upload id. Remove and re-add the image, then try again.`,
-    )
-  }
-
-  return null
+  return toSavedProductImage(image, index, { label: 'Detail image' })
 }
 
 /**

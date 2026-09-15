@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
-import { Link } from 'react-router'
 import Container from '../layout/Container'
 import { landingProductGridClass, landingSectionPanelClass } from '../../constants/landingLayout'
 import ProductCard from '../shared/ProductCard'
 import FlashSalesCountdown from './FlashSalesCountdown'
+import ViewAllLink from './ViewAllLink'
 import { FLASH_SALE_ENDS_AT } from '../../constants/flashSalesProducts'
 
 const ease = [0.16, 1, 0.3, 1]
@@ -36,12 +36,7 @@ export default function FlashSalesSection({ products = [] }) {
             </h2>
             <div className="flex items-center gap-4">
               <FlashSalesCountdown endAt={FLASH_SALE_ENDS_AT} />
-              <Link
-                to="/products/flash-sales"
-                className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-base"
-              >
-                View All
-              </Link>
+              <ViewAllLink to="/products/flash-sales" />
             </div>
           </div>
 

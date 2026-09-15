@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
-import { Link } from 'react-router'
 import Container from '../layout/Container'
 import { landingProductGridClass, landingSectionPanelClass } from '../../constants/landingLayout'
 import { getPromotionsFilterHref, PROMOTION_FILTER_RECOMMENDED } from '../../constants/categoryQuickFilters'
 import ProductCard from '../shared/ProductCard'
+import ViewAllLink from './ViewAllLink'
 
 const ease = [0.16, 1, 0.3, 1]
 
@@ -34,12 +34,7 @@ export default function RecommendedSection({ products = [] }) {
             >
               Recommended For You
             </h2>
-            <Link
-              to={getPromotionsFilterHref(PROMOTION_FILTER_RECOMMENDED)}
-              className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-base"
-            >
-              View All
-            </Link>
+            <ViewAllLink to={getPromotionsFilterHref(PROMOTION_FILTER_RECOMMENDED)} />
           </div>
 
           <motion.div

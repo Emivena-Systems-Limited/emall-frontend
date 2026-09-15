@@ -1,5 +1,6 @@
 import {
   getVariantAttributeValue,
+  normalizeVariantAttributeEntries,
   resolveVariantAttributeFields,
 } from './productVariantFields'
 
@@ -148,6 +149,12 @@ function isUsableColorLabel(value) {
 function resolveVariantColorValue(variant, attributeKey) {
   if (!variant || typeof variant !== 'object') return ''
 
+  const fromNamed = firstValue(
+    getVariantAttributeValue(variant, 'color'),
+    getVariantAttributeValue(variant, 'colour'),
+  )
+  if (isUsableColorLabel(fromNamed)) return String(fromNamed).trim()
+
   if (isColorAttributeKey(variant.attribute) || isColorAttributeKey(attributeKey)) {
     const fromValue = String(variant.value ?? '').trim()
     if (isUsableColorLabel(fromValue)) return fromValue
@@ -207,12 +214,23 @@ function priceRangeFromSlimVariants(product, variants) {
   }
 }
 
+function flattenVariantAttributes(variant) {
+  const named = normalizeVariantAttributeEntries(variant?.attributes)
+  if (named.length > 0) {
+    return Object.fromEntries(named.map((entry) => [entry.name, entry.value]))
+  }
+
+  if (variant?.attributes && typeof variant.attributes === 'object' && !Array.isArray(variant.attributes)) {
+    return variant.attributes
+  }
+
+  return {}
+}
+
 export function extractSlimVariants(product) {
   return toArray(product.variants || product.variations).map((variant) => {
     const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
-    const attributes = variant.attributes && typeof variant.attributes === 'object'
-      ? variant.attributes
-      : {}
+    const attributes = flattenVariantAttributes(variant)
 
     const color = resolveVariantColorValue(variant, attributeKey)
 

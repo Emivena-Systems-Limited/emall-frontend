@@ -94,16 +94,28 @@ export function resolveCategoryImage({
   return CATEGORY_IMAGES.generic
 }
 
+function isFootwearParentCategory(slug = '', label = '') {
+  const searchText = buildSearchText(slug, label)
+  return /\b(shoe|shoes|footwear|boot|boots)\b/i.test(searchText)
+}
+
 export function resolveParentCategoryImage(category = {}) {
+  const slug = category.slug
+  const label = category.name ?? category.label
+
+  const local = getLocalCategoryImage(slug)
+  if (local) return local
+
+  if (isFootwearParentCategory(slug, label)) {
+    return resolveCategoryImage({ slug, label })
+  }
+
   if (isUsableImageUrl(category?.image)) return category.image.trim()
   if (isUsableImageUrl(category?.thumbnail)) return category.thumbnail.trim()
 
-  const local = getLocalCategoryImage(category.slug)
-  if (local) return local
-
   return resolveCategoryImage({
-    slug: category.slug,
-    label: category.name ?? category.label,
+    slug,
+    label,
   })
 }
 

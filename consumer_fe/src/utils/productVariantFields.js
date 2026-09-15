@@ -2,9 +2,33 @@ function isNumericAttributeKey(key) {
   return /^\d+$/.test(String(key ?? '').trim())
 }
 
+export function normalizeVariantAttributeEntries(attributes = []) {
+  if (!Array.isArray(attributes)) return []
+
+  return attributes
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+      const name = String(item.name ?? item.attribute ?? item.key ?? '').trim()
+      const value = String(item.value ?? item.option ?? '').trim()
+      if (!name || !value) return null
+      return {
+        name,
+        value,
+        is_primary: item.is_primary === true || item.is_primary === 1 || item.is_primary === '1',
+      }
+    })
+    .filter(Boolean)
+}
+
 export function parseVariantAttributes(attributes) {
   if (attributes == null) {
     return { attributeKey: 'option', attributeValue: '' }
+  }
+
+  const namedEntries = normalizeVariantAttributeEntries(attributes)
+  if (namedEntries.length > 0) {
+    const primary = namedEntries.find((entry) => entry.is_primary) ?? namedEntries[0]
+    return { attributeKey: primary.name, attributeValue: primary.value }
   }
 
   if (Array.isArray(attributes)) {
@@ -17,11 +41,11 @@ export function parseVariantAttributes(attributes) {
   }
 
   if (typeof attributes === 'object') {
-    const namedEntries = Object.entries(attributes).filter(
+    const namedObjectEntries = Object.entries(attributes).filter(
       ([key]) => key != null && !isNumericAttributeKey(key),
     )
-    if (namedEntries.length > 0) {
-      const [attributeKey, attributeValue] = namedEntries[0]
+    if (namedObjectEntries.length > 0) {
+      const [attributeKey, attributeValue] = namedObjectEntries[0]
       return { attributeKey, attributeValue: attributeValue ?? '' }
     }
   }
@@ -58,12 +82,18 @@ export function getVariantAttributeValue(variant, attributeName) {
   const normalized = String(attributeName ?? '').trim().toLowerCase()
   if (!normalized || !variant || typeof variant !== 'object') return ''
 
-  const flatAttribute = String(variant.attribute ?? '').trim().toLowerCase()
+  const namedEntries = normalizeVariantAttributeEntries(variant.attributes)
+  if (namedEntries.length > 0) {
+    const match = namedEntries.find((entry) => entry.name.toLowerCase() === normalized)
+    if (match) return match.value
+  }
+
+  const flatAttribute = String(typeof variant.attribute === 'object' ? '' : (variant.attribute ?? '')).trim().toLowerCase()
   if (flatAttribute === normalized) {
     return String(variant.value ?? variant.variant_name ?? '').trim()
   }
 
-  if (variant.attributes && typeof variant.attributes === 'object') {
+  if (variant.attributes && typeof variant.attributes === 'object' && !Array.isArray(variant.attributes)) {
     for (const [key, value] of Object.entries(variant.attributes)) {
       if (String(key).trim().toLowerCase() === normalized && value != null && value !== '') {
         return String(value).trim()
@@ -85,6 +115,36 @@ export function getVariantAttributeValue(variant, attributeName) {
   }
 
   return ''
+}
+
+export function resolveVariantStock(variant, fallback = 0) {
+  if (!variant || typeof variant !== 'object') return fallback
+  if (variant.inventory?.available_quantity != null && variant.inventory.available_quantity !== '') {
+    const available = Number(variant.inventory.available_quantity)
+    if (Number.isFinite(available)) return available
+  }
+  if (variant.quantity != null && variant.quantity !== '') {
+    const quantity = Number(variant.quantity)
+    if (Number.isFinite(quantity)) return quantity
+  }
+  return fallback
+}
+
+export function resolveVariantLowStockThreshold(variant, fallback = 10) {
+  if (!variant || typeof variant !== 'object') return fallback
+  if (variant.inventory?.minimum_threshold != null && variant.inventory.minimum_threshold !== '') {
+    const threshold = Number(variant.inventory.minimum_threshold)
+    if (Number.isFinite(threshold)) return threshold
+  }
+  if (variant.low_stock_threshold != null && variant.low_stock_threshold !== '') {
+    const threshold = Number(variant.low_stock_threshold)
+    if (Number.isFinite(threshold)) return threshold
+  }
+  if (variant.minimum_threshold != null && variant.minimum_threshold !== '') {
+    const threshold = Number(variant.minimum_threshold)
+    if (Number.isFinite(threshold)) return threshold
+  }
+  return fallback
 }
 
 /** Primary image URL from API variant record (`images[]`, flat `image_url`, or legacy `image`). */
@@ -172,4 +232,43 @@ export function resolveNestedBrand(record) {
 export function resolveBrandName(record) {
   const brand = resolveNestedBrand(record)
   return brand?.brand_name ?? brand?.name ?? record?.brand_name ?? ''
+}
+
+function getMetadataMapValue(metadata, key) {
+  if (!Array.isArray(metadata)) return ''
+  const match = metadata.find((entry) => String(entry?.key ?? '').trim() === key)
+  return String(match?.value ?? '').trim()
+}
+
+/** True when the listing has a single auto-generated SKU named after the product. */
+export function isSimpleListingProduct(product = {}) {
+  const name = String(product.name ?? product.title ?? '').trim()
+  const variants = Array.isArray(product.variants) ? product.variants : []
+  const mainAttribute = String(
+    product.mainAttribute
+    ?? product.main_attribute
+    ?? getMetadataMapValue(product.metadata, 'main_attribute'),
+  ).trim()
+  const mainAttributeValue = String(
+    product.mainAttributeValue
+    ?? product.main_attribute_value
+    ?? getMetadataMapValue(product.metadata, 'main_attribute_value'),
+  ).trim()
+  const namedAsSimple = Boolean(name)
+    && isSameVariantOption(mainAttribute, name)
+    && isSameVariantOption(mainAttributeValue, name)
+
+  if (variants.length > 1) return false
+
+  if (variants.length === 1) {
+    const namedEntries = normalizeVariantAttributeEntries(variants[0].attributes)
+    if (namedEntries.length > 1) return false
+    if (namedAsSimple) return true
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variants[0])
+    return Boolean(name)
+      && isSameVariantOption(attributeKey, name)
+      && isSameVariantOption(attributeValue, name)
+  }
+
+  return namedAsSimple
 }

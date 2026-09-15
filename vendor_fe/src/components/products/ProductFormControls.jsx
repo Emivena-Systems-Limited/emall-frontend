@@ -98,10 +98,12 @@ export function ProductInput({
   error,
   reserveHintSpace = false,
   optional = false,
+  dataField,
+  ref,
   ...props
 }) {
   return (
-    <div data-field={props.name} className="flex h-full flex-col">
+    <div data-field={dataField ?? props.name} className="flex h-full flex-col">
       <Label
         id={id}
         label={label}
@@ -112,6 +114,7 @@ export function ProductInput({
       />
       <input
         id={id}
+        ref={ref}
         className={`${inputBase} ${error ? errorState : normalState}`}
         {...props}
       />

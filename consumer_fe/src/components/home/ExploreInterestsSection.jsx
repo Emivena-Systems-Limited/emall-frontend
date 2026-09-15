@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
-import { Link } from 'react-router'
 import Container from '../layout/Container'
 import { landingProductGridClass, landingSectionPanelClass } from '../../constants/landingLayout'
 import ProductCard from '../shared/ProductCard'
 import NationwideDeliveryBanner from './NationwideDeliveryBanner'
+import ViewAllLink from './ViewAllLink'
 import { exploreInterestsGrid } from '../../constants/exploreInterestsProducts'
 
 const ease = [0.16, 1, 0.3, 1]
@@ -46,12 +46,7 @@ export default function ExploreInterestsSection({ products = [] }) {
             >
               Other Essentials Just For You
             </h2>
-            <Link
-              to="/products/explore"
-              className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-base"
-            >
-              View All
-            </Link>
+            <ViewAllLink to="/products/explore" />
           </div>
 
           <motion.div

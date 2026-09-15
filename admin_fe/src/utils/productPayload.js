@@ -337,6 +337,40 @@ export function variantHasCompatibleModel(variant, model) {
   )
 }
 
+function normalizeSecondaryVariantsForPayload(variantValue = {}, productValues = {}) {
+  const items = Array.isArray(variantValue.secondary_variants)
+    ? variantValue.secondary_variants
+    : []
+  const parentPricing = resolveVariantPricing(variantValue, productValues)
+  const parentQty = toNumberOrNull(variantValue.quantity) ?? toNumberOrNull(productValues.quantity)
+
+  return items
+    .map((item) => {
+      const attribute = String(item?.attribute ?? '').trim()
+      const value = String(item?.value ?? '').trim()
+      if (!attribute || !value) return null
+
+      const usePrimaryQuantity = item.use_primary_quantity !== false
+      const usePrimaryPrice = item.use_primary_price !== false
+      const customPrice = toNumberOrNull(item.price)
+      const customSale = toNumberOrNull(item.discount_price)
+
+      return {
+        attribute,
+        value,
+        use_primary_quantity: usePrimaryQuantity,
+        use_primary_price: usePrimaryPrice,
+        quantity: usePrimaryQuantity ? parentQty : (toNumberOrNull(item.quantity) ?? 0),
+        price: usePrimaryPrice ? parentPricing.listPrice : customPrice,
+        regular_price: usePrimaryPrice ? parentPricing.listPrice : customPrice,
+        discount_price: usePrimaryPrice
+          ? (parentPricing.salePrice ?? null)
+          : customSale,
+      }
+    })
+    .filter(Boolean)
+}
+
 function resolveImageFile(image) {
   if (isFileValue(image)) return image
   if (isFileValue(image?.file)) return image.file
@@ -450,6 +484,7 @@ function buildSingleVariationFields(variantValue, variation, values) {
     height: optionalVariantNumberForPayload(variantValue.height, 0),
     description: optionalVariantFieldForPayload(variantValue.description),
     ...compatibleModelsFields,
+    secondary_variants: normalizeSecondaryVariantsForPayload(variantValue, values),
     price: pricing.listPrice,
     regular_price: pricing.listPrice,
     discount_price: discountPrice,
@@ -502,6 +537,7 @@ function buildSingleVariationJsonFields(variantValue, variation, values) {
     height: optionalVariantNumberOrNullForJsonPayload(variantValue.height),
     description: optionalVariantStringForJsonPayload(variantValue.description),
     ...compatibleModelsFields,
+    secondary_variants: normalizeSecondaryVariantsForPayload(variantValue, values),
     price: pricing.listPrice,
     regular_price: pricing.listPrice,
     ...discountFields,
@@ -1642,6 +1678,7 @@ function buildSingleVariantFormData(variantFormValues, productValues) {
     description: variantFormValues.description,
     has_compatible_models: variantFormValues.has_compatible_models,
     compatible_models: variantFormValues.compatible_models,
+    secondary_variants: variantFormValues.secondary_variants ?? [],
     images: variantFormValues.images ?? [],
   }
 

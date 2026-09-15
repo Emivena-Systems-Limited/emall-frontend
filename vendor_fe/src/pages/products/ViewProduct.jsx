@@ -213,6 +213,7 @@ export default function ViewProduct() {
               productId: product.id,
               canActivate: canActivateProduct(product.status),
               canDeactivate: canDeactivateProduct(product.status),
+              canManageVariations: !product.isSimpleListing,
               onActivate: () => setStatusRequest({ product, status: 'active' }),
               onDeactivate: () => setStatusRequest({ product, status: 'inactive' }),
               onDelete: () => setShowDeleteModal(true),

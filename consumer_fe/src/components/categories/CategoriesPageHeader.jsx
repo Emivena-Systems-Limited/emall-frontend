@@ -6,11 +6,9 @@ import {
 import { toCategoryListingHref } from '../../utils/listingFilterParams'
 import FeaturedDepartmentCard from './FeaturedDepartmentCard'
 
-export default function CategoriesPageHeader() {
-  const [primarySpotlight, secondarySpotlight] = FEATURED_CATEGORY_SPOTLIGHTS
-
+export function CategoriesPageIntro() {
   return (
-    <section aria-labelledby="categories-page-heading" className="bg-white pb-8 pt-4 sm:pb-10 sm:pt-5 lg:pb-12 lg:pt-6">
+    <section aria-labelledby="categories-page-heading" className="bg-white pt-4 pb-5 sm:pt-5 sm:pb-6 lg:pt-6">
       <Container>
         <div className="max-w-3xl">
           <h1
@@ -23,22 +21,31 @@ export default function CategoriesPageHeader() {
             {CATEGORIES_PAGE_HEADER.description}
           </p>
         </div>
+      </Container>
+    </section>
+  )
+}
 
-        {primarySpotlight && secondarySpotlight ? (
-          <div className="mt-6 grid gap-4 sm:mt-8 sm:gap-5 lg:grid-cols-3 lg:items-stretch">
-            <FeaturedDepartmentCard
-              spotlight={{ ...primarySpotlight, href: toCategoryListingHref(primarySpotlight.href) }}
-              featured={primarySpotlight.featured}
-              imageOnly
-              className="lg:col-span-2"
-            />
-            <FeaturedDepartmentCard
-              spotlight={{ ...secondarySpotlight, href: toCategoryListingHref(secondarySpotlight.href) }}
-              imageOnly
-              fillHeight
-            />
-          </div>
-        ) : null}
+export function CategoriesPageSpotlights() {
+  const [primarySpotlight, secondarySpotlight] = FEATURED_CATEGORY_SPOTLIGHTS
+  if (!primarySpotlight || !secondarySpotlight) return null
+
+  return (
+    <section aria-label="Featured departments" className="bg-white pt-6 pb-8 sm:pt-8 sm:pb-10 lg:pb-12">
+      <Container>
+        <div className="grid gap-4 sm:gap-5 lg:grid-cols-3 lg:items-stretch">
+          <FeaturedDepartmentCard
+            spotlight={{ ...primarySpotlight, href: toCategoryListingHref(primarySpotlight.href) }}
+            featured={primarySpotlight.featured}
+            imageOnly
+            className="lg:col-span-2"
+          />
+          <FeaturedDepartmentCard
+            spotlight={{ ...secondarySpotlight, href: toCategoryListingHref(secondarySpotlight.href) }}
+            imageOnly
+            fillHeight
+          />
+        </div>
       </Container>
     </section>
   )

@@ -42,49 +42,97 @@ export function collectStepErrors(errors, fields) {
   )
 }
 
-/**
- * Scrolls to the first form field (by DOM order) that has a Formik error.
- * Relies on `data-field="fieldName"` being on the wrapper element of every input.
- * Pass `scrollContainer` to scroll within a nested panel (e.g. a drawer) instead of the page.
- */
-export function scrollToFirstError(errors, scrollContainer = null) {
-  const flat = flattenFormikErrors(errors)
-  const fieldEls = scrollContainer
-    ? Array.from(scrollContainer.querySelectorAll('[data-field]'))
-    : Array.from(document.querySelectorAll('[data-field]'))
+function resolveScrollRoot(scrollContainer) {
+  if (scrollContainer) return scrollContainer
+  return document.querySelector('[data-dashboard-scroll-panel]')
+}
+
+function fieldMatchesErrorPath(name, path) {
+  return path === name || path.startsWith(`${name}.`)
+}
+
+function findErrorElement(flatErrors, scope) {
+  const paths = Object.keys(flatErrors)
+  if (paths.length === 0) return null
+
+  const fieldEls = Array.from(scope.querySelectorAll('[data-field]'))
+
+  for (const path of paths) {
+    const exact = fieldEls.find((el) => el.getAttribute('data-field') === path)
+    if (exact) return exact
+  }
 
   let bestMatch = null
-
   for (const el of fieldEls) {
     const name = el.getAttribute('data-field')
     if (!name) continue
-
-    const matched = Object.keys(flat).some(
-      (path) => path === name || path.startsWith(`${name}.`),
-    )
-    if (!matched) continue
-
+    if (!paths.some((path) => fieldMatchesErrorPath(name, path))) continue
     if (!bestMatch || name.length > bestMatch.name.length) {
       bestMatch = { el, name }
     }
   }
 
-  const first = bestMatch?.el
-  if (!first) return
+  return bestMatch?.el ?? null
+}
 
-  if (scrollContainer) {
-    const containerRect = scrollContainer.getBoundingClientRect()
-    const targetRect = first.getBoundingClientRect()
-    const offset = targetRect.top - containerRect.top + scrollContainer.scrollTop - 24
-    scrollContainer.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' })
-  } else {
-    first.scrollIntoView({ behavior: 'smooth', block: 'center' })
+function expandCollapsedAncestors(el) {
+  const cards = []
+  let node = el.parentElement
+  while (node && node !== document.body) {
+    if (node.matches?.('article, [data-variant-card]')) cards.push(node)
+    node = node.parentElement
   }
 
-  const focusable = first.querySelector(
+  let expanded = false
+  cards.reverse().forEach((card) => {
+    const toggle = card.querySelector(':scope > button[aria-expanded="false"]')
+    if (!toggle) return
+    toggle.click()
+    expanded = true
+  })
+
+  return expanded
+}
+
+function focusAndScrollTo(el, scrollContainer) {
+  const panel = resolveScrollRoot(scrollContainer)
+
+  if (panel) {
+    const containerRect = panel.getBoundingClientRect()
+    const targetRect = el.getBoundingClientRect()
+    const offset = targetRect.top - containerRect.top + panel.scrollTop - 24
+    panel.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' })
+  } else {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  const focusable = el.querySelector(
     'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]):not([type="submit"])',
   )
   focusable?.focus({ preventScroll: true })
+}
+
+/**
+ * Scrolls to the first form field that has a Formik error and focuses it.
+ * Relies on `data-field` matching the Formik path (or a parent path).
+ * Pass `scrollContainer` to scroll within a nested panel (e.g. a drawer).
+ * Otherwise uses the dashboard scroll panel when present.
+ */
+export function scrollToFirstError(errors, scrollContainer = null) {
+  const flat = flattenFormikErrors(errors)
+  const scope = scrollContainer || document
+  const first = findErrorElement(flat, scope)
+  if (!first) return
+
+  const didExpand = expandCollapsedAncestors(first)
+  const run = () => focusAndScrollTo(first, scrollContainer)
+
+  if (didExpand) {
+    requestAnimationFrame(() => requestAnimationFrame(run))
+    return
+  }
+
+  run()
 }
 
 /** Marks every field root that has a validation error as touched so errors render on submit. */

@@ -1,10 +1,10 @@
 import {
   BarChart3,
+  Bell,
   CircleDollarSign,
   HelpCircle,
   LayoutDashboard,
   Package,
-  Settings,
   ShoppingCart,
   Star,
   Tag,
@@ -31,6 +31,7 @@ export const NAV_SECTIONS = [
     label: 'Main',
     items: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/notifications', icon: Bell, label: 'Notifications', badgeKey: 'notifications' },
       { to: '/orders', icon: ShoppingCart, label: 'Orders' },
       { to: '/products', icon: Package, label: 'Products' },
       { to: '/customers', icon: Users, label: 'Customers' },

@@ -40,6 +40,12 @@ const CATEGORY_FIELD_MAP = {
   parent_id: 'parentId',
   is_active: 'isActive',
   is_featured: 'isFeatured',
+  'images.0.image_url': 'imageFile',
+  'images.0.type': 'imageFile',
+  'images[0][image_url]': 'imageFile',
+  'images.1.image_url': 'thumbnailFile',
+  'images.1.type': 'thumbnailFile',
+  'images[1][image_url]': 'thumbnailFile',
   'images.image_url': 'imageFile',
   'images[image_url]': 'imageFile',
   image_url: 'imageFile',
@@ -235,10 +241,22 @@ function CategoryForm({ mode, category, parentId, tree, onClose }) {
     if (!latest) return
     setActiveCategory((current) => {
       if (!current || String(current.id) !== String(latest.id)) return current
-      if (current.imageUrl === latest.imageUrl && current.thumbnailUrl === latest.thumbnailUrl) {
+      const currentIds = (current.imageIds ?? []).join(',')
+      const latestIds = (latest.imageIds ?? []).join(',')
+      if (
+        current.imageUrl === latest.imageUrl
+        && current.thumbnailUrl === latest.thumbnailUrl
+        && currentIds === latestIds
+      ) {
         return current
       }
-      return { ...current, imageUrl: latest.imageUrl, thumbnailUrl: latest.thumbnailUrl }
+      return {
+        ...current,
+        imageUrl: latest.imageUrl,
+        thumbnailUrl: latest.thumbnailUrl,
+        images: latest.images ?? current.images ?? [],
+        imageIds: latest.imageIds ?? current.imageIds ?? [],
+      }
     })
   }, [tree, activeCategory?.id])
 
@@ -266,6 +284,7 @@ function CategoryForm({ mode, category, parentId, tree, onClose }) {
           thumbnailFile: values.thumbnailFile,
           imageUrl: activeCategory?.imageUrl ?? '',
           thumbnailUrl: activeCategory?.thumbnailUrl ?? '',
+          images: activeCategory?.images ?? [],
         }
 
         if (!CATEGORY_WRITE_ENABLED) {

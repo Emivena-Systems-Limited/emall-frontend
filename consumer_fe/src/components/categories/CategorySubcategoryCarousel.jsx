@@ -130,7 +130,11 @@ export default function CategorySubcategoryCarousel({
   const showControls = !useFullWidthGrid && !isLoading && subcategories.length > 0 && (canScrollLeft || canScrollRight)
 
   return (
-    <section aria-labelledby={headingId} className="bg-white pb-8 sm:pb-10 lg:pb-12">
+    <section
+      id={parentSlug ? `department-${parentSlug}` : undefined}
+      aria-labelledby={headingId}
+      className="scroll-mt-[var(--categories-scroll-margin,7rem)] bg-white pb-8 sm:pb-10 lg:pb-12"
+    >
       <Container>
         <div className="border-b border-slate-200 pb-4 sm:pb-5">
           <div className="flex items-center justify-between gap-3">

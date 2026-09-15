@@ -98,21 +98,20 @@ export default function SingleVariantForm({ mode, initialValues, productValues, 
               }}
               onToggleCustom={() => {
                 setShowCustomAttribute(true)
-                if (isPresetAttribute(formik.values.attribute)) {
-                  formik.setFieldValue('attribute', '')
-                }
               }}
               onCloseCustom={() => {
                 setShowCustomAttribute(false)
-                formik.setFieldValue('attribute', '')
               }}
-              onCustomChange={formik.handleChange}
-              onCustomBlur={formik.handleBlur}
+              onSaveCustom={(name) => {
+                setShowCustomAttribute(false)
+                formik.setFieldValue('attribute', name)
+              }}
               error={svFieldError(formik, 'attribute')}
             />
           </div>
 
           {/* Step 2: Value */}
+          {!showCustomAttribute ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
             <CardStepHeader
               step={2}
@@ -158,6 +157,7 @@ export default function SingleVariantForm({ mode, initialValues, productValues, 
               </div>
             )}
           </div>
+          ) : null}
 
           <VariantDetailFields
             formik={formik}

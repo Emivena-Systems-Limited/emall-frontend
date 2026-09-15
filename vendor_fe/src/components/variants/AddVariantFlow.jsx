@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Layers3, Plus } from 'lucide-react'
 import ConfirmModal from '../common/ConfirmModal'
 import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
@@ -32,7 +32,13 @@ function createDraftCard(value) {
     compatible_models: [],
     isCustomPrice: false,
     error: '',
+    secondary_variants: [],
   }
+}
+
+function createOpenDraft(value = '') {
+  const card = createDraftCard(value)
+  return { cards: [card], openId: card.id }
 }
 
 /**
@@ -50,6 +56,7 @@ export default function AddVariantFlow({
   deleteVariantMutation,
 }) {
   const lockedAttribute = prefillAttribute?.trim() || ''
+  const initialDraft = lockedAttribute ? createOpenDraft('') : { cards: [], openId: null }
   const [usePrefillAttribute, setUsePrefillAttribute] = useState(Boolean(lockedAttribute))
   const [buildingAttribute, setBuildingAttribute] = useState(lockedAttribute)
   const [showCustomAttribute, setShowCustomAttribute] = useState(() =>
@@ -58,18 +65,29 @@ export default function AddVariantFlow({
   const [attributeError, setAttributeError] = useState('')
   const [valueInput, setValueInput] = useState('')
   const [valuesError, setValuesError] = useState('')
-  const [draftCards, setDraftCards] = useState([])
-  const [openDraftIds, setOpenDraftIds] = useState(() => new Set())
+  const [draftCards, setDraftCards] = useState(initialDraft.cards)
+  const [openCardId, setOpenCardId] = useState(initialDraft.openId)
+  const [addSecondaryRequestId, setAddSecondaryRequestId] = useState(0)
   const [isSavingBatch, setIsSavingBatch] = useState(false)
-  const [openPersistedIds, setOpenPersistedIds] = useState(() => new Set())
   const [persistedSavingId, setPersistedSavingId] = useState(null)
   const [removeTarget, setRemoveTarget] = useState(null)
   const savedValuesRef = useRef(null)
+  const addValueInputRef = useRef(null)
   const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
 
   const activeAttribute = usePrefillAttribute && lockedAttribute
     ? lockedAttribute
     : buildingAttribute.trim()
+
+  const showAddValueInput = Boolean(activeAttribute && !showCustomAttribute && draftCards.length === 0)
+
+  useEffect(() => {
+    if (!showAddValueInput) return undefined
+    const timeoutId = window.setTimeout(() => {
+      addValueInputRef.current?.focus()
+    }, 50)
+    return () => window.clearTimeout(timeoutId)
+  }, [showAddValueInput, activeAttribute])
 
   const scrollToSavedValues = () => {
     requestAnimationFrame(() => {
@@ -89,23 +107,41 @@ export default function AddVariantFlow({
     })
   }
 
+  const openEmptyDraft = () => {
+    const draft = createOpenDraft('')
+    setDraftCards(draft.cards)
+    setOpenCardId(draft.openId)
+    scrollToSavedValues()
+  }
+
+  const startAttributeDraft = (attributeName) => {
+    const name = String(attributeName ?? '').trim()
+    setShowCustomAttribute(false)
+    setBuildingAttribute(name)
+    setAttributeError('')
+    const hasFilledDraft = draftCards.some((card) => String(card.value ?? '').trim())
+    if (!hasFilledDraft) openEmptyDraft()
+  }
+
   const resetSession = () => {
     setBuildingAttribute(usePrefillAttribute && lockedAttribute ? lockedAttribute : '')
     setShowCustomAttribute(Boolean(usePrefillAttribute && lockedAttribute && !isPresetAttribute(lockedAttribute)))
     setDraftCards([])
-    setOpenDraftIds(new Set())
+    setOpenCardId(null)
     setValueInput('')
     setAttributeError('')
     setValuesError('')
   }
 
-  const toggleDraftOpen = (cardId) => {
-    setOpenDraftIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(cardId)) next.delete(cardId)
-      else next.add(cardId)
-      return next
-    })
+  const toggleCardOpen = (cardId) => {
+    setOpenCardId((current) => (current === cardId ? null : cardId))
+  }
+
+  const requestAddSecondary = () => {
+    const targetId = openCardId ?? draftCards[0]?.id
+    if (!targetId) return
+    if (openCardId !== targetId) setOpenCardId(targetId)
+    setAddSecondaryRequestId((token) => token + 1)
   }
 
   const addValue = (rawValue) => {
@@ -138,7 +174,7 @@ export default function AddVariantFlow({
     setValuesError('')
     const card = createDraftCard(trimmed)
     setDraftCards((prev) => [...prev, card])
-    setOpenDraftIds((prev) => new Set(prev).add(card.id))
+    setOpenCardId(card.id)
     scrollToSavedValues()
   }
 
@@ -173,79 +209,79 @@ export default function AddVariantFlow({
 
   const removeDraftCard = (cardId) => {
     setDraftCards((prev) => prev.filter((card) => card.id !== cardId))
+    setOpenCardId((current) => (current === cardId ? null : current))
   }
 
-  const handleSaveBatch = async () => {
-    if (draftCards.length === 0) return
+  const handleSaveCurrent = async () => {
+    const card = draftCards.find((item) => item.id === openCardId) ?? draftCards[0]
+    if (!card) return
     setIsSavingBatch(true)
 
-    const remaining = []
-    let successCount = 0
-
-    for (const card of draftCards) {
-      if (!card.value.trim()) {
-        remaining.push({ ...card, error: 'Value is required' })
-        continue
-      }
-      if (card.quantity === '' || card.quantity == null) {
-        remaining.push({ ...card, error: 'Quantity is required' })
-        continue
-      }
-      if (isColorVariantAttribute(activeAttribute) && !hasUsableProductImages(card.images, card.image_url)) {
-        remaining.push({ ...card, error: COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE })
-        continue
-      }
-
-      try {
-        const normalized = normalizeVariantOptionalFields(
-          { ...card, attribute: activeAttribute },
-          { isCustomPrice: card.isCustomPrice },
-        )
-        const prepared = await prepareVariantFormValuesForSave({
-          variantFormValues: normalized,
-          attribute: activeAttribute,
-          uploadPendingMedia,
-        })
-
-        await createVariantMutation.mutateAsync({
-          productId,
-          variantFormValues: prepared,
-          productValues,
-        })
-        successCount += 1
-      } catch (error) {
-        remaining.push({ ...card, error: error?.message || 'Failed to save this option' })
-      }
+    const fail = (error) => {
+      setDraftCards((prev) => prev.map((item) => (
+        item.id === card.id ? { ...item, error } : item
+      )))
+      setOpenCardId(card.id)
     }
 
-    setDraftCards(remaining)
-    setOpenDraftIds(new Set(remaining.map((card) => card.id)))
-    setIsSavingBatch(false)
+    if (!card.value.trim()) {
+      fail('Value is required')
+      setIsSavingBatch(false)
+      return
+    }
+    if (card.quantity === '' || card.quantity == null) {
+      fail('Quantity is required')
+      setIsSavingBatch(false)
+      return
+    }
+    if (isColorVariantAttribute(activeAttribute) && !hasUsableProductImages(card.images, card.image_url)) {
+      fail(COLOR_VARIANT_IMAGE_REQUIRED_MESSAGE)
+      setIsSavingBatch(false)
+      return
+    }
 
-    if (remaining.length === 0) {
-      notify.success(
-        `${successCount} ${activeAttribute} option${successCount === 1 ? '' : 's'} added successfully.`,
+    try {
+      const normalized = normalizeVariantOptionalFields(
+        { ...card, attribute: activeAttribute },
+        { isCustomPrice: card.isCustomPrice },
       )
-      resetSession()
-    } else if (successCount > 0) {
-      notify.error(`${successCount} option(s) saved. Fix ${remaining.length} option(s) below and save again.`)
-    } else {
-      notify.error('Could not save these options. Check the highlighted fields.')
+      const prepared = await prepareVariantFormValuesForSave({
+        variantFormValues: normalized,
+        attribute: activeAttribute,
+        uploadPendingMedia,
+      })
+
+      await createVariantMutation.mutateAsync({
+        productId,
+        variantFormValues: prepared,
+        productValues,
+      })
+
+      const remaining = draftCards.filter((item) => item.id !== card.id)
+      setDraftCards(remaining)
+      setOpenCardId(remaining[0]?.id ?? null)
+      notify.success(
+        remaining.length === 0
+          ? `${activeAttribute} variant saved.`
+          : `${activeAttribute} variant saved. Continue with the next one, or add another.`,
+      )
+      if (remaining.length === 0) resetSession()
+    } catch (error) {
+      fail(error?.message || 'Failed to save this variant')
+    } finally {
+      setIsSavingBatch(false)
     }
   }
 
-  const togglePersistedOpen = (variantId) => {
-    setOpenPersistedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(variantId)) next.delete(variantId)
-      else next.add(variantId)
-      return next
-    })
-  }
-
-  const handleSavePersisted = async (entry, draft, { isCustomPrice }) => {
-    const variantId = entry.variantValue.id
-    setPersistedSavingId(variantId)
+  const handleSavePersisted = async (entry, draft, {
+    isCustomPrice,
+    saveMode = 'main',
+    targetSecondaryId = null,
+  } = {}) => {
+    const savingKey = saveMode === 'secondary'
+      ? `secondary:${targetSecondaryId}`
+      : `main:${entry.variantValue.id}`
+    setPersistedSavingId(savingKey)
     try {
       const normalized = normalizeVariantOptionalFields(draft, { isCustomPrice })
       const prepared = await prepareVariantFormValuesForSave({
@@ -255,9 +291,11 @@ export default function AddVariantFlow({
       })
       await updateSingleVariantMutation.mutateAsync({
         productId,
-        variantId,
+        variantId: entry.variantValue.id,
         variantFormValues: prepared,
         productValues,
+        saveMode,
+        targetSecondaryId,
       })
     } finally {
       setPersistedSavingId(null)
@@ -313,6 +351,8 @@ export default function AddVariantFlow({
                 setUsePrefillAttribute(false)
                 setBuildingAttribute('')
                 setShowCustomAttribute(false)
+                setDraftCards([])
+                setOpenCardId(null)
               }}
               className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-xs font-bold text-brand transition-colors hover:text-brand-hover"
             >
@@ -325,23 +365,17 @@ export default function AddVariantFlow({
             value={buildingAttribute}
             showCustom={showCustomAttribute}
             onSelectPreset={(preset) => {
-              setShowCustomAttribute(false)
-              setBuildingAttribute(preset)
-              setAttributeError('')
+              startAttributeDraft(preset)
             }}
             onToggleCustom={() => {
               setShowCustomAttribute(true)
-              if (isPresetAttribute(buildingAttribute)) setBuildingAttribute('')
             }}
             onCloseCustom={() => {
               setShowCustomAttribute(false)
-              setBuildingAttribute('')
             }}
-            onCustomChange={(event) => {
-              setBuildingAttribute(event.target.value)
-              setAttributeError('')
+            onSaveCustom={(name) => {
+              startAttributeDraft(name)
             }}
-            onCustomBlur={() => {}}
             error={attributeError}
           />
         )}
@@ -350,13 +384,14 @@ export default function AddVariantFlow({
           <p className="mt-2 text-xs font-semibold text-red-600">{attributeError}</p>
         )}
 
-        {activeAttribute && draftCards.length === 0 ? (
+        {showAddValueInput ? (
           <div className="mt-5 border-t border-slate-100 pt-5">
             <label className="mb-1.5 block text-sm font-semibold text-slate-800">
               Add a {activeAttribute.toLowerCase()} value
             </label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
+                ref={addValueInputRef}
                 type="text"
                 value={valueInput}
                 onChange={(event) => setValueInput(event.target.value)}
@@ -393,12 +428,10 @@ export default function AddVariantFlow({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                  {draftCards.length} {activeAttribute} value{draftCards.length !== 1 ? 's' : ''} to save
+                  {activeAttribute} variant
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  {isColorVariantAttribute(activeAttribute)
-                    ? 'Fill in quantity and price for each value. Color options need at least one photo (up to 3).'
-                    : 'Fill in quantity and price for each value. Photos are optional (up to 3).'}
+                  Fill in this option and any sub-variants, then save. You can add another {activeAttribute.toLowerCase()} after this one is saved.
                 </p>
               </div>
             </div>
@@ -415,28 +448,29 @@ export default function AddVariantFlow({
                   onToggleCustomPrice={(next) => toggleDraftCustomPrice(card.id, next)}
                   productValues={productValues}
                   mainQty={productValues?.quantity ? Number(productValues.quantity) : null}
-                  isOpen={openDraftIds.has(card.id)}
-                  onToggle={() => toggleDraftOpen(card.id)}
+                  isOpen={openCardId === card.id}
+                  onToggle={() => toggleCardOpen(card.id)}
                   onRemove={() => removeDraftCard(card.id)}
                   removeLabel={`Remove ${card.value}`}
                   isBusy={isSavingBatch}
                   error={card.error}
+                  addSecondaryRequestId={openCardId === card.id ? addSecondaryRequestId : 0}
                 />
               ))}
             </div>
 
             <div className="border-t border-slate-200 bg-white px-4 py-4 sm:px-5">
               <VariantGroupActionBar
-                attribute={activeAttribute}
-                valueInput={valueInput}
-                onValueInputChange={(event) => setValueInput(event.target.value)}
-                onValueInputKeyDown={handleValueInputKeyDown}
-                onCommitValue={commitValueInput}
-                valuesError={valuesError}
-                onSave={handleSaveBatch}
-                saveLabel={`Save ${activeAttribute} option${draftCards.length !== 1 ? 's' : ''}`}
+                secondaryAttribute={
+                  (draftCards.find((card) => card.id === openCardId) ?? draftCards[0])
+                    ?.secondary_variants?.[0]?.attribute ?? ''
+                }
+                onAddSecondary={requestAddSecondary}
+                onSave={handleSaveCurrent}
+                saveLabel="Save this variant"
                 isSaving={isSavingBatch || isUploadingMedia}
                 showSave
+                addDisabled={draftCards.length === 0}
               />
             </div>
           </div>
@@ -474,11 +508,17 @@ export default function AddVariantFlow({
                     variation={variation}
                     variantValue={variantValue}
                     productValues={productValues}
-                    isOpen={openPersistedIds.has(variantValue.id)}
-                    onToggle={() => togglePersistedOpen(variantValue.id)}
+                    isOpen={openCardId === variantValue.id}
+                    onToggle={() => toggleCardOpen(variantValue.id)}
                     onSave={(draft, options) => handleSavePersisted({ variation, variantValue }, draft, options)}
                     onRemove={() => setRemoveTarget({ variation, variantValue })}
-                    isSaving={persistedSavingId === variantValue.id || isUploadingMedia}
+                    isSaving={persistedSavingId === `main:${variantValue.id}`}
+                    isSavingSecondary={String(persistedSavingId ?? '').startsWith('secondary:')}
+                    savingSecondaryId={
+                      String(persistedSavingId ?? '').startsWith('secondary:')
+                        ? String(persistedSavingId).slice('secondary:'.length)
+                        : null
+                    }
                     isRemoving={deleteVariantMutation.isPending && removeTarget?.variantValue.id === variantValue.id}
                   />
                 ))}

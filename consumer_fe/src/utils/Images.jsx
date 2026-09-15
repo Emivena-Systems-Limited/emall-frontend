@@ -35,6 +35,10 @@ import empty_wishlist_icon from "../assets/images/empty_wishlist.png";
 import default_store_banner from "../assets/images/default_store.png";
 import shop_logo from "../assets/images/shop_logo.png";
 
+import cell_phones_and_accessories from "../assets/images/categories/cell_phones_and_accessories.png";
+import tools_and_garden from "../assets/images/categories/tools_and_garden.png";
+import automotive from "../assets/images/categories/automotive.png";
+
 import {
   CATEGORY_BANNER_ASSETS,
   categoryCatalogBySlug,
@@ -90,6 +94,9 @@ const categories = {
   electronicsImage,
   phones_and_accessoriesImage,
   home_and_kitchenImage,
+  cell_phones_and_accessories,
+  tools_and_garden,
+  automotive,
 }
 
 /** Full category catalog — real JPG photos keyed by API slug */

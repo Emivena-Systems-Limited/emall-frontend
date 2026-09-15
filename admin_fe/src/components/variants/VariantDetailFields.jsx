@@ -4,7 +4,7 @@ import VariantImageEditSection from './VariantImageEditSection'
 import VariantPricingSummary from '../products/VariantPricingSummary'
 import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
 import CardStepHeader from './CardStepHeader'
-import VariantCompatibleModelsSection from './VariantCompatibleModelsSection'
+import SecondaryVariantSection from './SecondaryVariantSection'
 import VariantIdentitySection from './VariantIdentitySection'
 import { MAX_VARIANT_IMAGE_COUNT, getVariantImageUploadHint, isColorVariantAttribute } from './variantConstants'
 import { svFieldError } from './variantFormUtils'
@@ -205,8 +205,17 @@ export default function VariantDetailFields({
         </div>
       </div>
 
-      {/* Step: Compatible models */}
-      <VariantCompatibleModelsSection formik={formik} step={startStep + 4} />
+      {/* Step: Secondary Variants */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
+        <SecondaryVariantSection
+          step={startStep + 4}
+          primaryAttribute={formik.values.attribute}
+          secondaryVariants={formik.values.secondary_variants ?? []}
+          onChange={(next) => formik.setFieldValue('secondary_variants', next)}
+          primaryValues={formik.values}
+          productValues={productValues}
+        />
+      </div>
     </>
   )
 }

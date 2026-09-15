@@ -1,15 +1,15 @@
 import { Link } from 'react-router'
 import { ArrowRight, Bell } from 'lucide-react'
-import {
-  DASHBOARD_NOTIFICATIONS_LIMIT,
-  VENDOR_NOTIFICATIONS,
-} from '../../constants/notificationsData'
+import { DASHBOARD_NOTIFICATIONS_LIMIT } from '../../constants/notifications'
 import { EMPTY_STATE_PRESETS } from '../../constants/emptyStates'
 import { NotificationItem } from './NotificationItem'
 import EmptyState from './EmptyState'
+import { useVendorNotifications } from '../notifications/VendorNotificationsProvider'
+import { sortNotifications } from '../../utils/notificationUtils'
 
-export default function VendorNotifications({ notifications = VENDOR_NOTIFICATIONS }) {
-  const items = notifications.slice(0, DASHBOARD_NOTIFICATIONS_LIMIT)
+export default function VendorNotifications() {
+  const { notifications } = useVendorNotifications()
+  const items = sortNotifications(notifications).slice(0, DASHBOARD_NOTIFICATIONS_LIMIT)
   const preset = EMPTY_STATE_PRESETS.notifications
 
   return (
@@ -17,22 +17,20 @@ export default function VendorNotifications({ notifications = VENDOR_NOTIFICATIO
       <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex size-6 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
+            <span className="flex size-6 items-center justify-center rounded-lg bg-brand-light text-brand ring-1 ring-brand-muted">
               <Bell className="size-3.5" />
             </span>
             <h3 className="text-sm font-semibold text-slate-900">Notifications</h3>
           </div>
           <p className="mt-1 text-xs text-slate-400">Recent updates for your store</p>
         </div>
-        {items.length > 0 && (
-          <Link
-            to="/notifications"
-            className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-cyan-700 transition-colors hover:text-cyan-900"
-          >
-            View all
-            <ArrowRight className="size-3.5" />
-          </Link>
-        )}
+        <Link
+          to="/notifications"
+          className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-brand transition-colors hover:text-brand-hover"
+        >
+          View all
+          <ArrowRight className="size-3.5" />
+        </Link>
       </div>
 
       {items.length === 0 ? (

@@ -1,5 +1,5 @@
 import { convertDiscountAmountToPercent } from './productPricing'
-import { resolveVariantAttributeFields } from './productPayload'
+import { resolveVariantAttributeFields, isPersistedVariantId } from './productPayload'
 import {
   MAIN_PRODUCT_ATTRIBUTE_META_KEY,
   MAIN_PRODUCT_ATTRIBUTE_VALUE_META_KEY,
@@ -8,7 +8,12 @@ import {
   findMainProductVariant,
   parseCompatibleModels,
 } from './defaultProductVariation'
-import { fromVariantDescriptionField, fromVariantOptionalField, fromVariantSalePriceField } from '../components/variants/variantFormUtils'
+import {
+  fromVariantDescriptionField,
+  fromVariantOptionalField,
+  fromVariantSalePriceField,
+  getVariantLowStockField,
+} from '../components/variants/variantFormUtils'
 import {
   mapApiProductStatus,
   resolveBrandId,
@@ -20,7 +25,7 @@ import { findCategoryPath } from './normalizeCategories'
 import { isGenericBrand, normalizeBrandRecord } from './normalizeBrands'
 import {
   createDescriptiveImageFromRemote,
-  createProductImageFromRemote,
+  hydrateRemoteMediaImage,
   isGalleryProductImage,
   isPrimaryProductImage,
   resolveRemoteProductImageId,
@@ -262,7 +267,7 @@ function resolveProductCompatibleModels(record, metadataMap, productValues, vari
 function mapVariantImages(images = []) {
   return [...images]
     .sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0))
-    .map(createProductImageFromRemote)
+    .map(hydrateRemoteMediaImage)
 }
 
 function resolveVariantInventoryValue(variant, field) {
@@ -270,59 +275,215 @@ function resolveVariantInventoryValue(variant, field) {
   return value == null ? '' : String(value)
 }
 
+function mapApiVariantToFormValue(variant, valueOverride = '') {
+  return {
+    id: variant.id ?? `val-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    value: valueOverride,
+    variant_name: fromVariantOptionalField(variant.variant_name),
+    sku: fromVariantOptionalField(variant.sku),
+    price: fromVariantOptionalField(
+      variant.regular_price == null && variant.price == null
+        ? ''
+        : String(variant.regular_price ?? variant.price),
+    ),
+    discount_price: fromVariantSalePriceField(
+      variant.regular_discount_price ?? variant.discount_price,
+      variant.regular_price ?? variant.price,
+    ),
+    quantity: variant.quantity == null ? '' : String(variant.quantity),
+    reserved_quantity: fromVariantOptionalField(resolveVariantInventoryValue(variant, 'reserved_quantity')),
+    low_stock_threshold: fromVariantOptionalField(
+      resolveVariantInventoryValue(variant, 'low_stock_threshold')
+      || resolveVariantInventoryValue(variant, 'minimum_threshold'),
+    ),
+    minimum_threshold: fromVariantOptionalField(
+      resolveVariantInventoryValue(variant, 'low_stock_threshold')
+      || resolveVariantInventoryValue(variant, 'minimum_threshold'),
+    ),
+    barcode: fromVariantOptionalField(variant.barcode),
+    barcode_type: fromVariantOptionalField(variant.barcode_type) || 'UPC',
+    weight: fromVariantOptionalField(variant.weight == null ? '' : String(variant.weight)),
+    length: fromVariantOptionalField(variant.length == null ? '' : String(variant.length)),
+    width: fromVariantOptionalField(variant.width == null ? '' : String(variant.width)),
+    height: fromVariantOptionalField(variant.height == null ? '' : String(variant.height)),
+    description: fromVariantDescriptionField(variant.description),
+    has_compatible_models: Boolean(
+      variant.has_compatible_models ?? variant.compatible_models?.length,
+    ),
+    compatible_models: Array.isArray(variant.compatible_models)
+      ? variant.compatible_models.filter(Boolean)
+      : [],
+    images: mapVariantImages(variant.images),
+    secondary_variants: [],
+  }
+}
+
+function getVariantAttributeEntries(variant = {}) {
+  const named = Array.isArray(variant.attributes)
+    ? variant.attributes
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null
+        const name = String(item.name ?? item.attribute ?? '').trim()
+        const value = String(item.value ?? '').trim()
+        if (!name || !value) return null
+        return {
+          name,
+          value,
+          is_primary: item.is_primary === true || item.is_primary === 1 || item.is_primary === '1',
+        }
+      })
+      .filter(Boolean)
+    : []
+
+  if (named.length > 0) {
+    const primary = named.find((entry) => entry.is_primary) ?? named[0]
+    return {
+      primary,
+      secondaries: named.filter((entry) => entry !== primary),
+    }
+  }
+
+  const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
+  const primaryName = String(variant.attribute ?? '').trim() || humanizeAttributeKey(attributeKey)
+  const primaryValue = String(attributeValue ?? '').trim()
+  const nestedSecondaries = (Array.isArray(variant.secondary_variants) ? variant.secondary_variants : [])
+    .map((item) => ({
+      name: String(item?.attribute ?? '').trim(),
+      value: String(item?.value ?? '').trim(),
+      is_primary: false,
+      sku: item?.sku,
+      quantity: item?.quantity,
+      reserved_quantity: item?.reserved_quantity,
+      low_stock_threshold: item?.low_stock_threshold ?? item?.minimum_threshold,
+      minimum_threshold: item?.minimum_threshold ?? item?.low_stock_threshold,
+      price: item?.price ?? item?.regular_price,
+      discount_price: item?.discount_price ?? item?.regular_discount_price,
+      id: item?.id,
+    }))
+    .filter((item) => item.name && item.value)
+
+  return {
+    primary: { name: primaryName, value: primaryValue, is_primary: true },
+    secondaries: nestedSecondaries,
+  }
+}
+
+function mapSecondaryAttributeToFormValue(variant, secondary) {
+  const lowStockThreshold = fromVariantOptionalField(
+    getVariantLowStockField({
+      low_stock_threshold: secondary.low_stock_threshold
+        ?? resolveVariantInventoryValue(variant, 'low_stock_threshold'),
+      minimum_threshold: secondary.minimum_threshold
+        ?? resolveVariantInventoryValue(variant, 'minimum_threshold'),
+    }),
+  )
+
+  return {
+    id: isPersistedVariantId(variant.id)
+      ? variant.id
+      : (secondary.id ?? `sv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`),
+    attribute: secondary.name,
+    value: secondary.value,
+    sku: fromVariantOptionalField(secondary.sku ?? variant.sku),
+    quantity: secondary.quantity == null && variant.quantity == null
+      ? ''
+      : String(secondary.quantity ?? variant.quantity),
+    reserved_quantity: fromVariantOptionalField(
+      secondary.reserved_quantity ?? resolveVariantInventoryValue(variant, 'reserved_quantity'),
+    ),
+    low_stock_threshold: lowStockThreshold,
+    minimum_threshold: lowStockThreshold,
+    price: fromVariantOptionalField(
+      secondary.price == null && variant.regular_price == null && variant.price == null
+        ? ''
+        : String(secondary.price ?? variant.regular_price ?? variant.price),
+    ),
+    discount_price: fromVariantSalePriceField(
+      secondary.discount_price ?? variant.regular_discount_price ?? variant.discount_price,
+      secondary.price ?? variant.regular_price ?? variant.price,
+    ),
+  }
+}
+
+function resolveVariationGroupKey(grouped, attributeLabel) {
+  const existing = [...grouped.keys()].find(
+    (key) => key.toLowerCase() === attributeLabel.toLowerCase(),
+  )
+  return existing || attributeLabel
+}
+
 function mapVariantsToFormVariations(variants = []) {
   if (!Array.isArray(variants) || variants.length === 0) return []
 
+  const byId = new Map(
+    variants
+      .filter((variant) => variant?.id != null)
+      .map((variant) => [String(variant.id), variant]),
+  )
   const grouped = new Map()
+  const primarySlots = new Map()
 
-  variants.forEach((variant) => {
-    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
-    const attributeLabel = String(variant.attribute ?? '').trim()
-      || humanizeAttributeKey(attributeKey)
-
-    if (!grouped.has(attributeLabel)) {
-      grouped.set(attributeLabel, {
-        id: `var-${attributeLabel.toLowerCase().replace(/\s+/g, '-')}`,
-        attribute: attributeLabel,
+  const getOrCreateSlot = (attributeLabel, primaryValue, variant) => {
+    const groupKey = resolveVariationGroupKey(grouped, attributeLabel)
+    if (!grouped.has(groupKey)) {
+      grouped.set(groupKey, {
+        id: `var-${groupKey.toLowerCase().replace(/\s+/g, '-')}`,
+        attribute: groupKey,
         values: [],
       })
     }
 
-    grouped.get(attributeLabel).values.push({
-      id: variant.id ?? `val-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      value: attributeValue,
-      variant_name: fromVariantOptionalField(variant.variant_name),
-      sku: fromVariantOptionalField(variant.sku),
-      price: fromVariantOptionalField(
-        variant.regular_price == null && variant.price == null
-          ? ''
-          : String(variant.regular_price ?? variant.price),
-      ),
-      discount_price: fromVariantSalePriceField(
-        variant.regular_discount_price ?? variant.discount_price,
-        variant.regular_price ?? variant.price,
-      ),
-      quantity: variant.quantity == null ? '' : String(variant.quantity),
-      reserved_quantity: fromVariantOptionalField(resolveVariantInventoryValue(variant, 'reserved_quantity')),
-      minimum_threshold: fromVariantOptionalField(
-        resolveVariantInventoryValue(variant, 'minimum_threshold')
-        || resolveVariantInventoryValue(variant, 'low_stock_threshold'),
-      ),
-      barcode: fromVariantOptionalField(variant.barcode),
-      barcode_type: fromVariantOptionalField(variant.barcode_type) || 'UPC',
-      weight: fromVariantOptionalField(variant.weight == null ? '' : String(variant.weight)),
-      length: fromVariantOptionalField(variant.length == null ? '' : String(variant.length)),
-      width: fromVariantOptionalField(variant.width == null ? '' : String(variant.width)),
-      height: fromVariantOptionalField(variant.height == null ? '' : String(variant.height)),
-      description: fromVariantDescriptionField(variant.description),
-      has_compatible_models: Boolean(
-        variant.has_compatible_models ?? variant.compatible_models?.length,
-      ),
-      compatible_models: Array.isArray(variant.compatible_models)
-        ? variant.compatible_models.filter(Boolean)
-        : [],
-      images: mapVariantImages(variant.images),
+    const slotKey = `${groupKey.toLowerCase()}::${String(primaryValue).toLowerCase()}`
+    let slot = primarySlots.get(slotKey)
+    if (!slot) {
+      slot = mapApiVariantToFormValue(variant, primaryValue)
+      grouped.get(groupKey).values.push(slot)
+      primarySlots.set(slotKey, slot)
+    }
+    return slot
+  }
+
+  const addSecondaries = (slot, variant, secondaries = []) => {
+    secondaries.forEach((secondary) => {
+      if (!secondary?.name || !secondary?.value) return
+      const alreadyAdded = slot.secondary_variants.some((item) => (
+        String(item.attribute).toLowerCase() === secondary.name.toLowerCase()
+        && String(item.value).toLowerCase() === secondary.value.toLowerCase()
+      ))
+      if (alreadyAdded) return
+      slot.secondary_variants.push(mapSecondaryAttributeToFormValue(variant, secondary))
     })
+  }
+
+  variants.forEach((variant) => {
+    const parentId = variant.primary_variant_id != null ? String(variant.primary_variant_id) : ''
+    if (parentId && byId.has(parentId)) return
+
+    const { primary, secondaries } = getVariantAttributeEntries(variant)
+    const attributeLabel = String(primary?.name ?? '').trim()
+    const primaryValue = String(primary?.value ?? '').trim()
+    if (!attributeLabel || !primaryValue) return
+
+    addSecondaries(getOrCreateSlot(attributeLabel, primaryValue, variant), variant, secondaries)
+  })
+
+  variants.forEach((variant) => {
+    const parentId = variant.primary_variant_id != null ? String(variant.primary_variant_id) : ''
+    const parent = parentId ? byId.get(parentId) : null
+    if (!parent) return
+
+    const parentEntries = getVariantAttributeEntries(parent)
+    const attributeLabel = String(parentEntries.primary?.name ?? '').trim()
+    const primaryValue = String(parentEntries.primary?.value ?? '').trim()
+    if (!attributeLabel || !primaryValue) return
+
+    const slot = getOrCreateSlot(attributeLabel, primaryValue, parent)
+    const { primary, secondaries } = getVariantAttributeEntries(variant)
+    const extras = [primary, ...secondaries].filter((entry) => (
+      entry?.name
+      && entry.name.toLowerCase() !== attributeLabel.toLowerCase()
+    ))
+    addSecondaries(slot, variant, extras)
   })
 
   return Array.from(grouped.values())
@@ -391,8 +552,8 @@ export function mapProductImagesToFormState(images = [], descriptiveImages = [])
     : productSource.filter((image) => image !== mainRecord)
 
   return {
-    mainImage: mainRecord ? createProductImageFromRemote(mainRecord) : null,
-    subImages: galleryRecords.map(createProductImageFromRemote),
+    mainImage: mainRecord ? hydrateRemoteMediaImage(mainRecord) : null,
+    subImages: galleryRecords.map(hydrateRemoteMediaImage),
     descriptiveImages: descriptiveSource.map(createDescriptiveImageFromRemote),
   }
 }
@@ -447,6 +608,9 @@ export function mapProductRecordToFormValues(record, options = {}) {
     })(),
     ...pricing,
     quantity: resolveQuantity(),
+    reserved_quantity: firstVariant?.reserved_quantity != null
+      ? String(firstVariant.reserved_quantity)
+      : '',
     low_stock_threshold: record.low_stock_threshold != null
       ? String(record.low_stock_threshold)
       : (metadataMap.low_stock_threshold ?? ''),

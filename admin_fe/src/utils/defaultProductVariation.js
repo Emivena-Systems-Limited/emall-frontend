@@ -478,6 +478,7 @@ export function buildDefaultProductVariationGroup(
         description: truncateDescription(values.description),
         has_compatible_models: Boolean(values.has_compatible_models) && (values.compatible_models ?? []).length > 0,
         compatible_models: Array.isArray(values.compatible_models) ? values.compatible_models.filter(Boolean) : [],
+        secondary_variants: Array.isArray(values.secondary_variants) ? values.secondary_variants : [],
         images: [image],
       },
     ],

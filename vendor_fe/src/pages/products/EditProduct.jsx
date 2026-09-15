@@ -21,6 +21,7 @@ import { useApprovedBrands } from '../../hooks/useBrands'
 import { useCreateBrandMutation } from '../../hooks/useBrandMutations'
 import { useProductCategoryOptions } from '../../hooks/useCategories'
 import { useUpdateProductInfoMutation } from '../../hooks/useProductMutations'
+import { updateProductVariant } from '../../services/productService'
 import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
 import { useProduct, productQueryKeys } from '../../hooks/useProducts'
 import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../../constants/productMediaUpload'
@@ -40,12 +41,14 @@ import {
   validateGalleryImagesRequired,
   validatePrimaryImageDimensions,
 } from '../../utils/productImageUtils'
-import { buildProductInfoPayload, buildProductInfoJsonPayload, formatProductPayloadSample } from '../../utils/productPayload'
+import { buildProductInfoPayload, buildProductInfoJsonPayload, buildDefaultVariantPricingSyncPayload, formatProductPayloadSample } from '../../utils/productPayload'
 import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirstError'
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
 import { findCategoryById } from '../../utils/normalizeCategories'
 import { findBrandById, getBrandDisplayLabel, withResolvedBrandId } from '../../utils/normalizeBrands'
 import { getDiscountSummary } from '../../utils/productPricing'
+import { findMainProductVariant, inferListingTypeFromValues, isSimpleProductRecord } from '../../utils/defaultProductVariation'
+import { applySimpleListingIdentity, isSimpleListing } from '../../constants/productListing'
 import notify from '../../lib/notify'
 
 const EDIT_SECTIONS = {
@@ -62,7 +65,7 @@ const productInfoSteps = [
 ]
 
 const productInfoStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value', 'has_compatible_models', 'compatible_models'],
+  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details'],
   [],
   ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
   ['shipping_weight', 'shipping_length', 'shipping_width', 'shipping_height'],
@@ -72,6 +75,16 @@ const productInfoStepFields = [
 function findFirstStepWithErrors(errors) {
   const stepIndex = productInfoStepFields.findIndex((fields) => hasStepErrors(errors, fields))
   return stepIndex >= 0 ? stepIndex : null
+}
+
+const PRICING_SYNC_FIELDS = ['price', 'discount_price', 'quantity', 'low_stock_threshold']
+
+function hasPricingChanged(nextValues, initialValues) {
+  return PRICING_SYNC_FIELDS.some((field) => {
+    const next = String(nextValues[field] ?? '').trim()
+    const initial = String(initialValues[field] ?? '').trim()
+    return next !== initial
+  })
 }
 
 function getTouchedForFields(fields, values = {}) {
@@ -146,7 +159,7 @@ function EditSectionCard({ icon: Icon, title, description, to, accent = 'brand' 
   )
 }
 
-function EditModeChooser({ productId }) {
+function EditModeChooser({ productId, isSimpleListing = false }) {
   return (
     <div className="page-enter space-y-5">
       <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
@@ -160,30 +173,34 @@ function EditModeChooser({ productId }) {
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">Choose edit action</p>
         <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">What would you like to edit?</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-          Product details and variations now save through separate flows, so you only update the section you intend to change.
+          {isSimpleListing
+            ? 'This simple listing has one generated option. Price, stock, and photos stay in product info.'
+            : 'Product details and variations now save through separate flows, so you only update the section you intend to change.'}
         </p>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={`grid gap-4 ${isSimpleListing ? '' : 'lg:grid-cols-2'}`}>
         <EditSectionCard
           icon={Package}
           title="Edit product info"
           description="Update product information, images, pricing, inventory, and shipping details in one focused flow."
           to={`/products/${productId}/edit?section=${EDIT_SECTIONS.INFO}`}
         />
-        <EditSectionCard
-          icon={Layers3}
-          title="Edit variations"
-          description="Manage extra option types, values, pricing, stock, barcodes, and variant photos (required for Color, optional otherwise)."
-          to={`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}`}
-          accent="cyan"
-        />
+        {!isSimpleListing && (
+          <EditSectionCard
+            icon={Layers3}
+            title="Edit variations"
+            description="Keep a simple listing with one generated option, or manage extra colors, sizes, pricing, stock, and variant photos."
+            to={`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}`}
+            accent="cyan"
+          />
+        )}
       </div>
     </div>
   )
 }
 
-function EditSuccessPanel({ productId }) {
+function EditSuccessPanel({ productId, isSimpleListing = false }) {
   const queryClient = useQueryClient()
 
   const handleBackToProducts = () => {
@@ -197,7 +214,7 @@ function EditSuccessPanel({ productId }) {
       </span>
       <h1 className="mt-4 text-2xl font-bold text-slate-950">What&apos;s next?</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
-        View how this product appears in your catalogue, edit product info or variants, or return to your product list.
+        View how this product appears in your catalogue, edit product info{isSimpleListing ? '' : ' or variants'}, or return to your product list.
       </p>
       <div className="mt-6 flex flex-col gap-3">
         <Link
@@ -207,7 +224,7 @@ function EditSuccessPanel({ productId }) {
           <Eye className="size-4" />
           View product details
         </Link>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`grid gap-3 ${isSimpleListing ? '' : 'sm:grid-cols-2'}`}>
           <Link
             to={`/products/${productId}/edit?section=${EDIT_SECTIONS.INFO}`}
             className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300"
@@ -215,13 +232,15 @@ function EditSuccessPanel({ productId }) {
             <Package className="size-4" />
             Edit product info
           </Link>
-          <Link
-            to={`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}`}
-            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50/60 px-4 py-3 text-sm font-bold text-cyan-800 transition-colors hover:border-cyan-300 hover:bg-cyan-50"
-          >
-            <Layers3 className="size-4" />
-            Edit variants
-          </Link>
+          {!isSimpleListing && (
+            <Link
+              to={`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}`}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50/60 px-4 py-3 text-sm font-bold text-cyan-800 transition-colors hover:border-cyan-300 hover:bg-cyan-50"
+            >
+              <Layers3 className="size-4" />
+              Edit variants
+            </Link>
+          )}
         </div>
         <Link
           to="/products"
@@ -249,7 +268,10 @@ function ProductInfoEditForm({
   categoriesError,
 }) {
   const [activeStep, setActiveStep] = useState(0)
-  const [initialFormValues] = useState(() => formState.formValues)
+  const [initialFormValues] = useState(() => ({
+    ...formState.formValues,
+    listing_type: formState.formValues.listing_type || inferListingTypeFromValues(formState.formValues),
+  }))
   const [mainImage, setMainImage] = useState(formState.mainImage)
   const [subImages, setSubImages] = useState(formState.subImages)
   const [descriptiveImages, setDescriptiveImages] = useState(formState.descriptiveImages ?? [])
@@ -527,7 +549,9 @@ function ProductInfoEditForm({
         validateOnChange={false}
         onSubmit={async (values, actions) => {
           try {
-            const formValues = { ...values, status: values.status || 'active' }
+            const formValues = isSimpleListing(values.listing_type)
+              ? applySimpleListingIdentity({ ...values, status: values.status || 'active' })
+              : { ...values, status: values.status || 'active' }
             const usePresignedUpload = USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD
 
             let mediaState = {
@@ -569,6 +593,8 @@ function ProductInfoEditForm({
 
             const payloadValues = withResolvedBrandId(formValues, approvedBrands)
 
+            let freshRecord
+
             if (usePresignedUpload) {
               const payload = buildProductInfoJsonPayload(
                 payloadValues,
@@ -582,7 +608,7 @@ function ProductInfoEditForm({
                 console.log('[edit product info] JSON payload:', payload)
               }
 
-              await updateProductInfoMutation.mutateAsync({
+              freshRecord = await updateProductInfoMutation.mutateAsync({
                 productId,
                 payload,
                 context,
@@ -603,11 +629,39 @@ function ProductInfoEditForm({
                 console.log('[edit product info] FormData payload:', formatProductPayloadSample(formData))
               }
 
-              await updateProductInfoMutation.mutateAsync({
+              freshRecord = await updateProductInfoMutation.mutateAsync({
                 productId,
                 formData,
                 context,
               })
+            }
+
+            // Sync pricing changes to the default variant so both records stay consistent.
+            if (hasPricingChanged(values, formState.formValues)) {
+              const defaultVariant = findMainProductVariant(
+                freshRecord?.variants ?? [],
+                payloadValues,
+              )
+              if (defaultVariant?.id) {
+                try {
+                  const syncBody = buildDefaultVariantPricingSyncPayload(defaultVariant, {
+                    price: values.price,
+                    discount_price: values.discount_price,
+                    quantity: values.quantity,
+                    low_stock_threshold: values.low_stock_threshold,
+                  })
+                  if (import.meta.env.DEV) {
+                    console.log('[edit product info] syncing pricing to default variant', defaultVariant.id, syncBody)
+                  }
+                  await updateProductVariant(defaultVariant.id, syncBody)
+                } catch (syncError) {
+                  // Non-blocking — product info already saved. Warn the user without failing the whole flow.
+                  notify.warning('Product saved, but the default variant pricing could not be synced. Update it manually in the Variations tab.')
+                  if (import.meta.env.DEV) {
+                    console.warn('[edit product info] variant pricing sync failed:', syncError)
+                  }
+                }
+              }
             }
 
             if (import.meta.env.DEV) {
@@ -645,6 +699,7 @@ function ProductInfoEditForm({
                   brandsLoading={brandsLoading}
                   brandsError={brandsError}
                   createBrandMutation={createBrandMutation}
+                  showMainOption={false}
                 />
               )}
               {activeStep === 1 && (
@@ -760,6 +815,12 @@ export default function EditProduct() {
     [product, categoryTree],
   )
   const variationsFormState = formState
+  const isSimpleProduct = Boolean(product) && isSimpleProductRecord(product)
+  const activeSection = (
+    section === EDIT_SECTIONS.VARIATIONS && isSimpleProduct
+      ? null
+      : section
+  )
 
   if (isLoading) {
     return (
@@ -808,24 +869,24 @@ export default function EditProduct() {
 
   if (
     finished
-    && (section === EDIT_SECTIONS.INFO || section === EDIT_SECTIONS.VARIATIONS)
+    && (activeSection === EDIT_SECTIONS.INFO || activeSection === EDIT_SECTIONS.VARIATIONS)
   ) {
     return (
       <DashboardLayout pageTitle="Edit Product">
-        <EditSuccessPanel productId={productId} />
+        <EditSuccessPanel productId={productId} isSimpleListing={isSimpleProduct} />
       </DashboardLayout>
     )
   }
 
   return (
     <DashboardLayout pageTitle="Edit Product">
-      {section === EDIT_SECTIONS.INFO && categoriesLoading && (
+      {activeSection === EDIT_SECTIONS.INFO && categoriesLoading && (
         <div className="flex items-center justify-center gap-2 px-5 py-24 text-sm font-semibold text-slate-500">
           <Loader2 className="size-4 animate-spin text-brand" />
           Loading product details…
         </div>
       )}
-      {section === EDIT_SECTIONS.INFO && !categoriesLoading && (
+      {activeSection === EDIT_SECTIONS.INFO && !categoriesLoading && (
         <ProductInfoEditForm
           key={productId}
           productId={productId}
@@ -840,15 +901,15 @@ export default function EditProduct() {
           categoriesError={categoriesError}
         />
       )}
-      {section === EDIT_SECTIONS.VARIATIONS && variationsFormState && (
+      {activeSection === EDIT_SECTIONS.VARIATIONS && variationsFormState && (
         <VariationsEditForm
           productId={productId}
           formState={variationsFormState}
           onFinished={() => navigate(`/products/${productId}/edit?section=${EDIT_SECTIONS.VARIATIONS}&finished=1`)}
         />
       )}
-      {section !== EDIT_SECTIONS.INFO && section !== EDIT_SECTIONS.VARIATIONS && (
-        <EditModeChooser productId={productId} />
+      {activeSection !== EDIT_SECTIONS.INFO && activeSection !== EDIT_SECTIONS.VARIATIONS && (
+        <EditModeChooser productId={productId} isSimpleListing={isSimpleProduct} />
       )}
     </DashboardLayout>
   )

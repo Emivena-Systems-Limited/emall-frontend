@@ -1,4 +1,5 @@
 import { unwrapApiEnvelope } from './parseApiError'
+import { isSimpleProductRecord } from './defaultProductVariation'
 
 export function isProductActive(isActive) {
   if (isActive === true || isActive === 1 || isActive === '1') return true
@@ -362,6 +363,7 @@ export function toCatalogProduct(record, context = {}) {
     images: Array.isArray(record.images) ? record.images : [],
     variants,
     metadata: Array.isArray(record.metadata) ? record.metadata : [],
+    isSimpleListing: isSimpleProductRecord(record),
     image: getPrimaryProductImage(record.images),
     createdAt: record.created_at ?? context.createdAt ?? null,
     apiStatus: record.status ?? '',

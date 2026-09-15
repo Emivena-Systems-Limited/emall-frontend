@@ -30,6 +30,8 @@ export default function PersistedVariantAccordion({
   onSave,
   onRemove,
   isSaving = false,
+  isSavingSecondary = false,
+  savingSecondaryId = null,
   isRemoving = false,
   isDefault = false,
 }) {
@@ -94,8 +96,22 @@ export default function PersistedVariantAccordion({
   const handleSave = async () => {
     setError('')
     try {
-      await onSave(draft, { isCustomPrice: isDefault ? true : isCustomPrice, isDefault })
+      await onSave(draft, { isCustomPrice: isDefault ? true : isCustomPrice, isDefault, saveMode: 'main' })
       setIsDirty(false)
+    } catch (saveError) {
+      setError(saveError?.message || 'Failed to save this variant.')
+    }
+  }
+
+  const handleSaveSecondary = async (secondary) => {
+    setError('')
+    try {
+      await onSave(draft, {
+        isCustomPrice: isDefault ? true : isCustomPrice,
+        isDefault: false,
+        saveMode: 'secondary',
+        targetSecondaryId: secondary?.id,
+      })
     } catch (saveError) {
       setError(saveError?.message || 'Failed to save this variant.')
     }
@@ -124,31 +140,34 @@ export default function PersistedVariantAccordion({
       isDefault={isDefault}
       priceAsProduct={isDefault}
       imageHint={isDefault ? getDefaultVariantImageUploadHint() : undefined}
+      showSecondarySave
+      onSaveSecondary={handleSaveSecondary}
+      savingSecondaryId={savingSecondaryId}
       footer={
-        isOpen && (isDirty || error) ? (
-          <div className="space-y-2 border-t border-slate-100 pt-3">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className={`inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                isDefault
-                  ? 'bg-cyan-700 shadow-[0_12px_30px_rgba(14,116,144,0.22)] hover:bg-cyan-800'
-                  : 'bg-brand shadow-[0_12px_30px_rgba(199,59,45,0.22)] hover:bg-brand-hover'
-              }`}
-            >
-              {isSaving && <Loader2 className="size-4 animate-spin" />}
-              {isDefault ? 'Save & sync to product info' : 'Save changes'}
-            </button>
+        isOpen ? (
+          <>
             <button
               type="button"
               onClick={resetDraft}
-              disabled={isSaving}
-              className="inline-flex w-full cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSaving || isSavingSecondary}
+              className="inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Cancel
             </button>
-          </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving || isSavingSecondary}
+              className={`inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                isDefault
+                  ? 'bg-cyan-700 hover:bg-cyan-800'
+                  : 'bg-brand hover:bg-brand-hover'
+              }`}
+            >
+              {isSaving && <Loader2 className="size-3.5 animate-spin" />}
+              Save primary variant info
+            </button>
+          </>
         ) : null
       }
     />

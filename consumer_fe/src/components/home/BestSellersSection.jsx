@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { Link } from 'react-router'
 import Container from '../layout/Container'
 import { landingSectionPanelClass } from '../../constants/landingLayout'
 import ProductCard from '../shared/ProductCard'
+import ViewAllLink from './ViewAllLink'
 
 const ease = [0.16, 1, 0.3, 1]
 
@@ -117,12 +117,7 @@ export default function BestSellersSection({ categories = [] }) {
                     </>
                   )}
                 </h2>
-                <Link
-                  to={category.viewAllHref ?? category.href}
-                  className="shrink-0 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline sm:text-base"
-                >
-                  View All
-                </Link>
+                <ViewAllLink to={category.viewAllHref ?? category.href} />
               </div>
 
               <CarouselTrack products={category.products} />

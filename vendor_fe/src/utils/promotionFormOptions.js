@@ -15,10 +15,16 @@ export function flattenCategoryTree(categories = []) {
 }
 
 export function buildCategorySelectOptions(categories = []) {
-  return categories.map((category) => ({
-    value: category.id,
-    label: category.name,
-  }))
+  return [...categories]
+    .sort((left, right) =>
+      String(left.name ?? '').localeCompare(String(right.name ?? ''), undefined, {
+        sensitivity: 'base',
+      }),
+    )
+    .map((category) => ({
+      value: category.id,
+      label: category.name,
+    }))
 }
 
 export function buildProductSelectOptions(products = []) {

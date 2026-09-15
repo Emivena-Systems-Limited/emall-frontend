@@ -35,8 +35,9 @@ import VariantAccordionCard from '../../components/variants/VariantAccordionCard
 import DefaultVariationCard from '../../components/variants/DefaultVariationCard'
 import VariantGroupActionBar from '../../components/variants/VariantGroupActionBar'
 import VariantReviewCard from '../../components/variants/VariantReviewCard'
-import { isPresetAttribute, isColorVariantAttribute } from '../../components/variants/variantConstants'
+import { isColorVariantAttribute } from '../../components/variants/variantConstants'
 import { getSingleVariantValuePlaceholder, parseMultiValues } from '../../components/variants/variantFormUtils'
+import ListingTypeStep from '../../components/products/ListingTypeStep'
 import DevProductFormTools from '../../components/products/DevProductFormTools'
 import ProductTagInput from '../../components/products/ProductTagInput'
 import SearchableSelect from '../../components/auth/SearchableSelect'
@@ -97,6 +98,7 @@ import {
   getDiscountSummary,
   getParentProductPricing,
   getVariationCustomerPriceRange,
+  resolveVariantPricing,
 } from '../../utils/productPricing'
 import { collectStepErrors, scrollToFirstError } from '../../utils/scrollToFirstError'
 import { scrollDashboardPanelToTop } from '../../utils/scrollDashboardPanelToTop'
@@ -113,6 +115,13 @@ import {
   prepareVariationsForSubmit,
   resolveProductSkuForSubmit,
 } from '../../utils/variantSkuRegistry'
+import {
+  applySimpleListingIdentity,
+  getProductListingWizard,
+  isSimpleListing,
+  isVariantsListing,
+  LISTING_TYPES,
+} from '../../constants/productListing'
 import notify from '../../lib/notify'
 import { isLocalEnvironment } from '../../utils/environment'
 import { getProductConditionLabel } from '../../utils/productMetadata'
@@ -126,28 +135,8 @@ import {
   hasUsableProductImages,
 } from '../../utils/productImageUtils'
 
-const productListingSteps = [
-  { id: 'info',       title: 'Product Info',  caption: 'Name, category & details'  },
-  { id: 'images',     title: 'Images',        caption: 'Upload product photos'   },
-  { id: 'pricing',    title: 'Pricing',       caption: 'Price & inventory'       },
-  { id: 'variations', title: 'Variations',    caption: 'Default option plus extra colors & sizes' },
-  { id: 'shipping',   title: 'Shipping',      caption: 'Weight & dimensions'     },
-  { id: 'review',     title: 'Review',        caption: 'Confirm & publish'       },
-]
-
-const PRODUCT_LISTING_PRICING_STEP = 2
-const PRODUCT_LISTING_VARIATIONS_STEP = 3
-
-const productListingStepFields = [
-  ['name', 'sku', 'description', 'category_id', 'subcategory_id', 'condition', 'key_details', 'main_attribute', 'main_attribute_value', 'has_compatible_models', 'compatible_models'],
-  [],
-  ['price', 'discount_price', 'discount_percent', 'quantity', 'low_stock_threshold'],
-  ['variations'],
-  [],
-  [],
-]
-
 const productListingInitialValues = {
+  listing_type:       '',
   name:               '',
   sku:                '',
   description:        '',
@@ -161,11 +150,13 @@ const productListingInitialValues = {
   main_attribute_value:'',
   has_compatible_models: false,
   compatible_models:  [],
+  secondary_variants:  [],
   price:              '',
   discount_mode:      'amount',
   discount_price:     '',
   discount_percent:   '',
   quantity:           '',
+  reserved_quantity:  '',
   low_stock_threshold:'',
   barcode:            '',
   variations:         [],
@@ -192,7 +183,7 @@ function getTouchedForFields(fields, values) {
           ? variationGroups.map((v) => ({
             attribute: true,
             values: v.values.length > 0
-              ? v.values.map(() => ({
+              ? v.values.map((value) => ({
                 value: true,
                 variant_name: true,
                 sku: true,
@@ -200,9 +191,21 @@ function getTouchedForFields(fields, values) {
                 discount_price: true,
                 quantity: true,
                 reserved_quantity: true,
+                low_stock_threshold: true,
                 minimum_threshold: true,
                 barcode: true,
                 images: true,
+                secondary_variants: (value.secondary_variants ?? []).map(() => ({
+                  attribute: true,
+                  value: true,
+                  sku: true,
+                  quantity: true,
+                  reserved_quantity: true,
+                  low_stock_threshold: true,
+                  minimum_threshold: true,
+                  price: true,
+                  discount_price: true,
+                })),
               }))
               : true,
           }))
@@ -225,6 +228,7 @@ function createVariantValue(value) {
     reserved_quantity: '',
     // Left blank — defaulted to DEFAULT_VARIANT_MINIMUM_THRESHOLD only at payload build time
     // so it never conflicts with a low quantity value while the form is still being filled in.
+    low_stock_threshold: '',
     minimum_threshold: '',
     barcode: '',
     barcode_type: 'UPC',
@@ -235,6 +239,7 @@ function createVariantValue(value) {
     description: '',
     has_compatible_models: false,
     compatible_models: [],
+    secondary_variants: [],
     images: [],
   }
 }
@@ -337,6 +342,7 @@ export function InfoStep({
   brandsLoading,
   brandsError,
   createBrandMutation,
+  showMainOption = true,
 }) {
   const [createdBrands, setCreatedBrands] = useState([])
   const categoryOptions = toSelectOptions(parentCategories)
@@ -523,7 +529,14 @@ export function InfoStep({
         )}
       </section>
 
-      <MainProductOptionFields formik={formik} />
+      {showMainOption ? (
+        <MainProductOptionFields formik={formik} />
+      ) : (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-600">
+          This simple listing uses the product name as its only option. Price and stock come from the Pricing step.
+          Photos use the primary image plus up to two featured images.
+        </p>
+      )}
 
       <ProductKeyDetailsInput
         pairs={formik.values.key_details ?? []}
@@ -1051,8 +1064,19 @@ export function VariationsStep({
           <p className="text-xs font-semibold text-red-600" role="alert">{stepError}</p>
         )}
         {rangeLabel && totalValues > 0 && (
-          <p className="text-xs font-semibold leading-relaxed text-slate-600">
-            Customer price range: <span className="whitespace-nowrap text-brand">{rangeLabel}</span>
+          <p className="text-xs leading-relaxed text-slate-500">
+            Shoppers will pay{' '}
+            {priceRange?.isRange ? (
+              <>
+                between <span className="font-semibold text-slate-800">{rangeLabel}</span>
+                {' '}depending on the option they pick.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-slate-800">{rangeLabel}</span>
+                {' '}for every option on this listing.
+              </>
+            )}
           </p>
         )}
         {stepError && (
@@ -1113,23 +1137,23 @@ export function VariationsStep({
             onToggleCustom={() => {
               setShowCustomAttribute(true)
               setChoosingNextType(false)
-              if (isPresetAttribute(buildingAttribute)) setBuildingAttribute('')
             }}
             onCloseCustom={() => {
               setShowCustomAttribute(false)
-              setBuildingAttribute(activeGroup?.attribute ?? '')
             }}
-            onCustomChange={(event) => {
-              setBuildingAttribute(event.target.value)
+            onSaveCustom={(name) => {
+              setBuildingAttribute(name)
+              setShowCustomAttribute(false)
+              setChoosingNextType(false)
+              setValueInput('')
               setAttributeError('')
             }}
-            onCustomBlur={() => {}}
             error={attributeError}
           />
         </div>
         {attributeError && <p className="mt-2 text-xs font-semibold text-red-600">{attributeError}</p>}
 
-        {activeAttribute && !activeGroupHasValues ? (
+        {activeAttribute && !showCustomAttribute && !activeGroupHasValues ? (
           <div className="mt-5 border-t border-slate-100 pt-5">
             <label className="mb-1.5 block text-sm font-semibold text-slate-800">
               Add a {activeAttribute.toLowerCase()} value
@@ -1193,6 +1217,7 @@ export function VariationsStep({
                 <VariantAccordionCard
                   key={value.id}
                   idPrefix={`variation-${groupIndex}-${valueIndex}`}
+                  fieldPath={`variations.${groupIndex}.values.${valueIndex}`}
                   attribute={group.attribute}
                   values={value}
                   onFieldChange={(field, fieldValue) => (
@@ -1207,7 +1232,10 @@ export function VariationsStep({
                   onRemove={() => handleRemoveValue(value.id)}
                   removeLabel={`Remove ${value.value}`}
                   error={getVariantValueErrorMessage(formik, groupIndex, valueIndex)}
-                  footer={(
+                  fieldError={(name) => (
+                    getFieldError(formik, `variations.${groupIndex}.values.${valueIndex}.${name}`)
+                  )}
+                  cardFooter={(
                     <button
                       type="button"
                       onClick={() => closeValueAccordion(value.id)}
@@ -1384,6 +1412,149 @@ export function ShippingStep({ formik }) {
 
 // ─── Step 6: Review ───────────────────────────────────────────────────────────
 
+function VariantTreePanel({ variations, mainImage, productValues }) {
+  const [open, setOpen] = useState(false)
+  const hasVariants = variations.some((v) => v.values.length > 0)
+  if (!hasVariants) return null
+
+  const totalSKUs = variations.reduce((count, v) => {
+    return count + v.values.reduce((c, val) => {
+      const subs = (val.secondary_variants ?? []).filter((s) => s.attribute && s.value)
+      return c + (subs.length > 0 ? subs.length : 1)
+    }, 0)
+  }, 0)
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-brand/15 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-brand-light/20"
+      >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-light text-brand">
+          <Layers3 className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-slate-900">View product tree</p>
+          <p className="text-xs text-slate-500">
+            {totalSKUs} sellable SKU{totalSKUs !== 1 ? 's' : ''} across {variations.length} option type{variations.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+          open
+            ? 'border-brand/30 bg-brand text-white'
+            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-brand/30 hover:text-brand'
+        }`}>
+          <Box className="size-3.5" />
+          {open ? 'Collapse' : 'Expand tree'}
+        </div>
+      </button>
+
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="space-y-6 border-t border-slate-100 px-5 py-5">
+            {variations.map((variation) => {
+              if (!variation.values.length) return null
+              return (
+                <div key={variation.id ?? variation.attribute}>
+                  {/* Attribute group header */}
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                      <AttributeIcon attribute={variation.attribute} className="size-3.5" />
+                    </span>
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                      {variation.attribute}
+                    </span>
+                    <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                      {variation.values.length} value{variation.values.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 pl-4 border-l-2 border-slate-100">
+                    {variation.values.map((val) => {
+                      const thumb = val.images?.[0]?.preview ?? val.image_url ?? mainImage?.preview ?? null
+                      const subs = (val.secondary_variants ?? []).filter((s) => s.attribute && s.value)
+                      const pricing = resolveVariantPricing(val, productValues)
+
+                      return (
+                        <div key={val.id} className="rounded-xl border border-slate-100 bg-slate-50/60">
+                          {/* Primary value row */}
+                          <div className="flex items-center gap-3 px-3.5 py-3">
+                            <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
+                              {thumb
+                                ? <img src={thumb} alt={val.value} className="size-full object-cover" />
+                                : <div className="flex size-full items-center justify-center"><AttributeIcon attribute={variation.attribute} className="size-4 text-slate-300" /></div>}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-bold text-slate-900">{val.value || '—'}</p>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                                {val.sku && <span className="font-mono font-semibold text-slate-400">{val.sku}</span>}
+                                {val.quantity != null && val.quantity !== '' && (
+                                  <span className="rounded-full bg-white px-1.5 py-px font-semibold ring-1 ring-slate-200">
+                                    Qty {val.quantity}
+                                  </span>
+                                )}
+                                {pricing.listPrice > 0 && (
+                                  <span className="rounded-full bg-white px-1.5 py-px font-semibold ring-1 ring-slate-200">
+                                    GH₵ {formatMoney(pricing.hasDiscount ? pricing.salePrice : pricing.listPrice)}
+                                  </span>
+                                )}
+                                {subs.length > 0 && (
+                                  <span className="rounded-full bg-brand-light px-1.5 py-px font-bold text-brand">
+                                    {subs.length} sub-option{subs.length !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Secondary variant rows */}
+                          {subs.length > 0 && (
+                            <div className="border-t border-slate-100 px-3.5 pb-2.5 pt-2 space-y-1.5">
+                              {subs.map((sub) => {
+                                const subPricing = resolveVariantPricing(sub, productValues)
+                                return (
+                                  <div key={sub.id} className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                    <div className="size-1.5 shrink-0 rounded-full bg-brand/40" />
+                                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
+                                      <span className="text-xs font-bold text-slate-800">
+                                        {sub.attribute}: {sub.value}
+                                      </span>
+                                      {sub.sku && (
+                                        <span className="font-mono text-[10px] font-semibold text-slate-400">{sub.sku}</span>
+                                      )}
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-[11px]">
+                                      {sub.quantity != null && sub.quantity !== '' && (
+                                        <span className="rounded-full bg-slate-50 px-2 py-0.5 font-semibold text-slate-500 ring-1 ring-slate-200">
+                                          Qty {sub.quantity}
+                                        </span>
+                                      )}
+                                      {subPricing.listPrice > 0 && (
+                                        <span className="rounded-full bg-brand-light px-2 py-0.5 font-bold text-brand">
+                                          GH₵ {formatMoney(subPricing.hasDiscount ? subPricing.salePrice : subPricing.listPrice)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ReviewStep({
   formik,
   mainImage,
@@ -1450,9 +1621,16 @@ export function ReviewStep({
         ['Brand', selectedBrandLabel],
         ['Condition', getProductConditionLabel(formik.values.condition)],
         ['Tags', formik.values.tags.length ? formik.values.tags.join(', ') : null],
-        ['What shoppers see first', formik.values.main_attribute && formik.values.main_attribute_value
-          ? `${formik.values.main_attribute}: ${formik.values.main_attribute_value}`
-          : defaultVariationLabel],
+        ['Listing type', isSimpleListing(formik.values.listing_type)
+          ? 'Simple product'
+          : isVariantsListing(formik.values.listing_type)
+            ? 'Product with variants'
+            : null],
+        ['What shoppers see first', isSimpleListing(formik.values.listing_type)
+          ? formik.values.name || defaultVariationLabel
+          : (formik.values.main_attribute && formik.values.main_attribute_value
+            ? `${formik.values.main_attribute}: ${formik.values.main_attribute_value}`
+            : defaultVariationLabel)],
         ['Compatible models', formik.values.has_compatible_models && formik.values.compatible_models?.length
           ? formik.values.compatible_models.join(', ')
           : null],
@@ -1635,11 +1813,13 @@ export function ReviewStep({
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">What shoppers see first</p>
             <p className="mt-1 text-sm font-bold text-slate-900">{defaultVariationLabel}</p>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
-              Shoppers see this first. It uses your product photos, price, and stock
-              {formik.values.compatible_models?.length
-                ? `, and fits ${formik.values.compatible_models.length} model${formik.values.compatible_models.length === 1 ? '' : 's'}`
-                : ''}
-              .
+              {isSimpleListing(formik.values.listing_type)
+                ? 'We will publish one option using the product name, pricing, stock, and up to 3 photos (primary plus 2 featured).'
+                : `Shoppers see this first. It uses your product photos, price, and stock${
+                  formik.values.compatible_models?.length
+                    ? `, and fits ${formik.values.compatible_models.length} model${formik.values.compatible_models.length === 1 ? '' : 's'}`
+                    : ''
+                }.`}
             </p>
             {formik.values.compatible_models?.length > 0 ? (
               <p className="mt-1.5 text-xs font-semibold text-slate-700">
@@ -1648,61 +1828,68 @@ export function ReviewStep({
             ) : null}
           </div>
 
-          {formik.values.variations.some((variation) => variation.values.length > 0) ? (
-            <div className="space-y-5">
-              {formik.values.variations.map((variation) => (
-                variation.values.length > 0 && (
-                  <div key={variation.id} className="space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      Extra {variation.attribute}
-                    </p>
-                    <div className="space-y-3">
-                      {variation.values.map((val) => (
-                        <VariantReviewCard
-                          key={val.id}
-                          attribute={variation.attribute}
-                          variantValue={val}
-                          productValues={formik.values}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
+          {/* SKU summary strip */}
+          {!isSimpleListing(formik.values.listing_type) && (
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[
+                {
+                  label: 'Option types',
+                  value: formik.values.variations.filter((v) => v.values.length > 0).length,
+                  color: 'bg-slate-100 text-slate-700',
+                },
+                {
+                  label: 'Primary options',
+                  value: formik.values.variations.reduce((c, v) => c + v.values.length, 0),
+                  color: 'bg-brand-light text-brand',
+                },
+                {
+                  label: 'Total SKUs',
+                  value: formik.values.variations.reduce((c, v) => c + v.values.reduce((cc, val) => {
+                    const subs = (val.secondary_variants ?? []).filter((s) => s.attribute && s.value)
+                    return cc + (subs.length > 0 ? subs.length : 1)
+                  }, 0), 0),
+                  color: 'bg-emerald-50 text-emerald-700',
+                },
+              ].map(({ label, value, color }) => (
+                <div key={label} className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 ${color}`}>
+                  <span className="text-xs font-semibold">{label}</span>
+                  <span className="text-base font-extrabold tabular-nums">{value}</span>
+                </div>
               ))}
             </div>
-          ) : (
+          )}
+
+          {/* Variant tree toggle */}
+          {!isSimpleListing(formik.values.listing_type) && (
+            <VariantTreePanel
+              variations={formik.values.variations}
+              mainImage={mainImage}
+              productValues={formik.values}
+            />
+          )}
+
+          {/* Simple listing card */}
+          {isSimpleListing(formik.values.listing_type) && (
             <div className="overflow-hidden rounded-xl border border-dashed border-brand/25 bg-gradient-to-br from-brand-light/40 via-white to-slate-50">
               <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
                 {mainImage?.preview ? (
-                  <img
-                    src={mainImage.preview}
-                    alt=""
-                    className="size-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 sm:size-24"
-                  />
+                  <img src={mainImage.preview} alt="" className="size-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 sm:size-24" />
                 ) : (
                   <div className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200 sm:size-24">
                     <ImagePlus className="size-7" />
                   </div>
                 )}
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
-                    Extra options
-                  </p>
-                  <p className="text-sm font-bold text-slate-900">None added</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">Simple listing</p>
+                  <p className="text-sm font-bold text-slate-900">One option will be created automatically</p>
                   <p className="text-xs leading-relaxed text-slate-500">
-                    We&apos;ll publish the default{' '}
-                    <span className="font-semibold text-slate-700">{defaultVariationPreview.attribute}</span>
-                    {' '}option{' '}
-                    <span className="font-semibold text-slate-700">{defaultVariationPreview.value}</span>
-                    {' '}using your product photos, pricing, and stock.
+                    Attribute and value use the product name. Price and quantity come from Pricing. Images use the primary photo plus up to two featured photos.
                   </p>
                   <dl className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-slate-500">
                     {price > 0 && (
                       <div>
                         <dt className="inline font-semibold text-slate-400">Price </dt>
-                        <dd className="inline font-bold text-slate-800">
-                          GH₵ {formatMoney(hasDiscount && salesPrice != null ? salesPrice : price)}
-                        </dd>
+                        <dd className="inline font-bold text-slate-800">GH₵ {formatMoney(hasDiscount && salesPrice != null ? salesPrice : price)}</dd>
                       </div>
                     )}
                     {formik.values.quantity !== '' && formik.values.quantity != null && (
@@ -1722,6 +1909,17 @@ export function ReviewStep({
                     )}
                   </dl>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* No variants yet */}
+          {!isSimpleListing(formik.values.listing_type) && !formik.values.variations.some((v) => v.values.length > 0) && (
+            <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-4">
+              <PackageSearch className="size-5 shrink-0 text-slate-400" />
+              <div>
+                <p className="text-sm font-semibold text-slate-700">No extra options added yet</p>
+                <p className="text-xs text-slate-500">Go back to the Variations step to add colors, sizes, or other options.</p>
               </div>
             </div>
           )}
@@ -1756,23 +1954,26 @@ function buildProductMutationContext(values, { parentCategories, categoryTree, a
   }
 }
 
-function resolveListingStepForFieldErrors(fieldErrors = {}) {
+function resolveListingStepForFieldErrors(fieldErrors = {}, wizard) {
   const fields = Object.keys(fieldErrors)
-  if (fields.some((field) => field.startsWith('variations.'))) {
-    return PRODUCT_LISTING_VARIATIONS_STEP
+  if (fields.some((field) => field.startsWith('variations.')) && wizard.variationsIndex >= 0) {
+    return wizard.variationsIndex
   }
   if (fields.includes('barcode')) {
-    return PRODUCT_LISTING_PRICING_STEP
+    return wizard.pricingIndex
   }
   return null
 }
 
-function applyListingFieldErrors(actions, fieldErrors, { onStepChange } = {}) {
+function applyListingFieldErrors(actions, fieldErrors, { onStepChange, listingType } = {}) {
   if (!fieldErrors || Object.keys(fieldErrors).length === 0) return false
 
   actions.setErrors(mapFieldErrorsToFormikErrors(fieldErrors))
 
-  const nextStep = resolveListingStepForFieldErrors(fieldErrors)
+  const nextStep = resolveListingStepForFieldErrors(
+    fieldErrors,
+    getProductListingWizard(listingType),
+  )
   if (nextStep != null) {
     onStepChange?.(nextStep)
   }
@@ -1845,7 +2046,9 @@ export function ProductListingForm({
   }
 
   const validateStepBeforeLeave = async (formik, stepIndex) => {
-    if (stepIndex === 1) {
+    const wizard = getProductListingWizard(formik.values.listing_type)
+
+    if (stepIndex === wizard.imagesIndex) {
       if (!mainImage) {
         setMainImageError('Add a main product image to continue')
         requestAnimationFrame(() => {
@@ -1915,7 +2118,7 @@ export function ProductListingForm({
     }
 
     const errors = await formik.validateForm()
-    const fields = productListingStepFields[stepIndex]
+    const fields = wizard.fields[stepIndex] ?? []
 
     if (fields.length > 0) {
       formik.setTouched(
@@ -1936,7 +2139,34 @@ export function ProductListingForm({
   const handleNext = async (formik) => {
     const valid = await validateStepBeforeLeave(formik, activeStep)
     if (!valid) return
-    navigateToStep(Math.min(activeStep + 1, productListingSteps.length - 1))
+    const wizard = getProductListingWizard(formik.values.listing_type)
+    navigateToStep(Math.min(activeStep + 1, wizard.steps.length - 1))
+  }
+
+  const handleListingTypeChange = (formik, nextType) => {
+    const previousType = formik.values.listing_type
+    const productName = String(formik.values.name ?? '').trim().toLowerCase()
+    let nextValues = { ...formik.values, listing_type: nextType }
+
+    if (nextType === LISTING_TYPES.SIMPLE) {
+      nextValues = applySimpleListingIdentity(nextValues)
+      nextValues.variations = []
+    } else if (
+      previousType === LISTING_TYPES.SIMPLE
+      && productName
+      && String(formik.values.main_attribute ?? '').trim().toLowerCase() === productName
+    ) {
+      nextValues.main_attribute = ''
+      nextValues.main_attribute_value = ''
+    }
+
+    formik.setValues(nextValues, false)
+    formik.setFieldError('listing_type', undefined)
+
+    const wizard = getProductListingWizard(nextType)
+    if (activeStep >= wizard.steps.length) {
+      setActiveStep(wizard.steps.length - 1)
+    }
   }
 
   const handleStepClick = async (formik, stepIndex) => {
@@ -1973,7 +2203,7 @@ export function ProductListingForm({
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
                 {isEditMode
                   ? 'Update photos, pricing, and product details. Changes are saved to your live catalogue.'
-                  : 'Create a complete listing with clear photos and accurate pricing so customers find and trust your product.'}
+                  : 'Start by choosing a simple listing or one with variants, then add photos and pricing so customers find and trust your product.'}
               </p>
             </div>
 
@@ -2002,6 +2232,9 @@ export function ProductListingForm({
                 ? { ...values, status: values.status || 'active' }
                 : { ...values, status: 'active' }
               let payloadValues = withResolvedBrandId(formValues, approvedBrands)
+              if (isSimpleListing(payloadValues.listing_type)) {
+                payloadValues = applySimpleListingIdentity(payloadValues)
+              }
 
               const catalogContext = buildVariationCatalogContext({
                 parentCategories,
@@ -2014,9 +2247,10 @@ export function ProductListingForm({
               let variationsForSubmit = isEditMode
                 ? formValues.variations
                 : ensureDefaultProductVariations({
-                  variations: formValues.variations,
+                  variations: payloadValues.variations,
                   values: payloadValues,
                   mainImage,
+                  subImages,
                   catalogContext,
                 })
 
@@ -2060,6 +2294,7 @@ export function ProductListingForm({
               } catch (validationError) {
                 if (applyListingFieldErrors(actions, validationError.fieldErrors, {
                   onStepChange: navigateToStep,
+                  listingType: payloadValues.listing_type,
                 })) {
                   return
                 }
@@ -2195,6 +2430,7 @@ export function ProductListingForm({
             } catch (error) {
               if (applyListingFieldErrors(actions, parseApiError(error).fieldErrors, {
                 onStepChange: navigateToStep,
+                listingType: values.listing_type,
               })) {
                 if (usePresignedUpload) {
                   setPublishStage(PRODUCT_PUBLISH_STAGE.IDLE)
@@ -2225,36 +2461,57 @@ export function ProductListingForm({
             }
           }}
         >
-          {(formik) => (
+          {(formik) => {
+            const wizard = getProductListingWizard(formik.values.listing_type)
+            const currentStepId = wizard.steps[activeStep]?.id
+
+            return (
             <Form className="space-y-5">
               {isLocalEnvironment() && (
                 <DevProductFormTools
                   activeStep={activeStep}
-                  stepTitle={productListingSteps[activeStep].title}
+                  stepId={currentStepId}
+                  stepTitle={wizard.steps[activeStep]?.title ?? ''}
                   catalogContext={{
                     parentCategories,
                     categoryTree,
                     approvedBrands,
                   }}
                   onFillStep={(fixture) => {
-                    formik.setValues({ ...formik.values, ...fixture })
+                    const nextValues = { ...formik.values, ...fixture }
+                    formik.setValues(nextValues)
                     formik.setErrors({})
+                    const nextWizard = getProductListingWizard(nextValues.listing_type)
+                    if (activeStep >= nextWizard.steps.length) {
+                      setActiveStep(nextWizard.steps.length - 1)
+                    }
                   }}
                   onFillAll={(fixture) => {
                     formik.setValues({ ...formik.values, ...fixture })
                     formik.setErrors({})
+                    const nextWizard = getProductListingWizard(fixture.listing_type)
+                    if (activeStep >= nextWizard.steps.length) {
+                      setActiveStep(nextWizard.steps.length - 1)
+                    }
                   }}
                 />
               )}
 
               <ProductStepper
-                steps={productListingSteps}
+                steps={wizard.steps}
                 activeStep={activeStep}
                 onStepClick={(stepIndex) => handleStepClick(formik, stepIndex)}
               />
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
-                {activeStep === 0 && (
+                {currentStepId === 'type' && (
+                  <ListingTypeStep
+                    value={formik.values.listing_type}
+                    onChange={(nextType) => handleListingTypeChange(formik, nextType)}
+                    error={getFieldError(formik, 'listing_type')}
+                  />
+                )}
+                {currentStepId === 'info' && (
                   <InfoStep
                     formik={formik}
                     parentCategories={parentCategories}
@@ -2265,9 +2522,10 @@ export function ProductListingForm({
                     brandsLoading={brandsLoading}
                     brandsError={brandsError}
                     createBrandMutation={createBrandMutation}
+                    showMainOption={isVariantsListing(formik.values.listing_type)}
                   />
                 )}
-                {activeStep === 1 && (
+                {currentStepId === 'images' && (
                   <ImagesStep
                     mainImage={mainImage}
                     onMainImageChange={(image) => {
@@ -2293,8 +2551,8 @@ export function ProductListingForm({
                     descriptiveImagesError={descriptiveImagesError}
                   />
                 )}
-                {activeStep === 2 && <PricingStep formik={formik} />}
-                {activeStep === 3 && (
+                {currentStepId === 'pricing' && <PricingStep formik={formik} />}
+                {currentStepId === 'variations' && (
                   <VariationsStep
                     formik={formik}
                     parentCategories={parentCategories}
@@ -2311,8 +2569,8 @@ export function ProductListingForm({
                     }}
                   />
                 )}
-                {activeStep === 4 && <ShippingStep formik={formik} />}
-                {activeStep === 5 && (
+                {currentStepId === 'shipping' && <ShippingStep formik={formik} />}
+                {currentStepId === 'review' && (
                   <ReviewStep
                     formik={formik}
                     mainImage={mainImage}
@@ -2335,7 +2593,7 @@ export function ProductListingForm({
                   <ArrowLeft className="size-4" /> Back
                 </button>
 
-                {activeStep < productListingSteps.length - 1 ? (
+                {activeStep < wizard.steps.length - 1 ? (
                   <button
                     type="button"
                     onClick={() => handleNext(formik)}
@@ -2370,7 +2628,8 @@ export function ProductListingForm({
                 )}
               </div>
             </Form>
-          )}
+            )
+          }}
         </Formik>
       </div>
 

@@ -40,7 +40,10 @@ export default function Navbar({ cartCount = 0 }) {
   }, [categoriesOpen])
 
   return (
-    <header className="sticky top-0 z-[100] border-b border-white/10 bg-auth-primary text-white shadow-sm shadow-black/5">
+    <header
+      data-site-header
+      className="sticky top-0 z-[100] border-b border-white/10 bg-auth-primary text-white shadow-sm shadow-black/5"
+    >
       <div className="relative z-[110] bg-auth-primary">
         <Container>
           {/* Mobile + tablet top row */}

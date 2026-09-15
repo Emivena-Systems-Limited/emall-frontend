@@ -1,17 +1,27 @@
 import { getSubcategoriesForParentId } from './normalizeCategories'
 import { isGenericBrand } from './normalizeBrands'
 
-const DEV_DESCRIPTION =
-  '<p>Premium wireless earbuds with active noise cancellation, 30-hour battery life, and IPX4 water resistance. Includes charging case and USB-C cable.</p>'
+const DEV_DESCRIPTION = [
+  '<p>A 16-inch gaming laptop built for high-refresh play and everyday creation.',
+  ' Shadow Black and Storm Silver each ship as their own SKU, with 16GB or 32GB RAM as a secondary option.</p>',
+  '<p>AMD Ryzen 7 8845HS, NVIDIA RTX 4060 8GB, 165Hz QHD display, 1TB NVMe SSD,',
+  ' and a 90Wh battery. MUX switch, Wi-Fi 6E, and a 240W charger in the box.</p>',
+].join('')
 
-const PREFERRED_PARENT_CATEGORY_PATTERN = /electronic|audio|phone|computer|accessory/i
-const PREFERRED_BRAND_PATTERN = /audio|sony|samsung|apple|jbl|anker|bose|beats/i
+const PREFERRED_PARENT_CATEGORY_PATTERN = /electronic|computer|gaming|laptop/i
+const PREFERRED_SUBCATEGORY_PATTERN = /gaming|laptop|computer peripheral/i
+const PREFERRED_BRAND_PATTERN = /asus|msi|lenovo|hp|dell|razer|acer|alienware|gigabyte/i
 
 function pickDevBrandId(approvedBrands = []) {
   const selectable = approvedBrands.filter((brand) => !isGenericBrand(brand))
   if (!selectable.length) return ''
   const preferred = selectable.find((brand) => PREFERRED_BRAND_PATTERN.test(brand.name))
   return (preferred ?? selectable[0])?.id ?? ''
+}
+
+function pickPreferredSubcategory(subcategories = []) {
+  return subcategories.find((category) => PREFERRED_SUBCATEGORY_PATTERN.test(category.name))
+    ?? subcategories[0]
 }
 
 function pickDevCategoryIds(categoryTree = [], parentCategories = []) {
@@ -26,7 +36,7 @@ function pickDevCategoryIds(categoryTree = [], parentCategories = []) {
     ?? parents[0]
 
   const subcategories = getSubcategoriesForParentId(categoryTree, preferredParent.id)
-  const subcategory = subcategories[0]
+  const subcategory = pickPreferredSubcategory(subcategories)
 
   return {
     category_id: preferredParent.id,
@@ -67,6 +77,30 @@ export function getDevProductCatalogFillWarnings({
   return warnings
 }
 
+function skuCode(value) {
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 8)
+}
+
+function createDevSecondary(attribute, value, overrides = {}) {
+  return {
+    id: `sv-dev-${skuCode(value).toLowerCase()}-${Math.random().toString(36).slice(2, 6)}`,
+    attribute,
+    value,
+    sku: '',
+    quantity: '',
+    reserved_quantity: '1',
+    low_stock_threshold: '3',
+    minimum_threshold: '3',
+    price: '',
+    discount_price: '',
+    ...overrides,
+  }
+}
+
 function createDevVariantValue(value, overrides = {}) {
   return {
     id: `val-dev-${value.toLowerCase().replace(/\s+/g, '-')}`,
@@ -77,6 +111,7 @@ function createDevVariantValue(value, overrides = {}) {
     discount_price: '',
     quantity: '',
     reserved_quantity: '',
+    low_stock_threshold: '',
     minimum_threshold: '',
     barcode: '',
     barcode_type: 'UPC',
@@ -87,89 +122,152 @@ function createDevVariantValue(value, overrides = {}) {
     description: '',
     has_compatible_models: false,
     compatible_models: [],
+    secondary_variants: [],
     images: [],
     ...overrides,
   }
 }
 
+function createLaptopRamOptions(colorCode, { qty16, qty32, reserved16 = '1', reserved32 = '1' }) {
+  return [
+    createDevSecondary('RAM', '16GB', {
+      id: `sv-dev-${colorCode}-16gb`,
+      sku: '',
+      quantity: String(qty16),
+      reserved_quantity: reserved16,
+      low_stock_threshold: '3',
+      minimum_threshold: '3',
+      price: '9199.99',
+      discount_price: '8499.99',
+    }),
+    createDevSecondary('RAM', '32GB', {
+      id: `sv-dev-${colorCode}-32gb`,
+      sku: '',
+      quantity: String(qty32),
+      reserved_quantity: reserved32,
+      low_stock_threshold: '2',
+      minimum_threshold: '2',
+      price: '10499.99',
+      discount_price: '9799.99',
+    }),
+  ]
+}
+
 export const DEV_PRODUCT_STEP_FIXTURES = {
-  0: {
-    name: 'Wireless Earbuds Pro',
-    sku: 'AUD-WEP-001',
+  type: {
+    listing_type: 'variants',
+  },
+  info: {
+    name: 'ApexForge 16 Gaming Laptop',
+    sku: 'LAP-AF16-001',
     description: DEV_DESCRIPTION,
     category_id: '',
     subcategory_id: '',
     brand_id: '',
     condition: 'new',
-    tags: ['wireless', 'audio', 'earbuds'],
+    tags: ['gaming', 'laptop', 'rtx', '165hz'],
     key_details: [
-      { id: 'kd-material', key: 'Material', value: 'ABS plastic' },
+      { id: 'kd-processor', key: 'Processor', value: 'AMD Ryzen 7 8845HS' },
+      { id: 'kd-gpu', key: 'Graphics', value: 'NVIDIA RTX 4060 8GB' },
+      { id: 'kd-display', key: 'Display', value: '16" QHD 165Hz' },
+      { id: 'kd-storage', key: 'Storage', value: '1TB NVMe SSD' },
     ],
     main_attribute: 'Color',
-    main_attribute_value: 'Black',
+    main_attribute_value: 'Shadow Black',
     has_compatible_models: false,
     compatible_models: [],
   },
-  2: {
-    price: '245.99',
+  pricing: {
+    price: '9199.99',
     discount_mode: 'amount',
-    discount_price: '199.99',
-    quantity: '50',
-    low_stock_threshold: '10',
-    barcode: '1234567890123',
+    discount_price: '8499.99',
+    quantity: '30',
+    reserved_quantity: '2',
+    low_stock_threshold: '5',
+    barcode: '1942538870012',
   },
-  3: {
+  variations: {
+    listing_type: 'variants',
+    secondary_variants: createLaptopRamOptions('blk', { qty16: 12, qty32: 8 }),
     variations: [
       {
         id: 'var-dev-color',
         attribute: 'Color',
         values: [
-          createDevVariantValue('Blue', {
-            sku: 'AUD-WEP-001-BLU',
-            quantity: '15',
+          createDevVariantValue('Storm Silver', {
+            sku: '',
+            quantity: '',
             reserved_quantity: '',
+            low_stock_threshold: '',
             minimum_threshold: '',
-            description: 'Ocean blue finish with USB-C charging case.',
+            description: 'Storm silver chassis with the same 240W charger and MUX switch.',
+            secondary_variants: createLaptopRamOptions('slv', {
+              qty16: 6,
+              qty32: 4,
+              reserved16: '1',
+              reserved32: '0',
+            }),
           }),
         ],
       },
     ],
   },
-  4: {
-    shipping_weight: '0.2',
-    shipping_length: '10',
-    shipping_width: '8',
-    shipping_height: '4',
+  shipping: {
+    shipping_weight: '2.3',
+    shipping_length: '36',
+    shipping_width: '26',
+    shipping_height: '3',
   },
 }
 
 export const DEV_PRODUCT_FILLABLE_STEPS = [
-  { index: 0, label: 'Product info' },
-  { index: 2, label: 'Pricing' },
-  { index: 3, label: 'Variations' },
-  { index: 4, label: 'Shipping' },
+  { id: 'type', label: 'Listing type' },
+  { id: 'info', label: 'Product info' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'variations', label: 'Variations' },
+  { id: 'shipping', label: 'Shipping' },
 ]
 
-function createDevProductSkuSeed(base = 'AUD-WEP') {
+function createDevProductSkuSeed(base = 'LAP-AF16') {
   const suffix = Date.now().toString(36).slice(-4).toUpperCase()
   return `${base}-${suffix}`
 }
 
-function withDevVariationSkus(variations = [], productSku) {
-  return variations.map((group) => ({
-    ...group,
-    values: (group.values ?? []).map((value) => ({
-      ...value,
-      sku: `${productSku}-BLU`,
-    })),
+function withDevSecondarySkus(secondaries = [], productSku, colorCode) {
+  return secondaries.map((secondary) => ({
+    ...secondary,
+    sku: `${productSku}-${colorCode}-${skuCode(secondary.value) || 'SV'}`,
   }))
 }
 
-function applyCatalogContextToStepFixture(stepIndex, catalogContext, devProductSku = null) {
-  const base = DEV_PRODUCT_STEP_FIXTURES[stepIndex] ?? null
+function withDevVariationSkus(variations = [], productSku, defaultSecondaries = []) {
+  return {
+    secondary_variants: withDevSecondarySkus(defaultSecondaries, productSku, 'BLK'),
+    variations: variations.map((group) => ({
+      ...group,
+      values: (group.values ?? []).map((value) => {
+        const primaryCode = skuCode(value.value) || 'OPT'
+        const secondaries = withDevSecondarySkus(
+          value.secondary_variants ?? [],
+          productSku,
+          primaryCode,
+        )
+
+        return {
+          ...value,
+          sku: secondaries.length > 0 ? '' : `${productSku}-${primaryCode}`,
+          secondary_variants: secondaries,
+        }
+      }),
+    })),
+  }
+}
+
+function applyCatalogContextToStepFixture(stepId, catalogContext, devProductSku = null) {
+  const base = DEV_PRODUCT_STEP_FIXTURES[stepId] ?? null
   if (!base) return null
 
-  if (stepIndex === 0) {
+  if (stepId === 'info') {
     const sku = devProductSku ?? createDevProductSkuSeed()
     return {
       ...base,
@@ -178,10 +276,10 @@ function applyCatalogContextToStepFixture(stepIndex, catalogContext, devProductS
     }
   }
 
-  if (stepIndex === 3 && devProductSku) {
+  if (stepId === 'variations' && devProductSku) {
     return {
       ...base,
-      variations: withDevVariationSkus(base.variations, devProductSku),
+      ...withDevVariationSkus(base.variations, devProductSku, base.secondary_variants),
     }
   }
 
@@ -192,15 +290,15 @@ export function getDevProductMergedFixtures(catalogContext) {
   const devProductSku = createDevProductSkuSeed()
 
   return DEV_PRODUCT_FILLABLE_STEPS.reduce(
-    (acc, { index }) => {
-      const fixture = applyCatalogContextToStepFixture(index, catalogContext, devProductSku)
+    (acc, { id }) => {
+      const fixture = applyCatalogContextToStepFixture(id, catalogContext, devProductSku)
       return fixture ? { ...acc, ...fixture } : acc
     },
     {},
   )
 }
 
-export function getDevProductStepFixture(stepIndex, catalogContext) {
-  const devProductSku = stepIndex === 3 ? createDevProductSkuSeed() : null
-  return applyCatalogContextToStepFixture(stepIndex, catalogContext, devProductSku)
+export function getDevProductStepFixture(stepId, catalogContext) {
+  const devProductSku = stepId === 'variations' ? createDevProductSkuSeed() : null
+  return applyCatalogContextToStepFixture(stepId, catalogContext, devProductSku)
 }

@@ -26,11 +26,20 @@ export function useProductCategoryOptions(options = {}) {
   const parentsQuery = useParentCategories({ enabled, ...queryOptions })
   const treeQuery = useCategoriesWithChildren({ enabled, ...queryOptions })
 
+  const categoryTree = treeQuery.data ?? []
+  const parentCategories = categoryTree.length > 0
+    ? categoryTree
+    : (parentsQuery.data ?? [])
+
+  const hasOptions = parentCategories.length > 0
+  const isLoading = enabled && !hasOptions && (parentsQuery.isLoading || treeQuery.isLoading)
+  const isError = enabled && !hasOptions && parentsQuery.isError && treeQuery.isError
+
   return {
-    parentCategories: parentsQuery.data ?? [],
-    categoryTree: treeQuery.data ?? [],
-    isLoading: parentsQuery.isLoading || treeQuery.isLoading,
-    isError: parentsQuery.isError || treeQuery.isError,
+    parentCategories,
+    categoryTree: categoryTree.length > 0 ? categoryTree : parentCategories,
+    isLoading,
+    isError,
     refetch: () => Promise.all([parentsQuery.refetch(), treeQuery.refetch()]),
   }
 }

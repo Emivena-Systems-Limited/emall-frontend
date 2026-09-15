@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Pin, Trash2 } from 'lucide-react'
 import { ProductInput, ProductMoneyInput } from '../products/ProductFormControls'
 import VariantImageUpload from '../products/VariantImageUpload'
-import VariantValuesInput from './VariantValuesInput'
 import AttributeIcon from './AttributeIcon'
+import SecondaryVariantSection from './SecondaryVariantSection'
 import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
 import { hasUsableProductImages } from '../../utils/productImageUtils'
 import { MAX_VARIANT_IMAGE_COUNT, getVariantImageUploadHint, isColorVariantAttribute } from './variantConstants'
@@ -35,13 +35,8 @@ export default function VariantAccordionCard({
   hideSku = false,
   imageHint,
 }) {
-  const [showCompatible, setShowCompatible] = useState(Boolean(values.has_compatible_models))
   const showProductPrices = isDefault || priceAsProduct
   const pricing = resolveVariantPricing(values, productValues)
-
-  useEffect(() => {
-    setShowCompatible(Boolean(values.has_compatible_models))
-  }, [values.has_compatible_models])
   const quantityValue = values.quantity !== '' && values.quantity != null ? values.quantity : null
   const displayValue = values.value?.trim() || 'New option'
   const photosRequired = isColorVariantAttribute(attribute)
@@ -151,186 +146,153 @@ export default function VariantAccordionCard({
       >
         <div className="min-h-0 overflow-hidden">
           <div className={`border-t border-slate-100 px-4 py-4 sm:px-5 ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
-            <div className="grid gap-5 lg:grid-cols-5">
-              {/* Photo — 2/5 */}
-              <div className="lg:col-span-2">
-                <VariantImageUpload
-                  label="Photos"
-                  hint={imageHint ?? getVariantImageUploadHint(attribute)}
-                  required={photosRequired || isDefault}
-                  images={values.images}
-                  maxImages={MAX_VARIANT_IMAGE_COUNT}
-                  dropzoneMinHeightClass="min-h-28"
-                  onChange={(images) => onFieldChange('images', images)}
-                  error={/photo/i.test(String(error ?? '')) ? error : undefined}
-                />
-              </div>
-
-              {/* Fields — 3/5 */}
-              <div className="space-y-4 lg:col-span-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className={hideSku ? 'sm:col-span-2' : ''}>
-                    <ProductInput
-                      id={fieldId('value')}
-                      name="value"
-                      label={attribute ? `${attribute} value` : 'Option value'}
-                      placeholder="e.g. Black"
-                      value={values.value}
-                      onChange={(event) => onFieldChange('value', event.target.value)}
-                    />
-                  </div>
-                  {hideSku ? null : (
-                    <ProductInput
-                      id={fieldId('sku')}
-                      name="sku"
-                      label="Seller SKU"
-                      optional
-                      placeholder="e.g. AUD-001-BLK"
-                      value={values.sku}
-                      onChange={(event) => onFieldChange('sku', event.target.value.toUpperCase())}
-                    />
-                  )}
-                  <div className="sm:col-span-2">
-                    <ProductInput
-                      id={fieldId('quantity')}
-                      name="quantity"
-                      type="number"
-                      min={0}
-                      max={showProductPrices ? undefined : (mainQty ?? undefined)}
-                      label="Quantity"
-                      hint={
-                        showProductPrices
-                          ? 'This is the listing stock shoppers see first.'
-                          : mainQty != null ? `Up to ${mainQty} units` : 'Set main stock first'
-                      }
-                      placeholder="0"
-                      value={values.quantity}
-                      onChange={(event) => onFieldChange('quantity', event.target.value)}
-                    />
-                  </div>
+            <div className="space-y-5">
+              <div className="grid items-start gap-5 lg:grid-cols-5">
+                <div className="lg:col-span-2">
+                  <VariantImageUpload
+                    label="Photos"
+                    hint={imageHint ?? getVariantImageUploadHint(attribute)}
+                    required={photosRequired || isDefault}
+                    images={values.images}
+                    maxImages={MAX_VARIANT_IMAGE_COUNT}
+                    dropzoneMinHeightClass="min-h-28"
+                    onChange={(images) => onFieldChange('images', images)}
+                    error={/photo/i.test(String(error ?? '')) ? error : undefined}
+                  />
                 </div>
 
-                <div>
-                  {showProductPrices ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <ProductMoneyInput
-                        id={fieldId('price')}
-                        name="price"
-                        label="Regular price (GH₵)"
-                        placeholder="0.00"
-                        value={values.price}
-                        onChange={(event) => onFieldChange('price', event.target.value)}
+                <div className="space-y-4 lg:col-span-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className={hideSku ? 'sm:col-span-2' : ''}>
+                      <ProductInput
+                        id={fieldId('value')}
+                        name="value"
+                        label={attribute ? `${attribute} value` : 'Option value'}
+                        placeholder="e.g. Black"
+                        value={values.value}
+                        onChange={(event) => onFieldChange('value', event.target.value)}
                       />
-                      <ProductMoneyInput
-                        id={fieldId('discount_price')}
-                        name="discount_price"
-                        label="Sale price (GH₵)"
+                    </div>
+                    {hideSku ? null : (
+                      <ProductInput
+                        id={fieldId('sku')}
+                        name="sku"
+                        label="Seller SKU"
                         optional
-                        placeholder="No sale price"
-                        value={values.discount_price}
-                        onChange={(event) => onFieldChange('discount_price', event.target.value)}
+                        placeholder="e.g. AUD-001-BLK"
+                        value={values.sku}
+                        onChange={(event) => onFieldChange('sku', event.target.value.toUpperCase())}
+                      />
+                    )}
+                    <div className="sm:col-span-2">
+                      <ProductInput
+                        id={fieldId('quantity')}
+                        name="quantity"
+                        type="number"
+                        min={0}
+                        max={showProductPrices ? undefined : (mainQty ?? undefined)}
+                        label="Quantity"
+                        hint={
+                          showProductPrices
+                            ? 'This is the listing stock shoppers see first.'
+                            : mainQty != null ? `Up to ${mainQty} units` : 'Set main stock first'
+                        }
+                        placeholder="0"
+                        value={values.quantity}
+                        onChange={(event) => onFieldChange('quantity', event.target.value)}
                       />
                     </div>
-                  ) : (
-                    <>
-                      <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onToggleCustomPrice(false)
-                            onFieldChange('price', '')
-                            onFieldChange('discount_price', '')
-                          }}
-                          className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                            !isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                          }`}
-                        >
-                          Use base price
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onToggleCustomPrice(true)}
-                          className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                            isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                          }`}
-                        >
-                          Custom price
-                        </button>
-                      </div>
-
-                      {isCustomPrice ? (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <ProductMoneyInput
-                            id={fieldId('price')}
-                            name="price"
-                            label="Regular price (GH₵)"
-                            placeholder={formatMoney(pricing.parent.regularPrice)}
-                            value={values.price}
-                            onChange={(event) => onFieldChange('price', event.target.value)}
-                          />
-                          <ProductMoneyInput
-                            id={fieldId('discount_price')}
-                            name="discount_price"
-                            label="Sale price (GH₵)"
-                            optional
-                            placeholder={
-                              pricing.parent.salePrice != null ? formatMoney(pricing.parent.salePrice) : 'No base sale price'
-                            }
-                            value={values.discount_price}
-                            onChange={(event) => onFieldChange('discount_price', event.target.value)}
-                          />
-                        </div>
-                      ) : (
-                        <p className="text-xs leading-relaxed text-slate-500">
-                          Customer pays GH₵ {formatMoney(pricing.hasDiscount ? pricing.salePrice : pricing.listPrice)}
-                          {pricing.hasDiscount ? ' (base sale price applied)' : ' (base product price)'}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div>
-                  <div className="inline-flex rounded-xl bg-slate-100 p-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCompatible(false)
-                        onFieldChange('compatible_models', [])
-                        onFieldChange('has_compatible_models', false)
-                      }}
-                      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                        !showCompatible ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      No compatible models
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowCompatible(true)}
-                      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                        showCompatible ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      Fits multiple models
-                    </button>
                   </div>
-                  {showCompatible && (
-                    <div className="mt-3 rounded-xl border border-brand/15 bg-brand-light/20 p-3">
-                      <VariantValuesInput
-                        values={values.compatible_models ?? []}
-                        onChange={(next) => {
-                          onFieldChange('compatible_models', next)
-                          onFieldChange('has_compatible_models', next.length > 0)
-                        }}
-                        label="Compatible models"
-                        hint="Press Enter or comma after each model name."
-                        placeholder="iPhone 13, iPhone 13 Pro"
-                      />
-                    </div>
-                  )}
+
+                  <div>
+                    {showProductPrices ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ProductMoneyInput
+                          id={fieldId('price')}
+                          name="price"
+                          label="Regular price (GH₵)"
+                          placeholder="0.00"
+                          value={values.price}
+                          onChange={(event) => onFieldChange('price', event.target.value)}
+                        />
+                        <ProductMoneyInput
+                          id={fieldId('discount_price')}
+                          name="discount_price"
+                          label="Sale price (GH₵)"
+                          optional
+                          placeholder="No sale price"
+                          value={values.discount_price}
+                          onChange={(event) => onFieldChange('discount_price', event.target.value)}
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onToggleCustomPrice(false)
+                              onFieldChange('price', '')
+                              onFieldChange('discount_price', '')
+                            }}
+                            className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                              !isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                          >
+                            Use base price
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onToggleCustomPrice(true)}
+                            className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                              isCustomPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                          >
+                            Custom price
+                          </button>
+                        </div>
+
+                        {isCustomPrice ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <ProductMoneyInput
+                              id={fieldId('price')}
+                              name="price"
+                              label="Regular price (GH₵)"
+                              placeholder={formatMoney(pricing.parent.regularPrice)}
+                              value={values.price}
+                              onChange={(event) => onFieldChange('price', event.target.value)}
+                            />
+                            <ProductMoneyInput
+                              id={fieldId('discount_price')}
+                              name="discount_price"
+                              label="Sale price (GH₵)"
+                              optional
+                              placeholder={
+                                pricing.parent.salePrice != null ? formatMoney(pricing.parent.salePrice) : 'No base sale price'
+                              }
+                              value={values.discount_price}
+                              onChange={(event) => onFieldChange('discount_price', event.target.value)}
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-xs leading-relaxed text-slate-500">
+                            Customer pays GH₵ {formatMoney(pricing.hasDiscount ? pricing.salePrice : pricing.listPrice)}
+                            {pricing.hasDiscount ? ' (base sale price applied)' : ' (base product price)'}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              <SecondaryVariantSection
+                primaryAttribute={attribute}
+                secondaryVariants={values.secondary_variants ?? []}
+                onChange={(next) => onFieldChange('secondary_variants', next)}
+                primaryValues={values}
+                productValues={productValues}
+              />
             </div>
 
             {footer && (

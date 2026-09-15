@@ -1,8 +1,12 @@
-import { useEffect, useMemo } from 'react'
+import { Fragment, useEffect, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
-import CategoriesPageHeader from '../components/categories/CategoriesPageHeader'
+import {
+  CategoriesPageIntro,
+  CategoriesPageSpotlights,
+} from '../components/categories/CategoriesPageHeader'
+import CategoriesPageSearch from '../components/categories/CategoriesPageSearch'
 import CategoriesPageSkeleton from '../components/categories/CategoriesPageSkeleton'
 import CategoryPromoBentoSection from '../components/categories/CategoryPromoBentoSection'
 import RemainingCategoryDepartmentsSection from '../components/categories/RemainingCategoryDepartmentsSection'
@@ -28,52 +32,67 @@ export default function CategoriesPage() {
 
   return (
     <SiteLayout>
-      <CategoriesPageHeader />
-      <AnimatePresence mode="wait">
-        {showSkeleton ? (
-          <motion.div
-            key="categories-skeleton"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <CategoriesPageSkeleton includeHeader={false} />
-          </motion.div>
-        ) : showEmpty ? (
-          <motion.section
-            key="categories-empty"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.32, ease: pageEase }}
-            className="bg-white pb-16 pt-2 sm:pb-20"
-          >
-            <Container>
-              <p className="text-sm leading-relaxed text-slate-500 sm:text-base">
-                Categories are unavailable right now. Please try again shortly.
-              </p>
-            </Container>
-          </motion.section>
-        ) : (
-          <motion.div
-            key="categories-content"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.32, ease: pageEase }}
-          >
-            <RemainingCategoryDepartmentsSection
-              departments={catalog.leadingDepartments}
-              skeletonCount={2}
-            />
-            <CategoryPromoBentoSection content={catalog.bento} />
-            <RemainingCategoryDepartmentsSection
-              departments={catalog.remainingDepartments}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <CategoriesPageIntro />
+      <div>
+        <CategoriesPageSearch parentCategories={parentCategories} />
+        <CategoriesPageSpotlights />
+        <AnimatePresence mode="wait">
+          {showSkeleton ? (
+            <motion.div
+              key="categories-skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <CategoriesPageSkeleton includeHeader={false} />
+            </motion.div>
+          ) : showEmpty ? (
+            <motion.section
+              key="categories-empty"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.32, ease: pageEase }}
+              className="bg-white pb-16 pt-2 sm:pb-20"
+            >
+              <Container>
+                <p className="text-sm leading-relaxed text-slate-500 sm:text-base">
+                  Categories are unavailable right now. Please try again shortly.
+                </p>
+              </Container>
+            </motion.section>
+          ) : (
+            <motion.div
+              key="categories-content"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.32, ease: pageEase }}
+            >
+              <RemainingCategoryDepartmentsSection
+                departments={catalog.leadingDepartments}
+                skeletonCount={2}
+              />
+              {catalog.bentoSections.map((section, index) => (
+                <Fragment key={section.layout}>
+                  <CategoryPromoBentoSection
+                    content={section.content}
+                    layout={section.layout}
+                    label={section.label}
+                  />
+                  <RemainingCategoryDepartmentsSection
+                    departments={catalog.departmentChunks[index] ?? []}
+                  />
+                </Fragment>
+              ))}
+              <RemainingCategoryDepartmentsSection
+                departments={catalog.trailingDepartments}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </SiteLayout>
   )
 }

@@ -4,7 +4,7 @@ import VariantImageEditSection from './VariantImageEditSection'
 import VariantPricingSummary from '../products/VariantPricingSummary'
 import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
 import CardStepHeader from './CardStepHeader'
-import VariantCompatibleModelsSection from './VariantCompatibleModelsSection'
+import SecondaryVariantSection from './SecondaryVariantSection'
 import VariantIdentitySection from './VariantIdentitySection'
 import { MAX_VARIANT_IMAGE_COUNT, getVariantImageUploadHint, isColorVariantAttribute } from './variantConstants'
 import { svFieldError } from './variantFormUtils'
@@ -171,11 +171,11 @@ export default function VariantDetailFields({
             onBlur={formik.handleBlur}
             error={svFieldError(formik, 'quantity')}
           />
-          {/* Reserved quantity
           <ProductInput
             id="reserved_quantity"
             name="reserved_quantity"
             type="number"
+            min={0}
             label="Reserved quantity"
             hint="Units held for pending orders."
             reserveHintSpace
@@ -186,27 +186,38 @@ export default function VariantDetailFields({
             onBlur={formik.handleBlur}
             error={svFieldError(formik, 'reserved_quantity')}
           />
-          */}
-          {/* Low stock alert
           <ProductInput
-            id="minimum_threshold"
-            name="minimum_threshold"
+            id="low_stock_threshold"
+            name="low_stock_threshold"
             type="number"
-            label="Low stock alert"
+            min={1}
+            label="Low stock threshold"
             hint="Alert when stock falls to this level. Defaults to 5."
             reserveHintSpace
             placeholder="5"
-            value={formik.values.minimum_threshold}
-            onChange={formik.handleChange}
+            optional
+            value={formik.values.low_stock_threshold ?? formik.values.minimum_threshold}
+            onChange={(event) => {
+              formik.setFieldValue('low_stock_threshold', event.target.value)
+              formik.setFieldValue('minimum_threshold', event.target.value)
+            }}
             onBlur={formik.handleBlur}
-            error={svFieldError(formik, 'minimum_threshold')}
+            error={svFieldError(formik, 'low_stock_threshold') || svFieldError(formik, 'minimum_threshold')}
           />
-          */}
         </div>
       </div>
 
-      {/* Step: Compatible models */}
-      <VariantCompatibleModelsSection formik={formik} step={startStep + 4} />
+      {/* Step: Secondary Variants */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:p-6">
+        <SecondaryVariantSection
+          step={startStep + 4}
+          primaryAttribute={formik.values.attribute}
+          secondaryVariants={formik.values.secondary_variants ?? []}
+          onChange={(next) => formik.setFieldValue('secondary_variants', next)}
+          primaryValues={formik.values}
+          productValues={productValues}
+        />
+      </div>
     </>
   )
 }

@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, Layers3, Link2, Pin, Plus } from 'lucide-react
 import ConfirmModal from '../common/ConfirmModal'
 import { useProductMediaUpload } from '../../hooks/useProductMediaUpload'
 import { useSyncDefaultVariantMutation } from '../../hooks/useProductMutations'
+import { isGroupedLeafPrimary } from '../../utils/productPayload'
 import { prepareVariantFormValuesForSave } from '../../utils/variantMediaSaveUtils'
 import {
   applyDefaultVariationDraftToProduct,
@@ -18,6 +19,7 @@ import {
   rehydrateKeptImagesMissingIds,
 } from '../../utils/productMediaUploadUtils'
 import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../../constants/productMediaUpload'
+import notify from '../../lib/notify'
 import AttributeIcon from './AttributeIcon'
 import PersistedVariantAccordion from './PersistedVariantAccordion'
 import { normalizeVariantOptionalFields } from './variantFormUtils'
@@ -31,31 +33,29 @@ export default function VariantListView({
   mainImage = null,
   subImages = [],
   descriptiveImages = [],
+  allowAddVariants = true,
+  listingKind = 'variants',
+  hasLockedExtras = false,
   onAdd,
+  onSwitchToVariants,
+  onChangeListingType,
   onFinished,
   updateSingleVariantMutation,
   deleteVariantMutation,
 }) {
   const [removeTarget, setRemoveTarget] = useState(null)
-  const [openIds, setOpenIds] = useState(() => new Set(
-    defaultEntry?.variantValue?.id ? [defaultEntry.variantValue.id] : [],
-  ))
+  const [openId, setOpenId] = useState(null)
   const [savingId, setSavingId] = useState(null)
   const { uploadPendingMedia, isUploading: isUploadingMedia } = useProductMediaUpload()
   const syncDefaultVariantMutation = useSyncDefaultVariantMutation()
 
   const toggleOpen = (variantId) => {
-    setOpenIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(variantId)) next.delete(variantId)
-      else next.add(variantId)
-      return next
-    })
+    setOpenId((current) => (current === variantId ? null : variantId))
   }
 
   const handleSaveDefault = async (entry, draft) => {
     const variantId = entry.variantValue.id
-    setSavingId(variantId)
+    setSavingId(`main:${variantId}`)
     try {
       const { productPatch } = applyDefaultVariationDraftToProduct(draft)
       const merged = mergeDefaultVariantImagesIntoProduct(draft.images, mainImage, subImages)
@@ -112,7 +112,7 @@ export default function VariantListView({
 
       await syncDefaultVariantMutation.mutateAsync({
         productId,
-        variantId: entry.synthetic ? null : variantId,
+        variantId: entry.synthetic || isGroupedLeafPrimary(draft) ? null : variantId,
         variantFormValues: prepared,
         listingValues: nextListingValues,
         productValues: { ...nextListingValues, barcode: '' },
@@ -125,14 +125,26 @@ export default function VariantListView({
     }
   }
 
-  const handleSave = async (entry, draft, { isCustomPrice, isDefault } = {}) => {
-    if (isDefault) {
+  const handleSave = async (entry, draft, {
+    isCustomPrice,
+    isDefault,
+    saveMode = 'main',
+    targetSecondaryId = null,
+  } = {}) => {
+    if (isDefault && saveMode === 'main') {
       await handleSaveDefault(entry, draft)
       return
     }
 
-    const variantId = entry.variantValue.id
-    setSavingId(variantId)
+    if (saveMode === 'main' && isGroupedLeafPrimary(draft)) {
+      notify.info('This option is sold as secondary SKUs. Save each nested value on its own row.')
+      return
+    }
+
+    const savingKey = saveMode === 'secondary'
+      ? `secondary:${targetSecondaryId}`
+      : `main:${entry.variantValue.id}`
+    setSavingId(savingKey)
     try {
       const normalized = normalizeVariantOptionalFields(draft, { isCustomPrice })
       const prepared = await prepareVariantFormValuesForSave({
@@ -142,9 +154,11 @@ export default function VariantListView({
       })
       await updateSingleVariantMutation.mutateAsync({
         productId,
-        variantId,
+        variantId: entry.variantValue.id,
         variantFormValues: prepared,
         productValues,
+        saveMode,
+        targetSecondaryId,
       })
     } finally {
       setSavingId(null)
@@ -171,6 +185,41 @@ export default function VariantListView({
     ? `${defaultEntry.variation.attribute}: ${defaultEntry.variantValue.value || listingValues.main_attribute_value || 'Default'}`
     : ''
 
+  const renderVariantCard = (variation, variantValue, { isDefaultCard = false } = {}) => (
+    <PersistedVariantAccordion
+      key={variantValue.id}
+      variation={variation}
+      variantValue={variantValue}
+      productValues={isDefaultCard ? listingValues : productValues}
+      mainImage={isDefaultCard ? mainImage : undefined}
+      subImages={isDefaultCard ? subImages : undefined}
+      isOpen={openId === variantValue.id}
+      onToggle={() => toggleOpen(variantValue.id)}
+      onSave={(draft, options) => handleSave({ variation, variantValue }, draft, options)}
+      onRemove={isDefaultCard ? undefined : () => setRemoveTarget({ variation, variantValue })}
+      isSaving={
+        savingId === `main:${variantValue.id}`
+        || (
+          isDefaultCard
+          && syncDefaultVariantMutation.isPending
+          && savingId === `main:${variantValue.id}`
+        )
+      }
+      isSavingSecondary={String(savingId ?? '').startsWith('secondary:')}
+      savingSecondaryId={
+        String(savingId ?? '').startsWith('secondary:')
+          ? String(savingId).slice('secondary:'.length)
+          : null
+      }
+      isRemoving={
+        !isDefaultCard
+        && deleteVariantMutation.isPending
+        && removeTarget?.variantValue.id === variantValue.id
+      }
+      isDefault={isDefaultCard}
+    />
+  )
+
   return (
     <div className="page-enter space-y-5">
       <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
@@ -179,12 +228,19 @@ export default function VariantListView({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Manage variations</p>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Product variants</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
-              The default option is locked here and stays in sync with product info. Extra options can still be added, edited, or removed.
+              {listingKind === 'simple'
+                ? 'This simple listing keeps one generated option in sync with product name, price, stock, and up to 3 photos. Switch to variants if shoppers need to pick a color, size, or another option.'
+                : 'The default option is locked here and stays in sync with product info. Extra options can still be added, edited, or removed.'}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-[11px] font-semibold text-cyan-800">
-                1 default
+                {listingKind === 'simple' ? 'Simple listing' : '1 default'}
               </span>
+              {hasLockedExtras && (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-100">
+                  Extra options already exist
+                </span>
+              )}
               {entries.length > 0 && (
                 <>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
@@ -194,6 +250,15 @@ export default function VariantListView({
                     {attributeCount} option type{attributeCount !== 1 ? 's' : ''}
                   </span>
                 </>
+              )}
+              {onChangeListingType && !hasLockedExtras && (
+                <button
+                  type="button"
+                  onClick={onChangeListingType}
+                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-500 underline-offset-2 transition-colors hover:text-brand hover:underline"
+                >
+                  Change listing type
+                </button>
               )}
             </div>
           </div>
@@ -217,14 +282,25 @@ export default function VariantListView({
         </div>
 
         <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={() => onAdd()}
-            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
-          >
-            <Plus className="size-4" />
-            Add variant
-          </button>
+          {allowAddVariants ? (
+            <button
+              type="button"
+              onClick={() => onAdd()}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+            >
+              <Plus className="size-4" />
+              Add variant
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSwitchToVariants}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+            >
+              <Layers3 className="size-4" />
+              Sell with variants instead
+            </button>
+          )}
           <button
             type="button"
             onClick={onFinished}
@@ -238,113 +314,125 @@ export default function VariantListView({
 
       {defaultEntry ? (
         <section className="space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 border-b-2 border-cyan-200 pb-3">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700">
               <Pin className="size-3.5" />
             </span>
-            <span className="text-xs font-bold uppercase tracking-widest text-cyan-800">Default option</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-cyan-800 underline decoration-cyan-400 decoration-2 underline-offset-4">
+              Default Variation
+            </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 ring-1 ring-cyan-100">
               <Link2 className="size-3" />
               Cannot be deleted
             </span>
-            <span className="h-px flex-1 bg-slate-100" />
+            <span className="h-px min-w-8 flex-1 bg-cyan-200" />
           </div>
-          <PersistedVariantAccordion
-            variation={defaultEntry.variation}
-            variantValue={defaultEntry.variantValue}
-            productValues={listingValues}
-            mainImage={mainImage}
-            subImages={subImages}
-            isOpen={openIds.has(defaultEntry.variantValue.id)}
-            onToggle={() => toggleOpen(defaultEntry.variantValue.id)}
-            onSave={(draft, options) => handleSave(defaultEntry, draft, options)}
-            isSaving={
-              savingId === defaultEntry.variantValue.id
-              || isUploadingMedia
-              || syncDefaultVariantMutation.isPending
-            }
-            isDefault
-          />
+          {renderVariantCard(defaultEntry.variation, defaultEntry.variantValue, { isDefaultCard: true })}
         </section>
       ) : null}
 
-      {entries.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 px-6 py-10 text-center">
-          <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 ring-1 ring-slate-200">
-            <Layers3 className="size-6" />
-          </span>
-          <p className="text-sm font-bold text-slate-900">No extra variants yet</p>
-          <p className="mt-1 text-sm text-slate-500">
-            {defaultLabel
-              ? `${defaultLabel} is already listed first. Add optional colors, sizes, or other values if you sell more than one option.`
-              : 'Add optional colors, sizes, or other values if you sell more than one option.'}
-          </p>
-          <div className="mx-auto mt-5 flex max-w-sm flex-col gap-2 text-left text-xs text-slate-500 sm:flex-row sm:items-start sm:gap-4 sm:text-center">
-            <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
-              <strong className="block text-slate-700">1. Choose a type</strong>
-              Color, Size, Weight or your own
-            </span>
-            <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
-              <strong className="block text-slate-700">2. Add values</strong>
-              Red, Blue, Large, etc.
-            </span>
-            <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
-              <strong className="block text-slate-700">3. Fill in the card</strong>
-              Price, stock & optional photos
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => onAdd()}
-            className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
-          >
-            <Plus className="size-4" />
-            Add extra variant
-          </button>
+      {defaultEntry ? (
+        <div className="flex items-center gap-3" role="separator" aria-hidden="true">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span className="size-1.5 shrink-0 rounded-full bg-slate-300" />
+          <span className="h-px flex-1 bg-slate-200" />
         </div>
-      ) : (
-        Object.entries(groupedByAttribute).map(([attribute, group]) => (
-          <div key={attribute} className="space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                <AttributeIcon attribute={attribute} className="size-3.5" />
-              </span>
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{attribute}</span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
-                {group.length} option{group.length !== 1 ? 's' : ''}
-              </span>
-              <span className="h-px flex-1 bg-slate-100" />
-              <button
-                type="button"
-                onClick={() => onAdd(attribute)}
-                className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-light/60"
-              >
-                <Plus className="size-3.5" />
-                Add value
-              </button>
-            </div>
-            <div className="space-y-3">
-              {group.map(({ variation, variantValue }) => (
-                <PersistedVariantAccordion
-                  key={variantValue.id}
-                  variation={variation}
-                  variantValue={variantValue}
-                  productValues={productValues}
-                  isOpen={openIds.has(variantValue.id)}
-                  onToggle={() => toggleOpen(variantValue.id)}
-                  onSave={(draft, options) => handleSave({ variation, variantValue }, draft, options)}
-                  onRemove={() => setRemoveTarget({ variation, variantValue })}
-                  isSaving={savingId === variantValue.id || isUploadingMedia}
-                  isRemoving={
-                    deleteVariantMutation.isPending
-                    && removeTarget?.variantValue.id === variantValue.id
-                  }
-                />
-              ))}
-            </div>
+      ) : null}
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3 border-b-2 border-slate-200 pb-3">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+            <Layers3 className="size-3.5" />
+          </span>
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-700 underline decoration-slate-400 decoration-2 underline-offset-4">
+            Additional Variations
+          </span>
+          {entries.length > 0 && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+              {entries.length} variant{entries.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          <span className="h-px min-w-8 flex-1 bg-slate-200" />
+        </div>
+
+        {entries.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-slate-200 px-6 py-10 text-center">
+            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+              <Layers3 className="size-6" />
+            </span>
+            <p className="text-sm font-bold text-slate-900">
+              {listingKind === 'simple' ? 'Simple listing — no extra options' : 'No extra variants yet'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              {listingKind === 'simple'
+                ? (defaultLabel
+                  ? `${defaultLabel} is the only option shoppers can buy. Price, stock, and photos stay in sync with product info.`
+                  : 'Shoppers buy one version of this item. Price, stock, and photos stay in sync with product info.')
+                : (defaultLabel
+                  ? `${defaultLabel} is already listed first. Add optional colors, sizes, or other values if you sell more than one option.`
+                  : 'Add optional colors, sizes, or other values if you sell more than one option.')}
+            </p>
+            {allowAddVariants && (
+              <>
+                <div className="mx-auto mt-5 flex max-w-sm flex-col gap-2 text-left text-xs text-slate-500 sm:flex-row sm:items-start sm:gap-4 sm:text-center">
+                  <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <strong className="block text-slate-700">1. Choose a type</strong>
+                    Color, Size, Weight or your own
+                  </span>
+                  <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <strong className="block text-slate-700">2. Add values</strong>
+                    Red, Blue, Large, etc.
+                  </span>
+                  <span className="flex-1 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <strong className="block text-slate-700">3. Fill in the card</strong>
+                    Price, stock & optional photos
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onAdd()}
+                  className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-hover"
+                >
+                  <Plus className="size-4" />
+                  Add extra variant
+                </button>
+              </>
+            )}
           </div>
-        ))
-      )}
+        ) : (
+          Object.entries(groupedByAttribute).map(([attribute, group]) => (
+            <div key={attribute} className="space-y-3 border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-2">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <AttributeIcon attribute={attribute} className="size-3.5" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500 underline decoration-slate-300 underline-offset-4">
+                  {attribute}
+                </span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                  {group.length} option{group.length !== 1 ? 's' : ''}
+                </span>
+                <span className="h-px min-w-8 flex-1 bg-slate-200" />
+                {allowAddVariants && (
+                  <button
+                    type="button"
+                    onClick={() => onAdd(attribute)}
+                    className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-light/60"
+                  >
+                    <Plus className="size-3.5" />
+                    Add value
+                  </button>
+                )}
+              </div>
+              <div className="space-y-3">
+                {group.map(({ variation, variantValue }) => (
+                  renderVariantCard(variation, variantValue)
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </section>
 
       <ConfirmModal
         open={Boolean(removeTarget)}

@@ -84,9 +84,22 @@ export class SkuRegistry {
 /** Every product + variant SKU currently in the vendor catalogue. */
 export function collectKnownSkus(
   products = [],
-  { excludeProductId = null, excludeVariantId = null } = {},
+  {
+    excludeProductId = null,
+    excludeVariantId = null,
+    excludeVariantIds = [],
+    excludeSkus = [],
+  } = {},
 ) {
   const skus = new Set()
+  const excludedIds = new Set(
+    [excludeVariantId, ...(excludeVariantIds ?? [])]
+      .filter(Boolean)
+      .map((id) => String(id)),
+  )
+  const excludedSkus = new Set(
+    (excludeSkus ?? []).map(normalizeSku).filter(Boolean),
+  )
 
   for (const product of products) {
     if (!product?.id) continue
@@ -99,14 +112,33 @@ export function collectKnownSkus(
     }
 
     for (const variant of product.variants ?? []) {
-      if (excludeVariantId && String(variant.id) === String(excludeVariantId)) continue
+      if (excludedIds.has(String(variant.id ?? ''))) continue
 
       const variantSku = normalizeSku(variant.sku)
-      if (variantSku) skus.add(variantSku)
+      if (!variantSku) continue
+      if (isExcludedProduct && excludedSkus.has(variantSku)) continue
+
+      skus.add(variantSku)
     }
   }
 
   return skus
+}
+
+/** Ids and SKUs from the card being saved so this listing does not collide with itself. */
+export function collectVariantSaveExclusions(variantFormValues = {}, variantId = null) {
+  const ids = [variantId, variantFormValues?.id]
+  const skus = [variantFormValues?.sku]
+
+  for (const secondary of variantFormValues?.secondary_variants ?? []) {
+    ids.push(secondary?.id)
+    skus.push(secondary?.sku)
+  }
+
+  return {
+    excludeVariantIds: ids.filter(Boolean),
+    excludeSkus: skus.filter((sku) => Boolean(normalizeSku(sku))),
+  }
 }
 
 /** Load every SKU in the vendor catalogue from the API before submit. */
@@ -309,10 +341,26 @@ export function assertPayloadSkuUniqueness(productSku, variations = []) {
 
   variations.forEach((group, groupIndex) => {
     ;(group?.values ?? []).forEach((variantValue, valueIndex) => {
-      registerSku(
-        variantValue?.sku,
-        `variations.${groupIndex}.values.${valueIndex}.sku`,
-      )
+      const secondaries = Array.isArray(variantValue?.secondary_variants)
+        ? variantValue.secondary_variants
+        : []
+      const hasSecondaries = secondaries.some((item) => (
+        String(item?.attribute ?? '').trim() && String(item?.value ?? '').trim()
+      ))
+
+      if (!hasSecondaries) {
+        registerSku(
+          variantValue?.sku,
+          `variations.${groupIndex}.values.${valueIndex}.sku`,
+        )
+      }
+
+      secondaries.forEach((secondary, secondaryIndex) => {
+        registerSku(
+          secondary?.sku,
+          `variations.${groupIndex}.values.${valueIndex}.secondary_variants.${secondaryIndex}.sku`,
+        )
+      })
     })
   })
 
@@ -325,6 +373,50 @@ export function assertPayloadSkuUniqueness(productSku, variations = []) {
  * Assign guaranteed-unique SKUs and clear optional barcodes before API submit.
  * Vendor-entered SKUs are validated; system fills any blank variant SKU.
  */
+function assignDraftSku({
+  draft,
+  field,
+  productSku,
+  attribute,
+  value,
+  registry,
+  autoResolveVendorSkus,
+  fieldErrors,
+}) {
+  if (isVendorProvidedVariantSku(draft?.sku)) {
+    const vendorSku = normalizeSku(draft.sku)
+    if (registry.isTaken(vendorSku)) {
+      if (autoResolveVendorSkus) {
+        try {
+          return allocateUniqueCatalogSku(registry, vendorSku, {
+            entropyBase: productSku || vendorSku,
+          })
+        } catch (error) {
+          fieldErrors[field] = error.message || 'Could not generate a unique variant SKU.'
+          return draft.sku
+        }
+      }
+
+      fieldErrors[field] = `SKU "${vendorSku}" is already used in your catalogue. Choose a different code.`
+      return vendorSku
+    }
+    registry.reserve(vendorSku)
+    return vendorSku
+  }
+
+  try {
+    return allocateSystemVariantSku(registry, {
+      productSku,
+      attribute,
+      value,
+      entropyBase: productSku || attribute || 'VAR',
+    })
+  } catch (error) {
+    fieldErrors[field] = error.message || 'Could not generate a unique variant SKU.'
+    return draft?.sku ?? ''
+  }
+}
+
 export function prepareVariationsForSubmit({
   variations = [],
   productValues = {},
@@ -343,44 +435,44 @@ export function prepareVariationsForSubmit({
   const nextVariations = variations.map((group, groupIndex) => ({
     ...group,
     values: (group?.values ?? []).map((variantValue, valueIndex) => {
-      const field = `variations.${groupIndex}.values.${valueIndex}.sku`
+      const secondaries = Array.isArray(variantValue?.secondary_variants)
+        ? variantValue.secondary_variants
+        : []
+      const hasSecondaries = secondaries.some((item) => (
+        String(item?.attribute ?? '').trim() && String(item?.value ?? '').trim()
+      ))
+
       const nextValue = {
         ...variantValue,
         barcode: '',
       }
 
-      if (isVendorProvidedVariantSku(variantValue?.sku)) {
-        const vendorSku = normalizeSku(variantValue.sku)
-        if (registry.isTaken(vendorSku)) {
-          if (autoResolveVendorSkus) {
-            try {
-              nextValue.sku = allocateUniqueCatalogSku(registry, vendorSku, {
-                entropyBase: productValues?.sku || vendorSku,
-              })
-            } catch (error) {
-              fieldErrors[field] = error.message || 'Could not generate a unique variant SKU.'
-            }
-            return nextValue
-          }
-
-          fieldErrors[field] = `SKU "${vendorSku}" is already used in your catalogue. Choose a different code.`
-          return nextValue
-        }
-        registry.reserve(vendorSku)
-        nextValue.sku = vendorSku
-        return nextValue
-      }
-
-      try {
-        nextValue.sku = allocateSystemVariantSku(registry, {
+      if (!hasSecondaries) {
+        nextValue.sku = assignDraftSku({
+          draft: variantValue,
+          field: `variations.${groupIndex}.values.${valueIndex}.sku`,
           productSku: productValues?.sku,
           attribute: group?.attribute,
           value: variantValue?.value,
-          entropyBase: productValues?.sku || group?.attribute || 'VAR',
+          registry,
+          autoResolveVendorSkus,
+          fieldErrors,
         })
-      } catch (error) {
-        fieldErrors[field] = error.message || 'Could not generate a unique variant SKU.'
       }
+
+      nextValue.secondary_variants = secondaries.map((secondary, secondaryIndex) => ({
+        ...secondary,
+        sku: assignDraftSku({
+          draft: secondary,
+          field: `variations.${groupIndex}.values.${valueIndex}.secondary_variants.${secondaryIndex}.sku`,
+          productSku: productValues?.sku || variantValue?.sku,
+          attribute: secondary?.attribute || group?.attribute,
+          value: secondary?.value,
+          registry,
+          autoResolveVendorSkus,
+          fieldErrors,
+        }),
+      }))
 
       return nextValue
     }),

@@ -82,7 +82,11 @@ export function normalizeVariantOptionalFields(values, { isCustomPrice = false }
   next.reserved_quantity = isBlankVariantField(values.reserved_quantity)
     ? ''
     : optionalNumberFieldOrNa(values.reserved_quantity)
-  next.minimum_threshold = optionalNumberFieldOrNa(values.minimum_threshold)
+  const lowStockThreshold = optionalNumberFieldOrNa(
+    getVariantLowStockField(values),
+  )
+  next.low_stock_threshold = lowStockThreshold
+  next.minimum_threshold = lowStockThreshold
 
   if (isCustomPrice) {
     next.discount_price = optionalNumberFieldOrNa(values.discount_price)
@@ -92,6 +96,8 @@ export function normalizeVariantOptionalFields(values, { isCustomPrice = false }
     .map((model) => String(model ?? '').trim())
     .filter(Boolean)
   next.has_compatible_models = next.compatible_models.length > 0
+
+  next.secondary_variants = Array.isArray(values.secondary_variants) ? values.secondary_variants : []
 
   return next
 }
@@ -166,6 +172,11 @@ export function optionalVariantNumberOrNullForJsonPayload(value) {
   return Number.isFinite(num) ? num : null
 }
 
+export function getVariantLowStockField(values = {}) {
+  if (!isBlankVariantField(values.low_stock_threshold)) return values.low_stock_threshold
+  return values.minimum_threshold ?? ''
+}
+
 export function resolveVariantMinimumThreshold(
   value,
   fallback = DEFAULT_VARIANT_MINIMUM_THRESHOLD,
@@ -182,6 +193,10 @@ export function variantMinimumThresholdForPayload(value) {
   return resolveVariantMinimumThreshold(value)
 }
 
+export function variantLowStockThresholdForPayload(values = {}) {
+  return variantMinimumThresholdForPayload(getVariantLowStockField(values))
+}
+
 export const EMPTY_VARIANT_VALUES = {
   attribute: '',
   value: '',
@@ -192,8 +207,9 @@ export const EMPTY_VARIANT_VALUES = {
   quantity: '',
   reserved_quantity: '',
   // Left blank in the form — defaulted to DEFAULT_VARIANT_MINIMUM_THRESHOLD only when
-  // building the submit payload (variantMinimumThresholdForPayload), so it never conflicts
+  // building the submit payload (variantLowStockThresholdForPayload), so it never conflicts
   // with a low quantity value while the vendor is still filling in the form.
+  low_stock_threshold: '',
   minimum_threshold: '',
   barcode: '',
   barcode_type: 'UPC',
@@ -204,6 +220,7 @@ export const EMPTY_VARIANT_VALUES = {
   description: '',
   has_compatible_models: false,
   compatible_models: [],
+  secondary_variants: [],
   images: [],
 }
 
@@ -213,6 +230,7 @@ export function toVariantFormValues(variantValue, attributeType) {
 
   return {
     attribute: attributeType ?? '',
+    id: variantValue.id,
     value: variantValue.value ?? '',
     variant_name: fromVariantOptionalField(variantValue.variant_name),
     sku: fromVariantOptionalField(variantValue.sku),
@@ -223,9 +241,8 @@ export function toVariantFormValues(variantValue, attributeType) {
     ),
     quantity: variantValue.quantity ?? '',
     reserved_quantity: fromVariantOptionalField(variantValue.reserved_quantity),
-    minimum_threshold: fromVariantOptionalField(
-      variantValue.minimum_threshold ?? variantValue.low_stock_threshold,
-    ),
+    low_stock_threshold: fromVariantOptionalField(getVariantLowStockField(variantValue)),
+    minimum_threshold: fromVariantOptionalField(getVariantLowStockField(variantValue)),
     barcode,
     barcode_type: barcode && barcodeType ? barcodeType : 'UPC',
     weight: fromVariantOptionalField(variantValue.weight),
@@ -235,6 +252,7 @@ export function toVariantFormValues(variantValue, attributeType) {
     description: fromVariantDescriptionField(variantValue.description),
     has_compatible_models: Boolean(variantValue.compatible_models?.length),
     compatible_models: variantValue.compatible_models ?? [],
+    secondary_variants: Array.isArray(variantValue.secondary_variants) ? variantValue.secondary_variants : [],
     images: variantValue.images ?? [],
   }
 }
@@ -280,6 +298,53 @@ export function getVariantValuePlaceholder(attribute = '') {
 export function getVariantValuesHint(attribute = '') {
   const example = getVariantValuePlaceholder(attribute).replace(/^e\.g\.\s*/, '')
   return `Press Enter or comma after each value. Paste several at once, e.g. ${example}`
+}
+
+export function listFilledSecondaryVariants(values = {}) {
+  return (Array.isArray(values.secondary_variants) ? values.secondary_variants : [])
+    .filter((item) => String(item?.attribute ?? '').trim() && String(item?.value ?? '').trim())
+}
+
+export function getIndependentVariantIdentity(values = {}) {
+  const secondaries = listFilledSecondaryVariants(values)
+  const leaf = secondaries.length === 1 ? secondaries[0] : null
+
+  return {
+    sku: leaf?.sku || values.sku,
+    quantity: leaf && leaf.quantity !== '' && leaf.quantity != null ? leaf.quantity : values.quantity,
+    reserved_quantity: leaf && leaf.reserved_quantity !== '' && leaf.reserved_quantity != null
+      ? leaf.reserved_quantity
+      : values.reserved_quantity,
+    low_stock_threshold: leaf?.low_stock_threshold ?? leaf?.minimum_threshold ?? values.low_stock_threshold,
+    price: leaf && leaf.price !== '' && leaf.price != null ? leaf.price : values.price,
+    discount_price: leaf && leaf.discount_price !== '' && leaf.discount_price != null
+      ? leaf.discount_price
+      : values.discount_price,
+    secondary: leaf,
+    secondaries,
+  }
+}
+
+export function formatVariantCombinationLabel(values = {}, attribute = '') {
+  const primary = String(values.value ?? '').trim() || 'New option'
+  const { secondary } = getIndependentVariantIdentity(values)
+  if (secondary?.value) return `${primary} · ${secondary.value}`
+  return attribute ? `${attribute}: ${primary}` : primary
+}
+
+export function getDuplicateSecondaryValueError(items, current = {}) {
+  const normalizedValue = String(current.value ?? '').trim().toLowerCase()
+  if (!normalizedValue) return ''
+
+  const normalizedAttribute = String(current.attribute ?? '').trim().toLowerCase()
+  const hasDuplicate = (items ?? []).some((item) => (
+    item.id !== current.id
+    && String(item.attribute ?? '').trim().toLowerCase() === normalizedAttribute
+    && String(item.value ?? '').trim().toLowerCase() === normalizedValue
+  ))
+
+  if (!hasDuplicate) return ''
+  return `"${String(current.value).trim()}" is already used. Each sub-option needs its own value.`
 }
 
 /** Placeholder example shown in the multi-value input field. */

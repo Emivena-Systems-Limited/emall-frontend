@@ -2,6 +2,7 @@ import { BadgePercent, ImageIcon, Link2, Package, Tag } from 'lucide-react'
 import AttributeIcon from './AttributeIcon'
 import {
   isBlankVariantField,
+  getVariantLowStockField,
   resolveStockStatus,
   resolveVariantMinimumThreshold,
 } from './variantFormUtils'
@@ -39,7 +40,7 @@ function ReviewDetail({ label, value, className = '' }) {
 
 export default function VariantReviewCard({ attribute, variantValue, productValues }) {
   const pricing = resolveVariantPricing(variantValue, productValues)
-  const threshold = resolveVariantMinimumThreshold(variantValue.minimum_threshold)
+  const threshold = resolveVariantMinimumThreshold(getVariantLowStockField(variantValue))
   const stock = resolveStockStatus(variantValue.quantity, threshold)
   const thumbnail = getVariantPrimaryPreview(variantValue)
   const imageCount = variantValue.images?.length ?? 0
@@ -52,8 +53,8 @@ export default function VariantReviewCard({ attribute, variantValue, productValu
     && String(variantValue.description).trim() !== 'N/A'
   const reservedQty = formatOptionalField(variantValue.reserved_quantity)
   const quantity = formatOptionalField(variantValue.quantity)
-  const thresholdLabel = isBlankVariantField(variantValue.minimum_threshold)
-    || String(variantValue.minimum_threshold).trim() === 'N/A'
+  const thresholdLabel = isBlankVariantField(getVariantLowStockField(variantValue))
+    || String(getVariantLowStockField(variantValue)).trim() === 'N/A'
     ? `${threshold} (default)`
     : String(threshold)
 

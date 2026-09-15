@@ -144,7 +144,15 @@ export function resolveVariantPricing(variantValue, productValues) {
 
 export function getVariationCustomerPriceRange(variations, productValues) {
   const prices = (variations ?? []).flatMap((variation) =>
-    variation.values.map((val) => resolveVariantPricing(val, productValues).customerPrice),
+    (variation.values ?? []).flatMap((val) => {
+      const secondaries = (val.secondary_variants ?? []).filter((item) => (
+        String(item?.attribute ?? '').trim() && String(item?.value ?? '').trim()
+      ))
+      if (secondaries.length > 0) {
+        return secondaries.map((item) => resolveVariantPricing(item, productValues).customerPrice)
+      }
+      return [resolveVariantPricing(val, productValues).customerPrice]
+    }),
   ).filter((price) => price > 0)
 
   if (prices.length === 0) return null

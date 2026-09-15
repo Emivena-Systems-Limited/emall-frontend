@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, ShoppingCart, Star } from 'lucide-react'
+import { ShoppingCart, Star } from 'lucide-react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
 import { formatCedi } from '../../utils/formatCurrency'
-import { useCartActions } from '../../hooks/useCartActions'
 import { useOptionalMiniCart } from '../../context/MiniCartContext'
 import { STAR_EMPTY_FILL, STAR_FILL } from '../../constants/landingLayout'
 import { isProductInCart, selectCartItems } from '../../store/slices/cartSlice'
 import PortaledHoverTooltip from './PortaledHoverTooltip'
+import QuickAddToCartModal from '../product/QuickAddToCartModal'
 import { getProductDeliveryEligibility } from '../../services/storeService'
-import { STORE_DELIVERY_ELIGIBILITY_ENABLED } from '../../config/featureFlags'
+import { LOCK_PURCHASE_ACTIONS, STORE_DELIVERY_ELIGIBILITY_ENABLED } from '../../config/featureFlags'
 import { resolveProductStoreEligibility, resolveShoppingLocationDetails } from '../../utils/storefront'
 
 function PriceDisplay({ price, compareAt }) {
@@ -68,12 +68,12 @@ function StarRating({ rating, count }) {
 }
 
 export default function ProductCard({ product, hrefOverride, onAddToCart, disabledReason = '' }) {
-  const { addToCart } = useCartActions()
   const miniCart = useOptionalMiniCart()
   const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const user = useSelector((state) => state.auth.user)
-  const [isAdding, setIsAdding] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [quickAddMounted, setQuickAddMounted] = useState(false)
   const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
   const productId = product.backendId ?? product.id
   const shoppingLocation = resolveShoppingLocationDetails(user)
@@ -97,35 +97,25 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
   const effectiveDisabledReason = disabledReason
     || (isCheckingDelivery ? 'Checking delivery availability' : '')
     || (!deliveryEligible ? `Not available in ${shoppingLocation.city}` : '')
+  const cartLocked = LOCK_PURCHASE_ACTIONS && (!isAuthenticated || Boolean(effectiveDisabledReason))
   const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
-  const tooltipContent = effectiveDisabledReason || (isInCart ? 'Already in cart' : '')
+  const tooltipContent = cartLocked
+    ? (effectiveDisabledReason || (isInCart ? 'Already in cart — add another option' : ''))
+    : (isInCart ? 'Already in cart — add another option' : '')
 
-  const handleAddToCart = async (event) => {
+  const handleAddToCart = (event) => {
     event.preventDefault()
     event.stopPropagation()
 
-    if (!isAuthenticated || isAdding || isInCart || effectiveDisabledReason) return
+    if (cartLocked) return
 
     if (onAddToCart) {
       onAddToCart(product)
       return
     }
 
-    setIsAdding(true)
-    try {
-      const item = await addToCart(product, {
-        productId: product.backendId ?? product.id,
-        syncable: Boolean(product.backendId ?? product.id),
-        quantity: 1,
-        silentSuccess: true,
-      })
-
-      if (item) {
-        miniCart?.openMiniCart()
-      }
-    } finally {
-      setIsAdding(false)
-    }
+    setQuickAddMounted(true)
+    setQuickAddOpen(true)
   }
 
   return (
@@ -179,35 +169,33 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
           <PortaledHoverTooltip content={tooltipContent}>
             <button
               type="button"
-              aria-busy={isAdding}
               aria-label={
-                effectiveDisabledReason
+                cartLocked && effectiveDisabledReason
                   ? effectiveDisabledReason
-                  : isInCart
-                  ? `${product.name} is already in cart`
-                  : isAdding
-                    ? `Adding ${product.name} to cart`
-                    : `Add ${product.name} to cart`
+                  : `Choose options and add ${product.name} to cart`
               }
-              disabled={!isAuthenticated || isAdding || isInCart || Boolean(effectiveDisabledReason)}
+              disabled={cartLocked}
               onClick={handleAddToCart}
               className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed ${
-                isAdding
-                  ? 'border-auth-primary bg-auth-primary text-white'
-                  : !isAuthenticated || isInCart || effectiveDisabledReason
-                    ? 'border-slate-200 bg-slate-100 text-slate-400 shadow-none'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'
+                cartLocked
+                  ? 'border-slate-200 bg-slate-100 text-slate-400 shadow-none'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'
               }`}
             >
-              {isAdding ? (
-                <Loader2 className="size-[1em] animate-spin" aria-hidden="true" />
-              ) : (
-                <ShoppingCart className="size-[1em]" strokeWidth={2} />
-              )}
+              <ShoppingCart className="size-[1em]" strokeWidth={2} />
             </button>
           </PortaledHoverTooltip>
         </div>
       </div>
+
+      {quickAddMounted ? (
+        <QuickAddToCartModal
+          open={quickAddOpen}
+          product={product}
+          onClose={() => setQuickAddOpen(false)}
+          onAdded={() => miniCart?.openMiniCart()}
+        />
+      ) : null}
     </article>
   )
 }

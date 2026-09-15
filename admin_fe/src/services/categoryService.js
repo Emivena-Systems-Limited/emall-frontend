@@ -1,5 +1,11 @@
 import apiClient from '../lib/apiClient'
-import { CATEGORY_ENDPOINTS, CATEGORY_WRITE_ENABLED } from '../constants/categories'
+import {
+  CATEGORY_ENDPOINTS,
+  CATEGORY_IMAGE_TYPE_REGULAR,
+  CATEGORY_IMAGE_TYPE_THUMBNAIL,
+  CATEGORY_WRITE_ENABLED,
+  normalizeCategoryImageType,
+} from '../constants/categories'
 import { assertAuthEnvelope } from '../utils/parseApiError'
 import { extractCategoryList, normalizeCategoryRecord } from '../utils/normalizeAdminCategories'
 import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
@@ -25,27 +31,79 @@ function buildCategoryWriteFields(fields) {
   }
 }
 
-function appendImageField(form, key, file, existingUrl) {
-  if (file instanceof File) {
-    form.append(key, file)
-    return
-  }
-  form.append(key, String(existingUrl ?? ''))
+function isUploadedFile(value) {
+  return typeof File !== 'undefined' && value instanceof File
 }
 
-export function buildCategoryFormData(fields) {
+function existingCategoryImages(fields) {
+  if (Array.isArray(fields.images) && fields.images.length > 0) return fields.images
+  if (!Array.isArray(fields.keepImageIds)) return []
+  return fields.keepImageIds.map((id) => ({
+    id,
+    type: CATEGORY_IMAGE_TYPE_REGULAR,
+  }))
+}
+
+function collectKeepImageIds(fields) {
+  const replacingRegular = isUploadedFile(fields.imageFile)
+  const replacingThumbnail = isUploadedFile(fields.thumbnailFile)
+
+  return existingCategoryImages(fields)
+    .filter((image) => {
+      const id = String(image?.id ?? image ?? '').trim()
+      if (!id) return false
+      const type = normalizeCategoryImageType(image?.type)
+      if (type === CATEGORY_IMAGE_TYPE_THUMBNAIL) return !replacingThumbnail
+      return !replacingRegular
+    })
+    .map((image) => String(image?.id ?? image).trim())
+    .filter(Boolean)
+}
+
+function appendKeepImageIds(form, ids) {
+  ids.forEach((id, index) => {
+    form.append(`keep_image_ids[${index}]`, id)
+  })
+}
+
+function collectCategoryImageEntries(fields) {
+  const entries = []
+
+  if (isUploadedFile(fields.imageFile)) {
+    entries.push({
+      image_url: fields.imageFile,
+      type: CATEGORY_IMAGE_TYPE_REGULAR,
+    })
+  }
+
+  if (isUploadedFile(fields.thumbnailFile)) {
+    entries.push({
+      image_url: fields.thumbnailFile,
+      type: CATEGORY_IMAGE_TYPE_THUMBNAIL,
+    })
+  }
+
+  return entries
+}
+
+function appendCategoryImages(form, entries) {
+  entries.forEach((entry, index) => {
+    form.append(`images[${index}][image_url]`, entry.image_url)
+    form.append(`images[${index}][type]`, entry.type)
+  })
+}
+
+export function buildCategoryFormData(fields, { isUpdate = false } = {}) {
   const form = new FormData()
   const payload = buildCategoryWriteFields(fields)
-  const imageUrl = String(fields.imageUrl || fields.thumbnailUrl || '').trim()
-  const thumbnailUrl = String(fields.thumbnailUrl || fields.imageUrl || '').trim()
+  const imageEntries = collectCategoryImageEntries(fields)
 
   Object.entries(payload).forEach(([key, value]) => {
     form.append(key, value == null ? '' : value)
   })
 
-  appendImageField(form, 'images[image_url]', fields.imageFile, imageUrl)
-  appendImageField(form, 'images[thumbnail_image_url]', fields.thumbnailFile, thumbnailUrl)
-
+  if (isUpdate) appendKeepImageIds(form, collectKeepImageIds(fields))
+  appendCategoryImages(form, imageEntries)
   return form
 }
 
@@ -92,7 +150,7 @@ export async function createAdminCategory(fields) {
 
 async function sendCategoryUpdate(categoryId, fields) {
   const endpoint = CATEGORY_ENDPOINTS.update(categoryId)
-  const form = buildCategoryFormData(fields)
+  const form = buildCategoryFormData(fields, { isUpdate: true })
   const parentId = toParentIdValue(fields.parentId)
   form.set('parent_id', parentId == null ? '' : parentId)
   if (!form.get('_method')) form.append('_method', 'PUT')

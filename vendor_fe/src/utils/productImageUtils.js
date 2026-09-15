@@ -447,20 +447,32 @@ export function createProductImageFromRemote(image) {
 }
 
 /**
- * Descriptive images from the API use the same value for record id and upload_id.
- * Mirror that in form state so edit payloads can reference kept images as { upload_id }.
+ * Existing API images keep a remote id and never a live upload_id.
+ * If the API only returned upload_id, treat that as the record id so edit
+ * payloads send { id } — not { upload_id }.
  */
-export function createDescriptiveImageFromRemote(image) {
+export function hydrateRemoteMediaImage(image) {
   const source = typeof image === 'string' ? { image_url: image.trim() } : image
   const formImage = createProductImageFromRemote(source)
-  const backendId = formImage.remoteId ?? source.upload_id ?? null
+  if (formImage.remoteId) {
+    return { ...formImage, upload_id: null }
+  }
 
-  if (!backendId) return formImage
+  const sourceUploadId = source?.upload_id == null || source?.upload_id === ''
+    ? null
+    : String(source.upload_id)
+  if (!sourceUploadId) return { ...formImage, upload_id: null }
 
   return {
     ...formImage,
-    upload_id: String(backendId),
+    id: sourceUploadId,
+    remoteId: sourceUploadId,
+    upload_id: null,
   }
+}
+
+export function createDescriptiveImageFromRemote(image) {
+  return hydrateRemoteMediaImage(image)
 }
 
 function hasRemoteProductImageUrl(image) {

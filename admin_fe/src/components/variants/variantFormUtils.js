@@ -93,6 +93,8 @@ export function normalizeVariantOptionalFields(values, { isCustomPrice = false }
     .filter(Boolean)
   next.has_compatible_models = next.compatible_models.length > 0
 
+  next.secondary_variants = Array.isArray(values.secondary_variants) ? values.secondary_variants : []
+
   return next
 }
 
@@ -204,6 +206,7 @@ export const EMPTY_VARIANT_VALUES = {
   description: '',
   has_compatible_models: false,
   compatible_models: [],
+  secondary_variants: [],
   images: [],
 }
 
@@ -235,6 +238,7 @@ export function toVariantFormValues(variantValue, attributeType) {
     description: fromVariantDescriptionField(variantValue.description),
     has_compatible_models: Boolean(variantValue.compatible_models?.length),
     compatible_models: variantValue.compatible_models ?? [],
+    secondary_variants: Array.isArray(variantValue.secondary_variants) ? variantValue.secondary_variants : [],
     images: variantValue.images ?? [],
   }
 }

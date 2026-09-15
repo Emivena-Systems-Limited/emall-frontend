@@ -65,24 +65,65 @@ function toBoolean(value, fallback = false) {
   return fallback
 }
 
+function mediaItemUrl(item = {}) {
+  return firstText(
+    item.image_url,
+    item.imageUrl,
+    item.url,
+    item.thumbnail_image_url,
+    item.thumbnailImageUrl,
+    item.thumbnail,
+  )
+}
+
+function mediaItemType(item = {}) {
+  return String(item.type ?? '').toLowerCase().replace(/-/g, '_')
+}
+
+function assignImageFromMediaItem(item, imageUrl, thumbnailUrl) {
+  const url = mediaItemUrl(item)
+  const type = mediaItemType(item)
+
+  if (type === 'thumbnail' || type === 'thumb') {
+    return { imageUrl, thumbnailUrl: thumbnailUrl || url }
+  }
+
+  if (type === 'regular_image' || type === 'regular' || type === 'image') {
+    return { imageUrl: imageUrl || url, thumbnailUrl }
+  }
+
+  return {
+    imageUrl: imageUrl || url,
+    thumbnailUrl: thumbnailUrl || firstText(
+      item.thumbnail_image_url,
+      item.thumbnailImageUrl,
+      item.thumbnail,
+    ),
+  }
+}
+
 export function extractCategoryImages(record) {
   const images = record?.images
   let imageUrl = ''
   let thumbnailUrl = ''
 
   if (Array.isArray(images)) {
-    for (const item of images) {
-      if (typeof item === 'string') {
-        imageUrl = imageUrl || firstText(item)
-        continue
+    const mediaItems = images.filter(Boolean)
+
+    if (mediaItems.length === 1) {
+      const only = mediaItems[0]
+      const url = typeof only === 'string' ? firstText(only) : mediaItemUrl(only)
+      imageUrl = url
+      thumbnailUrl = url
+    } else {
+      for (const item of mediaItems) {
+        if (typeof item === 'string') {
+          imageUrl = imageUrl || firstText(item)
+          continue
+        }
+        if (typeof item !== 'object') continue
+        ;({ imageUrl, thumbnailUrl } = assignImageFromMediaItem(item, imageUrl, thumbnailUrl))
       }
-      if (!item || typeof item !== 'object') continue
-      imageUrl = imageUrl || firstText(item.image_url, item.imageUrl, item.url)
-      thumbnailUrl = thumbnailUrl || firstText(
-        item.thumbnail_image_url,
-        item.thumbnailImageUrl,
-        item.thumbnail,
-      )
     }
   } else if (images && typeof images === 'object') {
     imageUrl = firstText(images.image_url, images.imageUrl)
@@ -97,8 +138,8 @@ export function extractCategoryImages(record) {
   )
 
   return {
-    image: imageUrl || null,
-    thumbnail: thumbnailUrl || null,
+    image: imageUrl || thumbnailUrl || null,
+    thumbnail: thumbnailUrl || imageUrl || null,
   }
 }
 

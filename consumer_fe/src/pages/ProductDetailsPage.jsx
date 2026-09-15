@@ -36,7 +36,7 @@ import {
 import { getProductReviews } from '../services/reviewService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
-import { STORE_DELIVERY_ELIGIBILITY_ENABLED, STORE_DIRECTORY_ENABLED } from '../config/featureFlags'
+import { STORE_DELIVERY_ELIGIBILITY_ENABLED, STORE_DIRECTORY_ENABLED, LOCK_PURCHASE_ACTIONS } from '../config/featureFlags'
 import { notify } from '../lib/notify'
 import { addToWishlist, getUserWishlist, removeFromWishlist } from '../services/wishlistService'
 import { useCartActions } from '../hooks/useCartActions'
@@ -68,12 +68,27 @@ import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
   isSameVariantOption,
+  isSimpleListingProduct,
+  normalizeVariantAttributeEntries,
   resolveBrandName,
   resolveCanonicalVariantOption,
   resolveVariantAttributeFields,
   resolveVariantImageUrl,
   collectVariantImageUrls,
+  resolveVariantLowStockThreshold,
+  resolveVariantStock,
 } from '../utils/productVariantFields'
+import {
+  applyVariantOptionSelection,
+  buildFamilyLeafSelections,
+  buildVisibleOptionGroups,
+  detectVariantFamilies,
+  findLeafVariant,
+  getAvailableOptionValues,
+  getVariantSelectionMap,
+  getVisibleFamilySecondaryGroups,
+  resolveInitialFamilyState,
+} from '../utils/variantOptionTree'
 
 const SHOW_PRODUCT_VARIANTS = true
 const KEY_DETAILS_VISIBLE_COUNT = 5
@@ -188,7 +203,9 @@ function formatStockAvailability(stockCount, lowStockThreshold = 10) {
   }
 
   let headline
-  if (stockCount >= 1000) {
+  if (stockCount < 10) {
+    headline = `${stockCount}`
+  } else if (stockCount >= 1000) {
     headline = `${Math.floor(stockCount / 1000)}K+`
   } else if (stockCount >= 100) {
     headline = `${Math.floor(stockCount / 100) * 100}+`
@@ -236,15 +253,19 @@ function groupHasImageForValue(images = {}, value) {
   ))
 }
 
-function resolveGroupPresentation(group) {
-  if (isColorAttribute(group?.key, group?.label)) return 'images'
+function resolveGroupPresentation(group, { allowImages = true } = {}) {
+  if (!allowImages) return 'chips'
 
   const values = group?.values ?? []
   const images = group?.images ?? {}
   if (values.length === 0) return 'chips'
 
   const everyValueHasImage = values.every((value) => groupHasImageForValue(images, value))
-  return everyValueHasImage ? 'images' : 'chips'
+  if (everyValueHasImage) return 'images'
+  if (isColorAttribute(group?.key, group?.label) && values.some((value) => groupHasImageForValue(images, value))) {
+    return 'images'
+  }
+  return 'chips'
 }
 
 function QuantitySelector({ value, onChange, disabled, max }) {
@@ -421,12 +442,17 @@ function buildStarRatingDistribution(reviews, distribution) {
 
 function ProductInfoPanel({
   product,
-  selectedGroupKey,
-  selectedValue,
+  selectedOptions = {},
   onSelectOption,
+  activeFamilyId,
+  familyPrimary = {},
+  familySecondary = {},
+  onSelectFamilyPrimary,
+  onSelectFamilySecondary,
   selectedCompatibleModel,
   setSelectedCompatibleModel,
   compatibleModelOptions = [],
+  visibleOptionGroups = [],
   activeImage,
   activeVariant,
   activeSku,
@@ -434,6 +460,8 @@ function ProductInfoPanel({
   deliveryEligible = true,
   shoppingLocation = '',
 }) {
+  const variantFamilies = product.variantFamilies ?? []
+  const isMultiFamily = variantFamilies.length > 1
   const [quantity, setQuantity] = useState(1)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [isBuyingNow, setIsBuyingNow] = useState(false)
@@ -449,33 +477,38 @@ function ProductInfoPanel({
     productId: product.backendId ?? product.id,
     variantId: activeVariant?.id ?? null,
   })
+  const variantStock = activeVariant
+    ? resolveVariantStock(activeVariant, 0)
+    : toNumber(product.stockCount, 0)
   const stockAvailability = formatStockAvailability(
-    activeVariant?.quantity != null
-      ? toNumber(activeVariant.quantity, 0)
-      : product.stockCount,
-    product.lowStockThreshold ?? 10,
+    variantStock,
+    activeVariant
+      ? resolveVariantLowStockThreshold(activeVariant, product.lowStockThreshold ?? 10)
+      : (product.lowStockThreshold ?? 10),
   )
-  const outOfStock = activeVariant?.quantity != null
-    ? toNumber(activeVariant.quantity, 0) <= 0
-    : !product.inStock
-  const maximumQuantity = Math.max(1, Math.floor(
-    activeVariant?.quantity != null
-      ? toNumber(activeVariant.quantity, 0)
-      : toNumber(product.stockCount, 1),
-  ))
+  const outOfStock = variantStock <= 0
+  const maximumQuantity = Math.max(1, Math.floor(Math.max(variantStock, 0) || 1))
   const purchaseQuantity = Math.min(quantity, maximumQuantity)
   const compatibleModelValues = compatibleModelOptions
-  const variantOptionGroups = product.variantOptionGroups ?? []
-  const selectedGroupValues = new Set(
-    (variantOptionGroups.find((group) => isSameVariantOption(group.key, selectedGroupKey))?.values ?? [])
+  const selectedOptionValues = new Set(
+    Object.values(selectedOptions)
+      .filter(Boolean)
       .map((value) => String(value).toLowerCase()),
   )
   const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
-    && selectedGroupValues.size > 0
-    && compatibleModelValues.every((value) => selectedGroupValues.has(String(value).toLowerCase()))
+    && selectedOptionValues.size > 0
+    && compatibleModelValues.every((value) => selectedOptionValues.has(String(value).toLowerCase()))
   const showCompatibleModels = SHOW_PRODUCT_VARIANTS
     && compatibleModelValues.length > 0
     && !hasDuplicateCompatibleModels
+  const selectedOptionLabel = Object.values(selectedOptions).filter(Boolean).join(' · ')
+  const cartVariantLabel = resolveCartItemVariantLabel({
+    name: product.title ?? product.name,
+    sku: activeSku,
+    variant: activeVariant?.variant_name || selectedOptionLabel || selectedCompatibleModel || product.variant,
+    variantRecord: activeVariant,
+    storage: selectedOptionLabel || selectedCompatibleModel,
+  }) || selectedOptionLabel || selectedCompatibleModel || product.variant
 
   useEffect(() => {
     if (!trustInfoOpen) return undefined
@@ -502,7 +535,7 @@ function ProductInfoPanel({
     displayPriceInfo.compareAt > displayPriceInfo.price
   const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
 
-  const hasSelectableVariants = Array.isArray(product.variants) && product.variants.length > 0
+  const requiresVariantSku = Array.isArray(product.variants) && product.variants.length > 0
 
   const buildCartArgs = () => ({
     product: {
@@ -520,14 +553,8 @@ function ProductInfoPanel({
       variantId: activeVariant?.id ?? null,
       product_variant_id: activeVariant?.id ?? null,
       sku: activeSku,
-      variant: resolveCartItemVariantLabel({
-        name: product.title ?? product.name,
-        sku: activeSku,
-        variant: selectedValue || selectedCompatibleModel || product.variant,
-        variantRecord: activeVariant,
-        storage: selectedValue || selectedCompatibleModel,
-      }) || selectedValue || selectedCompatibleModel || product.variant,
-      size: selectedValue || selectedCompatibleModel || activeSku,
+      variant: cartVariantLabel,
+      size: selectedOptionLabel || selectedCompatibleModel || activeSku,
       image: activeImage
         || product.gallery?.[0]
         || product.image,
@@ -537,11 +564,11 @@ function ProductInfoPanel({
   })
 
   const handleAddToCart = async () => {
-    if (!isAuthenticated || !deliveryEligible) return
-    if (isInCart) return
+    if (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || !deliveryEligible)) return
+    if (LOCK_PURCHASE_ACTIONS && isInCart) return
     if (isAddingToCart) return
 
-    if (hasSelectableVariants && !activeVariant?.id) {
+    if (requiresVariantSku && !activeVariant?.id) {
       notify.error('Please select a product option before adding to cart.')
       return
     }
@@ -567,10 +594,10 @@ function ProductInfoPanel({
   }
 
   const handleBuyNow = async () => {
-    if (!isAuthenticated || !deliveryEligible) return
+    if (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || !deliveryEligible)) return
     if (isBuyingNow) return
 
-    if (hasSelectableVariants && !activeVariant?.id) {
+    if (requiresVariantSku && !activeVariant?.id) {
       notify.error('Please select a product option before continuing.')
       return
     }
@@ -667,18 +694,56 @@ function ProductInfoPanel({
         )}
       </div>
 
-      {SHOW_PRODUCT_VARIANTS && variantOptionGroups.map((group) => (
-        <VariantOptionRow
-          key={group.key}
-          label={group.label}
-          values={group.values}
-          images={group.images}
-          selected={isSameVariantOption(selectedGroupKey, group.key) ? selectedValue : ''}
-          onSelect={(value) => onSelectOption(group.key, value)}
-          presentation={resolveGroupPresentation(group)}
-        />
-      ))}
-      {SHOW_PRODUCT_VARIANTS && showCompatibleModels && selectedValue ? (
+      {SHOW_PRODUCT_VARIANTS && isMultiFamily ? (
+        variantFamilies.map((family, familyIdx) => {
+          const isFamilyActive = activeFamilyId === family.id
+          const selectedPrimary = isFamilyActive ? (familyPrimary[family.id] ?? '') : ''
+          const selectedSec = familySecondary[family.id] ?? {}
+
+          return (
+            <div key={family.id}>
+              {familyIdx > 0 && (
+                <div className="my-2 flex items-center gap-2">
+                  <div className="h-px flex-1 bg-slate-100" />
+                  <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-400">or</span>
+                  <div className="h-px flex-1 bg-slate-100" />
+                </div>
+              )}
+              <VariantOptionRow
+                label={family.primaryLabel}
+                values={family.primaryValues}
+                images={family.primaryImages}
+                selected={selectedPrimary}
+                onSelect={(value) => onSelectFamilyPrimary(family.id, value)}
+                presentation={resolveGroupPresentation({ key: family.primaryKey, values: family.primaryValues, images: family.primaryImages })}
+              />
+              {isFamilyActive && getVisibleFamilySecondaryGroups(family, selectedPrimary).map((secGroup) => (
+                <VariantOptionRow
+                  key={secGroup.key}
+                  label={secGroup.label}
+                  values={secGroup.values}
+                  selected={selectedSec[secGroup.key] ?? ''}
+                  onSelect={(value) => onSelectFamilySecondary(family.id, secGroup.key, value)}
+                  presentation="chips"
+                />
+              ))}
+            </div>
+          )
+        })
+      ) : (
+        SHOW_PRODUCT_VARIANTS && visibleOptionGroups.map((group, index) => (
+          <VariantOptionRow
+            key={group.key}
+            label={group.label}
+            values={group.values}
+            images={index === 0 ? group.images : undefined}
+            selected={selectedOptions[group.key] ?? ''}
+            onSelect={(value) => onSelectOption(group.key, value)}
+            presentation={resolveGroupPresentation(group, { allowImages: index === 0 })}
+          />
+        ))
+      )}
+      {SHOW_PRODUCT_VARIANTS && showCompatibleModels && selectedOptionLabel ? (
         <VariantOptionRow
           label="Compatible Model"
           values={compatibleModelValues}
@@ -725,7 +790,7 @@ function ProductInfoPanel({
       <div className="mt-4 grid gap-2 min-[420px]:grid-cols-2 sm:gap-3">
         <button
           type="button"
-          disabled={!isAuthenticated || outOfStock || isBuyingNow || !deliveryEligible}
+          disabled={isBuyingNow || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || !deliveryEligible))}
           onClick={handleBuyNow}
           aria-busy={isBuyingNow}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
@@ -736,12 +801,12 @@ function ProductInfoPanel({
               Starting...
             </>
           ) : (
-            !isAuthenticated || deliveryEligible ? 'Buy Now' : 'Delivery unavailable'
+            'Buy Now'
           )}
         </button>
         <button
           type="button"
-          disabled={!isAuthenticated || outOfStock || isAddingToCart || isInCart || !deliveryEligible}
+          disabled={isAddingToCart || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || isInCart || !deliveryEligible))}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
           className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
@@ -752,7 +817,7 @@ function ProductInfoPanel({
               Adding...
             </>
           ) : (
-            !isAuthenticated ? 'Add to Cart' : !deliveryEligible ? 'Not available in your location' : isInCart ? 'Already in cart' : 'Add to Cart'
+            'Add to Cart'
           )}
         </button>
       </div>
@@ -1767,7 +1832,10 @@ function normalizeApiProductDetails(apiProduct) {
   const metadata = toArray(apiProduct.metadata)
   const variants = toArray(apiProduct.variants)
   const sku = getMetadataValue(metadata, 'sku') || apiProduct.sku || variants[0]?.sku || 'N/A'
-  const variantStockTotal = variants.reduce((sum, variant) => sum + toNumber(variant?.quantity, 0), 0)
+  const variantStockTotal = variants.reduce(
+    (sum, variant) => sum + resolveVariantStock(variant, 0),
+    0,
+  )
   const quantity = toNumber(getMetadataValue(metadata, 'quantity'), variantStockTotal || 10)
   const lowStockThreshold = toNumber(getMetadataValue(metadata, 'low_stock_threshold'), 10)
   const inStock = quantity > 0
@@ -1808,11 +1876,21 @@ function normalizeApiProductDetails(apiProduct) {
   }
 
   variants.forEach((variant) => {
-    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
-    const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
+    const namedEntries = normalizeVariantAttributeEntries(variant.attributes)
     const variantImages = collectVariantImageUrls(variant)
     variantImages.forEach((url) => variantImageUrls.add(url))
     const varImage = variantImages[0] || resolveVariantImageUrl(variant)
+
+    if (namedEntries.length > 0) {
+      namedEntries.forEach((entry) => {
+        const attachImage = entry.is_primary
+        addVariantOption(entry.name, entry.value, attachImage ? varImage : null)
+      })
+      return
+    }
+
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
+    const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
 
     if (attributeKey && valueText) {
       addVariantOption(attributeKey, valueText, varImage)
@@ -1853,6 +1931,21 @@ function normalizeApiProductDetails(apiProduct) {
       ...variantOptionGroups.filter((group) => !isSameVariantOption(group.key, mainAttribute)),
     ]
   }
+
+  const isSimpleListing = isSimpleListingProduct({
+    name: core.name,
+    title: core.name,
+    metadata,
+    mainAttribute,
+    mainAttributeValue,
+    variants,
+  })
+
+  if (isSimpleListing) {
+    variantOptionGroups = []
+  }
+
+  const variantFamilies = isSimpleListing ? [] : detectVariantFamilies(variants)
 
   const colorGroup = variantOptionGroups.find((group) => isColorAttribute(group.key, group.label))
   const extraVariantGroups = variantOptionGroups.filter(
@@ -1938,6 +2031,8 @@ function normalizeApiProductDetails(apiProduct) {
     compatibleModels,
     extraVariantGroups,
     variantOptionGroups,
+    variantFamilies,
+    isSimpleListing,
     mainAttribute,
     mainAttributeValue,
     colorImages: colorGroup?.images ?? {},
@@ -2098,33 +2193,53 @@ function getVariantOptionValue(variant, groupKey) {
   return ''
 }
 
-function findMatchingVariant(product, { groupKey = '', value = '' } = {}) {
+function findMatchingVariant(product, selections = {}) {
   const variants = product?.variants ?? []
-  if (groupKey && value) {
-    const match = variants.find((variant) => (
-      isSameVariantOption(getVariantOptionValue(variant, groupKey), value)
-    ))
-    if (match) return match
+  const groups = product?.variantOptionGroups ?? []
+  if (!variants.length) return null
+
+  if (!groups.length) {
+    return findMainProductVariant(product) ?? variants[0] ?? null
   }
-  return findMainProductVariant(product) ?? variants[0] ?? null
+
+  const hasCompleteSelection = groups.every((group) => String(selections?.[group.key] ?? '').trim())
+  if (!hasCompleteSelection) return null
+
+  return findLeafVariant(variants, selections)
 }
 
 function findMainProductVariant(product) {
   const variants = product?.variants ?? []
   if (product?.mainAttribute && product?.mainAttributeValue) {
-    const match = variants.find((variant) => (
+    const groups = product.variantOptionGroups ?? []
+    const secondaryKeys = groups
+      .map((group) => group.key)
+      .filter((key) => !isSameVariantOption(key, product.mainAttribute))
+    const matches = variants.filter((variant) => (
       isSameVariantOption(
         getVariantOptionValue(variant, product.mainAttribute),
         product.mainAttributeValue,
       )
     ))
-    if (match) return match
+    if (matches.length === 1) return matches[0]
+    const completeLeaf = matches.find((variant) => (
+      secondaryKeys.every((key) => getVariantOptionValue(variant, key))
+    ))
+    if (completeLeaf) return completeLeaf
+    if (matches[0]) return matches[0]
   }
   return variants[0] ?? null
 }
 
 function isMainProductVariant(product, variant) {
   if (!variant) return true
+  if (product?.isSimpleListing) return true
+  const primaryValue = product?.mainAttribute
+    ? getVariantOptionValue(variant, product.mainAttribute)
+    : ''
+  if (product?.mainAttributeValue && primaryValue) {
+    return isSameVariantOption(primaryValue, product.mainAttributeValue)
+  }
   const mainVariant = findMainProductVariant(product)
   if (!mainVariant) return false
   if (mainVariant.id != null && variant.id != null) {
@@ -2146,8 +2261,8 @@ function resolveGalleryImages(product, variant) {
   return productGallery
 }
 
-function resolveCompatibleModelOptions(product, { groupKey = '', value = '' } = {}) {
-  const variant = findMatchingVariant(product, { groupKey, value })
+function resolveCompatibleModelOptions(product, selections = {}) {
+  const variant = findMatchingVariant(product, selections)
   if (!variant) return []
   return getVariantCompatibleModels(variant)
 }
@@ -2157,59 +2272,53 @@ function pickDefaultCompatibleModel(product, options = []) {
   return resolveCanonicalVariantOption(options[0], product.compatibleModels) || options[0]
 }
 
-/**
- * Attribute groups are independent SKUs, not a color × size matrix.
- * Default to the listing's main option; other groups stay unselected until chosen.
- */
 function resolveInitialVariantSelections(product) {
   const groups = product.variantOptionGroups ?? []
-  const mainVariant = findMainProductVariant(product)
+  const variants = product.variants ?? []
+  const leaf = findMainProductVariant(product) ?? variants[0] ?? null
+  const selections = leaf
+    ? getVariantSelectionMap(leaf, groups)
+    : Object.fromEntries(groups.map((group) => [group.key, group.values?.[0] ?? '']))
 
-  if (!mainVariant) {
-    const firstGroup = groups[0]
-    return {
-      groupKey: firstGroup?.key ?? '',
-      value: firstGroup?.values?.[0] ?? '',
-      compatibleModel: '',
-    }
-  }
+  groups.forEach((group) => {
+    if (selections[group.key]) return
+    const available = getAvailableOptionValues(variants, group, selections, groups)
+    selections[group.key] = available[0] ?? ''
+  })
 
-  const { attributeKey, attributeValue } = resolveVariantAttributeFields(mainVariant)
-  const group = groups.find((item) => isSameVariantOption(item.key, attributeKey))
-    ?? groups.find((item) => getVariantOptionValue(mainVariant, item.key))
-    ?? groups[0]
-  const rawValue = String(attributeValue ?? '').trim()
-    || (group ? getVariantOptionValue(mainVariant, group.key) : '')
-    || product.mainAttributeValue
-    || ''
-  const value = group
-    ? (resolveCanonicalVariantOption(rawValue, group.values) || rawValue)
-    : rawValue
-  const variantModels = getVariantCompatibleModels(mainVariant)
+  const resolvedLeaf = findLeafVariant(variants, selections) ?? leaf
+  const variantModels = getVariantCompatibleModels(resolvedLeaf)
   const compatibleModel = variantModels.length > 0
     ? (resolveCanonicalVariantOption(variantModels[0], product.compatibleModels) || variantModels[0])
     : ''
 
-  return {
-    groupKey: group?.key ?? attributeKey ?? '',
-    value,
-    compatibleModel,
-  }
+  return { selections, compatibleModel }
 }
 
 function ProductDetailsView({ product, apiProduct, landingData }) {
   const queryClient = useQueryClient()
   const initialSelections = useMemo(() => resolveInitialVariantSelections(product), [product])
   const initialVariant = useMemo(
-    () => findMatchingVariant(product, initialSelections),
+    () => findMatchingVariant(product, initialSelections.selections),
     [product, initialSelections],
   )
   const [activeImage, setActiveImage] = useState(
     () => resolveGalleryImages(product, initialVariant)[0] ?? null,
   )
-  const [selectedGroupKey, setSelectedGroupKey] = useState(initialSelections.groupKey)
-  const [selectedValue, setSelectedValue] = useState(initialSelections.value)
+  const [selectedOptions, setSelectedOptions] = useState(initialSelections.selections)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
+
+  const variantFamilies = product.variantFamilies ?? []
+  const isMultiFamily = variantFamilies.length > 1
+
+  const initialFamilyState = useMemo(
+    () => resolveInitialFamilyState(variantFamilies),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [product.id],
+  )
+  const [activeFamilyId, setActiveFamilyId] = useState(initialFamilyState.activeFamilyId)
+  const [familyPrimary, setFamilyPrimary] = useState(initialFamilyState.familyPrimary)
+  const [familySecondary, setFamilySecondary] = useState(initialFamilyState.familySecondary)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const user = useSelector((state) => state.auth.user)
   const shoppingLocationDetails = resolveShoppingLocationDetails(user)
@@ -2260,6 +2369,29 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   ).trim()
 
   const isWishlisted = Boolean(currentWishlistItem || localWishlisted)
+
+  const activeVariant = useMemo(() => {
+    if (isMultiFamily && activeFamilyId) {
+      const family = variantFamilies.find((f) => f.id === activeFamilyId)
+      if (family) {
+        const leafSelections = buildFamilyLeafSelections(
+          family,
+          familyPrimary[activeFamilyId] ?? '',
+          familySecondary[activeFamilyId] ?? {},
+        )
+        return findLeafVariant(product.variants ?? [], leafSelections) ?? null
+      }
+    }
+    return findMatchingVariant(product, selectedOptions)
+  }, [isMultiFamily, activeFamilyId, variantFamilies, familyPrimary, familySecondary, product, selectedOptions])
+  const visibleOptionGroups = useMemo(
+    () => buildVisibleOptionGroups(
+      product.variants ?? [],
+      product.variantOptionGroups ?? [],
+      selectedOptions,
+    ),
+    [product, selectedOptions],
+  )
 
   const handleWishlistToggle = async () => {
     if (isTogglingWishlist) return
@@ -2320,11 +2452,8 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   }
 
   const compatibleModelOptions = useMemo(
-    () => resolveCompatibleModelOptions(product, {
-      groupKey: selectedGroupKey,
-      value: selectedValue,
-    }),
-    [product, selectedGroupKey, selectedValue],
+    () => resolveCompatibleModelOptions(product, selectedOptions),
+    [product, selectedOptions],
   )
 
   const effectiveCompatibleModel = useMemo(() => {
@@ -2337,11 +2466,6 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
     }
     return pickDefaultCompatibleModel(product, compatibleModelOptions)
   }, [compatibleModelOptions, selectedCompatibleModel, product])
-
-  const activeVariant = useMemo(
-    () => findMatchingVariant(product, { groupKey: selectedGroupKey, value: selectedValue }),
-    [product, selectedGroupKey, selectedValue],
-  )
 
   const galleryImages = useMemo(
     () => resolveGalleryImages(product, activeVariant),
@@ -2363,12 +2487,38 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   }, [activeImage, galleryImages])
 
   const handleOptionSelect = (groupKey, value) => {
-    setSelectedGroupKey(groupKey)
-    setSelectedValue(value)
+    const next = applyVariantOptionSelection({
+      variants: product.variants ?? [],
+      groups: product.variantOptionGroups ?? [],
+      currentSelections: selectedOptions,
+      groupKey,
+      value,
+    })
+    setSelectedOptions(next)
 
-    const matchingVariant = findMatchingVariant(product, { groupKey, value })
+    const matchingVariant = findMatchingVariant(product, next)
     const availableModels = getVariantCompatibleModels(matchingVariant)
     setSelectedCompatibleModel(pickDefaultCompatibleModel(product, availableModels))
+  }
+
+  const handleSelectFamilyPrimary = (familyId, value) => {
+    setActiveFamilyId(familyId)
+    setFamilyPrimary((prev) => ({ ...prev, [familyId]: value }))
+    const family = variantFamilies.find((f) => f.id === familyId)
+    if (family) {
+      const secMap = {}
+      getVisibleFamilySecondaryGroups(family, value).forEach((group) => {
+        secMap[group.key] = group.values[0] ?? ''
+      })
+      setFamilySecondary((prev) => ({ ...prev, [familyId]: secMap }))
+    }
+  }
+
+  const handleSelectFamilySecondary = (familyId, secKey, value) => {
+    setFamilySecondary((prev) => ({
+      ...prev,
+      [familyId]: { ...(prev[familyId] ?? {}), [secKey]: value },
+    }))
   }
 
   const handleCompatibleModelSelect = (newModel) => {
@@ -2461,7 +2611,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
             <div className="contents lg:sticky lg:top-14 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
               <div className="order-1 min-w-0">
                 <ProductGallery
-                  key={String(activeVariant?.id ?? (`${selectedGroupKey}:${selectedValue}` || 'product'))}
+                  key={String(activeVariant?.id ?? 'product')}
                   images={galleryImages}
                   title={product.title}
                   activeImage={displayActiveImage}
@@ -2481,12 +2631,17 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
             <div className="order-2 flex h-full min-w-0 flex-col gap-3" data-product-sidebar>
               <ProductInfoPanel
                 product={product}
-                selectedGroupKey={selectedGroupKey}
-                selectedValue={selectedValue}
+                selectedOptions={selectedOptions}
                 onSelectOption={handleOptionSelect}
+                activeFamilyId={activeFamilyId}
+                familyPrimary={familyPrimary}
+                familySecondary={familySecondary}
+                onSelectFamilyPrimary={handleSelectFamilyPrimary}
+                onSelectFamilySecondary={handleSelectFamilySecondary}
                 selectedCompatibleModel={effectiveCompatibleModel}
                 setSelectedCompatibleModel={handleCompatibleModelSelect}
                 compatibleModelOptions={compatibleModelOptions}
+                visibleOptionGroups={visibleOptionGroups}
                 activeImage={displayActiveImage}
                 activeVariant={activeVariant}
                 activeSku={activeSku}

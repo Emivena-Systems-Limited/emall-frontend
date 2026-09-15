@@ -9,9 +9,18 @@ function normalizeBarcode(value) {
 /** Barcodes already used on other products/variants in the vendor catalogue. */
 export function collectKnownBarcodes(
   products = [],
-  { excludeProductId = null, excludeVariantId = null } = {},
+  {
+    excludeProductId = null,
+    excludeVariantId = null,
+    excludeVariantIds = [],
+  } = {},
 ) {
   const barcodes = new Map()
+  const excludedIds = new Set(
+    [excludeVariantId, ...(excludeVariantIds ?? [])]
+      .filter(Boolean)
+      .map((id) => String(id)),
+  )
 
   for (const product of products) {
     if (!product?.id) continue
@@ -30,7 +39,7 @@ export function collectKnownBarcodes(
     }
 
     for (const variant of product.variants ?? []) {
-      if (excludeVariantId && String(variant.id) === String(excludeVariantId)) continue
+      if (excludedIds.has(String(variant.id ?? ''))) continue
 
       const variantBarcode = normalizeBarcode(variant.barcode)
       if (!variantBarcode) continue

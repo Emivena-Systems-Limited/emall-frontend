@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDispatch, useSelector } from 'react-redux'
 import { createProduct, createProductVariant, deleteProductVariant, deleteProducts, duplicateProduct, getProductById, toCatalogProduct, toggleProductActive, updateProduct, updateProductInfo, updateProductVariant } from '../services/productService'
-import { buildSingleVariantCreateJsonPayload, buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, buildProductInfoJsonPayload, buildProductInfoPayload, isPersistedVariantId, iterateVariantFormEntries } from '../utils/productPayload'
+import { buildSingleVariantCreateJsonPayload, buildSingleVariantCreatePayload, buildSingleVariantUpdateJsonPayload, buildSingleVariantUpdatePayload, buildProductInfoJsonPayload, buildProductInfoPayload, isPersistedVariantId, iterateVariantFormEntries, resolvePersistedVariantUpdateId, resolveVariantSaveFormValues, toLinkedSecondaryVariantPayload } from '../utils/productPayload'
 import { assertVariationBarcodesAvailable, collectKnownBarcodes } from '../utils/variantIdentityValidation'
-import { fetchKnownSkusForSubmit, prepareVariationsForSubmit } from '../utils/variantSkuRegistry'
+import { collectVariantSaveExclusions, fetchKnownSkusForSubmit, prepareVariationsForSubmit } from '../utils/variantSkuRegistry'
 import { USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD } from '../constants/productMediaUpload'
 import notify from '../lib/notify'
 import { productQueryKeys } from './useProducts'
@@ -81,9 +81,11 @@ function assertVariantBarcodeAvailable(queryClient, {
   variantFormValues,
 }) {
   const catalogProducts = queryClient.getQueryData(productQueryKeys.list()) ?? []
+  const { excludeVariantIds } = collectVariantSaveExclusions(variantFormValues, variantId)
   const knownBarcodes = collectKnownBarcodes(catalogProducts, {
     excludeProductId: productId,
     excludeVariantId: variantId,
+    excludeVariantIds,
   })
 
   assertVariationBarcodesAvailable({
@@ -106,6 +108,7 @@ function prepareVariantFormValuesForMutation(queryClient, {
   return fetchKnownSkusForSubmit(queryClient, {
     excludeProductId: productId,
     excludeVariantId: variantId,
+    ...collectVariantSaveExclusions(variantFormValues, variantId),
   }).then((knownSkus) => {
     assertVariantBarcodeAvailable(queryClient, {
       productId,
@@ -126,8 +129,11 @@ function prepareVariantFormValuesForMutation(queryClient, {
 
     return {
       ...variantFormValues,
+      id: variantFormValues.id ?? variantId,
       sku: preparedGroup.values[0]?.sku ?? variantFormValues.sku,
       barcode: preparedGroup.values[0]?.barcode ?? '',
+      secondary_variants: preparedGroup.values[0]?.secondary_variants
+        ?? variantFormValues.secondary_variants,
     }
   })
 }
@@ -216,7 +222,9 @@ export function useUpdateProductVariantsMutation() {
             discount_price: variantValue.discount_price,
             quantity: variantValue.quantity,
             reserved_quantity: variantValue.reserved_quantity,
-            minimum_threshold: variantValue.minimum_threshold,
+            low_stock_threshold: variantValue.low_stock_threshold,
+            minimum_threshold: variantValue.minimum_threshold
+              ?? variantValue.low_stock_threshold,
             barcode: variantValue.barcode,
             barcode_type: variantValue.barcode_type,
             weight: variantValue.weight,
@@ -253,20 +261,69 @@ export function useUpdateSingleVariantMutation() {
 
   return useMutation({
     mutationKey: ['products', 'update-single-variant'],
-    mutationFn: async ({ productId, variantId, variantFormValues, productValues }) => {
+    mutationFn: async ({
+      productId,
+      variantId,
+      variantFormValues,
+      productValues,
+      saveMode = 'main',
+      targetSecondaryId = null,
+    }) => {
+      const saveFormValues = resolveVariantSaveFormValues(variantFormValues, {
+        saveMode,
+        targetSecondaryId,
+      })
+      const saveVariantId = saveFormValues.id ?? variantId
       const preparedVariantFormValues = await prepareVariantFormValuesForMutation(queryClient, {
         productId,
-        variantId,
+        variantId: saveVariantId,
         productValues,
-        variantFormValues,
+        variantFormValues: saveFormValues,
       })
 
+      const isLinkedSecondary = saveMode === 'secondary' && isPersistedVariantId(variantId)
+
       if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
-        const payload = buildSingleVariantUpdateJsonPayload(preparedVariantFormValues, productValues)
-        await updateProductVariant(variantId, payload)
+        const rows = buildSingleVariantUpdateJsonPayload(preparedVariantFormValues, productValues)
+        for (const [index, { sourceId, body }] of rows.entries()) {
+          const persistedId = resolvePersistedVariantUpdateId(sourceId, saveVariantId, {
+            rowIndex: index,
+            rowCount: rows.length,
+          })
+          const payload = isLinkedSecondary
+            ? toLinkedSecondaryVariantPayload(body, {
+              productId: persistedId ? undefined : productId,
+              primaryVariantId: variantId,
+            })
+            : body
+
+          if (persistedId) {
+            await updateProductVariant(persistedId, payload)
+          } else if (isLinkedSecondary) {
+            await createProductVariant(productId, payload)
+          } else {
+            await createProductVariant(productId, { product_id: productId, ...body })
+          }
+        }
       } else {
-        const formData = buildSingleVariantUpdatePayload(preparedVariantFormValues, variantId, productValues)
-        await updateProductVariant(variantId, formData)
+        const formData = buildSingleVariantUpdatePayload(
+          preparedVariantFormValues,
+          saveVariantId,
+          productValues,
+        )
+        if (isLinkedSecondary) {
+          Array.from(formData.keys()).forEach((key) => {
+            if (key === 'images' || key.startsWith('images[')) {
+              formData.delete(key)
+            }
+          })
+          formData.set('primary_variant_id', variantId)
+        }
+        if (isPersistedVariantId(saveVariantId)) {
+          await updateProductVariant(saveVariantId, formData)
+        } else {
+          await createProductVariant(productId, formData)
+        }
       }
       return getProductById(productId)
     },
@@ -316,26 +373,36 @@ export function useSyncDefaultVariantMutation() {
       }
 
       if (variantId && isPersistedVariantId(variantId)) {
+        const saveFormValues = resolveVariantSaveFormValues(variantFormValues, { saveMode: 'main' })
+        const saveVariantId = saveFormValues.id ?? variantId
         const preparedVariantFormValues = await prepareVariantFormValuesForMutation(queryClient, {
           productId,
-          variantId,
+          variantId: saveVariantId,
           productValues: productValues ?? listingValues,
-          variantFormValues,
+          variantFormValues: saveFormValues,
         })
 
         if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
-          const payload = buildSingleVariantUpdateJsonPayload(
+          const rows = buildSingleVariantUpdateJsonPayload(
             preparedVariantFormValues,
             productValues ?? listingValues,
           )
-          await updateProductVariant(variantId, payload)
+          for (const [index, { sourceId, body }] of rows.entries()) {
+            const persistedId = resolvePersistedVariantUpdateId(sourceId, saveVariantId, {
+              rowIndex: index,
+              rowCount: rows.length,
+            })
+            if (persistedId) {
+              await updateProductVariant(persistedId, body)
+            }
+          }
         } else {
           const formData = buildSingleVariantUpdatePayload(
             preparedVariantFormValues,
-            variantId,
+            saveVariantId,
             productValues ?? listingValues,
           )
-          await updateProductVariant(variantId, formData)
+          await updateProductVariant(saveVariantId, formData)
         }
       }
 
@@ -366,8 +433,10 @@ export function useCreateProductVariantMutation() {
       })
 
       if (USE_PRESIGNED_PRODUCT_MEDIA_UPLOAD) {
-        const payload = buildSingleVariantCreateJsonPayload(preparedVariantFormValues, productId, productValues)
-        await createProductVariant(productId, payload)
+        const payloads = buildSingleVariantCreateJsonPayload(preparedVariantFormValues, productId, productValues)
+        for (const payload of payloads) {
+          await createProductVariant(productId, payload)
+        }
       } else {
         const formData = buildSingleVariantCreatePayload(preparedVariantFormValues, productId, productValues)
         await createProductVariant(productId, formData)
