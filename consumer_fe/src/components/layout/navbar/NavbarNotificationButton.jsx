@@ -1,17 +1,11 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
 import { Bell } from 'lucide-react'
+import useNotificationUnreadCount from '../../../hooks/useNotificationUnreadCount'
 
 export default function NavbarNotificationButton({ className = '' }) {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
-  const [unreadCount, setUnreadCount] = useState(4)
-
-  useEffect(() => {
-    const handleUpdate = (event) => setUnreadCount(event.detail?.unreadCount ?? 0)
-    window.addEventListener('account-notifications-updated', handleUpdate)
-    return () => window.removeEventListener('account-notifications-updated', handleUpdate)
-  }, [])
+  const { unreadCount } = useNotificationUnreadCount()
 
   if (!isAuthenticated) return null
 

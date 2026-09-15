@@ -3,17 +3,12 @@ import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, LayoutGrid, Loader2, LogOut, X } from 'lucide-react'
 import { accountNavigationItems, isAccountNavItemActive, isAccountNavItemEnabled } from './accountNavigation'
+import useNotificationUnreadCount from '../../hooks/useNotificationUnreadCount'
 
 const panelEase = [0.16, 1, 0.3, 1]
 
 function AccountNavList({ pathname, onNavigate, itemClassName }) {
-  const [unreadCount, setUnreadCount] = useState(4)
-
-  useEffect(() => {
-    const handleUpdate = (event) => setUnreadCount(event.detail?.unreadCount ?? 0)
-    window.addEventListener('account-notifications-updated', handleUpdate)
-    return () => window.removeEventListener('account-notifications-updated', handleUpdate)
-  }, [])
+  const { unreadCount } = useNotificationUnreadCount()
 
   return (
     <>

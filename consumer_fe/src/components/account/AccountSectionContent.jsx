@@ -6,8 +6,9 @@ import AccountCouponsPanel from './AccountCouponsPanel'
 import AccountReviewsPanel from './AccountReviewsPanel'
 import AccountReturnsPanel from './AccountReturnsPanel'
 import AccountFollowedStoresPanel from './AccountFollowedStoresPanel'
-import AccountSupportPanel from './AccountSupportPanel'
+import AccountSupportPortal from './AccountSupportPortal'
 import AccountNotificationsPanel from './AccountNotificationsPanel'
+import AccountNotificationSettingsPanel from './AccountNotificationSettingsPanel'
 import { AccountSettingsPanel } from './AccountPlaceholderPanels'
 import { resolveAccountSectionId } from './accountNavigation'
 
@@ -30,9 +31,11 @@ export default function AccountSectionContent({ pathname }) {
     case 'settings':
       return <AccountSettingsPanel />
     case 'notifications':
-      return <AccountNotificationsPanel />
+      return pathname.startsWith('/account/notifications/settings')
+        ? <AccountNotificationSettingsPanel />
+        : <AccountNotificationsPanel />
     case 'support':
-      return <AccountSupportPanel />
+      return <AccountSupportPortal pathname={pathname} />
     case 'overview':
     default:
       return <AccountOverviewPanel />
