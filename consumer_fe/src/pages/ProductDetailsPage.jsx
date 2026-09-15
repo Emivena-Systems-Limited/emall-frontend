@@ -202,19 +202,13 @@ function formatStockAvailability(stockCount, lowStockThreshold = 10) {
     }
   }
 
-  let headline
-  if (stockCount < 10) {
-    headline = `${stockCount}`
-  } else if (stockCount >= 1000) {
+  let headline = `${stockCount}`
+  if (stockCount >= 1000) {
     headline = `${Math.floor(stockCount / 1000)}K+`
-  } else if (stockCount >= 100) {
-    headline = `${Math.floor(stockCount / 100) * 100}+`
-  } else {
-    headline = `${Math.floor(stockCount / 10) * 10}+`
   }
 
   return {
-    headline,
+    headline: `${headline} in stock`,
     subtext: 'Available now',
     tone: 'in',
   }
@@ -487,8 +481,11 @@ function ProductInfoPanel({
       : (product.lowStockThreshold ?? 10),
   )
   const outOfStock = variantStock <= 0
-  const maximumQuantity = Math.max(1, Math.floor(Math.max(variantStock, 0) || 1))
-  const purchaseQuantity = Math.min(quantity, maximumQuantity)
+  const availableQuantity = Math.max(0, Math.floor(variantStock))
+  const maximumQuantity = availableQuantity > 0
+    ? availableQuantity
+    : (LOCK_PURCHASE_ACTIONS ? 0 : 1)
+  const purchaseQuantity = Math.min(quantity, Math.max(maximumQuantity, 1))
   const compatibleModelValues = compatibleModelOptions
   const selectedOptionValues = new Set(
     Object.values(selectedOptions)
@@ -509,6 +506,10 @@ function ProductInfoPanel({
     variantRecord: activeVariant,
     storage: selectedOptionLabel || selectedCompatibleModel,
   }) || selectedOptionLabel || selectedCompatibleModel || product.variant
+
+  useEffect(() => {
+    setQuantity(1)
+  }, [activeVariant?.id])
 
   useEffect(() => {
     if (!trustInfoOpen) return undefined
@@ -1836,7 +1837,9 @@ function normalizeApiProductDetails(apiProduct) {
     (sum, variant) => sum + resolveVariantStock(variant, 0),
     0,
   )
-  const quantity = toNumber(getMetadataValue(metadata, 'quantity'), variantStockTotal || 10)
+  const quantity = variants.length > 0
+    ? variantStockTotal
+    : toNumber(getMetadataValue(metadata, 'quantity'), 0)
   const lowStockThreshold = toNumber(getMetadataValue(metadata, 'low_stock_threshold'), 10)
   const inStock = quantity > 0
 

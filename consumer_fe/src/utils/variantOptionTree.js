@@ -4,6 +4,7 @@ import {
   isSameVariantOption,
   normalizeVariantAttributeEntries,
   resolveCanonicalVariantOption,
+  resolveVariantStock,
 } from './productVariantFields'
 
 function formatGroupLabel(key) {
@@ -250,6 +251,8 @@ export function findPurchasableLeaf(variants, selections = {}, family = null) {
     requiredKeys.every((key) => getVariantAttributeValue(variant, key))
   ))
   const pool = complete.length ? complete : matches
+  const inStock = pool.find((variant) => resolveVariantStock(variant, 0) > 0)
+  if (inStock) return inStock
   return pool.find((variant) => variant.primary_variant_id) ?? pool[0] ?? null
 }
 

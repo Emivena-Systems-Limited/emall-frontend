@@ -99,7 +99,11 @@ function StockBadge({ outOfStock, stockCount, lowStockThreshold }) {
       </span>
     )
   }
-  return <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[0.6875rem] font-bold text-emerald-700">In stock</span>
+  return (
+    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[0.6875rem] font-bold text-emerald-700">
+      {stockCount} in stock
+    </span>
+  )
 }
 
 function QuantityStepper({ value, onChange, max, disabled }) {

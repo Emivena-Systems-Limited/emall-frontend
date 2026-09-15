@@ -117,34 +117,71 @@ export function getVariantAttributeValue(variant, attributeName) {
   return ''
 }
 
+function readInventoryNumber(...values) {
+  for (const value of values) {
+    if (value == null || value === '') continue
+    const number = Number(value)
+    if (Number.isFinite(number)) return number
+  }
+  return null
+}
+
+/** Sellable stock from variant.inventory — never the stale root quantity field. */
+export function resolveVariantInventory(variant) {
+  const inventory = variant?.inventory && typeof variant.inventory === 'object'
+    ? variant.inventory
+    : null
+
+  const availableFromInventory = readInventoryNumber(
+    inventory?.available_quantity,
+    inventory?.availableQuantity,
+  )
+  const total = readInventoryNumber(
+    inventory?.total_quantity,
+    inventory?.totalQuantity,
+  )
+  const reserved = readInventoryNumber(
+    inventory?.reserved_quantity,
+    inventory?.reservedQuantity,
+  ) ?? 0
+  const minimumThreshold = readInventoryNumber(
+    inventory?.minimum_threshold,
+    inventory?.minimumThreshold,
+    variant?.low_stock_threshold,
+    variant?.minimum_threshold,
+  )
+
+  let available = availableFromInventory
+  if (available == null && total != null) {
+    available = Math.max(0, total - reserved)
+  }
+  if (available == null && !inventory) {
+    available = readInventoryNumber(variant?.quantity, variant?.available_quantity)
+  }
+
+  return {
+    available: available == null ? null : Math.max(0, available),
+    reserved,
+    total,
+    minimumThreshold,
+  }
+}
+
 export function resolveVariantStock(variant, fallback = 0) {
-  if (!variant || typeof variant !== 'object') return fallback
-  if (variant.inventory?.available_quantity != null && variant.inventory.available_quantity !== '') {
-    const available = Number(variant.inventory.available_quantity)
-    if (Number.isFinite(available)) return available
-  }
-  if (variant.quantity != null && variant.quantity !== '') {
-    const quantity = Number(variant.quantity)
-    if (Number.isFinite(quantity)) return quantity
-  }
-  return fallback
+  const available = resolveVariantInventory(variant).available
+  return available == null ? fallback : available
 }
 
 export function resolveVariantLowStockThreshold(variant, fallback = 10) {
-  if (!variant || typeof variant !== 'object') return fallback
-  if (variant.inventory?.minimum_threshold != null && variant.inventory.minimum_threshold !== '') {
-    const threshold = Number(variant.inventory.minimum_threshold)
-    if (Number.isFinite(threshold)) return threshold
-  }
-  if (variant.low_stock_threshold != null && variant.low_stock_threshold !== '') {
-    const threshold = Number(variant.low_stock_threshold)
-    if (Number.isFinite(threshold)) return threshold
-  }
-  if (variant.minimum_threshold != null && variant.minimum_threshold !== '') {
-    const threshold = Number(variant.minimum_threshold)
-    if (Number.isFinite(threshold)) return threshold
-  }
-  return fallback
+  const threshold = resolveVariantInventory(variant).minimumThreshold
+  return threshold == null ? fallback : threshold
+}
+
+export function sumVariantAvailableStock(variants = []) {
+  return (Array.isArray(variants) ? variants : []).reduce(
+    (sum, variant) => sum + resolveVariantStock(variant, 0),
+    0,
+  )
 }
 
 /** Primary image URL from API variant record (`images[]`, flat `image_url`, or legacy `image`). */

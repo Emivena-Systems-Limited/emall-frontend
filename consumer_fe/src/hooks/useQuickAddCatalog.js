@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { LOCK_PURCHASE_ACTIONS } from '../config/featureFlags'
 import { getProductById } from '../services/landingPageService'
 import { resolveProductDisplayPrices } from '../utils/extractProductVariantFacets'
 import {
@@ -7,6 +8,7 @@ import {
   isSimpleListingProduct,
   resolveVariantLowStockThreshold,
   resolveVariantStock,
+  sumVariantAvailableStock,
 } from '../utils/productVariantFields'
 import {
   applyVariantOptionSelection,
@@ -140,10 +142,16 @@ export function useQuickAddCatalog({ open, cardProduct }) {
   const previewImage = collectVariantImageUrls(activeVariant)[0] || catalog?.image || cardProduct?.image
   const stockCount = activeVariant
     ? resolveVariantStock(activeVariant, 0)
-    : Number(readMetadata(productQuery.data?.metadata, 'quantity')) || 0
-  const lowStockThreshold = resolveVariantLowStockThreshold(activeVariant, 10)
+    : sumVariantAvailableStock(catalog?.variants)
+  const lowStockThreshold = resolveVariantLowStockThreshold(
+    activeVariant,
+    Number(readMetadata(productQuery.data?.metadata, 'low_stock_threshold')) || 10,
+  )
   const outOfStock = stockCount <= 0
-  const maxQuantity = Math.max(1, Math.floor(stockCount) || 1)
+  const availableQuantity = Math.max(0, Math.floor(stockCount))
+  const maxQuantity = availableQuantity > 0
+    ? availableQuantity
+    : (LOCK_PURCHASE_ACTIONS ? 0 : 1)
 
   useEffect(() => {
     setQuantity(1)
