@@ -4,7 +4,7 @@ import AttributeTypePicker from '../variants/AttributeTypePicker'
 import AttributeIcon from '../variants/AttributeIcon'
 import { isPresetAttribute } from '../variants/variantConstants'
 import { getMainOptionValuePlaceholder } from '../variants/variantFormUtils'
-import { ProductInput } from './ProductFormControls'
+import { FieldHintTooltip, ProductInput } from './ProductFormControls'
 
 function fieldError(formik, name) {
   const touched = getIn(formik.touched, name) || formik.submitCount > 0
@@ -58,17 +58,26 @@ export default function MainProductOptionFields({ formik }) {
             Required
           </span>
         </div>
-        <h3 className="mt-1 text-sm font-bold text-slate-900">How should shoppers pick this product?</h3>
-        <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
-          Choose one property that describes this listing — Color, Size, Material, or your own — and the value that matches
-          what you are selling.
-        </p>
+        <h3 className="mt-1 flex items-center gap-1.5 text-sm font-bold text-slate-900">
+          <span>How should shoppers pick this product?</span>
+          <FieldHintTooltip
+            className="w-72"
+            label="About this option"
+            hint="Choose one property that describes this listing — Color, Size, Material, or your own — and the value that matches what you are selling."
+          />
+        </h3>
       </div>
 
       <div>
         <div>
-          <p id="main-attribute-label" className="mb-1.5 text-sm font-semibold text-slate-800">
-            Option type <span className="text-red-600" aria-hidden="true">*</span>
+          <p id="main-attribute-label" className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+            <span>
+              Option type <span className="text-red-600" aria-hidden="true">*</span>
+            </span>
+            <FieldHintTooltip
+              className="w-72"
+              hint="Pick the word shoppers will see above the options, such as Color or Size. The value field appears after you choose a type."
+            />
           </p>
           <AttributeTypePicker
             value={attribute}
@@ -94,11 +103,7 @@ export default function MainProductOptionFields({ formik }) {
             <p id="main-attribute-error" className="mt-2 text-xs font-semibold text-red-600" role="alert">
               {attributeError}
             </p>
-          ) : (
-            <p className="mt-2 text-xs text-slate-500">
-              Pick the word shoppers will see above the options, such as Color or Size. The value field appears after you choose a type.
-            </p>
-          )}
+          ) : null}
         </div>
 
         <div

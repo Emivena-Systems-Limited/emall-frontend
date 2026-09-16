@@ -1,4 +1,120 @@
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { CircleHelp } from 'lucide-react'
 import FieldError from '../auth/FieldError'
+
+const TOOLTIP_GAP = 8
+const VIEWPORT_PAD = 8
+
+/**
+ * Click-to-open tooltip card that sits next to a field label.
+ * Portaled to the document so overflow-hidden parents cannot clip it.
+ * Closes on: second click, click outside, or Escape key.
+ */
+export function FieldHintTooltip({ hint, label = 'Show field hint', className = 'w-56' }) {
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState(null)
+  const triggerRef = useRef(null)
+  const tooltipRef = useRef(null)
+
+  const close = () => {
+    setOpen(false)
+    setCoords(null)
+  }
+
+  useLayoutEffect(() => {
+    if (!open) return undefined
+
+    const place = () => {
+      const trigger = triggerRef.current
+      const tooltip = tooltipRef.current
+      if (!trigger || !tooltip) return
+
+      const triggerRect = trigger.getBoundingClientRect()
+      const tooltipRect = tooltip.getBoundingClientRect()
+
+      let left = triggerRect.left
+      if (left + tooltipRect.width > window.innerWidth - VIEWPORT_PAD) {
+        left = triggerRect.right - tooltipRect.width
+      }
+      left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - tooltipRect.width - VIEWPORT_PAD))
+
+      let top = triggerRect.bottom + TOOLTIP_GAP
+      if (top + tooltipRect.height > window.innerHeight - VIEWPORT_PAD) {
+        top = triggerRect.top - tooltipRect.height - TOOLTIP_GAP
+      }
+      top = Math.max(VIEWPORT_PAD, top)
+
+      setCoords({ top, left })
+    }
+
+    const frame = window.requestAnimationFrame(place)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open, hint])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handleOutside = (e) => {
+      if (triggerRef.current?.contains(e.target)) return
+      if (tooltipRef.current?.contains(e.target)) return
+      close()
+    }
+    const handleKey = (e) => { if (e.key === 'Escape') close() }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [open])
+
+  if (!hint) return null
+
+  return (
+    <span className="inline-flex shrink-0 items-center">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          if (open) close()
+          else setOpen(true)
+        }}
+        aria-label={label}
+        aria-expanded={open}
+        className={`inline-flex cursor-pointer items-center justify-center rounded-full transition-colors ${
+          open
+            ? 'text-brand'
+            : 'text-slate-400 hover:text-slate-600'
+        }`}
+      >
+        <CircleHelp className="size-3.5" strokeWidth={2} />
+      </button>
+      {open && createPortal(
+        <span
+          ref={tooltipRef}
+          role="tooltip"
+          style={{
+            top: coords?.top ?? 0,
+            left: coords?.left ?? 0,
+            visibility: coords ? 'visible' : 'hidden',
+          }}
+          className={`fixed z-[120] rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-[0_8px_30px_rgba(15,23,42,0.12)] ${className}`}
+        >
+          <span className="block text-xs leading-relaxed text-slate-600">{hint}</span>
+        </span>,
+        document.body,
+      )}
+    </span>
+  )
+}
 
 /** Keeps hint rows aligned in multi-column grids without adding gap above inputs. */
 export const FORM_FIELD_HINT_RESERVE_CLASS = 'min-h-9'
@@ -37,10 +153,14 @@ export function OptionalSectionHeader({ eyebrow, title, description }) {
         ) : null}
         <OptionalBadge />
       </div>
-      {title ? <h3 className="mt-1 text-sm font-bold text-slate-900">{title}</h3> : null}
-      {description ? (
-        <p className="mt-1 max-w-xl text-xs text-slate-500">{description}</p>
-      ) : null}
+      {title ? (
+        <h3 className="mt-1 flex items-center gap-1.5 text-sm font-bold text-slate-900">
+          <span>{title}</span>
+          <FieldHintTooltip hint={description} className="w-72" label={`About ${title}`} />
+        </h3>
+      ) : (
+        <FieldHintTooltip hint={description} className="w-72" />
+      )}
     </div>
   )
 }
@@ -76,17 +196,17 @@ const inputBase = 'w-full rounded-xl border bg-white px-4 py-3 text-sm text-slat
 const normalState = 'border-slate-200 focus:border-brand focus:ring-2 focus:ring-brand-light'
 const errorState = 'border-red-400 ring-2 ring-red-100'
 
-function Label({ id, label, hint, reserveHintSpace = false, optional = false, className = '' }) {
+function Label({ id, label, hint, optional = false, className = '' }) {
   return (
     <label
       htmlFor={id}
       className={['mb-1.5 block', className].filter(Boolean).join(' ')}
     >
-      <span className="flex flex-wrap items-center gap-2">
+      <span className="flex flex-wrap items-center gap-1.5">
         <span className="text-sm font-semibold text-slate-800">{label}</span>
         {optional ? <OptionalBadge /> : null}
+        {hint ? <FieldHintTooltip hint={hint} /> : null}
       </span>
-      <FormFieldHint hint={hint} reserveHintSpace={reserveHintSpace} />
     </label>
   )
 }
@@ -96,7 +216,8 @@ export function ProductInput({
   label,
   hint,
   error,
-  reserveHintSpace = false,
+  // eslint-disable-next-line no-unused-vars
+  reserveHintSpace = false, // retained for API compat — hints are now tooltips
   optional = false,
   dataField,
   ref,
@@ -108,7 +229,6 @@ export function ProductInput({
         id={id}
         label={label}
         hint={hint}
-        reserveHintSpace={reserveHintSpace}
         optional={optional}
         className="flex-1"
       />
@@ -128,7 +248,8 @@ export function ProductMoneyInput({
   label,
   hint,
   error,
-  reserveHintSpace = false,
+  // eslint-disable-next-line no-unused-vars
+  reserveHintSpace = false, // retained for API compat
   optional = false,
   ...props
 }) {
@@ -138,7 +259,6 @@ export function ProductMoneyInput({
       label={label}
       hint={hint}
       error={error}
-      reserveHintSpace={reserveHintSpace}
       optional={optional}
       type="number"
       step="0.01"

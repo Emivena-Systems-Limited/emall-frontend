@@ -43,19 +43,16 @@ import ProductTagInput from '../../components/products/ProductTagInput'
 import SearchableSelect from '../../components/auth/SearchableSelect'
 import {
   GuidanceCard,
-  // OptionalBadge,
   OptionalSection,
   OptionalSectionHeader,
   ProductInput,
   ProductMoneyInput,
   ProductSelect,
+  FieldHintTooltip,
 } from '../../components/products/ProductFormControls'
+import { ImageSectionHeader } from '../../components/products/ProductImageDimensionHints'
 import {
-  DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL,
-  FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL,
   MAX_DESCRIPTIVE_IMAGE_COUNT,
-  PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL,
-  PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL,
   PRODUCT_CONDITION_OPTIONS,
 } from '../../constants/products'
 import {
@@ -578,13 +575,11 @@ export function ImagesStep({
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-        <div className="mb-4">
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Main photo</p>
-          <h3 className="mt-1 text-sm font-bold text-slate-900">Primary product image</h3>
-          <p className="mt-1 text-xs text-slate-500">
-            This is the hero image customers see first in search results and category cards. Use a square photo near {PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} or a wide landscape near {PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL}.
-          </p>
-        </div>
+        <ImageSectionHeader
+          eyebrow="Main photo"
+          title="Primary product image"
+          hint="Hero image on search results and category cards. Square photos look sharpest."
+        />
         <ProductMainImageUpload
           image={mainImage}
           onChange={onMainImageChange}
@@ -594,13 +589,11 @@ export function ImagesStep({
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-        <div className="mb-4">
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Gallery</p>
-          <h3 className="mt-1 text-sm font-bold text-slate-900">Additional product images</h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Required. Add at least one extra photo for the product page gallery — different angles, packaging, or close-ups. Use wide landscape photos near {FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL}. Up to 5 images total and 5MB combined across all photos (including the main photo).
-          </p>
-        </div>
+        <ImageSectionHeader
+          eyebrow="Gallery"
+          title="Additional product images"
+          hint="At least one extra photo required. Use different angles, packaging, or close-ups. Max 5 photos total including the main image, 5MB combined."
+        />
         <ProductImageUploader
           images={subImages}
           onChange={onSubImagesChange}
@@ -613,7 +606,7 @@ export function ImagesStep({
         <OptionalSectionHeader
           eyebrow="Descriptive photos"
           title="Detail images"
-          description={`Optional wide lifestyle or detail banners shown one per row on your product page — the same landscape style used on Amazon-style listings. Upload up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} images near ${DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} for the best fit.`}
+          description={`Optional wide lifestyle banners shown one per row on the product page. Up to ${MAX_DESCRIPTIVE_IMAGE_COUNT} photos.`}
         />
         <DescriptiveImageUploader
           images={descriptiveImages}
@@ -811,33 +804,33 @@ function ParentPricingBanner({ values }) {
 
   if (!parent.regularPrice) {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-        <p className="text-sm font-semibold text-amber-900">Set base pricing first</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-amber-800/80">
-          Go back to the Pricing step to set a regular price. Variants will inherit that pricing by default.
-        </p>
+      <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+        <span className="font-semibold">Set a base price on the Pricing step</span>
+        <FieldHintTooltip
+          className="w-72"
+          label="About base pricing"
+          hint="Variants inherit the product regular and sale price unless you set a custom price on a value."
+        />
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-4 py-3">
-      <p className="text-xs font-bold uppercase tracking-wide text-cyan-900">Base product pricing</p>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        <span className="text-slate-700">
-          Regular: <strong className="text-slate-900">GH₵ {formatMoney(parent.regularPrice)}</strong>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-cyan-100 bg-cyan-50/70 px-3 py-1.5 text-xs">
+      <span className="font-bold uppercase tracking-wide text-cyan-800">Base price</span>
+      <span className="text-slate-700">
+        Regular <strong className="tabular-nums text-slate-900">GH₵ {formatMoney(parent.regularPrice)}</strong>
+      </span>
+      {parent.hasDiscount ? (
+        <span className="text-emerald-800">
+          Sale <strong className="tabular-nums">GH₵ {formatMoney(parent.salePrice)}</strong>
         </span>
-        {parent.hasDiscount ? (
-          <span className="text-slate-700">
-            Sale: <strong className="text-emerald-700">GH₵ {formatMoney(parent.salePrice)}</strong>
-          </span>
-        ) : (
-          <span className="text-xs text-slate-500">No discount applied</span>
-        )}
-      </div>
-      <p className="mt-2 text-xs leading-relaxed text-cyan-900/75">
-        Variants without a price override inherit this pricing. A custom variant price is used as-is unless you set a sale price.
-      </p>
+      ) : null}
+      <FieldHintTooltip
+        className="w-72"
+        label="About base pricing"
+        hint="Variants without a price override inherit this pricing. A custom variant price is used as-is unless you set a sale price."
+      />
     </div>
   )
 }
@@ -1255,11 +1248,14 @@ export function VariationsStep({
     <div className="space-y-6">
       <div className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">Optional extras</p>
-        <h3 className="text-lg font-bold text-slate-900">More product options</h3>
-        <p className="text-sm text-slate-500">
-          Your default option is listed first and stays in sync with product info. Add extra colors, sizes, or other values if you sell more than one option.
-          Photos are required for Color extras (up to 3). Skip extra options if the default is enough.
-        </p>
+        <h3 className="flex items-center gap-1.5 text-lg font-bold text-slate-900">
+          <span>More product options</span>
+          <FieldHintTooltip
+            className="w-72"
+            label="About extra options"
+            hint="Your default option is listed first and stays in sync with product info. Add extra colors, sizes, or other values if you sell more than one option. Photos are required for Color extras (up to 3). Skip extra options if the default is enough."
+          />
+        </h3>
         <StepValidationErrorBanner
           error={stepError}
           onFocus={stepError ? handleStepErrorFocus : undefined}

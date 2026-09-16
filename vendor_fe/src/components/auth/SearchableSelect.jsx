@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Loader2, PenLine, Search, X } from 'lucide-react'
 import FieldError from './FieldError'
-import { FormFieldHint, OptionalBadge } from '../products/ProductFormControls'
+import { FieldHintTooltip, OptionalBadge } from '../products/ProductFormControls'
 
 function optionMatchesValue(optionValue, value) {
   if (value == null || value === '') return false
@@ -26,7 +26,6 @@ export default function SearchableSelect({
   customSubmitLabel = 'Add brand',
   customEntityName = '',
   hint,
-  reserveHintSpace = false,
   optional = false,
   onCustomModeStart,
   onCustomSubmit,
@@ -199,12 +198,12 @@ export default function SearchableSelect({
   return (
     <div ref={containerRef} data-field={name} className="relative">
       <label htmlFor={id} className="mb-1.5 block">
-        <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">
+        <span className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-slate-800">
           {Icon && <Icon className="size-4 shrink-0 text-slate-400" strokeWidth={1.75} />}
           {label}
           {optional ? <OptionalBadge /> : null}
+          <FieldHintTooltip hint={hint} />
         </span>
-        <FormFieldHint hint={hint} reserveHintSpace={reserveHintSpace} />
       </label>
 
       {isCustom ? (

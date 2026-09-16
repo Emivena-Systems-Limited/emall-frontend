@@ -58,7 +58,7 @@ export default function ProductImageUploader({
       : `You can upload at most ${limits.maxCount} images (including the main photo).`)
   const guidance = getFeaturedDimensionGuidance()
   const resolvedEmptyHint = validateDimensions
-    ? `JPG or PNG · Near ${FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL} · Up to 5 images total · 5MB combined`
+    ? 'JPG or PNG · Max 5 images · 5MB combined'
     : emptyHint
 
   useEffect(() => {
@@ -197,17 +197,8 @@ export default function ProductImageUploader({
     <div data-field={dataField} className="space-y-4">
       {validateDimensions && (
         <ProductImageDimensionGuidance
-          title="Recommended size for the product page gallery"
-          description={
-            <>
-              These photos appear in the large hero gallery on your product page (wide on desktop, square on mobile).
-              Upload wide landscape images close to{' '}
-              <span className="font-semibold text-slate-800">{FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL}</span>
-              {' '}so they fill the viewer without awkward empty space.
-            </>
-          }
-          guidance={guidance}
-          footer="Exact pixels are not required — close is fine. Square or portrait photos leave bands in the desktop hero gallery."
+          sizeLabel={FEATURED_PRODUCT_IMAGE_RECOMMENDED_LABEL}
+          hint={`Wide landscape for the product-page gallery. Accepted ${guidance.minWidth}–${guidance.maxWidth} × ${guidance.minHeight}–${guidance.maxHeight} px. Square or portrait photos leave empty bands.`}
         />
       )}
 

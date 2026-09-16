@@ -23,7 +23,7 @@ import {
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
 
-const IMAGE_HINT = `JPG or PNG · Square near ${PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL} or landscape near ${PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL} · Up to 5 images total · 5MB combined`
+const IMAGE_HINT = 'JPG or PNG · Max 5MB combined'
 
 export default function ProductMainImageUpload({
   image,
@@ -123,19 +123,8 @@ export default function ProductMainImageUpload({
   return (
     <div data-field="main_product_image" className="space-y-3">
       <ProductImageDimensionGuidance
-        title="Recommended size for product cards"
-        description={
-          <>
-            This photo appears in search results and category grids inside a square frame.
-            Upload a square image near{' '}
-            <span className="font-semibold text-slate-800">{PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL}</span>
-            {' '}or a wide landscape near{' '}
-            <span className="font-semibold text-slate-800">{PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL}</span>
-            {' '}— both render well on the storefront.
-          </>
-        }
-        guidance={guidance}
-        footer={`Exact pixels are not required. Any photo at least ${PRODUCT_IMAGE_MIN_SHORT_EDGE_PX}px on the shortest side is accepted.`}
+        sizeLabel={PRIMARY_PRODUCT_IMAGE_RECOMMENDED_LABEL}
+        hint={`Shown first on search cards. Square is best. Landscape ${PRIMARY_PRODUCT_IMAGE_LANDSCAPE_EXAMPLE_LABEL} also works. Accepted ${guidance.minWidth}–${guidance.maxWidth} × ${guidance.minHeight}–${guidance.maxHeight} px. Shortest side at least ${PRODUCT_IMAGE_MIN_SHORT_EDGE_PX}px.`}
       />
 
       {image ? (

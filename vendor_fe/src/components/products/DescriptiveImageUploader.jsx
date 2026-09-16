@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, GripVertical, ImagePlus, Info, Trash2, Upload } from 'lucide-react'
+import { CheckCircle2, GripVertical, ImagePlus, Trash2, Upload } from 'lucide-react'
 import FieldError from '../auth/FieldError'
 import notify from '../../lib/notify'
 import {
@@ -8,6 +8,7 @@ import {
   MAX_DESCRIPTIVE_IMAGE_FILE_BYTES,
   MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES,
 } from '../../constants/products'
+import { ProductImageDimensionGuidance } from './ProductImageDimensionHints'
 import {
   createProductImageFromFile,
   evaluateDescriptiveImageDimensions,
@@ -19,50 +20,6 @@ import {
   readImageUrlDimensions,
   revokeProductImagePreview,
 } from '../../utils/productImageUtils'
-
-function DescriptiveImageGuidance() {
-  const guidance = getDescriptiveDimensionGuidance()
-
-  return (
-    <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white text-sky-600 ring-1 ring-sky-100">
-          <Info className="size-4" strokeWidth={2.25} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-slate-900">Recommended size for descriptive images</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            These photos appear as wide banners, one per row, on your product page — the same
-            landscape style used on Amazon-style detail pages. Upload wide images close to{' '}
-            <span className="font-semibold text-slate-800">{DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL}</span>
-            {' '}so they fill the row without awkward cropping.
-          </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-sky-100">
-              <p className="text-[0.625rem] font-bold uppercase tracking-wide text-slate-400">Target</p>
-              <p className="mt-0.5 text-sm font-bold text-slate-900">{DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL}</p>
-            </div>
-            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-sky-100">
-              <p className="text-[0.625rem] font-bold uppercase tracking-wide text-slate-400">Accepted width</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-800">
-                {guidance.minWidth}–{guidance.maxWidth} px
-              </p>
-            </div>
-            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-sky-100">
-              <p className="text-[0.625rem] font-bold uppercase tracking-wide text-slate-400">Accepted height</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-800">
-                {guidance.minHeight}–{guidance.maxHeight} px
-              </p>
-            </div>
-          </div>
-          <p className="mt-3 text-[0.6875rem] leading-relaxed text-slate-500">
-            Exact pixels are not required — close is fine. Avoid square or portrait photos; wide landscape works best.
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function DimensionBadge({ image }) {
   if (!image.width || !image.height) {
@@ -102,6 +59,7 @@ export default function DescriptiveImageUploader({
     maxBytes: MAX_DESCRIPTIVE_IMAGES_TOTAL_BYTES,
   })
   const atImageLimit = limits.remainingSlots <= 0
+  const guidance = getDescriptiveDimensionGuidance()
 
   useEffect(() => {
     let cancelled = false
@@ -217,7 +175,10 @@ export default function DescriptiveImageUploader({
 
   return (
     <div data-field={dataField} className="space-y-4">
-      <DescriptiveImageGuidance />
+      <ProductImageDimensionGuidance
+        sizeLabel={DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL}
+        hint={`Wide banners shown one per row on the product page. Accepted ${guidance.minWidth}–${guidance.maxWidth} × ${guidance.minHeight}–${guidance.maxHeight} px. Avoid square or portrait photos.`}
+      />
 
       <div
         role="button"
@@ -274,7 +235,7 @@ export default function DescriptiveImageUploader({
           <div className="text-center">
             <p className="text-sm font-semibold text-slate-800">Drag & drop or click to upload descriptive photos</p>
             <p className="mt-1 text-xs text-slate-500">
-              JPG or PNG · Near {DESCRIPTIVE_IMAGE_RECOMMENDED_LABEL} · Up to {MAX_DESCRIPTIVE_IMAGE_COUNT} images ·{' '}
+              JPG or PNG · Up to {MAX_DESCRIPTIVE_IMAGE_COUNT} photos ·{' '}
               {formatImageStorageSize(MAX_DESCRIPTIVE_IMAGE_FILE_BYTES)} each
             </p>
           </div>

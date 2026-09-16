@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, Layers3, Loader2, Pin, Trash2 } from 'lucide-react'
-import { ProductInput, ProductMoneyInput } from '../products/ProductFormControls'
+import { ProductInput, ProductMoneyInput, FieldHintTooltip } from '../products/ProductFormControls'
 import VariantImageUpload from '../products/VariantImageUpload'
 import AttributeIcon from './AttributeIcon'
 import SecondaryVariantSection from './SecondaryVariantSection'
@@ -59,9 +59,11 @@ function PrimaryVariantPanel({
         <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.13em] text-slate-700">
           <Layers3 className="size-3.5 text-brand" />
           Primary Variant
-        </p>
-        <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-          This is the main option for this value. Photos, SKU, stock, and price save on their own — separately from any sub-options below.
+          <FieldHintTooltip
+            className="w-72"
+            label="About primary variant"
+            hint="This is the main option for this value. Photos, SKU, stock, and price save on their own — separately from any sub-options below."
+          />
         </p>
       </div>
       <article

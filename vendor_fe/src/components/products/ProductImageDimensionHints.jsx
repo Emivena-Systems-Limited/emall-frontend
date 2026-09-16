@@ -1,43 +1,27 @@
-import { CheckCircle2, Info } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
+import { FieldHintTooltip } from './ProductFormControls'
 
-export function ProductImageDimensionGuidance({
-  title,
-  description,
-  guidance,
-  footer,
-}) {
+export function ImageSectionHeader({ eyebrow, title, hint }) {
   return (
-    <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white text-sky-600 ring-1 ring-sky-100">
-          <Info className="size-4" strokeWidth={2.25} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-slate-900">{title}</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-600">{description}</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-sky-100">
-              <p className="text-[0.625rem] font-bold uppercase tracking-wide text-slate-400">Target</p>
-              <p className="mt-0.5 text-sm font-bold text-slate-900">{guidance.label}</p>
-            </div>
-            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-sky-100">
-              <p className="text-[0.625rem] font-bold uppercase tracking-wide text-slate-400">Accepted width</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-800">
-                {guidance.minWidth}–{guidance.maxWidth} px
-              </p>
-            </div>
-            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-sky-100">
-              <p className="text-[0.625rem] font-bold uppercase tracking-wide text-slate-400">Accepted height</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-800">
-                {guidance.minHeight}–{guidance.maxHeight} px
-              </p>
-            </div>
-          </div>
-          {footer && (
-            <p className="mt-3 text-[0.6875rem] leading-relaxed text-slate-500">{footer}</p>
-          )}
-        </div>
-      </div>
+    <div className="mb-3">
+      {eyebrow ? (
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand">{eyebrow}</p>
+      ) : null}
+      <h3 className="mt-1 flex items-center gap-1.5 text-sm font-bold text-slate-900">
+        <span>{title}</span>
+        <FieldHintTooltip hint={hint} className="w-72" label={`About ${title}`} />
+      </h3>
+    </div>
+  )
+}
+
+export function ProductImageDimensionGuidance({ sizeLabel, hint }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-700">
+        Recommended {sizeLabel}
+      </span>
+      <FieldHintTooltip hint={hint} className="w-72" label="Recommended image size" />
     </div>
   )
 }

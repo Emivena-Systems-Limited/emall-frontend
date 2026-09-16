@@ -1,3 +1,5 @@
+import { FieldHintTooltip } from '../products/ProductFormControls'
+
 export default function CardStepHeader({ step, title, subtitle, required = false }) {
   return (
     <div className="mb-4 flex items-start gap-3">
@@ -12,8 +14,8 @@ export default function CardStepHeader({ step, title, subtitle, required = false
               Required
             </span>
           )}
+          <FieldHintTooltip hint={subtitle} className="w-72" label={`About ${title}`} />
         </p>
-        {subtitle && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{subtitle}</p>}
       </div>
     </div>
   )

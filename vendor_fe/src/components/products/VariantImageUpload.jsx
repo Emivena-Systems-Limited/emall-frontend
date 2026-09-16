@@ -7,6 +7,7 @@ import {
 } from '../../utils/productImageUtils'
 import FieldError from '../auth/FieldError'
 import notify from '../../lib/notify'
+import { FieldHintTooltip } from './ProductFormControls'
 
 export default function VariantImageUpload({
   images = [],
@@ -71,14 +72,14 @@ export default function VariantImageUpload({
   }
 
   const labelBlock = (
-    <div className={compact ? 'mb-2 min-h-13' : 'mb-1.5'}>
-      <p className="text-sm font-semibold text-slate-800">
-        {label}
-        {required ? <span className="text-red-600" aria-hidden="true"> *</span> : null}
-      </p>
-      {hint && (
-        <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{hint}</p>
-      )}
+    <div className={compact ? 'mb-2 min-h-10' : 'mb-1.5'}>
+      <span className="flex items-center gap-1.5">
+        <p className="text-sm font-semibold text-slate-800">
+          {label}
+          {required ? <span className="text-red-600" aria-hidden="true"> *</span> : null}
+        </p>
+        <FieldHintTooltip hint={hint} label="Show upload hint" />
+      </span>
     </div>
   )
 

@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react'
 import FieldError from '../auth/FieldError'
+import { FieldHintTooltip } from './ProductFormControls'
 import { isRichTextEmpty } from '../../utils/richText'
 
 const normalState = 'border-slate-200 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-light'
@@ -406,8 +407,10 @@ function useClickOutside(isOpen, panelRef, onClose) {
 function FieldLabel({ id, label, hint }) {
   return (
     <label htmlFor={id} className="mb-1.5 block">
-      <span className="text-sm font-semibold text-slate-800">{label}</span>
-      {hint && <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>}
+      <span className="flex items-center gap-1.5">
+        <span className="text-sm font-semibold text-slate-800">{label}</span>
+        <FieldHintTooltip hint={hint} className="w-72" />
+      </span>
     </label>
   )
 }

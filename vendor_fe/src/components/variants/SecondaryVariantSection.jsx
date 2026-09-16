@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, GitBranch, Loader2, Plus, Trash2, X } from 'lucide-react'
 import AttributeTypePicker from './AttributeTypePicker'
 import AttributeIcon from './AttributeIcon'
-import { ProductInput, ProductMoneyInput } from '../products/ProductFormControls'
+import { FieldHintTooltip, ProductInput, ProductMoneyInput } from '../products/ProductFormControls'
 import { formatMoney, resolveVariantPricing } from '../../utils/productPricing'
 import { getSingleVariantValuePlaceholder, getDuplicateSecondaryValueError } from './variantFormUtils'
 import { buildVariantSkuCandidates } from '../../utils/variantSkuRegistry'
@@ -406,9 +406,13 @@ export default function SecondaryVariantSection({
             {step}
           </span>
           <div>
-            <p className="text-sm font-bold text-slate-900">Secondary Variants</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-            Add sub-options under this color — each one is its own SKU with its own price and stock.
+            <p className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+              <span>Secondary Variants</span>
+              <FieldHintTooltip
+                className="w-72"
+                label="About secondary variants"
+                hint="Add sub-options under this color — each one is its own SKU with its own price and stock."
+              />
             </p>
           </div>
         </div>
@@ -417,9 +421,11 @@ export default function SecondaryVariantSection({
           <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.13em] text-slate-700">
             <GitBranch className="size-3.5 text-brand" />
             Secondary Variants
-          </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-            Add sub-options under this variant. Each value is a separate SKU — e.g. Black 16GB and Black 32GB.
+            <FieldHintTooltip
+              className="w-72"
+              label="About secondary variants"
+              hint="Add sub-options under this variant. Each value is a separate SKU — e.g. Black 16GB and Black 32GB."
+            />
           </p>
         </div>
       )}

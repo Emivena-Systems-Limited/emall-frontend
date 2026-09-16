@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import FieldError from '../auth/FieldError'
-import { FormFieldHint } from '../products/ProductFormControls'
+import { FieldHintTooltip } from '../products/ProductFormControls'
 import { parseMultiValues } from './variantFormUtils'
 
 /** Multi-value input for variant option values — chips render inside the field as values are added. */
@@ -76,8 +76,10 @@ export default function VariantValuesInput({
     <div data-field={dataField}>
       {label && (
         <label className="mb-1.5 block">
-          <span className="text-sm font-semibold text-slate-800">{label}</span>
-          <FormFieldHint hint={hint} />
+          <span className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold text-slate-800">{label}</span>
+            <FieldHintTooltip hint={hint} />
+          </span>
         </label>
       )}
       <div

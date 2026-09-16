@@ -1,5 +1,5 @@
 import { ChevronDown, Ruler, Scale } from 'lucide-react'
-import { FormFieldHint, OptionalBadge, ProductInput } from '../products/ProductFormControls'
+import { FieldHintTooltip, OptionalBadge, ProductInput } from '../products/ProductFormControls'
 import FieldError from '../auth/FieldError'
 import CardStepHeader from './CardStepHeader'
 import { BARCODE_TYPE_OPTIONS, VARIANT_DESCRIPTION_MAX_LENGTH } from './variantConstants'
@@ -13,11 +13,11 @@ function BarcodeField({ formik }) {
   return (
     <div data-field="barcode">
       <label htmlFor="barcode" className="mb-1.5 block">
-        <span className="flex flex-wrap items-center gap-2">
+        <span className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-semibold text-slate-800">Barcode</span>
           <OptionalBadge />
+          <FieldHintTooltip hint={selectedType?.hint} />
         </span>
-        <FormFieldHint hint={selectedType?.hint} reserveHintSpace />
       </label>
       <div
         className={`flex items-stretch overflow-hidden rounded-xl border bg-white transition-all focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-light ${
