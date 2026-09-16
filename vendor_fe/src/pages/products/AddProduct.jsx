@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Form, Formik, getIn } from 'formik'
 import { Link, useNavigate } from 'react-router'
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   BadgePercent,
@@ -34,7 +35,6 @@ import CardStepHeader from '../../components/variants/CardStepHeader'
 import VariantAccordionCard from '../../components/variants/VariantAccordionCard'
 import DefaultVariationCard from '../../components/variants/DefaultVariationCard'
 import VariantGroupActionBar from '../../components/variants/VariantGroupActionBar'
-import VariantReviewCard from '../../components/variants/VariantReviewCard'
 import { isColorVariantAttribute } from '../../components/variants/variantConstants'
 import { getSingleVariantValuePlaceholder, parseMultiValues } from '../../components/variants/variantFormUtils'
 import ListingTypeStep from '../../components/products/ListingTypeStep'
@@ -859,6 +859,81 @@ function scrollToSavedVariationValues(target) {
   })
 }
 
+function StepValidationErrorBanner({ error, onFocus }) {
+  if (!error) return null
+  const isStockError = /stock/i.test(error)
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3"
+    >
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-500" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-red-800">{error}</p>
+        {isStockError && (
+          <p className="mt-0.5 text-xs leading-relaxed text-red-700/70">
+            Lower each variant&apos;s quantity so the combined total fits within the main product stock.
+          </p>
+        )}
+      </div>
+      {onFocus && (
+        <button
+          type="button"
+          onClick={onFocus}
+          className="shrink-0 cursor-pointer rounded-lg px-2.5 py-1 text-xs font-bold text-red-700 ring-1 ring-red-200 transition-colors hover:bg-red-100 hover:text-red-900"
+        >
+          Show affected
+        </button>
+      )}
+    </div>
+  )
+}
+
+function StockAllocationMeter({ mainQty, totalVariantQty }) {
+  if (mainQty <= 0) return null
+  const pct = Math.min((totalVariantQty / mainQty) * 100, 100)
+  const over = totalVariantQty > mainQty
+  const nearCap = !over && pct >= 80
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${
+      over
+        ? 'border-red-200 bg-red-50'
+        : nearCap
+          ? 'border-amber-200 bg-amber-50/70'
+          : 'border-slate-200 bg-white'
+    }`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-xs font-semibold ${
+          over ? 'text-red-700' : nearCap ? 'text-amber-800' : 'text-slate-600'
+        }`}>
+          Stock allocated to variants
+        </span>
+        <span className={`text-xs font-bold tabular-nums ${
+          over ? 'text-red-700' : nearCap ? 'text-amber-800' : 'text-slate-700'
+        }`}>
+          {totalVariantQty} / {mainQty} units
+          {over && <span className="ml-1.5 font-semibold text-red-600">· Over limit</span>}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70">
+        <div
+          aria-hidden="true"
+          className={`h-full rounded-full transition-all duration-300 ${
+            over ? 'bg-red-500' : nearCap ? 'bg-amber-400' : 'bg-emerald-500'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {nearCap && !over && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-amber-800/80">
+          You&apos;re close to the stock limit. Make sure the totals add up correctly.
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** Add-variations step for the create/edit product wizard: pick an option type (Color, Size…),
  *  then type each value — it opens as its own accordion card right away so photo, price & stock
  *  can be filled in inline. Nothing is saved to the server here — everything lives in the product
@@ -1070,6 +1145,112 @@ export function VariationsStep({
   )
   const activeGroupHasValues = (activeGroup?.values?.length ?? 0) > 0
 
+  // ─── Stock allocation tracking ──────────────────────────────────────────────
+  const mainQty = parseFloat(String(formik.values.quantity ?? ''))
+  const mainQtyKnown = !isNaN(mainQty) && mainQty >= 0
+  const totalVariantQty = mainQtyKnown
+    ? groups.reduce((sum, group) => (
+        sum + group.values.reduce((gs, val) => {
+          const subs = (val.secondary_variants ?? []).filter(
+            (s) => String(s?.attribute ?? '').trim() && String(s?.value ?? '').trim(),
+          )
+          if (subs.length > 0) {
+            return gs + subs.reduce((ss, item) => {
+              const q = parseFloat(String(item.quantity ?? ''))
+              return isNaN(q) ? ss : ss + q
+            }, 0)
+          }
+          const q = parseFloat(String(val.quantity ?? ''))
+          return isNaN(q) ? gs : gs + q
+        }, 0)
+      ), 0)
+    : 0
+
+  const overStockValueIds = mainQtyKnown
+    ? groups.flatMap((g) => g.values.filter((v) => {
+        const q = parseFloat(String(v.quantity ?? ''))
+        return !isNaN(q) && q > mainQty
+      }).map((v) => v.id))
+    : []
+
+  const handleStepErrorFocus = () => {
+    const toOpen = overStockValueIds.length > 0
+      ? overStockValueIds
+      : groups.flatMap((g) => g.values.map((v) => v.id))
+
+    if (toOpen.length > 0) {
+      setOpenValueIds((prev) => new Set([...prev, ...toOpen]))
+    }
+
+    setTimeout(() => {
+      const scope = savedValuesRef.current
+      const panel = document.querySelector('[data-dashboard-scroll-panel]')
+      const firstQtyField = scope?.querySelector('[data-field$=".quantity"]')
+      if (firstQtyField) {
+        const input = firstQtyField.querySelector('input')
+        if (panel) {
+          const cr = panel.getBoundingClientRect()
+          const tr = firstQtyField.getBoundingClientRect()
+          panel.scrollTo({ top: Math.max(0, tr.top - cr.top + panel.scrollTop - 80), behavior: 'smooth' })
+        } else {
+          firstQtyField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+        input?.focus({ preventScroll: true })
+      } else {
+        scrollToSavedVariationValues(savedValuesRef.current)
+      }
+    }, 250)
+  }
+
+  // Auto-open offending cards and scroll to the first quantity input whenever
+  // the step-level error first appears (e.g. after clicking Continue).
+  const prevStepError = useRef('')
+  useEffect(() => {
+    if (!stepError) { prevStepError.current = ''; return }
+    if (prevStepError.current === stepError) return
+    prevStepError.current = stepError
+
+    const mainQtyParsed = parseFloat(String(formik.values.quantity ?? ''))
+    const perCardOver = isNaN(mainQtyParsed)
+      ? []
+      : groups.flatMap((g) => g.values.filter((v) => {
+          const q = parseFloat(String(v.quantity ?? ''))
+          return !isNaN(q) && q > mainQtyParsed
+        }).map((v) => v.id))
+
+    const toOpen = perCardOver.length > 0
+      ? perCardOver
+      : groups.flatMap((g) => g.values.map((v) => v.id))
+
+    // Defer setState to avoid triggering cascading renders inside the effect body.
+    // After the state update React re-renders and the accordion animation runs (200ms),
+    // then we scroll to the first quantity input.
+    setTimeout(() => {
+      if (toOpen.length > 0) {
+        setOpenValueIds((prev) => new Set([...prev, ...toOpen]))
+      }
+      setTimeout(() => {
+        const scope = savedValuesRef.current
+        const panel = document.querySelector('[data-dashboard-scroll-panel]')
+        const firstQtyField = scope?.querySelector('[data-field$=".quantity"]')
+        if (firstQtyField) {
+          const input = firstQtyField.querySelector('input')
+          if (panel) {
+            const cr = panel.getBoundingClientRect()
+            const tr = firstQtyField.getBoundingClientRect()
+            panel.scrollTo({ top: Math.max(0, tr.top - cr.top + panel.scrollTop - 80), behavior: 'smooth' })
+          } else {
+            firstQtyField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+          input?.focus({ preventScroll: true })
+        } else {
+          scrollToSavedVariationValues(savedValuesRef.current)
+        }
+      }, 250)
+    }, 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepError])
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -1079,9 +1260,10 @@ export function VariationsStep({
           Your default option is listed first and stays in sync with product info. Add extra colors, sizes, or other values if you sell more than one option.
           Photos are required for Color extras (up to 3). Skip extra options if the default is enough.
         </p>
-        {stepError && (
-          <p className="text-xs font-semibold text-red-600" role="alert">{stepError}</p>
-        )}
+        <StepValidationErrorBanner
+          error={stepError}
+          onFocus={stepError ? handleStepErrorFocus : undefined}
+        />
         {rangeLabel && totalValues > 0 && (
           <p className="text-xs leading-relaxed text-slate-500">
             Shoppers will pay{' '}
@@ -1101,6 +1283,10 @@ export function VariationsStep({
       </div>
 
       {totalValues > 0 && <ParentPricingBanner values={formik.values} />}
+
+      {mainQtyKnown && totalValues > 0 && (
+        <StockAllocationMeter mainQty={mainQty} totalVariantQty={totalVariantQty} />
+      )}
 
       <DefaultVariationCard
         attribute={defaultVariationPreview.attribute}
