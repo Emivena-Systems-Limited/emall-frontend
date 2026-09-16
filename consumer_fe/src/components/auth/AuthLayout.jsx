@@ -58,9 +58,8 @@ export default function AuthLayout({ children, compact = false, wide = false }) 
           >
             <StoreLogo
               variant="dark"
-              showText
               size="sm"
-              className="transition-transform duration-300 hover:scale-[1.02] min-[1536px]:[&_svg]:size-10 min-[1536px]:[&_span]:text-xl min-[1800px]:[&_svg]:size-14 min-[1800px]:[&_span]:text-2xl min-[2100px]:[&_svg]:size-16 min-[2100px]:[&_span]:text-[1.875rem]"
+              className="transition-transform duration-300 hover:scale-[1.02] min-[1536px]:[&_img]:h-10 min-[1800px]:[&_img]:h-14 min-[2100px]:[&_img]:h-16"
             />
           </motion.div>
 

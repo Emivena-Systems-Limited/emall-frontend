@@ -11,7 +11,11 @@ const paymentImages = {
 
 export default function FooterPayments() {
   return (
-    <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+    <div
+      role="group"
+      aria-label="Accepted payment methods"
+      className="flex flex-wrap items-center justify-start gap-2 sm:justify-end"
+    >
       {paymentMethods.map((method) => (
         <div
           key={method}

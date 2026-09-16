@@ -71,9 +71,9 @@ export default function Navbar({ cartCount = 0 }) {
               </AnimatePresence>
             </button>
 
-            <StoreLogo variant="light" showText size="sm" className="min-w-0 flex-1" />
+            <StoreLogo variant="light" size="sm" className="min-w-0" />
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               <NavbarNotificationButton />
               <NavbarCartButton count={cartCount} />
               <NavbarAuthLinks compact />
@@ -87,7 +87,7 @@ export default function Navbar({ cartCount = 0 }) {
 
           {/* Desktop row */}
           <div className="hidden h-14 items-center gap-3 lg:flex xl:gap-4">
-            <StoreLogo variant="light" showText size="sm" className="mr-0.5 shrink-0" />
+            <StoreLogo variant="light" size="sm" className="mr-0.5 shrink-0" />
 
             <NavbarCategoriesButton
               mode="dropdown"

@@ -1026,12 +1026,30 @@ export function VariationsStep({
 
     await formik.setFieldValue('variations', nextGroups, true)
     formik.setFieldError('variations', undefined)
+    setOpenValueIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
   }
 
   const handleRemoveGroup = async (groupIndex) => {
+    const removedGroup = groups[groupIndex]
     const nextGroups = groups.filter((_, index) => index !== groupIndex)
     await formik.setFieldValue('variations', nextGroups, true)
     formik.setFieldError('variations', undefined)
+    if (removedGroup) {
+      setOpenValueIds((prev) => {
+        const next = new Set(prev)
+        removedGroup.values.forEach((val) => next.delete(val.id))
+        return next
+      })
+      if (activeAttribute && removedGroup.attribute.toLowerCase() === activeAttribute.toLowerCase()) {
+        setBuildingAttribute('')
+        setValueInput('')
+        setValuesError('')
+      }
+    }
   }
 
   const totalValues = groups.reduce((count, group) => count + group.values.length, 0)
@@ -1078,9 +1096,6 @@ export function VariationsStep({
               </>
             )}
           </p>
-        )}
-        {stepError && (
-          <p className="text-sm font-medium text-red-600" role="alert">{stepError}</p>
         )}
       </div>
 

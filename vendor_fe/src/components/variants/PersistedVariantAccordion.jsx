@@ -128,10 +128,8 @@ export default function PersistedVariantAccordion({
       productValues={productValues}
       mainQty={isDefault ? null : (productValues?.quantity ? Number(productValues.quantity) : null)}
       isOpen={isOpen}
-      onToggle={() => {
-        if (isOpen) resetDraft()
-        onToggle()
-      }}
+      onToggle={onToggle}
+      isDirty={isDirty}
       onRemove={isDefault ? undefined : onRemove}
       removeLabel={`Remove ${variantValue.value}`}
       isRemoving={isRemoving}

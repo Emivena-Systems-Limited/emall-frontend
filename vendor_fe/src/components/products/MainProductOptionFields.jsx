@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getIn } from 'formik'
-import { Check } from 'lucide-react'
 import AttributeTypePicker from '../variants/AttributeTypePicker'
 import AttributeIcon from '../variants/AttributeIcon'
 import { isPresetAttribute } from '../variants/variantConstants'
 import { getMainOptionValuePlaceholder } from '../variants/variantFormUtils'
 import { ProductInput } from './ProductFormControls'
-import CompatibleModelsField from './CompatibleModelsField'
 
 function fieldError(formik, name) {
   const touched = getIn(formik.touched, name) || formik.submitCount > 0
@@ -20,17 +18,27 @@ export default function MainProductOptionFields({ formik }) {
   const [showCustom, setShowCustom] = useState(() => Boolean(attribute && !isPresetAttribute(attribute)))
   const attributeError = fieldError(formik, 'main_attribute')
   const valueError = fieldError(formik, 'main_attribute_value')
-  const compatibleError = fieldError(formik, 'compatible_models')
-  const compatibleModels = Array.isArray(formik.values.compatible_models)
-    ? formik.values.compatible_models
-    : []
-  const hasCompatibleModels = Boolean(formik.values.has_compatible_models)
+  const hasSelectedOption = Boolean(attribute)
+  const valueInputRef = useRef(null)
+  const skipValueFocusRef = useRef(hasSelectedOption)
 
   useEffect(() => {
     if (attribute && !isPresetAttribute(attribute)) {
       setShowCustom(true)
     }
   }, [attribute])
+
+  useEffect(() => {
+    if (!hasSelectedOption) return undefined
+    if (skipValueFocusRef.current) {
+      skipValueFocusRef.current = false
+      return undefined
+    }
+    const timeoutId = window.setTimeout(() => {
+      valueInputRef.current?.focus()
+    }, 220)
+    return () => window.clearTimeout(timeoutId)
+  }, [hasSelectedOption])
 
   const setAttribute = (next, { custom = false } = {}) => {
     setShowCustom(custom)
@@ -57,7 +65,7 @@ export default function MainProductOptionFields({ formik }) {
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div>
         <div>
           <p id="main-attribute-label" className="mb-1.5 text-sm font-semibold text-slate-800">
             Option type <span className="text-red-600" aria-hidden="true">*</span>
@@ -78,7 +86,7 @@ export default function MainProductOptionFields({ formik }) {
                 formik.setFieldValue('main_attribute', '', false)
               }
             }}
-            onCustomChange={(event) => setAttribute(event.target.value, { custom: true })}
+            onSaveCustom={(name) => setAttribute(name, { custom: true })}
             onCustomBlur={() => formik.setFieldTouched('main_attribute', true, true)}
             error={attributeError}
           />
@@ -88,71 +96,52 @@ export default function MainProductOptionFields({ formik }) {
             </p>
           ) : (
             <p className="mt-2 text-xs text-slate-500">
-              Pick the word shoppers will see above the options, such as Color or Size.
+              Pick the word shoppers will see above the options, such as Color or Size. The value field appears after you choose a type.
             </p>
           )}
         </div>
 
-        <ProductInput
-          id="main_attribute_value"
-          name="main_attribute_value"
-          label="Option value"
-          hint="Required. This is the choice selected first on your product page."
-          placeholder={getMainOptionValuePlaceholder(attribute)}
-          value={formik.values.main_attribute_value}
-          onChange={formik.handleChange}
-          onBlur={formik.handleBlur}
-          error={valueError}
-          aria-required="true"
-          aria-describedby={valueError ? 'main_attribute_value-error' : undefined}
-        />
+        <div
+          className={`grid h-fit transition-[grid-template-rows,opacity,margin-top] duration-300 ease-in-out ${
+            hasSelectedOption ? 'mt-4 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="h-auto">
+              <ProductInput
+                id="main_attribute_value"
+                name="main_attribute_value"
+                label="Option value"
+                hint="Required. This is the choice selected first on your product page."
+                placeholder={getMainOptionValuePlaceholder(attribute)}
+                value={formik.values.main_attribute_value}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                error={valueError}
+                aria-required="true"
+                aria-describedby={valueError ? 'main_attribute_value-error' : undefined}
+                ref={valueInputRef}
+              />
+            </div>
 
-        <div>
-          <p className="mb-1.5 text-sm font-semibold text-slate-800">Compatible models</p>
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">
-            Optional. Use this when the default option fits more than one device or product model — for example a case that works on several phones.
-          </p>
-          <CompatibleModelsField
-            enabled={hasCompatibleModels}
-            values={compatibleModels}
-            onEnabledChange={(next) => {
-              formik.setFieldValue('has_compatible_models', next, true)
-              formik.setFieldTouched('has_compatible_models', true, false)
-              if (!next) {
-                formik.setFieldValue('compatible_models', [], false)
-                formik.setFieldError('compatible_models', undefined)
-              }
-            }}
-            onValuesChange={(next) => {
-              formik.setFieldValue('compatible_models', next, true)
-              formik.setFieldValue('has_compatible_models', next.length > 0, false)
-              formik.setFieldTouched('compatible_models', true, false)
-            }}
-            error={compatibleError}
-          />
-        </div>
-      </div>
-
-      {attribute && value ? (
-        <div className="mt-4 flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
-          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-700 ring-1 ring-emerald-100">
-            <AttributeIcon attribute={attribute} className="size-4" />
-          </span>
-          <div className="min-w-0">
-            
-            <p className="mt-0.5 text-sm font-semibold text-slate-900">
-              {attribute}: {value}
-            </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
-              Uses your product photos, price, and stock
-              {compatibleModels.length > 0
-                ? `, and fits ${compatibleModels.length} model${compatibleModels.length === 1 ? '' : 's'}`
-                : ''}
-              . Extra options on later steps can override those when selected. This appears as the locked default on the variations step.
-            </p>
+            {value ? (
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-700 ring-1 ring-emerald-100">
+                  <AttributeIcon attribute={attribute} className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                    {attribute}: {value}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                    Uses your product photos, price, and stock. Extra options on later steps can override those when selected. This appears as the locked default on the variations step.
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
-      ) : null}
+      </div>
     </section>
   )
 }

@@ -105,7 +105,7 @@ function PrimaryVariantPanel({
               </span>
             ) : null}
             <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
-              Qty {values.quantity || '0'}
+              {String(values.quantity ?? '').trim() ? `Qty ${values.quantity}` : 'No stock set'}
             </span>
             {values.price ? (
               <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
@@ -360,6 +360,7 @@ export default function VariantAccordionCard({
   savingSecondaryId = null,
   showSecondarySave = false,
   addSecondaryRequestId = 0,
+  isDirty = false,
 }) {
   const showProductPrices = isDefault || priceAsProduct
   const pricing = resolveVariantPricing(values, productValues)
@@ -410,7 +411,7 @@ export default function VariantAccordionCard({
               </span>
             ) : null}
             <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
-              Quantity ({quantityValue ?? 0})
+              {quantityValue != null ? `Qty ${quantityValue}` : 'No stock set'}
             </span>
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
@@ -429,7 +430,20 @@ export default function VariantAccordionCard({
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 font-semibold text-amber-600">
-                <AlertTriangle className="size-3" /> Needs details
+                <AlertTriangle className="size-3" />
+                {!values.value?.trim()
+                  ? 'Enter a value'
+                  : quantityValue == null
+                    ? 'Set stock quantity'
+                    : photosRequired && !hasPhotos
+                      ? 'Add at least one photo'
+                      : 'Needs details'}
+              </span>
+            )}
+            {isDirty && !isOpen && (
+              <span className="inline-flex items-center gap-1 font-semibold text-amber-600">
+                <span className="size-1.5 rounded-full bg-amber-500" />
+                Unsaved
               </span>
             )}
           </span>

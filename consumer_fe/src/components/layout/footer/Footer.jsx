@@ -11,29 +11,52 @@ export default function Footer() {
 
   return (
     <footer className="site-shell-footer bg-auth-primary text-white">
-      <Container className="py-10 sm:py-12 lg:py-14">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] lg:gap-12 xl:gap-16">
-          <StoreLogo variant="light" showText size="lg" className="self-start" />
+      <h2 className="sr-only">Site footer</h2>
 
-          <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-3">
-            {footerColumns.map((column) => (
-              <FooterColumn key={column.title} title={column.title} links={column.links} />
-            ))}
-          </div>
+      <Container className="py-12 sm:py-14 lg:py-16">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-4 lg:grid-cols-12 lg:gap-x-8 xl:gap-x-12">
+          <section className="col-span-2 flex flex-col md:col-span-4 lg:col-span-4">
+            <StoreLogo variant="light" size="lg" className="self-start" />
+            <p className="mt-4 max-w-sm text-sm leading-6 text-white/80">
+              Shop from local stores in one marketplace. Discover products, deals, and sellers near you.
+            </p>
+            <div className="mt-6">
+              <p className="mb-3 text-xs font-bold tracking-[0.12em] text-white/70 uppercase">
+                Follow us
+              </p>
+              <FooterSocial />
+            </div>
+          </section>
+
+          {footerColumns.map((column) => (
+            <nav
+              key={column.title}
+              aria-label={column.title}
+              className="lg:col-span-2"
+            >
+              <FooterColumn title={column.title} links={column.links} />
+            </nav>
+          ))}
+
+          <section className="lg:col-span-2">
+            <h3 className="text-sm font-bold tracking-[0.12em] text-white uppercase">
+              Get the app
+            </h3>
+            <div className="mt-4">
+              <FooterAppBadges />
+            </div>
+          </section>
         </div>
+      </Container>
 
-        <div className="mt-10 flex flex-col gap-6 border-t border-white/15 pt-8 sm:mt-12 lg:flex-row lg:items-center lg:justify-between">
-          <FooterSocial />
-          <FooterAppBadges />
-        </div>
-
-        <div className="mt-8 flex flex-col gap-4 border-t border-white/15 pt-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-t border-white/15 bg-black/10">
+        <Container className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-white/80 sm:text-sm">
             {SITE_NAME} &copy; {year}, All Rights Reserved
           </p>
           <FooterPayments />
-        </div>
-      </Container>
+        </Container>
+      </div>
     </footer>
   )
 }

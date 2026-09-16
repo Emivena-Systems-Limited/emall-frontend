@@ -1,71 +1,36 @@
-import { useId } from 'react'
 import { Link } from 'react-router'
 import { SITE_NAME } from '../../constants/siteNav'
+import Images from '../../utils/Images'
 
 const sizeStyles = {
-  sm: {
-    icon: 'size-7 shrink-0 sm:size-8',
-    text: 'text-base font-semibold tracking-tight sm:text-[1.05rem]',
-  },
-  md: {
-    icon: 'size-9 shrink-0 sm:size-10',
-    text: 'text-lg font-semibold tracking-tight sm:text-xl lg:text-[1.35rem]',
-  },
-  lg: {
-    icon: 'size-12 shrink-0 sm:size-14',
-    text: 'text-xl font-semibold tracking-tight sm:text-2xl lg:text-[1.75rem]',
-  },
+  sm: 'h-8 w-auto max-w-36 sm:h-9 sm:max-w-40',
+  md: 'h-10 w-auto max-w-44 sm:h-11 sm:max-w-48',
+  lg: 'h-12 w-auto max-w-52 sm:h-14 sm:max-w-60',
 }
 
 export default function StoreLogo({
   variant = 'light',
-  showText = true,
   size = 'md',
   className = '',
   linkTo = '/',
   linked = true,
 }) {
-  const gradientId = useId()
-  const textClass = variant === 'light' ? 'text-white' : 'text-slate-900'
-  const styles = sizeStyles[size] ?? sizeStyles.md
+  const src = variant === 'light' ? Images.common.logo_white : Images.common.logo
 
-  const content = (
-    <>
-      <svg
-        width="40"
-        height="40"
-        viewBox="0 0 40 40"
-        fill="none"
-        aria-hidden="true"
-        className={styles.icon}
-      >
-        <defs>
-          <linearGradient id={gradientId} x1="8" y1="34" x2="32" y2="6" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#E8C547" />
-            <stop offset="0.45" stopColor="#C9A227" />
-            <stop offset="1" stopColor="#9A7B1A" />
-          </linearGradient>
-        </defs>
-        <rect x="6" y="6" width="12" height="12" rx="2" fill={`url(#${gradientId})`} />
-        <rect x="22" y="6" width="12" height="12" rx="2" fill={`url(#${gradientId})`} opacity="0.85" />
-        <rect x="6" y="22" width="12" height="12" rx="2" fill={`url(#${gradientId})`} opacity="0.7" />
-        <path
-          d="M22 22h12v12H28V28h-6v6h-6V22h6v6h6v-6z"
-          fill={`url(#${gradientId})`}
-        />
-      </svg>
-      {showText && (
-        <span className={`${styles.text} ${textClass} leading-none`}>
-          {SITE_NAME}
-        </span>
-      )}
-    </>
+  const image = (
+    <img
+      src={src}
+      alt={linked ? '' : SITE_NAME}
+      width={2172}
+      height={724}
+      className={`${sizeStyles[size] ?? sizeStyles.md} object-contain object-left`}
+    />
   )
 
   if (!linked) {
     return (
-      <span className={`inline-flex shrink-0 items-center gap-2.5 sm:gap-3 ${className}`}>
-        {content}
+      <span className={`inline-flex shrink-0 items-center ${className}`}>
+        {image}
       </span>
     )
   }
@@ -73,10 +38,10 @@ export default function StoreLogo({
   return (
     <Link
       to={linkTo}
-      className={`group inline-flex shrink-0 items-center gap-2.5 sm:gap-3 ${className}`}
+      className={`group inline-flex shrink-0 items-center ${className}`}
       aria-label={`${SITE_NAME} home`}
     >
-      {content}
+      {image}
     </Link>
   )
 }

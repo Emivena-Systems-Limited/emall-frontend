@@ -39,6 +39,9 @@ import cell_phones_and_accessories from "../assets/images/categories/cell_phones
 import tools_and_garden from "../assets/images/categories/tools_and_garden.png";
 import automotive from "../assets/images/categories/automotive.png";
 
+import logo from "../assets/images/logo.png";
+import logo_white from "../assets/images/logo_white.png";
+
 import {
   CATEGORY_BANNER_ASSETS,
   categoryCatalogBySlug,
@@ -56,6 +59,8 @@ const auth = {}
 const shop = {
   default_store_banner,
   shop_logo,
+  logo,
+  logo_white,
 }
 
 const sample_hero_banners = {
@@ -87,6 +92,8 @@ const common = {
   playstore,
   appstore,
   wishlist_empty: empty_wishlist_icon,
+  logo,
+  logo_white,
 }
 
 /** Spotlight banners used on Categories page header */

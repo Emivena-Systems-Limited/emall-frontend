@@ -52,7 +52,7 @@ export default function FooterSocial() {
             target="_blank"
             rel="noreferrer"
             aria-label={social.label}
-            className="flex size-10 items-center justify-center rounded-full bg-white text-auth-primary transition-transform hover:scale-105"
+            className="flex size-10 cursor-pointer items-center justify-center rounded-full bg-white text-auth-primary transition-transform duration-200 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <Icon className="size-4.5" />
           </a>

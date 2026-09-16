@@ -1,4 +1,4 @@
-export const SITE_NAME = 'EZ-Stores'
+export const SITE_NAME = 'EZMall'
 
 export const footerColumns = [
   {
