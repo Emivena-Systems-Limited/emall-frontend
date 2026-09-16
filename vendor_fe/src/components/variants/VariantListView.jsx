@@ -229,7 +229,7 @@ export default function VariantListView({
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Product variants</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
               {listingKind === 'simple'
-                ? 'This simple listing keeps one generated option in sync with product name, price, stock, and up to 3 photos. Switch to variants if shoppers need to pick a color, size, or another option.'
+                ? 'This simple listing keeps one generated option in sync with price, stock, and up to 3 photos. Switch to variants if shoppers need to pick a color, size, or another option.'
                 : 'The default option is locked here and stays in sync with product info. Extra options can still be added, edited, or removed.'}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">

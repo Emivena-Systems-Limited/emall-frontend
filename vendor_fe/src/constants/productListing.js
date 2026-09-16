@@ -3,6 +3,33 @@ export const LISTING_TYPES = {
   VARIANTS: 'variants',
 }
 
+/** Short option identity for simple listings. Product titles can exceed the 100-char attribute cap. */
+export const SIMPLE_LISTING_ATTRIBUTE = 'Default'
+export const SIMPLE_LISTING_VALUE = 'Standard'
+
+function sameListingOption(left, right) {
+  const a = String(left ?? '').trim().toLowerCase()
+  const b = String(right ?? '').trim().toLowerCase()
+  return Boolean(a && b && a === b)
+}
+
+export function isCanonicalSimpleListingOption(attribute, value) {
+  return sameListingOption(attribute, SIMPLE_LISTING_ATTRIBUTE)
+    && sameListingOption(value, SIMPLE_LISTING_VALUE)
+}
+
+export function isLegacySimpleListingOption(productName, attribute, value) {
+  const name = String(productName ?? '').trim()
+  return Boolean(name)
+    && sameListingOption(attribute, name)
+    && sameListingOption(value, name)
+}
+
+export function isGeneratedSimpleListingOption(attribute, value, productName) {
+  return isCanonicalSimpleListingOption(attribute, value)
+    || isLegacySimpleListingOption(productName, attribute, value)
+}
+
 const INFO_FIELDS_BASE = [
   'name',
   'sku',
@@ -81,8 +108,8 @@ export function applySimpleListingIdentity(values = {}) {
   return {
     ...values,
     listing_type: LISTING_TYPES.SIMPLE,
-    main_attribute: name,
-    main_attribute_value: name,
+    main_attribute: SIMPLE_LISTING_ATTRIBUTE,
+    main_attribute_value: SIMPLE_LISTING_VALUE,
     variations: [],
   }
 }

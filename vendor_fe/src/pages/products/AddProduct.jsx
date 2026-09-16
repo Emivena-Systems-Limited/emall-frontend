@@ -118,6 +118,7 @@ import {
 import {
   applySimpleListingIdentity,
   getProductListingWizard,
+  isGeneratedSimpleListingOption,
   isSimpleListing,
   isVariantsListing,
   LISTING_TYPES,
@@ -533,7 +534,7 @@ export function InfoStep({
         <MainProductOptionFields formik={formik} />
       ) : (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-600">
-          This simple listing uses the product name as its only option. Price and stock come from the Pricing step.
+          This simple listing has one generated option. Price and stock come from the Pricing step.
           Photos use the primary image plus up to two featured images.
         </p>
       )}
@@ -1826,10 +1827,14 @@ export function ReviewStep({
 
           <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">What shoppers see first</p>
-            <p className="mt-1 text-sm font-bold text-slate-900">{defaultVariationLabel}</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {isSimpleListing(formik.values.listing_type)
+                ? (formik.values.name || defaultVariationLabel)
+                : defaultVariationLabel}
+            </p>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
               {isSimpleListing(formik.values.listing_type)
-                ? 'We will publish one option using the product name, pricing, stock, and up to 3 photos (primary plus 2 featured).'
+                ? "We will publish one option using this listing's pricing, stock, and up to 3 photos (primary plus 2 featured)."
                 : `Shoppers see this first. It uses your product photos, price, and stock${
                   formik.values.compatible_models?.length
                     ? `, and fits ${formik.values.compatible_models.length} model${formik.values.compatible_models.length === 1 ? '' : 's'}`
@@ -1898,7 +1903,7 @@ export function ReviewStep({
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">Simple listing</p>
                   <p className="text-sm font-bold text-slate-900">One option will be created automatically</p>
                   <p className="text-xs leading-relaxed text-slate-500">
-                    Attribute and value use the product name. Price and quantity come from Pricing. Images use the primary photo plus up to two featured photos.
+                    Price and quantity come from Pricing. Images use the primary photo plus up to two featured photos.
                   </p>
                   <dl className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-slate-500">
                     {price > 0 && (
@@ -2160,7 +2165,6 @@ export function ProductListingForm({
 
   const handleListingTypeChange = (formik, nextType) => {
     const previousType = formik.values.listing_type
-    const productName = String(formik.values.name ?? '').trim().toLowerCase()
     let nextValues = { ...formik.values, listing_type: nextType }
 
     if (nextType === LISTING_TYPES.SIMPLE) {
@@ -2168,8 +2172,11 @@ export function ProductListingForm({
       nextValues.variations = []
     } else if (
       previousType === LISTING_TYPES.SIMPLE
-      && productName
-      && String(formik.values.main_attribute ?? '').trim().toLowerCase() === productName
+      && isGeneratedSimpleListingOption(
+        formik.values.main_attribute,
+        formik.values.main_attribute_value,
+        formik.values.name,
+      )
     ) {
       nextValues.main_attribute = ''
       nextValues.main_attribute_value = ''

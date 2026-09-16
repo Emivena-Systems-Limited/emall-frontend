@@ -2,7 +2,13 @@ import { getProductConditionLabel } from './productMetadata'
 import { findCategoryById, getSubcategoriesForParentId } from './normalizeCategories'
 import { isUsableProductImage } from './productImageUtils'
 import { MAX_VARIANT_IMAGE_COUNT } from '../components/variants/variantConstants'
-import { LISTING_TYPES, isSimpleListing } from '../constants/productListing'
+import {
+  LISTING_TYPES,
+  SIMPLE_LISTING_ATTRIBUTE,
+  SIMPLE_LISTING_VALUE,
+  isGeneratedSimpleListingOption,
+  isSimpleListing,
+} from '../constants/productListing'
 import { getParentProductPricing } from './productPricing'
 
 const VARIANT_DESCRIPTION_MAX_LENGTH = 300
@@ -332,20 +338,22 @@ export function isSimpleProductRecord(record = {}) {
     main_attribute: metaMap.main_attribute ?? '',
     main_attribute_value: metaMap.main_attribute_value ?? '',
   }
-  const namedAsSimple = Boolean(name) && isMainProductOption(productValues, name, name)
+  const metadataIsSimple = isGeneratedSimpleListingOption(
+    productValues.main_attribute,
+    productValues.main_attribute_value,
+    name,
+  )
 
   if (variants.length > 1) return false
 
   if (variants.length === 1) {
     const option = getVariantPrimaryOption(variants[0])
     if (option.extraCount > 0) return false
-    if (namedAsSimple) return true
-    return Boolean(name)
-      && isSameProductOption(option.attribute, name)
-      && isSameProductOption(option.value, name)
+    if (metadataIsSimple) return true
+    return isGeneratedSimpleListingOption(option.attribute, option.value, name)
   }
 
-  return namedAsSimple
+  return metadataIsSimple
 }
 
 function normalizeOptionText(value) {
@@ -415,7 +423,7 @@ export function inferListingTypeFromValues(values = {}) {
   if (extras.length > 0) return LISTING_TYPES.VARIANTS
 
   const name = String(values.name ?? '').trim()
-  if (name && isMainProductOption(values, name, name)) {
+  if (isGeneratedSimpleListingOption(values.main_attribute, values.main_attribute_value, name)) {
     return LISTING_TYPES.SIMPLE
   }
 
@@ -442,10 +450,10 @@ export function resolveSimpleVariationIdentity(values = {}) {
   const sku = String(values.sku ?? '').trim()
 
   return {
-    attribute: name,
-    value: name,
+    attribute: SIMPLE_LISTING_ATTRIBUTE,
+    value: SIMPLE_LISTING_VALUE,
     variant_name: name,
-    sku: resolveDefaultVariantSku(sku, name, name),
+    sku: resolveDefaultVariantSku(sku, SIMPLE_LISTING_ATTRIBUTE, SIMPLE_LISTING_VALUE),
     source: 'simple',
   }
 }
