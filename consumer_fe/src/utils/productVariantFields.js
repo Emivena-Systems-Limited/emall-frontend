@@ -277,7 +277,18 @@ function getMetadataMapValue(metadata, key) {
   return String(match?.value ?? '').trim()
 }
 
-/** True when the listing has a single auto-generated SKU named after the product. */
+export function isPlaceholderVariantAttribute(key, value) {
+  return isSameVariantOption(key, 'Default') && isSameVariantOption(value, 'Standard')
+}
+
+export function isPlaceholderOptionGroup(group) {
+  const key = group?.key ?? group?.label ?? ''
+  const values = Array.isArray(group?.values) ? group.values : []
+  if (values.length === 0) return isSameVariantOption(key, 'Default')
+  return values.every((value) => isPlaceholderVariantAttribute(key, value))
+}
+
+/** True when the listing has a single auto-generated SKU, not shopper-facing options. */
 export function isSimpleListingProduct(product = {}) {
   const name = String(product.name ?? product.title ?? '').trim()
   const variants = Array.isArray(product.variants) ? product.variants : []
@@ -294,18 +305,23 @@ export function isSimpleListingProduct(product = {}) {
   const namedAsSimple = Boolean(name)
     && isSameVariantOption(mainAttribute, name)
     && isSameVariantOption(mainAttributeValue, name)
+  const placeholderAttribute = isPlaceholderVariantAttribute(mainAttribute, mainAttributeValue)
 
   if (variants.length > 1) return false
 
   if (variants.length === 1) {
     const namedEntries = normalizeVariantAttributeEntries(variants[0].attributes)
     if (namedEntries.length > 1) return false
-    if (namedAsSimple) return true
+    if (namedAsSimple || placeholderAttribute) return true
+    if (namedEntries.length === 1) {
+      return isPlaceholderVariantAttribute(namedEntries[0].name, namedEntries[0].value)
+    }
     const { attributeKey, attributeValue } = resolveVariantAttributeFields(variants[0])
+    if (isPlaceholderVariantAttribute(attributeKey, attributeValue)) return true
     return Boolean(name)
       && isSameVariantOption(attributeKey, name)
       && isSameVariantOption(attributeValue, name)
   }
 
-  return namedAsSimple
+  return namedAsSimple || placeholderAttribute
 }

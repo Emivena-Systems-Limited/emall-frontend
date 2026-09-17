@@ -92,6 +92,23 @@ function getProductImage(product) {
   );
 }
 
+function getVendorCity(product) {
+  const vendor = product?.vendor ?? product?.store ?? {};
+  const address = vendor.addresses ?? vendor.address ?? product?.addresses ?? product?.address;
+  const record = Array.isArray(address)
+    ? address.find((item) => item && typeof item === 'object')
+    : address;
+
+  return firstValue(
+    vendor.city,
+    vendor.city_or_town,
+    record?.city,
+    record?.city_or_town,
+    vendor.location?.city,
+    vendor.location?.city_or_town,
+  );
+}
+
 function getVariantText(product) {
   const variation = toArray(product.variants || product.variations)[0];
   const color = firstValue(
@@ -195,6 +212,7 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
     product.store && typeof product.store === 'object' ? product.store : null;
   const filterFields = enrichLandingProductForFilters(product, index, options);
   const priceRange = { min: filterFields.minPrice, max: filterFields.maxPrice };
+  const storeCity = getVendorCity(product);
 
   return {
     id,
@@ -255,9 +273,11 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
       product.store_name,
       product.vendor?.name,
     ),
+    storeCity,
     deliverySource: {
       store: product.store,
       vendor: product.vendor,
+      storeCity,
       delivers_to_user_location: product.delivers_to_user_location,
       delivery_eligible: product.delivery_eligible,
       serves_location: product.serves_location,

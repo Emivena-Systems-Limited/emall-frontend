@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { ShoppingCart, Star } from 'lucide-react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
@@ -9,9 +8,8 @@ import { STAR_EMPTY_FILL, STAR_FILL } from '../../constants/landingLayout'
 import { isProductInCart, selectCartItems } from '../../store/slices/cartSlice'
 import PortaledHoverTooltip from './PortaledHoverTooltip'
 import QuickAddToCartModal from '../product/QuickAddToCartModal'
-import { getProductDeliveryEligibility } from '../../services/storeService'
 import { LOCK_PURCHASE_ACTIONS, STORE_DELIVERY_ELIGIBILITY_ENABLED } from '../../config/featureFlags'
-import { resolveProductStoreEligibility, resolveShoppingLocationDetails } from '../../utils/storefront'
+import { resolveAuthUserCity, resolveLocalDeliveryEligibility } from '../../utils/storefront'
 
 function PriceDisplay({ price, compareAt }) {
   const [integer, decimal] = formatCedi(price).split('.')
@@ -76,28 +74,19 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
   const [quickAddMounted, setQuickAddMounted] = useState(false)
   const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
   const productId = product.backendId ?? product.id
-  const shoppingLocation = resolveShoppingLocationDetails(user)
-  const eligibilityQuery = useQuery({
-    queryKey: ['product-delivery-eligibility', product.backendId, shoppingLocation.region, shoppingLocation.city],
-    queryFn: () => getProductDeliveryEligibility(product.backendId, shoppingLocation),
-    enabled: Boolean(isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && product.backendId && !disabledReason),
-    staleTime: 60 * 1000,
-    retry: 0,
-  })
-  const liveEligibility = eligibilityQuery.data?.delivery_eligible
-  const fallbackEligibility = resolveProductStoreEligibility(product.deliverySource ?? product, shoppingLocation.city)
+  const userCity = resolveAuthUserCity(user)
   const deliveryEligible = !STORE_DELIVERY_ELIGIBILITY_ENABLED
     ? true
-    : typeof liveEligibility === 'boolean'
-      ? liveEligibility
-      : eligibilityQuery.isError
-        ? false
-        : fallbackEligibility
-  const isCheckingDelivery = eligibilityQuery.isPending && eligibilityQuery.fetchStatus === 'fetching'
+    : resolveLocalDeliveryEligibility(product.deliverySource ?? product, user)
+  const locationBlocksPurchase = Boolean(
+    isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible,
+  )
   const effectiveDisabledReason = disabledReason
-    || (isCheckingDelivery ? 'Checking delivery availability' : '')
-    || (!deliveryEligible ? `Not available in ${shoppingLocation.city}` : '')
-  const cartLocked = LOCK_PURCHASE_ACTIONS && (!isAuthenticated || Boolean(effectiveDisabledReason))
+    || (locationBlocksPurchase
+      ? `Not available in ${userCity || 'your location'}`
+      : '')
+  const cartLocked = Boolean(effectiveDisabledReason)
+    || (LOCK_PURCHASE_ACTIONS && !isAuthenticated)
   const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
   const tooltipContent = cartLocked
     ? (effectiveDisabledReason || (isInCart ? 'Already in cart — add another option' : ''))
@@ -176,7 +165,7 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
               }
               disabled={cartLocked}
               onClick={handleAddToCart}
-              className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed ${
+              className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 cartLocked
                   ? 'border-slate-200 bg-slate-100 text-slate-400 shadow-none'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'

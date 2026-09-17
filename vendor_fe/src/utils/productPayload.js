@@ -152,19 +152,28 @@ function resolveProductPricingValues(values = {}) {
     values.discount_price,
     values.discount_percent,
   )
+  // products.regular_discount_price is NOT NULL; no sale → list price (0 is not a sale).
+  const regularDiscountPrice = salePrice ?? listPrice ?? 0
 
   return {
     discountMode,
     listPrice,
     salePrice,
+    regularDiscountPrice,
     discountPercent: toNumberOrNull(values.discount_percent),
     discountAmount: toNumberOrNull(values.discount_price),
   }
 }
 
 function appendRootPricingFields(formData, values = {}) {
-  const { discountMode, listPrice, salePrice, discountPercent, discountAmount } =
-    resolveProductPricingValues(values)
+  const {
+    discountMode,
+    listPrice,
+    salePrice,
+    regularDiscountPrice,
+    discountPercent,
+    discountAmount,
+  } = resolveProductPricingValues(values)
 
   appendFormData(formData, 'regular_price', listPrice)
   appendFormData(formData, 'price', listPrice)
@@ -173,10 +182,10 @@ function appendRootPricingFields(formData, values = {}) {
   if (discountMode === 'percent') {
     appendFormData(formData, 'discount_percent', discountPercent)
   } else {
-    appendFormData(formData, 'discount_price', discountAmount ?? salePrice)
+    appendFormData(formData, 'discount_price', discountAmount ?? salePrice ?? listPrice)
   }
 
-  appendFormData(formData, 'regular_discount_price', salePrice)
+  appendFormData(formData, 'regular_discount_price', regularDiscountPrice)
 }
 
 function slugifyAttributeKey(value) {
@@ -1544,8 +1553,14 @@ export function buildProductInfoJsonPayload(
 
   assertProductInfoImagesReady(mainImage, subImages, descriptiveImages)
 
-  const { discountMode, listPrice, salePrice, discountPercent, discountAmount } =
-    resolveProductPricingValues(values)
+  const {
+    discountMode,
+    listPrice,
+    salePrice,
+    regularDiscountPrice,
+    discountPercent,
+    discountAmount,
+  } = resolveProductPricingValues(values)
   const metadata = mergeProductMetadata(values)
   const mediaImages = buildProductMediaSaveImagesPayload({
     mainImage,
@@ -1568,8 +1583,8 @@ export function buildProductInfoJsonPayload(
     price: listPrice,
     discount_mode: discountMode,
     discount_percent: discountMode === 'percent' ? discountPercent : undefined,
-    discount_price: discountMode === 'percent' ? undefined : (discountAmount ?? salePrice),
-    regular_discount_price: salePrice,
+    discount_price: discountMode === 'percent' ? undefined : (discountAmount ?? salePrice ?? listPrice),
+    regular_discount_price: regularDiscountPrice,
     low_stock_threshold: toNumberOrNull(values.low_stock_threshold),
     barcode: values.barcode?.trim() || null,
     tags: values.tags ?? [],
@@ -1618,8 +1633,14 @@ export function buildProductCreateJsonPayload(
     })
   }
 
-  const { discountMode, listPrice, salePrice, discountPercent, discountAmount } =
-    resolveProductPricingValues(values)
+  const {
+    discountMode,
+    listPrice,
+    salePrice,
+    regularDiscountPrice,
+    discountPercent,
+    discountAmount,
+  } = resolveProductPricingValues(values)
   const metadata = mergeProductMetadata(values)
   const mediaImages = buildProductMediaSaveImagesPayload({
     mainImage,
@@ -1643,8 +1664,8 @@ export function buildProductCreateJsonPayload(
     price: listPrice,
     discount_mode: discountMode,
     discount_percent: discountMode === 'percent' ? discountPercent : undefined,
-    discount_price: discountMode === 'percent' ? undefined : (discountAmount ?? salePrice),
-    regular_discount_price: salePrice,
+    discount_price: discountMode === 'percent' ? undefined : (discountAmount ?? salePrice ?? listPrice),
+    regular_discount_price: regularDiscountPrice,
     quantity: Number(values.quantity),
     low_stock_threshold: toNumberOrNull(values.low_stock_threshold),
     barcode: values.barcode?.trim() || null,

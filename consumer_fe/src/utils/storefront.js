@@ -78,6 +78,71 @@ function asArray(value) {
   return []
 }
 
+function asAddressRecord(value) {
+  if (Array.isArray(value)) return value.find(isPlainRecord) ?? null
+  return isPlainRecord(value) ? value : null
+}
+
+function normalizeCityKey(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^.+::/, '')
+}
+
+function displayCity(value) {
+  const raw = firstValue(value)
+  if (!raw) return ''
+  return titleCase(String(raw).replace(/^.+::/, ''))
+}
+
+export function resolveVendorAddress(source) {
+  const vendor = source?.vendor ?? source?.store ?? source
+  return asAddressRecord(vendor?.addresses)
+    ?? asAddressRecord(vendor?.address)
+    ?? asAddressRecord(source?.addresses)
+    ?? asAddressRecord(source?.address)
+}
+
+export function resolveVendorCity(source) {
+  const vendor = source?.vendor ?? source?.store ?? source
+  const address = resolveVendorAddress(source)
+  return displayCity(firstValue(
+    vendor?.city,
+    vendor?.city_or_town,
+    address?.city,
+    address?.city_or_town,
+    vendor?.location?.city,
+    vendor?.location?.city_or_town,
+    source?.storeCity,
+    source?.city,
+    source?.city_or_town,
+  ))
+}
+
+export function resolveAuthUserCity(user) {
+  return displayCity(firstValue(
+    user?.city_or_town,
+    user?.city,
+    user?.town,
+    user?.default_address?.city_or_town,
+    user?.default_address?.city,
+  ))
+}
+
+export function isSameCity(left, right) {
+  const first = normalizeCityKey(left)
+  const second = normalizeCityKey(right)
+  return Boolean(first && second && first === second)
+}
+
+export function resolveLocalDeliveryEligibility(productOrApiProduct, user) {
+  const vendorCity = resolveVendorCity(productOrApiProduct)
+  const userCity = resolveAuthUserCity(user)
+  if (!vendorCity || !userCity) return true
+  return isSameCity(vendorCity, userCity)
+}
+
 export function normalizeStoreRecord(record, index = 0) {
   if (!record || typeof record !== 'object') return null
   const source = record.store && typeof record.store === 'object' ? record.store : record
@@ -101,28 +166,28 @@ export function normalizeStoreRecord(record, index = 0) {
     source.avatar,
     source.profile_image,
   )
+  const vendorAddress = resolveVendorAddress(source)
   return {
     ...source,
     id: String(storeId),
     name: firstValue(source.store_name, source.business_name, source.name, source.title, 'Marketplace store'),
     tradingName: firstValue(source.trading_name, source.tradingName, ''),
-    city: titleCase(firstValue(
-      source.city,
-      source.city_or_town,
+    city: resolveVendorCity(source) || titleCase(firstValue(
       source.store_location,
       source.location_name,
       typeof source.location === 'string' ? source.location : undefined,
-      source.location?.city,
-      source.location?.city_or_town,
-      source.address?.city,
-      source.address?.city_or_town,
       source.region,
-      source.location?.region,
-      source.address?.region,
+      vendorAddress?.region,
       serviceAreas[0],
       'Location unavailable',
     )),
-    region: firstValue(source.region, source.location?.region, source.address?.region, ''),
+    region: firstValue(
+      source.region,
+      source.location?.region,
+      vendorAddress?.region,
+      source.address?.region,
+      '',
+    ),
     logo,
     image: firstValue(source.cover_image, source.cover_photo, source.banner, source.banner_image, source.store_image, logo, products[0]?.image, null),
     bannerImage: firstValue(source.banner_image, source.cover_image, source.cover_photo, source.banner, null),
@@ -172,7 +237,7 @@ export function buildStoreDirectory(landingData) {
     if (!product) return
     const current = stores.get(String(id)) ?? {
       id: String(id), name: firstValue(vendor?.store_name, vendor?.business_name, vendor?.name, 'Marketplace store'),
-      city: firstValue(vendor?.city, vendor?.city_or_town, vendor?.location?.city, 'Ghana'),
+      city: firstValue(resolveVendorCity(vendor), vendor?.city, vendor?.city_or_town, vendor?.location?.city, 'Ghana'),
       image: firstValue(vendor?.logo, vendor?.image, vendor?.avatar, product.image), serviceAreas: getServiceAreas(vendor),
       explicitEligibility: firstValue(vendor?.delivers_to_user_location, vendor?.delivery_eligible), products: [],
     }
@@ -223,5 +288,18 @@ export function resolveStoreEligibility(store, location) {
 
 export function resolveProductStoreEligibility(apiProduct, location) {
   const store = apiProduct?.vendor ?? apiProduct?.store ?? {}
-  return resolveStoreEligibility({ ...store, explicitEligibility: firstValue(apiProduct?.delivers_to_user_location, apiProduct?.delivery_eligible, apiProduct?.serves_location, store?.delivers_to_user_location, store?.delivery_eligible), serviceAreas: getServiceAreas(store) }, location)
+  const vendorCity = resolveVendorCity(apiProduct)
+  const areas = getServiceAreas(store)
+  const serviceAreas = areas.length > 0 ? areas : (vendorCity ? [vendorCity] : [])
+  return resolveStoreEligibility({
+    ...store,
+    explicitEligibility: firstValue(
+      apiProduct?.delivers_to_user_location,
+      apiProduct?.delivery_eligible,
+      apiProduct?.serves_location,
+      store?.delivers_to_user_location,
+      store?.delivery_eligible,
+    ),
+    serviceAreas,
+  }, location)
 }

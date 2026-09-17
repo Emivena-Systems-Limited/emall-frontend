@@ -22,13 +22,13 @@ import KeyDetailsModal from '../components/product/KeyDetailsModal'
 import ProductDetailsSkeleton from '../components/product/ProductDetailsSkeleton'
 import ProductReviewsModal from '../components/product/ProductReviewsModal'
 import ImageLightbox from '../components/shared/ImageLightbox'
+import PortaledHoverTooltip from '../components/shared/PortaledHoverTooltip'
 import VendorReviewReply, { normalizeVendorReviewReply } from '../components/shared/VendorReviewReply'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { getProductById } from '../services/landingPageService'
 import {
   followStore,
-  getProductDeliveryEligibility,
   getStore,
   getStoreFollowStatus,
   unfollowStore,
@@ -61,14 +61,17 @@ import { mapKeyDetailsEntries, mapKeyDetailsToObject } from '../utils/productKey
 import { calculateDisplayDiscountPercent } from '../utils/productPricing'
 import { resolveProductDisplayPrices } from '../utils/extractProductVariantFacets'
 import {
-  resolveProductStoreEligibility,
-  resolveShoppingLocationDetails,
+  resolveAuthUserCity,
+  resolveLocalDeliveryEligibility,
+  resolveVendorAddress,
+  resolveVendorCity,
 } from '../utils/storefront'
 import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
   isSameVariantOption,
   isSimpleListingProduct,
+  isPlaceholderOptionGroup,
   normalizeVariantAttributeEntries,
   resolveBrandName,
   resolveCanonicalVariantOption,
@@ -537,6 +540,9 @@ function ProductInfoPanel({
   const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
 
   const requiresVariantSku = Array.isArray(product.variants) && product.variants.length > 0
+  const locationBlocksPurchase = Boolean(
+    isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible,
+  )
 
   const buildCartArgs = () => ({
     product: {
@@ -565,6 +571,7 @@ function ProductInfoPanel({
   })
 
   const handleAddToCart = async () => {
+    if (locationBlocksPurchase) return
     if (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || !deliveryEligible)) return
     if (LOCK_PURCHASE_ACTIONS && isInCart) return
     if (isAddingToCart) return
@@ -595,6 +602,7 @@ function ProductInfoPanel({
   }
 
   const handleBuyNow = async () => {
+    if (locationBlocksPurchase) return
     if (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || !deliveryEligible)) return
     if (isBuyingNow) return
 
@@ -695,7 +703,7 @@ function ProductInfoPanel({
         )}
       </div>
 
-      {SHOW_PRODUCT_VARIANTS && isMultiFamily ? (
+      {SHOW_PRODUCT_VARIANTS && !product.isSimpleListing && isMultiFamily ? (
         variantFamilies.map((family, familyIdx) => {
           const isFamilyActive = activeFamilyId === family.id
           const selectedPrimary = isFamilyActive ? (familyPrimary[family.id] ?? '') : ''
@@ -732,7 +740,7 @@ function ProductInfoPanel({
           )
         })
       ) : (
-        SHOW_PRODUCT_VARIANTS && visibleOptionGroups.map((group, index) => (
+        SHOW_PRODUCT_VARIANTS && !product.isSimpleListing && visibleOptionGroups.map((group, index) => (
           <VariantOptionRow
             key={group.key}
             label={group.label}
@@ -781,9 +789,13 @@ function ProductInfoPanel({
         </div>
       </div>
 
-      {isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible ? (
-        <div className="mt-4 flex gap-2.5 rounded-xl border border-red-100 bg-red-50/70 p-3 text-xs leading-5 text-slate-700">
-          <MapPin className="mt-0.5 size-4 shrink-0 text-auth-primary" />
+      {locationBlocksPurchase ? (
+        <div
+          id="product-delivery-unavailable"
+          role="status"
+          className="mt-4 flex gap-2.5 rounded-xl border border-red-100 bg-red-50/70 p-3 text-xs leading-5 text-slate-700"
+        >
+          <MapPin className="mt-0.5 size-4 shrink-0 text-auth-primary" aria-hidden="true" />
           <p><span className="font-bold text-slate-900">Delivery unavailable{shoppingLocation ? ` in ${shoppingLocation}` : ''}.</span> This store does not currently deliver to your location.</p>
         </div>
       ) : null}
@@ -791,9 +803,10 @@ function ProductInfoPanel({
       <div className="mt-4 grid gap-2 min-[420px]:grid-cols-2 sm:gap-3">
         <button
           type="button"
-          disabled={isBuyingNow || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || !deliveryEligible))}
+          disabled={isBuyingNow || locationBlocksPurchase || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || !deliveryEligible))}
           onClick={handleBuyNow}
           aria-busy={isBuyingNow}
+          aria-describedby={locationBlocksPurchase ? 'product-delivery-unavailable' : undefined}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isBuyingNow ? (
@@ -807,9 +820,10 @@ function ProductInfoPanel({
         </button>
         <button
           type="button"
-          disabled={isAddingToCart || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || isInCart || !deliveryEligible))}
+          disabled={isAddingToCart || locationBlocksPurchase || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || isInCart || !deliveryEligible))}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
+          aria-describedby={locationBlocksPurchase ? 'product-delivery-unavailable' : undefined}
           className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isAddingToCart ? (
@@ -1181,14 +1195,26 @@ function RailProductCard({ product }) {
   const productHref = product.href?.replace(/^\/products\//, '/')
   const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
+  const user = useSelector((state) => state.auth.user)
   const { addToCart } = useCartActions()
   const miniCart = useOptionalMiniCart()
   const [isAdding, setIsAdding] = useState(false)
   const productId = product.backendId ?? product.id
   const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
+  const userCity = resolveAuthUserCity(user)
+  const deliveryEligible = !STORE_DELIVERY_ELIGIBILITY_ENABLED
+    ? true
+    : resolveLocalDeliveryEligibility(product.deliverySource ?? product, user)
+  const locationBlocksPurchase = Boolean(
+    isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible,
+  )
+  const cartLocked = locationBlocksPurchase || !isAuthenticated || isAdding || isInCart
+  const cartDisabledReason = locationBlocksPurchase
+    ? `Not available in ${userCity || 'your location'}`
+    : (isInCart ? `${product.name} is already in cart` : `Add ${product.name} to cart`)
 
   const handleRailAddToCart = async () => {
-    if (!isAuthenticated || isAdding || isInCart) return
+    if (cartLocked) return
 
     setIsAdding(true)
     try {
@@ -1249,15 +1275,21 @@ function RailProductCard({ product }) {
         ) : (
           <span className="text-[0.5625rem] text-slate-400">No reviews</span>
         )}
-        <span className="group/rail-cart relative flex shrink-0">
+        <PortaledHoverTooltip
+          content={
+            locationBlocksPurchase
+              ? cartDisabledReason
+              : (isInCart ? 'Already in cart' : '')
+          }
+        >
           <button
             type="button"
             onClick={handleRailAddToCart}
-            disabled={!isAuthenticated || isAdding || isInCart}
+            disabled={cartLocked}
             aria-busy={isAdding}
-            aria-label={isInCart ? `${product.name} is already in cart` : `Add ${product.name} to cart`}
-            className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed ${
-              !isAuthenticated || isInCart
+            aria-label={cartDisabledReason}
+            className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              cartLocked
                 ? 'border-slate-200 bg-slate-100 text-slate-400'
                 : 'border-slate-300 text-slate-500 hover:border-auth-primary hover:text-auth-primary'
             }`}
@@ -1266,15 +1298,7 @@ function RailProductCard({ product }) {
               ? <Loader2 className="size-3 animate-spin" aria-hidden="true" />
               : <ShoppingCart className="size-3" strokeWidth={1.8} />}
           </button>
-          {isInCart && (
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute bottom-[calc(100%+0.4rem)] right-0 z-30 whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-[0.625rem] font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover/rail-cart:opacity-100 group-focus-within/rail-cart:opacity-100"
-            >
-              Already in cart
-            </span>
-          )}
-        </span>
+        </PortaledHoverTooltip>
       </div>
     </article>
   )
@@ -1926,7 +1950,7 @@ function normalizeApiProductDetails(apiProduct) {
     label: formatVariantGroupLabel(key),
     values: [...group.values],
     images: group.images,
-  }))
+  })).filter((group) => !isPlaceholderOptionGroup(group))
 
   if (mainAttribute) {
     variantOptionGroups = [
@@ -1986,6 +2010,8 @@ function normalizeApiProductDetails(apiProduct) {
   const packageDimensions = formatPackageDimensions(metadata)
   const itemWeight = formatItemWeight(metadata, null)
 
+  const vendorAddress = resolveVendorAddress(apiProduct)
+
   return {
     ...core,
     slug: apiProduct.slug,
@@ -2010,14 +2036,9 @@ function normalizeApiProductDetails(apiProduct) {
       || apiProduct.store?.cover_image
       || apiProduct.store?.image
       || '',
-    storeCity: apiProduct.vendor?.city
-      || apiProduct.vendor?.city_or_town
-      || apiProduct.vendor?.address?.city
-      || apiProduct.vendor?.address?.city_or_town
-      || apiProduct.store?.city
-      || '',
+    storeCity: resolveVendorCity(apiProduct),
     storeRegion: apiProduct.vendor?.region
-      || apiProduct.vendor?.address?.region
+      || vendorAddress?.region
       || apiProduct.store?.region
       || '',
     salesCount: 120,
@@ -2201,7 +2222,7 @@ function findMatchingVariant(product, selections = {}) {
   const groups = product?.variantOptionGroups ?? []
   if (!variants.length) return null
 
-  if (!groups.length) {
+  if (product?.isSimpleListing || !groups.length) {
     return findMainProductVariant(product) ?? variants[0] ?? null
   }
 
@@ -2324,21 +2345,10 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const [familySecondary, setFamilySecondary] = useState(initialFamilyState.familySecondary)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const user = useSelector((state) => state.auth.user)
-  const shoppingLocationDetails = resolveShoppingLocationDetails(user)
-  const shoppingLocation = shoppingLocationDetails.city
-  const deliveryEligibilityQuery = useQuery({
-    queryKey: ['product-delivery-eligibility', apiProduct?.id, shoppingLocationDetails.region, shoppingLocationDetails.city],
-    queryFn: () => getProductDeliveryEligibility(apiProduct.id, shoppingLocationDetails),
-    enabled: Boolean(isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && apiProduct?.id),
-    staleTime: 60 * 1000,
-    retry: 0,
-  })
-  const liveDeliveryEligibility = deliveryEligibilityQuery.data?.delivery_eligible
+  const shoppingLocation = resolveAuthUserCity(user)
   const deliveryEligible = !STORE_DELIVERY_ELIGIBILITY_ENABLED
     ? true
-    : typeof liveDeliveryEligibility === 'boolean'
-      ? liveDeliveryEligibility
-      : apiProduct ? resolveProductStoreEligibility(apiProduct, shoppingLocation) : true
+    : resolveLocalDeliveryEligibility(apiProduct ?? product, user)
   const [localWishlisted, setLocalWishlisted] = useState(false)
   const [localWishlistItemId, setLocalWishlistItemId] = useState('')
   const [isTogglingWishlist, setIsTogglingWishlist] = useState(false)
@@ -2374,6 +2384,9 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
   const isWishlisted = Boolean(currentWishlistItem || localWishlisted)
 
   const activeVariant = useMemo(() => {
+    if (product.isSimpleListing) {
+      return findMainProductVariant(product) ?? product.variants?.[0] ?? null
+    }
     if (isMultiFamily && activeFamilyId) {
       const family = variantFamilies.find((f) => f.id === activeFamilyId)
       if (family) {
