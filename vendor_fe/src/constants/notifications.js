@@ -2,6 +2,16 @@ export const NOTIFICATION_PAGE_SIZE = 8
 export const DASHBOARD_NOTIFICATIONS_LIMIT = 5
 export const NOTIFICATIONS_STORAGE_KEY = 'vendor-notifications-state'
 
+export const NOTIFICATION_ENDPOINTS = {
+  LIST: '/api/vendor/notifications',
+  MARK_ALL_READ: '/api/vendor/notifications/mark-all-read',
+  UNREAD_COUNT: '/api/vendor/notifications/unread-count',
+  PREFERENCES: '/api/vendor/notifications/preferences',
+  CLEAR_READ: '/api/vendor/notifications/read',
+  markRead: (notificationId) => `/api/vendor/notifications/${notificationId}/read`,
+  byId: (notificationId) => `/api/vendor/notifications/${notificationId}`,
+}
+
 export const NOTIFICATION_CATEGORIES = {
   all: 'all',
   orders: 'orders',

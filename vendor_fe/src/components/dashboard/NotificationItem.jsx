@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { useMarkNotificationReadMutation } from '../../hooks/useNotifications'
 import { getNotificationType } from '../../utils/notificationUtils'
 import { useVendorNotifications } from '../notifications/VendorNotificationsProvider'
 
@@ -26,8 +27,22 @@ export function NotificationIcon({ type }) {
 }
 
 export function NotificationItem({ notification, asLink = true }) {
-  const { markRead } = useVendorNotifications()
+  const { devDataEnabled, markRead } = useVendorNotifications()
+  const markReadMutation = useMarkNotificationReadMutation()
   const href = notification.link || getNotificationType(notification.type).defaultTo
+
+  const markOpened = () => {
+    if (notification.read) return
+    if (devDataEnabled) {
+      markRead(notification.id, true)
+      return
+    }
+    markReadMutation.mutate({
+      id: notification.id,
+      category: notification.category,
+      silent: true,
+    })
+  }
 
   const content = (
     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start">
@@ -65,9 +80,7 @@ export function NotificationItem({ notification, asLink = true }) {
     return (
       <Link
         to={href}
-        onClick={() => {
-          if (!notification.read) markRead(notification.id, true)
-        }}
+        onClick={markOpened}
         className={className}
       >
         {content}

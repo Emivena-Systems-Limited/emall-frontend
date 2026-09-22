@@ -7,7 +7,7 @@ import {
   getNotificationType,
 } from '../../utils/notificationUtils'
 
-function NotificationMenu({ notification, onMarkRead, onDelete }) {
+function NotificationMenu({ notification, onMarkRead, onDelete, allowMarkUnread = true }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -37,22 +37,24 @@ function NotificationMenu({ notification, onMarkRead, onDelete }) {
           role="menu"
           className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false)
-              onMarkRead(notification.id, !notification.read)
-            }}
-            className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            {notification.read ? (
-              <Mail className="size-3.5 text-slate-400" strokeWidth={2} />
-            ) : (
-              <Check className="size-3.5 text-slate-400" strokeWidth={2} />
-            )}
-            {notification.read ? 'Mark as unread' : 'Mark as read'}
-          </button>
+          {(!notification.read || allowMarkUnread) && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false)
+                onMarkRead(notification.id, !notification.read)
+              }}
+              className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              {notification.read ? (
+                <Mail className="size-3.5 text-slate-400" strokeWidth={2} />
+              ) : (
+                <Check className="size-3.5 text-slate-400" strokeWidth={2} />
+              )}
+              {notification.read ? 'Mark as unread' : 'Mark as read'}
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -71,7 +73,12 @@ function NotificationMenu({ notification, onMarkRead, onDelete }) {
   )
 }
 
-export default function NotificationCard({ notification, onMarkRead, onDelete }) {
+export default function NotificationCard({
+  notification,
+  onMarkRead,
+  onDelete,
+  allowMarkUnread = true,
+}) {
   const navigate = useNavigate()
   const type = getNotificationType(notification.type)
   const Icon = type.icon
@@ -85,10 +92,8 @@ export default function NotificationCard({ notification, onMarkRead, onDelete })
 
   return (
     <article
-      className={`flex gap-3 rounded-2xl border px-4 py-3.5 transition-colors sm:gap-4 sm:px-5 ${
-        unread
-          ? 'border-brand/20 border-l-2 border-l-brand bg-brand-light/50'
-          : 'border-slate-200 bg-white hover:border-slate-300'
+      className={`flex gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-[0_1px_1px_rgba(15,23,42,0.04),0_10px_24px_-12px_rgba(15,23,42,0.12),0_18px_40px_-18px_rgba(15,23,42,0.14)] transition-shadow hover:shadow-[0_1px_2px_rgba(15,23,42,0.05),0_16px_32px_-12px_rgba(15,23,42,0.16),0_24px_48px_-20px_rgba(15,23,42,0.18)] sm:gap-4 sm:px-5 ${
+        unread ? 'border-l-[3px] border-l-red-600' : ''
       }`}
     >
       <button
@@ -104,9 +109,6 @@ export default function NotificationCard({ notification, onMarkRead, onDelete })
             <span className={`text-sm ${unread ? 'font-bold text-slate-950' : 'font-semibold text-slate-800'}`}>
               {notification.title}
             </span>
-            {unread && (
-              <span className="size-2 shrink-0 rounded-full bg-brand" aria-hidden="true" />
-            )}
             <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 ring-1 ring-slate-200/80">
               {type.label}
             </span>
@@ -136,6 +138,7 @@ export default function NotificationCard({ notification, onMarkRead, onDelete })
           notification={notification}
           onMarkRead={onMarkRead}
           onDelete={onDelete}
+          allowMarkUnread={allowMarkUnread}
         />
       </div>
     </article>

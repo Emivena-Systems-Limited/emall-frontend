@@ -6,6 +6,7 @@ export default function NotificationStatusFilters({
   onChange,
   onClearRead,
   canClearRead,
+  clearLabel = 'Clear all read',
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -42,7 +43,7 @@ export default function NotificationStatusFilters({
         className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Trash2 className="size-3.5" strokeWidth={2} />
-        Clear all read
+        {clearLabel}
       </button>
     </div>
   )

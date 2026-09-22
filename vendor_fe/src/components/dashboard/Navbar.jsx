@@ -25,14 +25,15 @@ function getVendorRole(user) {
 }
 
 function NavIconButton({ icon: Icon, label, count = 0, to, onClick }) {
-  const badge = formatBadgeCount(count)
-  const className = 'relative flex size-9 cursor-pointer items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800'
+  const numericCount = Number(count)
+  const badge = formatBadgeCount(Number.isFinite(numericCount) ? numericCount : 0)
+  const className = 'relative flex size-9 cursor-pointer items-center justify-center overflow-visible rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800'
 
   const content = (
     <>
       <Icon className="size-4" strokeWidth={2} />
       {badge && (
-        <span className="absolute -right-0.5 -top-0.5 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
+        <span className="absolute -right-1.5 -top-1.5 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold leading-none text-white tabular-nums ring-2 ring-white">
           {badge}
         </span>
       )}
@@ -155,7 +156,7 @@ export default function Navbar({ onMobileMenuOpen, pageTitle }) {
   const { user } = useSelector((state) => state.auth)
   const logoutMutation = useLogoutVendorMutation()
   const { unreadCount } = useVendorNotifications()
-  const notificationCount = unreadCount
+  const notificationCount = Number.isFinite(Number(unreadCount)) ? Number(unreadCount) : 0
   const messageCount = getNavBadgeCount('messages')
 
   return (

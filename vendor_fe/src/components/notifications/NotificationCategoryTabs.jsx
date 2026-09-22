@@ -6,7 +6,8 @@ export default function NotificationCategoryTabs({ active, counts, onChange }) {
       <div className="flex min-w-max flex-wrap gap-2">
         {NOTIFICATION_CATEGORY_TABS.map((tab) => {
           const isActive = active === tab.id
-          const count = counts[tab.id] ?? 0
+          const count = counts?.[tab.id]
+          const showCount = Number.isFinite(count)
 
           return (
             <button
@@ -21,13 +22,15 @@ export default function NotificationCategoryTabs({ active, counts, onChange }) {
               }`}
             >
               {tab.label}
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${
-                  isActive ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {count}
-              </span>
+              {showCount && (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${
+                    isActive ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           )
         })}

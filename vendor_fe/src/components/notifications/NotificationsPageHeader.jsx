@@ -1,4 +1,4 @@
-import { CheckCheck, Settings } from 'lucide-react'
+import { CheckCheck, Loader2, Settings } from 'lucide-react'
 import { Link } from 'react-router'
 import DevDataToggle from '../dev/DevDataToggle'
 
@@ -8,6 +8,7 @@ export default function NotificationsPageHeader({
   devDataEnabled,
   onDevDataChange,
   onMarkAllRead,
+  isMarkingAll = false,
 }) {
   const hasUnread = unreadCount > 0
 
@@ -53,11 +54,15 @@ export default function NotificationsPageHeader({
         <button
           type="button"
           onClick={onMarkAllRead}
-          disabled={!hasUnread}
+          disabled={!hasUnread || isMarkingAll}
           className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3.5 text-sm font-semibold whitespace-nowrap text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <CheckCheck className="size-4" strokeWidth={2} />
-          Mark all as read
+          {isMarkingAll ? (
+            <Loader2 className="size-4 animate-spin" strokeWidth={2} />
+          ) : (
+            <CheckCheck className="size-4" strokeWidth={2} />
+          )}
+          {isMarkingAll ? 'Marking…' : 'Mark all as read'}
         </button>
       </div>
     </div>

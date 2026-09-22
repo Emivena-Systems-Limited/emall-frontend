@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useSelector } from 'react-redux'
 import { DEV_VENDOR_NOTIFICATIONS } from '../../constants/notificationsData'
+import { useVendorNotificationUnreadCount } from '../../hooks/useNotifications'
 import {
   cloneNotifications,
   clonePreferences,
@@ -23,6 +25,7 @@ function buildState(partial) {
 }
 
 export function VendorNotificationsProvider({ children }) {
+  const isAuthenticated = useSelector((authState) => authState.auth.isAuthenticated)
   const [state, setState] = useState(() => buildState(loadNotificationState()))
 
   const commit = useCallback((updater) => {
@@ -76,7 +79,13 @@ export function VendorNotificationsProvider({ children }) {
     }))
   }, [commit])
 
-  const unreadCount = useMemo(() => countUnread(state.items), [state.items])
+  const { data: apiUnreadCount = 0 } = useVendorNotificationUnreadCount({
+    enabled: isAuthenticated && !state.enabled,
+  })
+  const unreadCount = useMemo(
+    () => (state.enabled ? countUnread(state.items) : apiUnreadCount),
+    [apiUnreadCount, state.enabled, state.items],
+  )
 
   const value = useMemo(() => ({
     notifications: state.items,
