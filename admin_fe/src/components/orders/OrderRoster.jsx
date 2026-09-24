@@ -74,7 +74,6 @@ export default function OrderRoster({
   onPageChange,
   onClearFilters,
   hasFilters = false,
-  onCancel,
 }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -192,7 +191,6 @@ export default function OrderRoster({
                       order={order}
                       onView={() => navigate(`/orders/${encodeURIComponent(apiId)}`)}
                       onViewProduct={order.productId || order.items?.[0]?.productId ? openProduct : null}
-                      onCancel={onCancel}
                     />
                   </td>
                 </tr>
@@ -229,7 +227,6 @@ export default function OrderRoster({
                   order={order}
                   onView={() => navigate(`/orders/${encodeURIComponent(apiId)}`)}
                   onViewProduct={order.productId || order.items?.[0]?.productId ? openProduct : null}
-                  onCancel={onCancel}
                 />
               </div>
               <div className="mt-3 space-y-1 text-sm">

@@ -258,7 +258,13 @@ function refreshActiveProductLists(queryClient) {
   return Promise.all([
     queryClient.invalidateQueries({
       queryKey: ADMIN_PRODUCTS_QUERY_KEY,
-      predicate: (query) => query.queryKey.includes('list') || query.queryKey.includes('pending'),
+      predicate: (query) => (
+        query.queryKey.includes('list')
+        || query.queryKey.includes('pending')
+        || query.queryKey.includes('vendor')
+        || query.queryKey.includes('count')
+        || query.queryKey.includes('vendor-count')
+      ),
       refetchType: 'active',
     }),
     queryClient.invalidateQueries({
@@ -300,7 +306,7 @@ export function useToggleProductActiveMutation() {
 
   return useMutation({
     mutationKey: [...ADMIN_PRODUCTS_QUERY_KEY, 'visibility'],
-    mutationFn: ({ id }) => toggleAdminProductActive(id),
+    mutationFn: ({ id, isActive }) => toggleAdminProductActive(id, isActive),
     onSuccess: async (record) => {
       rememberProduct(queryClient, record)
       await refreshActiveProductLists(queryClient)

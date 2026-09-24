@@ -20,7 +20,7 @@ function ProductVisibilityForm({ product, onClose }) {
 
   const handleConfirm = async () => {
     try {
-      await mutation.mutateAsync({ id: product.id })
+      await mutation.mutateAsync({ id: product.id, isActive: !product.isActive })
       onClose()
     } catch {
       // Toast is handled by the mutation.

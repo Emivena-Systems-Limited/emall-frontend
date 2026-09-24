@@ -9,7 +9,7 @@ export const PRODUCT_ADMIN_ENDPOINTS = {
 
 export const PRODUCT_API_STATUS = {
   approved: 'approved',
-  pending: 'pending_approval',
+  pending: 'pending',
   rejected: 'rejected',
 }
 

@@ -20,6 +20,53 @@ function compactParams(params) {
   )
 }
 
+function orderMatchesSearch(order, search) {
+  const needle = String(search ?? '').trim().toLowerCase()
+  if (!needle) return true
+
+  const itemText = (order?.items ?? []).flatMap((item) => [
+    item?.productName,
+    item?.sku,
+    item?.variantLabel,
+    item?.variantName,
+  ])
+
+  const haystack = [
+    order?.orderNumber,
+    order?.orderId,
+    order?.customer?.name,
+    order?.customer?.phone,
+    order?.customer?.email,
+    order?.vendorName,
+    order?.productName,
+    order?.sku,
+    ...itemText,
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  return haystack.includes(needle)
+}
+
+function applyOrderSearch(orders, pagination, search) {
+  const needle = String(search ?? '').trim()
+  const rows = Array.isArray(orders) ? orders : []
+  if (!needle) return { orders: rows, pagination }
+
+  const matches = rows.filter((order) => orderMatchesSearch(order, needle))
+  if (matches.length === rows.length) return { orders: rows, pagination }
+
+  return {
+    orders: matches,
+    pagination: {
+      ...pagination,
+      total: matches.length,
+      lastPage: 1,
+      page: 1,
+      from: matches.length ? 1 : 0,
+      to: matches.length,
+    },
+  }
+}
+
 export async function fetchAdminOrders({
   status = '',
   paymentStatus = '',
@@ -45,10 +92,11 @@ export async function fetchAdminOrders({
   })
   const envelope = assertAuthEnvelope(data, 'Could not load orders.')
 
-  return {
-    orders: normalizeAdminOrders(envelope),
-    pagination: extractAdminOrderPagination(envelope),
-  }
+  return applyOrderSearch(
+    normalizeAdminOrders(envelope),
+    extractAdminOrderPagination(envelope),
+    search,
+  )
 }
 
 export async function fetchAdminVendorOrders({
@@ -102,8 +150,9 @@ export async function fetchAdminVendorOrders({
   const normalizedOrders = normalizeAdminOrders(parsed.ordersBody)
 
   if (parsed.isUnpaginatedBundle) {
-    const paged = paginateAdminVendorOrders(normalizedOrders, {
-      total: parsed.totalOrders ?? parsed.salesSummary?.totalOrders ?? normalizedOrders.length,
+    const searched = applyOrderSearch(normalizedOrders, { total: normalizedOrders.length }, search)
+    const paged = paginateAdminVendorOrders(searched.orders, {
+      total: searched.orders.length,
       page,
       perPage,
     })
@@ -116,9 +165,15 @@ export async function fetchAdminVendorOrders({
     }
   }
 
+  const searched = applyOrderSearch(
+    normalizedOrders,
+    extractAdminOrderPagination(parsed.ordersBody),
+    search,
+  )
+
   return {
-    orders: normalizedOrders,
-    pagination: extractAdminOrderPagination(parsed.ordersBody),
+    orders: searched.orders,
+    pagination: searched.pagination,
     salesSummary: parsed.salesSummary,
     usedOrdersListFallback: false,
   }

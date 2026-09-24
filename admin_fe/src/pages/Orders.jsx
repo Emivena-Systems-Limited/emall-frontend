@@ -6,7 +6,6 @@ import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
 import OrderRoster, { OrderRosterSkeleton } from '../components/orders/OrderRoster'
 import OrderStatsGrid from '../components/orders/OrderStatsGrid'
-import OrderCancelModal from '../components/orders/OrderCancelModal'
 import OrderFiltersDrawer from '../components/orders/OrderFiltersDrawer'
 import { ORDER_STATUS_TABS } from '../constants/adminOrders'
 import { useAdminOrderRoster, useAdminOrderStats } from '../hooks/useAdminOrders'
@@ -27,7 +26,6 @@ export default function Orders() {
   const [userLabel, setUserLabel] = useState('')
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [cancelling, setCancelling] = useState(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -271,7 +269,6 @@ export default function Orders() {
               onPageChange={handlePageChange}
               onClearFilters={clearFilters}
               hasFilters={hasFilters}
-              onCancel={setCancelling}
             />
           )}
         </DashboardReveal>
@@ -306,11 +303,6 @@ export default function Orders() {
         }}
         onClear={clearDrawerFilters}
         resultCount={pagination.total}
-      />
-      <OrderCancelModal
-        open={Boolean(cancelling)}
-        order={cancelling}
-        onClose={() => setCancelling(null)}
       />
     </DashboardLayout>
   )

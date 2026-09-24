@@ -37,12 +37,21 @@ function productMatchesSearch(product, search) {
   return haystack.includes(needle)
 }
 
-function applyProductSearch(products, pagination, search) {
-  const needle = String(search ?? '').trim()
-  if (!needle) return { products, pagination }
-
+function applyCatalogFilters(products, pagination, { status = '', visibility = '', vendorId = '', search = '' } = {}) {
   const rows = Array.isArray(products) ? products : []
-  const matches = rows.filter((product) => productMatchesSearch(product, needle))
+  const expectedStatus = status ? normalizeProductApprovalStatus(status) : ''
+  const vendor = String(vendorId ?? '').trim()
+  const needle = String(search ?? '').trim()
+
+  const matches = rows.filter((product) => {
+    if (expectedStatus && product.approvalStatus !== expectedStatus) return false
+    if (visibility === 'visible' && product.isActive === false) return false
+    if (visibility === 'hidden' && product.isActive !== false) return false
+    if (vendor && String(product.vendorId ?? '') !== vendor) return false
+    if (needle && !productMatchesSearch(product, needle)) return false
+    return true
+  })
+
   if (matches.length === rows.length) return { products: rows, pagination }
 
   return {
@@ -56,17 +65,6 @@ function applyProductSearch(products, pagination, search) {
       to: matches.length,
     },
   }
-}
-
-function paginationForStatus(products, pagination, status) {
-  const expected = normalizeProductApprovalStatus(status)
-  if (!status || !expected) return pagination
-
-  const rows = Array.isArray(products) ? products : []
-  if (rows.length === 0) return pagination
-  const matches = rows.filter((product) => product.approvalStatus === expected)
-  if (matches.length === rows.length) return pagination
-  return { ...pagination, total: matches.length }
 }
 
 export async function fetchAdminProducts({
@@ -92,9 +90,14 @@ export async function fetchAdminProducts({
   })
   const envelope = assertAuthEnvelope(data, 'Could not load products.')
   const products = normalizeAdminProducts(envelope)
-  const pagination = paginationForStatus(products, extractProductPagination(envelope), pending ? 'pending' : status)
+  const pagination = extractProductPagination(envelope)
 
-  return applyProductSearch(products, pagination, search)
+  return applyCatalogFilters(products, pagination, {
+    status: pending ? 'pending' : status,
+    visibility,
+    vendorId,
+    search,
+  })
 }
 
 export async function fetchAdminPendingProducts(params = {}) {
@@ -128,9 +131,9 @@ export async function fetchAdminVendorProducts({
   })
   const envelope = assertAuthEnvelope(data, 'Could not load vendor products.')
   const products = normalizeAdminProducts(envelope)
-  const pagination = paginationForStatus(products, extractProductPagination(envelope), status)
+  const pagination = extractProductPagination(envelope)
 
-  return applyProductSearch(products, pagination, search)
+  return applyCatalogFilters(products, pagination, { status, visibility, search })
 }
 
 const MAX_VENDOR_PRODUCT_PAGES = 50
@@ -193,20 +196,26 @@ export async function updateAdminProductStatus({ id, status, rejectionReason = '
   const envelope = assertAuthEnvelope(data, 'Could not update product status.')
   const record = extractAdminProductRecord(envelope, id) ?? extractProductRecord(envelope)
 
+  const saved = record?.id ? record : await fetchAdminProductById(id)
+
   return {
-    record: record?.id ? record : await fetchAdminProductById(id),
-    product: toAdminCatalogProduct(record?.id ? record : { id, status: payload.status }),
+    record: { ...saved, status: payload.status },
+    product: toAdminCatalogProduct({ ...(saved ?? {}), id, status: payload.status }),
     message: envelope?.reason || envelope?.message || 'Product status updated.',
   }
 }
 
-export async function toggleAdminProductActive(productId) {
-  const { data } = await apiClient.put(PRODUCT_ADMIN_ENDPOINTS.isActive(productId))
+export async function toggleAdminProductActive(productId, isActive) {
+  const payload = { is_active: Boolean(isActive) }
+  const { data } = await apiClient.put(PRODUCT_ADMIN_ENDPOINTS.isActive(productId), payload)
   const envelope = assertAuthEnvelope(data, 'Could not update product visibility.')
   const record = extractAdminProductRecord(envelope, productId) ?? extractProductRecord(envelope)
+  const next = record?.id ? record : await fetchAdminProductById(productId)
 
-  if (record?.id) return record
-  return fetchAdminProductById(productId)
+  return {
+    ...next,
+    is_active: payload.is_active,
+  }
 }
 
 export async function deleteAdminProduct(id) {
