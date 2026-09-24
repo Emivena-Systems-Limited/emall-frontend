@@ -57,7 +57,7 @@ export default function InventoryIdentity({ item, size = 'md' }) {
       <div className="min-w-0">
         <OverflowTooltip text={item?.productName}>
           <p className={`truncate ${large ? 'text-xl font-bold text-slate-950' : 'font-semibold text-slate-900'}`}>
-            {item?.productName || 'Listing'}
+            {item?.productName || '—'}
           </p>
         </OverflowTooltip>
         <p className={`truncate ${large ? 'mt-0.5 text-sm text-slate-500' : 'text-xs text-slate-500'}`}>

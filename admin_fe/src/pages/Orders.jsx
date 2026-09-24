@@ -6,8 +6,6 @@ import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
 import OrderRoster, { OrderRosterSkeleton } from '../components/orders/OrderRoster'
 import OrderStatsGrid from '../components/orders/OrderStatsGrid'
-import OrderPaymentStatusModal from '../components/orders/OrderPaymentStatusModal'
-import OrderDeliveryStatusModal from '../components/orders/OrderDeliveryStatusModal'
 import OrderCancelModal from '../components/orders/OrderCancelModal'
 import OrderFiltersDrawer from '../components/orders/OrderFiltersDrawer'
 import { ORDER_STATUS_TABS } from '../constants/adminOrders'
@@ -29,8 +27,6 @@ export default function Orders() {
   const [userLabel, setUserLabel] = useState('')
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [paymentOrder, setPaymentOrder] = useState(null)
-  const [deliveryOrder, setDeliveryOrder] = useState(null)
   const [cancelling, setCancelling] = useState(null)
 
   useEffect(() => {
@@ -275,8 +271,6 @@ export default function Orders() {
               onPageChange={handlePageChange}
               onClearFilters={clearFilters}
               hasFilters={hasFilters}
-              onPayment={setPaymentOrder}
-              onDelivery={setDeliveryOrder}
               onCancel={setCancelling}
             />
           )}
@@ -312,16 +306,6 @@ export default function Orders() {
         }}
         onClear={clearDrawerFilters}
         resultCount={pagination.total}
-      />
-      <OrderPaymentStatusModal
-        open={Boolean(paymentOrder)}
-        order={paymentOrder}
-        onClose={() => setPaymentOrder(null)}
-      />
-      <OrderDeliveryStatusModal
-        open={Boolean(deliveryOrder)}
-        order={deliveryOrder}
-        onClose={() => setDeliveryOrder(null)}
       />
       <OrderCancelModal
         open={Boolean(cancelling)}

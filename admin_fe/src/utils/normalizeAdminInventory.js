@@ -215,7 +215,8 @@ function resolveListing(source, variant) {
       nested.product_name,
       source.product_name,
       source.listing_name,
-    ) || 'Listing',
+      variant?.product_name,
+    ),
     productImage: pickProductImage(variant?.images)
       || pickProductImage(nested.images ?? nested.media)
       || pickProductImage(nested.image)
@@ -316,9 +317,16 @@ export function normalizeAdminInventory(record) {
   }
 }
 
+function isPlaceholderListingName(name) {
+  const text = String(name ?? '').trim().toLowerCase()
+  return !text || text === 'listing'
+}
+
 export function normalizeAdminInventories(body) {
   return sortLatestFirst(
-    extractInventoryList(body).map(normalizeAdminInventory).filter(Boolean),
+    extractInventoryList(body)
+      .map(normalizeAdminInventory)
+      .filter((item) => item && !isPlaceholderListingName(item.productName)),
     ['createdAt', 'updatedAt', 'id'],
   )
 }

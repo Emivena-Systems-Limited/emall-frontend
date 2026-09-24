@@ -1376,8 +1376,8 @@ export default function ProductStorefrontPreview({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-[0_10px_40px_rgba(15,23,42,0.08)]">
-      <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-100 px-4 py-2.5">
+    <div className="rounded-2xl border border-slate-200 shadow-[0_10px_40px_rgba(15,23,42,0.08)]">
+      <div className="flex items-center gap-3 rounded-t-2xl border-b border-slate-200 bg-slate-100 px-4 py-2.5">
         <span className="flex gap-1.5">
           <span className="size-2.5 rounded-full bg-red-400" />
           <span className="size-2.5 rounded-full bg-amber-400" />
@@ -1407,10 +1407,10 @@ export default function ProductStorefrontPreview({
         )}
       </div>
 
-      <div className="bg-[#f2f2f2] p-2 sm:p-3">
+      <div className="rounded-b-2xl bg-[#f2f2f2] p-2 sm:p-3">
         <div className="w-full space-y-3 sm:space-y-4">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-stretch">
-            <div className="contents lg:sticky lg:top-0 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
+          <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-stretch">
+            <div className="contents lg:sticky lg:top-4 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
               <div className="order-1 min-w-0">
                 <PreviewGallery
                   gallery={galleryImages}
@@ -1419,7 +1419,7 @@ export default function ProductStorefrontPreview({
                   title={preview.title}
                 />
               </div>
-              <div className="order-3 min-w-0 lg:flex-1">
+              <div className="order-3 min-w-0">
                 <KeyDetailsBlock
                   tags={preview.tags}
                   keyDetails={preview.keyDetails}
@@ -1437,7 +1437,7 @@ export default function ProductStorefrontPreview({
                 />
               </div>
             </div>
-            <div className="contents lg:flex lg:h-0 lg:min-h-full lg:flex-col lg:gap-4 lg:overflow-y-auto lg:overscroll-contain">
+            <div className="contents lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-4">
               <div className="order-2 min-w-0">
                 <InfoPanel
                   preview={preview}
@@ -1455,7 +1455,7 @@ export default function ProductStorefrontPreview({
                   displayPriceInfo={displayPriceInfo}
                 />
               </div>
-              <div className="order-4 min-w-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+              <div className="order-4 min-w-0">
                 <ReviewSummaryBlock
                   rating={preview.rating}
                   reviewCount={preview.reviewCount}

@@ -184,6 +184,30 @@ export function resolveInitialFamilyState(families = []) {
   }
 }
 
+export function resolveFamilyStateForVariant(families = [], variant) {
+  if (!variant || !families.length) return null
+
+  const family = families.find((item) => (
+    (item.leaves ?? []).some((leaf) => String(leaf.id) === String(variant.id))
+  ))
+  if (!family) return null
+
+  const base = resolveInitialFamilyState(families)
+  const primaryVal = getVariantAttributeValue(variant, family.primaryKey) || base.familyPrimary[family.id] || ''
+  const secondaryMap = { ...(base.familySecondary[family.id] ?? {}) }
+
+  getVisibleFamilySecondaryGroups(family, primaryVal).forEach((group) => {
+    const value = getVariantAttributeValue(variant, group.key)
+    if (value) secondaryMap[group.key] = value
+  })
+
+  return {
+    activeFamilyId: family.id,
+    familyPrimary: { ...base.familyPrimary, [family.id]: primaryVal },
+    familySecondary: { ...base.familySecondary, [family.id]: secondaryMap },
+  }
+}
+
 export function buildFamilyLeafSelections(family, primaryVal, secondaryMap) {
   const selections = { [family.primaryKey]: primaryVal }
   Object.entries(secondaryMap ?? {}).forEach(([key, value]) => {

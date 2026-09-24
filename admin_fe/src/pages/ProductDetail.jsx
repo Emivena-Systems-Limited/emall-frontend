@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import {
   AlertTriangle,
   Loader2,
@@ -21,6 +21,8 @@ import { parseApiError } from '../utils/parseApiError'
 
 export default function ProductDetail() {
   const { productId } = useParams()
+  const [searchParams] = useSearchParams()
+  const initialVariantId = searchParams.get('variant') || ''
   const { data: rawRecord, isLoading, isError, error, refetch } = useProduct(productId)
   const [statusProduct, setStatusProduct] = useState(null)
   const [visibilityProduct, setVisibilityProduct] = useState(null)
@@ -123,11 +125,12 @@ export default function ProductDetail() {
 
         <div className="-mx-4 sm:-mx-6 lg:-mx-8">
           <ProductStorefrontPreview
-            key={product.id}
+            key={`${product.id}-${initialVariantId}`}
             product={product}
             rawRecord={rawRecord}
             images={images}
             conditionLabel={conditionLabel}
+            initialVariantId={initialVariantId}
             actions={{
               productId: product.id,
               canActivate: !product.isActive,

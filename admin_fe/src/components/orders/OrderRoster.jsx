@@ -1,10 +1,11 @@
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Package, Store } from 'lucide-react'
 import EmptyState from '../dashboard/EmptyState'
 import ProductThumbnail from '../dashboard/ProductThumbnail'
 import { formatCount } from '../../utils/formatters'
 import { formatOrderDate, getOrderApiId } from '../../utils/normalizeAdminOrders'
+import { buildNavigationState } from '../../utils/smartNavigation'
 import { isPendingDelivery } from '../../constants/adminOrders'
 import { prefetchAdminOrder } from '../../hooks/useAdminOrders'
 import OrderActions from './OrderActions'
@@ -73,13 +74,22 @@ export default function OrderRoster({
   onPageChange,
   onClearFilters,
   hasFilters = false,
-  onPayment,
-  onDelivery,
   onCancel,
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const prefetch = (id) => prefetchAdminOrder(queryClient, id)
+
+  const openProduct = (order) => {
+    const productId = order.productId || order.items?.[0]?.productId
+    if (!productId) return
+    const variantId = order.variantId || order.items?.[0]?.variantId
+    const search = variantId ? `?variant=${encodeURIComponent(variantId)}` : ''
+    navigate(`/products/${encodeURIComponent(productId)}${search}`, {
+      state: buildNavigationState(location, { returnLabel: 'Back to orders' }),
+    })
+  }
 
   if (total === 0) {
     return (
@@ -149,19 +159,24 @@ export default function OrderRoster({
                     {order.userId ? (
                       <Link
                         to={`/users/${encodeURIComponent(order.userId)}`}
-                        className="font-semibold text-slate-800 transition-colors hover:text-brand"
+                        title={order.customer?.name || 'Shopper'}
+                        className="block max-w-40 truncate font-semibold text-slate-800 transition-colors hover:text-brand"
                       >
                         {order.customer?.name || 'Shopper'}
                       </Link>
                     ) : (
-                      <p className="font-semibold text-slate-800">{order.customer?.name || '—'}</p>
+                      <p className="max-w-40 truncate font-semibold text-slate-800" title={order.customer?.name || undefined}>
+                        {order.customer?.name || '—'}
+                      </p>
                     )}
                     {order.customer?.phone ? (
                       <p className="mt-0.5 text-xs text-slate-500">{order.customer.phone}</p>
                     ) : null}
                   </td>
-                  <td className="px-5 py-3 text-slate-600">
-                    {order.vendorName || '—'}
+                  <td className="px-5 py-3">
+                    <p className="max-w-40 truncate text-slate-600" title={order.vendorName || undefined}>
+                      {order.vendorName || '—'}
+                    </p>
                   </td>
                   <td className="px-5 py-3">
                     <OrderItemPrice amount={order.totalAmount} />
@@ -176,8 +191,7 @@ export default function OrderRoster({
                     <OrderActions
                       order={order}
                       onView={() => navigate(`/orders/${encodeURIComponent(apiId)}`)}
-                      onPayment={onPayment}
-                      onDelivery={onDelivery}
+                      onViewProduct={order.productId || order.items?.[0]?.productId ? openProduct : null}
                       onCancel={onCancel}
                     />
                   </td>
@@ -214,8 +228,7 @@ export default function OrderRoster({
                 <OrderActions
                   order={order}
                   onView={() => navigate(`/orders/${encodeURIComponent(apiId)}`)}
-                  onPayment={onPayment}
-                  onDelivery={onDelivery}
+                  onViewProduct={order.productId || order.items?.[0]?.productId ? openProduct : null}
                   onCancel={onCancel}
                 />
               </div>

@@ -53,6 +53,7 @@ import {
   getAvailableOptionValues,
   getVariantSelectionMap,
   getVisibleFamilySecondaryGroups,
+  resolveFamilyStateForVariant,
   resolveInitialFamilyState,
 } from '../../utils/variantOptionTree'
 
@@ -1218,15 +1219,26 @@ export default function ProductStorefrontPreview({
   images,
   conditionLabel,
   actions,
+  initialVariantId = '',
 }) {
   const preview = useMemo(
     () => buildStorefrontPreview({ product, rawRecord, images, conditionLabel }),
     [product, rawRecord, images, conditionLabel],
   )
-  const initialSelections = useMemo(() => resolveInitialVariantSelections(preview), [preview])
+  const requestedVariant = useMemo(() => {
+    if (!initialVariantId) return null
+    return (preview.variants ?? []).find((variant) => String(variant.id) === String(initialVariantId)) ?? null
+  }, [preview.variants, initialVariantId])
+  const initialSelections = useMemo(() => {
+    if (!requestedVariant) return resolveInitialVariantSelections(preview)
+    return {
+      selections: getVariantSelectionMap(requestedVariant, preview.variantOptionGroups ?? []),
+      compatibleModel: getVariantCompatibleModels(requestedVariant)[0] ?? '',
+    }
+  }, [preview, requestedVariant])
   const initialVariant = useMemo(
-    () => findLeafVariant(preview.variants, initialSelections.selections),
-    [preview, initialSelections],
+    () => requestedVariant ?? findLeafVariant(preview.variants, initialSelections.selections),
+    [preview, initialSelections, requestedVariant],
   )
 
   const [activeImage, setActiveImage] = useState(
@@ -1242,8 +1254,8 @@ export default function ProductStorefrontPreview({
   const useFamilyPicker = variantFamilies.some((family) => (family.primaryValues?.length ?? 0) > 0)
 
   const initialFamilyState = useMemo(
-    () => resolveInitialFamilyState(variantFamilies),
-    [variantFamilies],
+    () => resolveFamilyStateForVariant(variantFamilies, requestedVariant) ?? resolveInitialFamilyState(variantFamilies),
+    [variantFamilies, requestedVariant],
   )
   const [activeFamilyId, setActiveFamilyId] = useState(initialFamilyState.activeFamilyId)
   const [familyPrimary, setFamilyPrimary] = useState(initialFamilyState.familyPrimary)
@@ -1377,8 +1389,8 @@ export default function ProductStorefrontPreview({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-[0_10px_40px_rgba(15,23,42,0.08)]">
-      <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-100 px-4 py-2.5">
+    <div className="rounded-2xl border border-slate-200 shadow-[0_10px_40px_rgba(15,23,42,0.08)]">
+      <div className="flex items-center gap-3 rounded-t-2xl border-b border-slate-200 bg-slate-100 px-4 py-2.5">
         <span className="flex gap-1.5">
           <span className="size-2.5 rounded-full bg-red-400" />
           <span className="size-2.5 rounded-full bg-amber-400" />
@@ -1410,10 +1422,10 @@ export default function ProductStorefrontPreview({
         )}
       </div>
 
-      <div className="bg-[#f2f2f2] p-2 sm:p-3">
+      <div className="rounded-b-2xl bg-[#f2f2f2] p-2 sm:p-3">
         <div className="w-full space-y-3 sm:space-y-4">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-start">
-            <div className="contents lg:flex lg:flex-col lg:gap-4">
+          <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-stretch">
+            <div className="contents lg:sticky lg:top-4 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
               <div className="order-1 min-w-0">
                 <PreviewGallery
                   gallery={galleryImages}
@@ -1440,7 +1452,7 @@ export default function ProductStorefrontPreview({
                 />
               </div>
             </div>
-            <div className="contents lg:flex lg:flex-col lg:gap-4">
+            <div className="contents lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-4">
               <div className="order-2 min-w-0">
                 <InfoPanel
                   preview={preview}
@@ -1464,6 +1476,7 @@ export default function ProductStorefrontPreview({
                   reviewCount={preview.reviewCount}
                   ratingDistribution={preview.ratingDistribution}
                   reviews={preview.reviews}
+                  fillHeight
                 />
               </div>
             </div>
