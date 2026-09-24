@@ -120,13 +120,15 @@ export default function ProductCatalogToolbar({
                 Deactivate selected
               </button>
             )}
-            <button
-              type="button"
-              onClick={onDeleteSelected}
-              className="cursor-pointer rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-600 ring-1 ring-red-200 transition-colors hover:bg-red-50"
-            >
-              Delete selected
-            </button>
+            {onDeleteSelected && (
+              <button
+                type="button"
+                onClick={onDeleteSelected}
+                className="cursor-pointer rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-600 ring-1 ring-red-200 transition-colors hover:bg-red-50"
+              >
+                Delete selected
+              </button>
+            )}
             <button
               type="button"
               onClick={onExportSelected}

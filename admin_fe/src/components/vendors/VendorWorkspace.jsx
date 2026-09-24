@@ -101,13 +101,6 @@ export default function VendorWorkspace({ vendorId, current, pageTitle, children
         <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
           <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-brand" />
 
-          <SmartBackLink
-            fallback="/vendors"
-            fallbackLabel="Back to roster"
-            variant="text-subtle"
-            iconClassName="size-3.5"
-          />
-
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-start gap-4">
               <span className={`flex size-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ring-1 ${getVendorAvatarTone(vendor.id)}`}>
@@ -131,7 +124,15 @@ export default function VendorWorkspace({ vendorId, current, pageTitle, children
                 </div>
               </div>
             </div>
-            <VendorActionsMenu vendor={vendor} current={current} />
+            <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2 self-center">
+              <VendorActionsMenu vendor={vendor} current={current} />
+              <SmartBackLink
+                fallback="/vendors"
+                fallbackLabel="Back to roster"
+                variant="button-outline"
+                className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+              />
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-1.5 border-t border-slate-100 pt-4">

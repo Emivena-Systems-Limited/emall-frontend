@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import EmptyState from '../../components/dashboard/EmptyState'
 import OrderPagination from '../../components/orders/OrderPagination'
@@ -31,7 +31,13 @@ export default function Messages() {
 
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [page, setPage] = useState(1)
+  const [pageState, setPageState] = useState({ key: '', page: 1 })
+  const filterKey = `${search}\0${categoryFilter}`
+  const page = pageState.key === filterKey ? pageState.page : 1
+
+  const setPage = (nextPage) => {
+    setPageState({ key: filterKey, page: nextPage })
+  }
 
   const summary = useMemo(() => computeMessagesSummary(conversations), [conversations])
   const hasConversations = conversations.length > 0
@@ -58,10 +64,6 @@ export default function Messages() {
 
   const hasActiveFilters = search.trim() !== '' || categoryFilter !== 'all'
 
-  useEffect(() => {
-    setPage(1)
-  }, [search, categoryFilter])
-
   const handleSelect = (conversation) => {
     setSelectedId(conversation.id)
     setDraft('')
@@ -76,15 +78,10 @@ export default function Messages() {
     notify.success('Reply sent.')
   }
 
-  const handleResolve = (conversation) => {
-    setConversations((current) => updateConversationStatus(current, conversation.id, 'resolved'))
-    notify.success('Conversation marked as resolved.')
-  }
-
-  const handleArchive = (conversation) => {
-    setConversations((current) => updateConversationStatus(current, conversation.id, 'archived'))
-    if (selectedId === conversation.id) setSelectedId(null)
-    notify.info('Conversation archived.')
+  const handleClose = (conversation) => {
+    setConversations((current) => updateConversationStatus(current, conversation.id, 'closed'))
+    setDraft('')
+    notify.success('Request closed.')
   }
 
   const handleDevDataToggle = (enabled) => {
@@ -94,8 +91,8 @@ export default function Messages() {
     setDraft('')
     setSearch('')
     setCategoryFilter('all')
-    setPage(1)
-    notify.info(enabled ? 'Loaded dummy message data.' : 'Cleared message data.')
+    setPageState({ key: '\0all', page: 1 })
+    notify.info(enabled ? 'Loaded sample customer tickets.' : 'Cleared customer tickets.')
   }
 
   const emptyPreset = hasActiveFilters && hasConversations
@@ -103,7 +100,7 @@ export default function Messages() {
     : EMPTY_STATE_PRESETS.messages
 
   return (
-    <DashboardLayout pageTitle="Messages">
+    <DashboardLayout pageTitle="Customer tickets">
       <div className="page-enter space-y-6">
         <MessagesPageHeader
           summary={summary}
@@ -163,7 +160,7 @@ export default function Messages() {
                       startIndex={pagination.startIndex}
                       endIndex={pagination.endIndex}
                       onPageChange={setPage}
-                      itemLabel="conversations"
+                      itemLabel="tickets"
                       compact
                     />
                   </div>
@@ -171,8 +168,7 @@ export default function Messages() {
                   <ConversationThread
                     conversation={selectedConversation}
                     onSend={handleSend}
-                    onResolve={handleResolve}
-                    onArchive={handleArchive}
+                    onClose={handleClose}
                     draft={draft}
                     onDraftChange={setDraft}
                   />

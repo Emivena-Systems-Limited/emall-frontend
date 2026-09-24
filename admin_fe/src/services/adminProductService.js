@@ -9,6 +9,7 @@ import {
   extractAdminProductRecord,
   extractProductPagination,
   normalizeAdminProducts,
+  normalizeProductApprovalStatus,
   toAdminCatalogProduct,
   toProductActiveParam,
   toProductApiStatus,
@@ -20,6 +21,52 @@ function compactParams(params) {
   return Object.fromEntries(
     Object.entries(params).filter(([, value]) => value !== '' && value != null && value !== false),
   )
+}
+
+function productMatchesSearch(product, search) {
+  const needle = String(search ?? '').trim().toLowerCase()
+  if (!needle) return true
+  const haystack = [
+    product?.name,
+    product?.sku,
+    product?.slug,
+    product?.vendorName,
+    product?.brand,
+    product?.category,
+  ].filter(Boolean).join(' ').toLowerCase()
+  return haystack.includes(needle)
+}
+
+function applyProductSearch(products, pagination, search) {
+  const needle = String(search ?? '').trim()
+  if (!needle) return { products, pagination }
+
+  const rows = Array.isArray(products) ? products : []
+  const matches = rows.filter((product) => productMatchesSearch(product, needle))
+  if (matches.length === rows.length) return { products: rows, pagination }
+
+  return {
+    products: matches,
+    pagination: {
+      ...pagination,
+      total: matches.length,
+      lastPage: 1,
+      page: 1,
+      from: matches.length ? 1 : 0,
+      to: matches.length,
+    },
+  }
+}
+
+function paginationForStatus(products, pagination, status) {
+  const expected = normalizeProductApprovalStatus(status)
+  if (!status || !expected) return pagination
+
+  const rows = Array.isArray(products) ? products : []
+  if (rows.length === 0) return pagination
+  const matches = rows.filter((product) => product.approvalStatus === expected)
+  if (matches.length === rows.length) return pagination
+  return { ...pagination, total: matches.length }
 }
 
 export async function fetchAdminProducts({
@@ -44,11 +91,10 @@ export async function fetchAdminProducts({
     }),
   })
   const envelope = assertAuthEnvelope(data, 'Could not load products.')
+  const products = normalizeAdminProducts(envelope)
+  const pagination = paginationForStatus(products, extractProductPagination(envelope), pending ? 'pending' : status)
 
-  return {
-    products: normalizeAdminProducts(envelope),
-    pagination: extractProductPagination(envelope),
-  }
+  return applyProductSearch(products, pagination, search)
 }
 
 export async function fetchAdminPendingProducts(params = {}) {
@@ -81,11 +127,10 @@ export async function fetchAdminVendorProducts({
     }),
   })
   const envelope = assertAuthEnvelope(data, 'Could not load vendor products.')
+  const products = normalizeAdminProducts(envelope)
+  const pagination = paginationForStatus(products, extractProductPagination(envelope), status)
 
-  return {
-    products: normalizeAdminProducts(envelope),
-    pagination: extractProductPagination(envelope),
-  }
+  return applyProductSearch(products, pagination, search)
 }
 
 const MAX_VENDOR_PRODUCT_PAGES = 50
@@ -141,7 +186,7 @@ export async function updateAdminProductStatus({ id, status, rejectionReason = '
     status: toProductApiStatus(status) || 'approved',
   }
   if (payload.status === 'rejected') {
-    payload.rejection_reason = String(rejectionReason ?? '').trim()
+    payload.rejected_reason = String(rejectionReason ?? '').trim()
   }
 
   const { data } = await apiClient.patch(PRODUCT_ADMIN_ENDPOINTS.status(id), payload)

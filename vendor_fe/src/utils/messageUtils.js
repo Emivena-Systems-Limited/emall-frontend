@@ -43,7 +43,7 @@ export function computeMessagesSummary(conversations) {
   const unreadMessages = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0)
   const openCount = conversations.filter((c) => c.status === 'open' || c.status === 'pending').length
   const resolvedThisWeek = conversations.filter((c) => {
-    if (c.status !== 'resolved') return false
+    if (c.status !== 'closed') return false
     const updated = new Date(c.updatedAt)
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
@@ -57,7 +57,7 @@ export function computeMessagesSummary(conversations) {
       const prev = arr[i - 1]
       return prev?.sender === 'customer'
     })
-    .map((m, i, vendorReplies) => {
+    .map((m) => {
       const conv = conversations.find((c) => c.messages?.some((msg) => msg.id === m.id))
       const msgIndex = conv?.messages?.findIndex((msg) => msg.id === m.id) ?? -1
       if (msgIndex <= 0) return null
@@ -80,17 +80,21 @@ export function computeMessagesSummary(conversations) {
   }
 }
 
+function isClosedTicket(conversation) {
+  return conversation.status === 'closed' || conversation.status === 'resolved' || conversation.status === 'archived'
+}
+
 export function filterConversations(conversations, { search, categoryFilter }) {
   let result = [...conversations]
 
-  if (categoryFilter === 'unread') {
-    result = result.filter((c) => c.unreadCount > 0)
-  } else if (categoryFilter === 'archived') {
-    result = result.filter((c) => c.status === 'archived')
-  } else if (categoryFilter !== 'all') {
-    result = result.filter((c) => c.category === categoryFilter && c.status !== 'archived')
+  if (categoryFilter === 'awaiting') {
+    result = result.filter((c) => c.unreadCount > 0 && !isClosedTicket(c))
+  } else if (categoryFilter === 'open') {
+    result = result.filter((c) => c.status === 'open')
+  } else if (categoryFilter === 'closed') {
+    result = result.filter(isClosedTicket)
   } else {
-    result = result.filter((c) => c.status !== 'archived')
+    result = result.filter((c) => !isClosedTicket(c))
   }
 
   if (search.trim()) {
@@ -99,9 +103,10 @@ export function filterConversations(conversations, { search, categoryFilter }) {
       (c) =>
         c.customerName?.toLowerCase().includes(q)
         || c.subject?.toLowerCase().includes(q)
+        || c.topic?.toLowerCase().includes(q)
         || c.preview?.toLowerCase().includes(q)
         || c.orderNumber?.toLowerCase().includes(q)
-        || c.productName?.toLowerCase().includes(q),
+        || c.ticketNumber?.toLowerCase().includes(q),
     )
   }
 
@@ -158,7 +163,7 @@ export function appendMessage(conversations, conversationId, text) {
       messages,
       preview: text.slice(0, 80),
       updatedAt: now,
-      status: c.status === 'resolved' ? 'open' : c.status,
+      status: c.status === 'open' ? 'pending' : c.status,
     }
   })
 }

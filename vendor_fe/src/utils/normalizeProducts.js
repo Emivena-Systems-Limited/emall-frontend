@@ -13,6 +13,15 @@ export function mapApiProductStatus(status, isActive) {
   return isProductActive(isActive) ? 'active' : 'inactive'
 }
 
+function firstText(...values) {
+  for (const value of values) {
+    if (value == null) continue
+    const text = String(value).trim()
+    if (text) return text
+  }
+  return ''
+}
+
 function resolveImageUrl(image) {
   if (!image || typeof image !== 'object') return ''
 
@@ -367,5 +376,13 @@ export function toCatalogProduct(record, context = {}) {
     image: getPrimaryProductImage(record.images),
     createdAt: record.created_at ?? context.createdAt ?? null,
     apiStatus: record.status ?? '',
+    rejectionReason: firstText(
+      record.rejection_reason,
+      record.rejected_reason,
+      record.status_reason,
+      record.reason,
+      meta.rejected_reason,
+      meta.rejection_reason,
+    ),
   }
 }

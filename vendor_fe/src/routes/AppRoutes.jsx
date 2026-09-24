@@ -23,7 +23,6 @@ import Finance from '../pages/finance/Finance'
 import Reviews from '../pages/reviews/Reviews'
 import ReviewedProducts from '../pages/reviews/ReviewedProducts'
 import ProductReviews from '../pages/reviews/ProductReviews'
-import Messages from '../pages/messages/Messages'
 import ProfileLayout from '../pages/profile/ProfileLayout'
 import PersonalInformationPage from '../pages/profile/PersonalInformationPage'
 import BusinessInformationPage from '../pages/profile/BusinessInformationPage'
@@ -79,7 +78,6 @@ export default function AppRoutes() {
       <Route path="/reviews" element={protectedPage(<Reviews />)} />
       <Route path="/reviews/products" element={protectedPage(<ReviewedProducts />)} />
       <Route path="/reviews/products/:productId" element={protectedPage(<ProductReviews />)} />
-      <Route path="/messages" element={protectedPage(<Messages />)} />
       <Route path="/profile" element={protectedPage(<ProfileLayout />)}>
         <Route index element={<PersonalInformationPage />} />
         <Route path="business" element={<BusinessInformationPage />} />

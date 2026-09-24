@@ -34,8 +34,8 @@ const STATS = [
     label: 'Rejected',
     helper: 'Sent back',
     icon: XCircle,
-    accent: '#475569',
-    well: 'bg-slate-100 ring-slate-200',
+    accent: '#dc2626',
+    well: 'bg-red-50 ring-red-100',
     status: 'rejected',
   },
 ]

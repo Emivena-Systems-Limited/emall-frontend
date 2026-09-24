@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   Star,
   Store,
+  Ticket,
   TicketPercent,
   User,
   UserCog,
@@ -60,6 +61,7 @@ export const NAV_SECTIONS = [
       { to: '/wishlists', icon: Heart, label: 'Wishlist' },
       { to: '/reviews', icon: Star, label: 'Reviews' },
       { to: '/searches', icon: Search, label: 'Search' },
+      { to: '/support', icon: Ticket, label: 'Customer tickets' },
     ],
   },
   {

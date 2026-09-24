@@ -65,6 +65,7 @@ const ROUTE_DESTINATIONS = [
   { test: /^\/carts$/, label: 'Carts', short: 'All carts' },
   { test: /^\/wishlists$/, label: 'Wishlists', short: 'All wishlists' },
   { test: /^\/searches$/, label: 'Searches', short: 'All searches' },
+  { test: /^\/support$/, label: 'Customer tickets', short: 'Customer tickets' },
   { test: /^\/profile$/, label: 'Profile', short: 'Profile' },
 ]
 
@@ -72,6 +73,9 @@ function getQueryAwareLabel(path) {
   const search = path.includes('?') ? path.slice(path.indexOf('?')) : ''
   if (search.includes('customerId=')) {
     return { label: 'Customer orders', short: 'Customer orders' }
+  }
+  if (search.includes('vendor=')) {
+    return { label: 'Vendor products', short: 'Vendor products' }
   }
   return null
 }

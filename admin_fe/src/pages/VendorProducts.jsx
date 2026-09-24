@@ -5,8 +5,8 @@ import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
 import ProductCatalogLoader from '../components/products/ProductCatalogLoader'
 import ProductCatalogToolbar from '../components/products/ProductCatalogToolbar'
-import ProductRemoveModal from '../components/products/ProductRemoveModal'
 import ProductStatusModal from '../components/products/ProductStatusModal'
+import ProductVariationsModal from '../components/products/ProductVariationsModal'
 import ProductSummaryCards from '../components/products/ProductSummaryCards'
 import ProductTable from '../components/products/ProductTable'
 import ProductVisibilityModal from '../components/products/ProductVisibilityModal'
@@ -36,7 +36,7 @@ export default function VendorProducts() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [statusProduct, setStatusProduct] = useState(null)
   const [visibilityProduct, setVisibilityProduct] = useState(null)
-  const [removing, setRemoving] = useState(null)
+  const [variationsProduct, setVariationsProduct] = useState(null)
 
   const { categoryOptions, brandOptions } = useMemo(
     () => buildCatalogFilterOptions(products),
@@ -142,13 +142,6 @@ export default function VendorProducts() {
                         brandOptions={brandOptions}
                         onExportExcel={() => handleExport(filteredProducts, `${vendor.store}-products`)}
                         selectedCount={visibleSelectedCount}
-                        onDeleteSelected={() => {
-                          if (selectedProducts.length === 1) {
-                            setRemoving(selectedProducts[0])
-                            return
-                          }
-                          notify.info('Select one listing at a time to remove from here.')
-                        }}
                         onExportSelected={() => handleExport(selectedProducts, `${vendor.store}-selected-products`)}
                       />
                     </div>
@@ -171,11 +164,9 @@ export default function VendorProducts() {
                         onToggleAll={toggleAll}
                         onToggleOne={toggleOne}
                         onView={(product) => navigate(`/products/${product.id}`, { state: navigationState })}
-                        onEditProductInfo={(product) => navigate(`/products/${product.id}/edit?section=info`, { state: navigationState })}
-                        onEditVariations={(product) => navigate(`/products/${product.id}/edit?section=variations`, { state: navigationState })}
+                        onViewVariations={setVariationsProduct}
                         onReview={setStatusProduct}
                         onVisibility={setVisibilityProduct}
-                        onDelete={setRemoving}
                       />
                     )}
                   </section>
@@ -193,11 +184,10 @@ export default function VendorProducts() {
               product={visibilityProduct}
               onClose={() => setVisibilityProduct(null)}
             />
-            <ProductRemoveModal
-              open={Boolean(removing)}
-              product={removing}
-              onClose={() => setRemoving(null)}
-              onRemoved={() => refetch()}
+            <ProductVariationsModal
+              open={Boolean(variationsProduct)}
+              product={variationsProduct}
+              onClose={() => setVariationsProduct(null)}
             />
           </>
       )}

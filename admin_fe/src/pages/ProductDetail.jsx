@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import {
   AlertTriangle,
   Loader2,
@@ -8,26 +8,23 @@ import {
   Shield,
 } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
-import ConfirmModal from '../components/common/ConfirmModal'
 import SmartBackLink from '../components/navigation/SmartBackLink'
 import ProductStorefrontPreview from '../components/products/ProductStorefrontPreview'
-import ProductStatusBadge from '../components/products/ProductStatusBadge'
+import ProductStatusBadge, { ProductVisibilityBadge } from '../components/products/ProductStatusBadge'
 import ProductStatusModal from '../components/products/ProductStatusModal'
 import ProductVisibilityModal from '../components/products/ProductVisibilityModal'
+import ProductRejectionReasonModal from '../components/products/ProductRejectionReasonModal'
 import { getProductConditionLabel, isDescriptiveProductImage } from '../utils/productMetadata'
 import { toAdminCatalogProduct } from '../utils/normalizeAdminProducts'
 import { useProduct } from '../hooks/useProducts'
-import { useDeleteProductsMutation } from '../hooks/useProductMutations'
 import { parseApiError } from '../utils/parseApiError'
 
 export default function ProductDetail() {
   const { productId } = useParams()
-  const navigate = useNavigate()
   const { data: rawRecord, isLoading, isError, error, refetch } = useProduct(productId)
-  const deleteMutation = useDeleteProductsMutation()
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [statusProduct, setStatusProduct] = useState(null)
   const [visibilityProduct, setVisibilityProduct] = useState(null)
+  const [showRejectionReason, setShowRejectionReason] = useState(false)
 
   if (isLoading) {
     return (
@@ -80,15 +77,6 @@ export default function ProductDetail() {
     rawRecord.condition ?? rawRecord.metadata?.find?.((item) => item.key === 'condition')?.value,
   )
 
-  const handleDelete = async () => {
-    try {
-      await deleteMutation.mutateAsync({ id: product.id, approvalStatus: product.approvalStatus })
-      navigate('/products')
-    } catch {
-      /* toast handled in mutation */
-    }
-  }
-
   return (
     <DashboardLayout pageTitle={product.name}>
       <div className="page-enter space-y-6">
@@ -99,7 +87,8 @@ export default function ProductDetail() {
             labelStyle="short"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <ProductStatusBadge status={product.approvalStatus} isActive={product.isActive} />
+            <ProductStatusBadge status={product.approvalStatus} />
+            <ProductVisibilityBadge isActive={product.isActive} approvalStatus={product.approvalStatus} />
             {product.vendorId ? (
               <Link
                 to={`/vendors/${product.vendorId}`}
@@ -149,23 +138,11 @@ export default function ProductDetail() {
               onDeactivate: () => setVisibilityProduct(product),
               onApprove: () => setStatusProduct(product),
               onReject: () => setStatusProduct(product),
-              onDelete: () => setShowDeleteModal(true),
+              onViewReason: product.approvalStatus === 'rejected' ? () => setShowRejectionReason(true) : null,
             }}
           />
         </div>
       </div>
-
-      <ConfirmModal
-        open={showDeleteModal}
-        title="Delete product?"
-        description={`"${product.name}" will be permanently removed from the catalogue. This action cannot be undone.`}
-        confirmLabel="Delete product"
-        onConfirm={handleDelete}
-        onClose={() => setShowDeleteModal(false)}
-        isLoading={deleteMutation.isPending}
-        loadingLabel="Deleting…"
-        tone="danger"
-      />
 
       <ProductStatusModal
         open={Boolean(statusProduct)}
@@ -176,6 +153,11 @@ export default function ProductDetail() {
         open={Boolean(visibilityProduct)}
         product={visibilityProduct}
         onClose={() => setVisibilityProduct(null)}
+      />
+      <ProductRejectionReasonModal
+        open={showRejectionReason}
+        product={product}
+        onClose={() => setShowRejectionReason(false)}
       />
     </DashboardLayout>
   )

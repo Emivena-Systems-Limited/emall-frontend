@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { Copy, Eye, Layers3, MoreHorizontal, Package, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
+import { Copy, Eye, Layers3, MessageSquareText, MoreHorizontal, Package, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import ProductListingTypeBadge from './ProductListingTypeBadge'
 import { canActivateProduct, canDeactivateProduct } from '../../utils/productStatusActions'
@@ -21,6 +21,19 @@ const STATUS_CONFIG = {
     dot: 'bg-amber-500',
     className: 'bg-amber-50 text-amber-800 ring-amber-200/80',
   },
+}
+
+function isRejectedProduct(product) {
+  return String(product?.apiStatus ?? '').trim().toLowerCase() === 'rejected'
+}
+
+function RejectedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
+      <span className="size-1.5 shrink-0 rounded-full bg-red-500" aria-hidden />
+      Rejected
+    </span>
+  )
 }
 
 function ProductStatusBadge({ status }) {
@@ -64,6 +77,7 @@ function ProductActionsMenu({
   onActivate,
   onDeactivate,
   onDuplicate,
+  onViewReason,
   onDelete,
 }) {
   const [open, setOpen] = useState(false)
@@ -102,6 +116,16 @@ function ProductActionsMenu({
         >
           <Eye className="size-4" /> View
         </button>
+        {isRejectedProduct(product) && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => run(onViewReason)}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            <MessageSquareText className="size-4 text-red-600" /> View rejection reason
+          </button>
+        )}
         <button
           type="button"
           role="menuitem"
@@ -211,6 +235,7 @@ function ProductActionsCell(props) {
       onActivate={props.onActivate}
       onDeactivate={props.onDeactivate}
       onDuplicate={props.onDuplicate}
+      onViewReason={props.onViewReason}
       onDelete={props.onDelete}
     />
   )
@@ -259,6 +284,7 @@ function ProductMobileCard({
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <ProductStatusBadge status={product.status} />
+            {isRejectedProduct(product) && <RejectedBadge />}
             <ProductListingTypeBadge isSimpleListing={product.isSimpleListing} />
             <span className="text-xs text-slate-500">
               Stock:{' '}
@@ -426,7 +452,10 @@ function ProductDesktopTable({
                   {product.stock == null ? '—' : product.stock}
                 </td>
                 <td className="px-4 py-4">
-                  <ProductStatusBadge status={product.status} />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <ProductStatusBadge status={product.status} />
+                    {isRejectedProduct(product) && <RejectedBadge />}
+                  </div>
                 </td>
                 <td className="px-4 py-4 text-right">
                   <ProductActionsCell product={product} {...actionProps} />
@@ -451,6 +480,7 @@ export default function ProductTable({
   onActivate,
   onDeactivate,
   onDuplicate,
+  onViewReason,
   onDelete,
 }) {
   const allSelected = products.length > 0 && products.every((product) => selectedIds.has(product.id))
@@ -463,6 +493,7 @@ export default function ProductTable({
     onActivate,
     onDeactivate,
     onDuplicate,
+    onViewReason,
     onDelete,
   }
 

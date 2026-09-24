@@ -5,6 +5,7 @@ import {
   isProductActive,
   toCatalogProduct,
 } from './normalizeProducts'
+import { normalizeVariantAttributeEntries } from './productPayload'
 import { unwrapApiEnvelope } from './parseApiError'
 import { sortLatestFirst } from './sortLatestFirst'
 
@@ -56,8 +57,9 @@ export function extractProductPagination(body) {
   const perPage = Number(source.per_page ?? source.perPage ?? PRODUCT_PAGE_SIZE)
   const safePage = Number.isFinite(page) && page > 0 ? page : 1
   const safePerPage = Number.isFinite(perPage) && perPage > 0 ? perPage : PRODUCT_PAGE_SIZE
-  const total = Number(source.total ?? list.length)
-  const safeTotal = Number.isFinite(total) && total > 0 ? total : list.length
+  const rawTotal = source.total ?? source.total_count
+  const total = rawTotal == null || rawTotal === '' ? Number.NaN : Number(rawTotal)
+  const safeTotal = Number.isFinite(total) && total >= 0 ? total : list.length
   const inferredLastPage = Math.max(1, Math.ceil((safeTotal || 1) / safePerPage))
   const lastPage = Number(source.last_page ?? source.lastPage ?? inferredLastPage)
   const inferredFrom = list.length ? (safePage - 1) * safePerPage + 1 : 0
@@ -73,6 +75,55 @@ export function extractProductPagination(body) {
     from: Number.isFinite(from) && from > 0 ? from : inferredFrom,
     to: Number.isFinite(to) && to > 0 ? to : inferredTo,
   }
+}
+
+function sameListingOption(left, right) {
+  const a = String(left ?? '').trim().toLowerCase()
+  const b = String(right ?? '').trim().toLowerCase()
+  return Boolean(a && b && a === b)
+}
+
+function isGeneratedSimpleListingOption(attribute, value, productName) {
+  const name = String(productName ?? '').trim()
+  return (sameListingOption(attribute, 'Default') && sameListingOption(value, 'Standard'))
+    || (Boolean(name) && sameListingOption(attribute, name) && sameListingOption(value, name))
+}
+
+function primaryVariantOption(variant = {}) {
+  const named = normalizeVariantAttributeEntries(variant.attributes)
+  const primary = named.find((item) => item.is_primary) ?? named[0]
+  return {
+    attribute: primary?.name ?? variant.attribute,
+    value: primary?.value ?? variant.value,
+    extraCount: named.filter((item) => item !== primary).length,
+  }
+}
+
+export function isSimpleAdminProductRecord(record = {}) {
+  const name = String(record.name ?? '').trim()
+  const variants = Array.isArray(record.variants) ? record.variants : []
+  const metadata = Array.isArray(record.metadata) ? record.metadata : []
+  const metaMap = metadata.reduce((map, item) => {
+    const key = String(item?.key ?? '').trim()
+    if (key) map[key] = String(item?.value ?? '').trim()
+    return map
+  }, {})
+  const metadataIsSimple = isGeneratedSimpleListingOption(
+    metaMap.main_attribute,
+    metaMap.main_attribute_value,
+    name,
+  )
+
+  if (variants.length > 1) return false
+
+  if (variants.length === 1) {
+    const option = primaryVariantOption(variants[0])
+    if (option.extraCount > 0) return false
+    if (metadataIsSimple) return true
+    return isGeneratedSimpleListingOption(option.attribute, option.value, name)
+  }
+
+  return metadataIsSimple
 }
 
 function vendorFrom(record) {
@@ -91,6 +142,12 @@ function vendorFrom(record) {
   }
 }
 
+function metadataValue(record, key) {
+  const items = Array.isArray(record?.metadata) ? record.metadata : []
+  const match = items.find((item) => String(item?.key ?? '').trim() === key)
+  return match?.value
+}
+
 export function toAdminCatalogProduct(record, context = {}) {
   const catalog = toCatalogProduct(record, context)
   if (!catalog) return null
@@ -102,11 +159,14 @@ export function toAdminCatalogProduct(record, context = {}) {
     isActive: isProductActive(record.is_active),
     vendorId: vendor.id,
     vendorName: vendor.name,
+    isSimpleListing: isSimpleAdminProductRecord(record),
     rejectionReason: firstText(
       record.rejection_reason,
       record.rejected_reason,
       record.status_reason,
       record.reason,
+      metadataValue(record, 'rejected_reason'),
+      metadataValue(record, 'rejection_reason'),
     ),
   }
 }

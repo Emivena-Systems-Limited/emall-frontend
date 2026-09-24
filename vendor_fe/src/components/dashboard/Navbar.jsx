@@ -7,11 +7,10 @@ import {
   ChevronDown,
   LogOut,
   Menu,
-  MessageSquare,
   User,
 } from 'lucide-react'
 import { useLogoutVendorMutation } from '../../hooks/useAuthMutations'
-import { formatBadgeCount, getNavBadgeCount } from '../../constants/sidebarNav'
+import { formatBadgeCount } from '../../constants/sidebarNav'
 import Images from '../../utils/Images'
 import { isLocalEnvironment } from '../../utils/environment'
 import { useVendorNotifications } from '../notifications/VendorNotificationsProvider'
@@ -157,7 +156,6 @@ export default function Navbar({ onMobileMenuOpen, pageTitle }) {
   const logoutMutation = useLogoutVendorMutation()
   const { unreadCount } = useVendorNotifications()
   const notificationCount = Number.isFinite(Number(unreadCount)) ? Number(unreadCount) : 0
-  const messageCount = getNavBadgeCount('messages')
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur-sm sm:px-5">
@@ -193,13 +191,6 @@ export default function Navbar({ onMobileMenuOpen, pageTitle }) {
           label={`Notifications${notificationCount ? `, ${notificationCount} unread` : ''}`}
           count={notificationCount}
           to="/notifications"
-        />
-
-        <NavIconButton
-          icon={MessageSquare}
-          label={`Messages${messageCount ? `, ${messageCount} unread` : ''}`}
-          count={messageCount}
-          to="/messages"
         />
 
         <UserMenu user={user} logoutMutation={logoutMutation} />

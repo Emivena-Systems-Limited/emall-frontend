@@ -1,4 +1,4 @@
-export const MESSAGE_STATUS = {
+export const TICKET_STATUS = {
   open: { label: 'Open', tone: 'sky' },
   pending: { label: 'Replied', tone: 'amber' },
   closed: { label: 'Closed', tone: 'slate' },
@@ -11,28 +11,11 @@ export const SUPPORT_TOPICS = {
   products: 'Products & stores',
 }
 
-export const MESSAGE_CATEGORIES = {
+export const TICKET_FILTERS = {
   all: 'All',
   open: 'Open',
   awaiting: 'Awaiting you',
   closed: 'Closed',
 }
 
-export const MESSAGE_SENDERS = {
-  customer: 'customer',
-  vendor: 'vendor',
-  system: 'system',
-}
-
-export const MESSAGES_PAGE_SIZE = 8
-
-export const SORT_FIELDS = {
-  updated: 'updated',
-  unread: 'unread',
-  customer: 'customer',
-}
-
-export const SORT_DIRECTIONS = {
-  asc: 'asc',
-  desc: 'desc',
-}
+export const TICKETS_PAGE_SIZE = 8

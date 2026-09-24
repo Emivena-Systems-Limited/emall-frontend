@@ -1,7 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { Ban, Eye, MoreHorizontal, Package, Pencil, RotateCcw } from 'lucide-react'
+import { buildNavigationState } from '../../utils/smartNavigation'
 import VendorStatusModal from './VendorStatusModal'
 import VendorSuspendModal from './VendorSuspendModal'
 
@@ -50,6 +51,7 @@ function getMenuPosition(trigger, menu) {
 
 export default function VendorActionsMenu({ vendor, current = 'roster', onUpdateAccount, onSuspend }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const buttonRef = useRef(null)
   const menuRef = useRef(null)
   const menuId = useId()
@@ -126,7 +128,9 @@ export default function VendorActionsMenu({ vendor, current = 'roster', onUpdate
       key: 'products',
       label: 'View products',
       icon: Package,
-      onSelect: () => navigate(`/vendors/${vendor.id}/products`),
+      onSelect: () => navigate(`/products?vendor=${encodeURIComponent(vendor.id)}`, {
+        state: buildNavigationState(location, { returnLabel: 'Back to vendors' }),
+      }),
     },
   ].filter(Boolean)
 

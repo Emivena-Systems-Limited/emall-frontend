@@ -44,9 +44,9 @@ export const PRODUCT_APPROVAL_STATUSES = [
     label: 'Rejected',
     helper: 'Sent back to the vendor',
     hint: 'Needs a reason the vendor can act on',
-    badgeClass: 'bg-slate-100 text-slate-700 ring-slate-200',
-    well: 'bg-slate-100 ring-slate-200',
-    accent: '#475569',
+    badgeClass: 'bg-red-50 text-red-700 ring-red-200',
+    well: 'bg-red-50 ring-red-100',
+    accent: '#dc2626',
     icon: 'x-circle',
   },
 ]

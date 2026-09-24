@@ -3,7 +3,6 @@ import {
   Bell,
   HelpCircle,
   LineChart,
-  MessageSquare,
   Package,
   Settings,
   ShoppingBag,
@@ -83,16 +82,6 @@ export const EMPTY_STATE_PRESETS = {
     icon: Package,
     title: 'No products match your search',
     description: 'Try a different product name to find a reviewed item.',
-  },
-  messages: {
-    icon: MessageSquare,
-    title: 'No messages yet',
-    description: 'When customers reach out about orders or products, their conversations will appear here.',
-  },
-  messagesFiltered: {
-    icon: MessageSquare,
-    title: 'No conversations match your filters',
-    description: 'Try a different search term or adjust your filter to find the conversation you need.',
   },
   storeSettings: {
     icon: Settings,

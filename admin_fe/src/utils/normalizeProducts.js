@@ -52,6 +52,17 @@ function resolveProductStock(record, variants, context, meta = {}) {
     return Number(record.quantity)
   }
 
+  const availableStock = variants.reduce((total, variant) => {
+    const available = variant?.inventory?.available_quantity
+    if (available == null || available === '') return total
+    return total + (Number(available) || 0)
+  }, 0)
+  const hasAvailableStock = variants.some(
+    (variant) => variant?.inventory?.available_quantity != null && variant.inventory.available_quantity !== '',
+  )
+
+  if (hasAvailableStock) return availableStock
+
   const hasVariantQuantity = variants.some(
     (variant) => variant.quantity != null && variant.quantity !== '',
   )
@@ -143,16 +154,6 @@ function resolveCategoryRecord(record) {
   }
 
   return null
-}
-
-function resolveSubcategoryId(record) {
-  const subcategory = resolveSubcategoryRecord(record)
-
-  if (typeof record?.subcategory_id === 'object') {
-    return record.subcategory_id?.id ?? subcategory?.id ?? ''
-  }
-
-  return record?.subcategory_id ?? subcategory?.id ?? ''
 }
 
 function formatCatalogCategoryLabel(record, context = {}) {

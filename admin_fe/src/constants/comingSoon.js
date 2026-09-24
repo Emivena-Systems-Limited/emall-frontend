@@ -1,6 +1,5 @@
 import {
   CircleDollarSign,
-  Headset,
   Package,
   Settings,
   Shield,
@@ -52,17 +51,6 @@ export const COMING_SOON = {
       'Payout batches and vendor ledger',
       'Holds for disputes and KYC gaps',
       'Settlement exports for finance ops',
-    ],
-  },
-  '/support': {
-    icon: Headset,
-    title: 'Support',
-    eyebrow: 'Care',
-    description: 'Tickets from shoppers and vendors land in one operations inbox.',
-    capabilities: [
-      'Shared inbox with SLA clocks',
-      'Escalate to vendor or finance',
-      'Macros for common Ghana delivery issues',
     ],
   },
   '/staff': {

@@ -1,16 +1,10 @@
-import DevDataToggle from '../dev/DevDataToggle'
-
-export default function MessagesPageHeader({
-  summary,
-  devDataEnabled,
-  onDevDataChange,
-}) {
+export default function SupportPageHeader({ summary, sampleEnabled, onSampleChange }) {
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <h1 className="text-2xl font-bold text-slate-950">Customer tickets</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          Requests customers submit from Help & Support land here with a topic, an optional order number, and their message.
+          Requests shoppers submit from Help & Support land here with a topic, an optional order number, and their message.
         </p>
         {summary.totalConversations > 0 && (
           <p className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -24,12 +18,13 @@ export default function MessagesPageHeader({
         )}
       </div>
 
-      <DevDataToggle
-        enabled={devDataEnabled}
-        onChange={onDevDataChange}
-        count={summary.totalConversations}
-        ariaLabel="Toggle dummy ticket data"
-      />
+      <button
+        type="button"
+        onClick={() => onSampleChange(!sampleEnabled)}
+        className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+      >
+        {sampleEnabled ? 'Clear sample tickets' : 'Preview sample tickets'}
+      </button>
     </div>
   )
 }

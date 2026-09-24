@@ -106,7 +106,6 @@ const folderStructure = `src/
 │   ├── customers/          # Customer catalog + detail sections
 │   ├── reviews/            # Review cards, filters, insights
 │   ├── analytics/          # Analytics charts + export
-│   ├── messages/           # Inbox UI
 │   ├── settings/           # Store settings panels
 │   ├── users/              # Users & permissions modals
 │   ├── help/               # Help & support sections
@@ -120,7 +119,7 @@ const folderStructure = `src/
 │   ├── emptyStates.js      # Empty-state presets per page
 │   ├── analytics.js        # Date presets, export reports, ANALYTICS_ENDPOINTS
 │   ├── analytics*ApiSpec.json  # Backend contracts for each analytics widget + export
-│   └── *Data.js            # Dummy datasets (analytics, messages, inventory, …)
+│   └── *Data.js            # Dummy datasets (analytics, inventory, …)
 ├── hooks/
 │   ├── useAuthMutations.js
 │   ├── useProducts.js / useProductMutations.js / useProductMediaUpload.js
@@ -148,7 +147,6 @@ const folderStructure = `src/
 │   ├── finance/            # Finance
 │   ├── reviews/            # Reviews & ratings
 │   ├── analytics/          # Analytics & reports
-│   ├── messages/           # Messages
 │   ├── profile/            # Vendor profile
 │   ├── settings/           # Store settings
 │   ├── users/              # Users & permissions
@@ -198,7 +196,6 @@ const integrationRows = [
   { area: 'Users & permissions', status: 'live', notes: 'Invite, roles, deactivate / reactivate' },
   { area: 'Analytics', status: 'live', notes: 'GET widgets and POST /api/vendor/analytics/reports/export' },
   { area: 'Promotions', status: 'mock', notes: 'promotionService → mocks/promotionMockData.js' },
-  { area: 'Messages', status: 'mock', notes: 'constants/messagesData.js; nav marked coming soon' },
   { area: 'Inventory', status: 'mock', notes: 'constants/lowStockData.js' },
   { area: 'Notifications', status: 'mock', notes: 'constants/notificationsData.js' },
   { area: 'Sidebar badges', status: 'mock', notes: 'SIDEBAR_NAV_BADGES in sidebarNav.js' },
@@ -504,7 +501,7 @@ export default function DeveloperGuide() {
             >
               <ul className="space-y-2 text-sm leading-relaxed text-slate-700">
                 <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardLayout</code> — sidebar + navbar + scroll panel (<code className="rounded bg-slate-100 px-1 text-xs">data-dashboard-scroll-panel</code>).</li>
-                <li>• <code className="rounded bg-slate-100 px-1 text-xs">Navbar</code> — notifications, messages, profile. In local/dev only, a Dev guide button links to <code className="rounded bg-slate-100 px-1 text-xs">/dev-guide</code>.</li>
+                <li>• <code className="rounded bg-slate-100 px-1 text-xs">Navbar</code> — notifications and profile. In local/dev only, a Dev guide button links to <code className="rounded bg-slate-100 px-1 text-xs">/dev-guide</code>.</li>
                 <li>• <code className="rounded bg-slate-100 px-1 text-xs">Sidebar</code> — nav from <code className="rounded bg-slate-100 px-1 text-xs">constants/sidebarNav.js</code> (Main / Insights / Settings).</li>
                 <li>• <code className="rounded bg-slate-100 px-1 text-xs">PendingApprovalGuard</code> — modal when account is pending admin approval.</li>
                 <li>• <code className="rounded bg-slate-100 px-1 text-xs">DashboardReveal</code> — staggered entrance animations for KPI cards and charts.</li>
@@ -729,7 +726,7 @@ buildProductInfoJsonPayload(...)      // edit info (presigned JSON update)`}
 /customers, /customers/:customerId
 /promotions, /promotions/new, /promotions/:promotionId, /promotions/:promotionId/edit
 /inventory, /notifications
-/finance, /analytics, /reviews, /messages
+/finance, /analytics, /reviews
 /profile, /settings, /users, /help
 
 /dev-guide                 DeveloperGuide (public reference)`}
@@ -911,7 +908,7 @@ notify.promise(saveProduct(), {
 
               <div className="rounded-xl border border-brand-muted bg-brand-light p-4 text-sm text-slate-800">
                 <p><strong className="text-brand">Done:</strong> auth, landing, dashboard, products (including variants + presigned media), orders, customers, finance, reviews, profile, users &amp; permissions, analytics GET widgets and Excel export.</p>
-                <p className="mt-2"><strong className="text-brand">Next:</strong> connect promotions, messages, inventory, and notifications; replace sidebar badge placeholders with API counts.</p>
+                <p className="mt-2"><strong className="text-brand">Next:</strong> connect promotions, inventory, and notifications; replace sidebar badge placeholders with API counts.</p>
               </div>
             </GuideSection>
           </div>

@@ -9,6 +9,7 @@ import ProductCatalogLoader from '../../components/products/ProductCatalogLoader
 import ProductCatalogToolbar from '../../components/products/ProductCatalogToolbar'
 import ProductSummaryCards from '../../components/products/ProductSummaryCards'
 import ProductTable from '../../components/products/ProductTable'
+import ProductRejectionReasonModal from '../../components/products/ProductRejectionReasonModal'
 import {
   DuplicateProductConfirmModal,
   DuplicateProductSuccessModal,
@@ -50,6 +51,7 @@ export default function Products() {
   const [statusRequest, setStatusRequest] = useState(null)
   const [duplicateRequest, setDuplicateRequest] = useState(null)
   const [duplicateSuccess, setDuplicateSuccess] = useState(null)
+  const [reasonProduct, setReasonProduct] = useState(null)
 
   const { categoryOptions, brandOptions } = useMemo(
     () => buildCatalogFilterOptions(products),
@@ -386,6 +388,7 @@ export default function Products() {
                   onActivate={handleActivate}
                   onDeactivate={handleDeactivate}
                   onDuplicate={handleDuplicate}
+                  onViewReason={setReasonProduct}
                   onDelete={handleDelete}
                 />
               )}
@@ -431,6 +434,12 @@ export default function Products() {
           onClose={closeDuplicateConfirmModal}
           onConfirm={handleConfirmDuplicate}
           isLoading={duplicateProductMutation.isPending}
+        />
+
+        <ProductRejectionReasonModal
+          open={Boolean(reasonProduct)}
+          product={reasonProduct}
+          onClose={() => setReasonProduct(null)}
         />
 
         <DuplicateProductSuccessModal

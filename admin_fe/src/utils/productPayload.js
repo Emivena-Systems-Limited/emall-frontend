@@ -190,12 +190,38 @@ function isNumericAttributeKey(key) {
   return /^\d+$/.test(String(key ?? '').trim())
 }
 
+export function normalizeVariantAttributeEntries(attributes = []) {
+  if (!Array.isArray(attributes)) return []
+
+  return attributes
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+
+      const name = String(item.name ?? item.attribute ?? '').trim()
+      const value = String(item.value ?? '').trim()
+      if (!name || !value) return null
+
+      return {
+        name,
+        value,
+        is_primary: item.is_primary === true || item.is_primary === 1 || item.is_primary === '1',
+      }
+    })
+    .filter(Boolean)
+}
+
 export function parseVariantAttributes(attributes) {
   if (attributes == null) {
     return { attributeKey: 'option', attributeValue: '' }
   }
 
   if (Array.isArray(attributes)) {
+    const namedEntries = normalizeVariantAttributeEntries(attributes)
+    if (namedEntries.length > 0) {
+      const primary = namedEntries.find((entry) => entry.is_primary) ?? namedEntries[0]
+      return { attributeKey: primary.name, attributeValue: primary.value }
+    }
+
     const first = attributes[0]
     if (first && typeof first === 'object' && !Array.isArray(first)) {
       const [attributeKey, attributeValue] = Object.entries(first)[0] ?? ['option', '']
@@ -237,7 +263,8 @@ export function resolveVariantAttributeFields(variant) {
 export function resolveVariantImageUrl(variant) {
   if (!variant || typeof variant !== 'object') return null
 
-  const firstImage = Array.isArray(variant.images) ? variant.images[0] : null
+  const images = Array.isArray(variant.images) ? variant.images : []
+  const firstImage = images.find((image) => image?.is_primary === true || image?.is_primary === 1) ?? images[0] ?? null
   const url = firstImage?.image_url
     ?? firstImage?.url
     ?? firstImage?.preview
@@ -255,7 +282,13 @@ export function collectVariantImageUrls(variant) {
 
   const urls = []
   if (Array.isArray(variant.images)) {
-    variant.images.forEach((image) => {
+    const ordered = [...variant.images].sort((left, right) => {
+      const leftPrimary = left?.is_primary === true || left?.is_primary === 1 ? 0 : 1
+      const rightPrimary = right?.is_primary === true || right?.is_primary === 1 ? 0 : 1
+      if (leftPrimary !== rightPrimary) return leftPrimary - rightPrimary
+      return Number(left?.sort_order ?? 0) - Number(right?.sort_order ?? 0)
+    })
+    ordered.forEach((image) => {
       const url = typeof image === 'string'
         ? image
         : (image?.image_url ?? image?.url ?? image?.preview ?? '')
@@ -292,12 +325,17 @@ export function getVariantAttributeValue(variant, attributeName) {
   const normalized = String(attributeName ?? '').trim().toLowerCase()
   if (!normalized || !variant || typeof variant !== 'object') return ''
 
+  const namedMatch = normalizeVariantAttributeEntries(variant.attributes).find(
+    (entry) => String(entry.name).trim().toLowerCase() === normalized,
+  )
+  if (namedMatch?.value) return namedMatch.value
+
   const flatAttribute = String(variant.attribute ?? '').trim().toLowerCase()
   if (flatAttribute === normalized) {
     return String(variant.value ?? variant.variant_name ?? '').trim()
   }
 
-  if (variant.attributes && typeof variant.attributes === 'object') {
+  if (variant.attributes && typeof variant.attributes === 'object' && !Array.isArray(variant.attributes)) {
     for (const [key, value] of Object.entries(variant.attributes)) {
       if (String(key).trim().toLowerCase() === normalized && value != null && value !== '') {
         return String(value).trim()

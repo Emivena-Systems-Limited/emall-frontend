@@ -1,18 +1,14 @@
-import { SUPPORT_TOPICS } from './messages'
+import { SUPPORT_TOPICS } from './supportTickets'
 
-export const MOCK_CONVERSATIONS = []
-
-export const DEV_CONVERSATIONS = [
+export const SAMPLE_TICKETS = [
   {
     id: 'ticket-001',
     ticketNumber: 'TKT-20481',
     customerName: 'Ama Serwaa',
     customerEmail: 'ama.serwaa@gmail.com',
-    customerAvatar: null,
     topic: SUPPORT_TOPICS.orders,
     subject: SUPPORT_TOPICS.orders,
     preview: 'I placed order ORD-10482 three days ago and have not received a delivery update.',
-    category: 'orders',
     status: 'pending',
     unreadCount: 1,
     orderId: 'ord-10482',
@@ -28,8 +24,8 @@ export const DEV_CONVERSATIONS = [
       },
       {
         id: 'msg-002',
-        sender: 'vendor',
-        text: 'Hello Ama, I checked ORD-10482. It left our warehouse yesterday and is with the courier.',
+        sender: 'support',
+        text: 'Hello Ama, I checked ORD-10482. It left the seller yesterday and is with the courier.',
         sentAt: '2026-09-19T16:02:00Z',
       },
       {
@@ -45,11 +41,9 @@ export const DEV_CONVERSATIONS = [
     ticketNumber: 'TKT-20490',
     customerName: 'Kwame Mensah',
     customerEmail: 'kwame.m@outlook.com',
-    customerAvatar: null,
     topic: SUPPORT_TOPICS.returns,
     subject: SUPPORT_TOPICS.returns,
     preview: 'I ordered the midnight black variant but received navy blue and would like a refund.',
-    category: 'returns',
     status: 'open',
     unreadCount: 1,
     orderId: 'ord-10391',
@@ -70,11 +64,9 @@ export const DEV_CONVERSATIONS = [
     ticketNumber: 'TKT-20472',
     customerName: 'Efua Boateng',
     customerEmail: 'efua.b@yahoo.com',
-    customerAvatar: null,
     topic: SUPPORT_TOPICS.products,
     subject: SUPPORT_TOPICS.products,
     preview: 'Does the standing desk fit in a room with a 2.4m ceiling?',
-    category: 'products',
     status: 'closed',
     unreadCount: 0,
     orderId: null,
@@ -90,7 +82,7 @@ export const DEV_CONVERSATIONS = [
       },
       {
         id: 'msg-006',
-        sender: 'vendor',
+        sender: 'support',
         text: 'The desk extends to 125cm, so it fits comfortably under a 2.4m ceiling. I am closing this request now that the measurement is confirmed.',
         sentAt: '2026-09-18T11:20:00Z',
       },
@@ -101,11 +93,9 @@ export const DEV_CONVERSATIONS = [
     ticketNumber: 'TKT-20495',
     customerName: 'Kofi Asante',
     customerEmail: 'kofi.a@gmail.com',
-    customerAvatar: null,
     topic: SUPPORT_TOPICS.payments,
     subject: SUPPORT_TOPICS.payments,
     preview: 'My card was charged for ORD-10502 but the order still says payment failed.',
-    category: 'payments',
     status: 'open',
     unreadCount: 1,
     orderId: 'ord-10502',
@@ -126,11 +116,9 @@ export const DEV_CONVERSATIONS = [
     ticketNumber: 'TKT-20460',
     customerName: 'Abena Osei',
     customerEmail: 'abena.o@gmail.com',
-    customerAvatar: null,
     topic: SUPPORT_TOPICS.orders,
     subject: SUPPORT_TOPICS.orders,
     preview: 'Can I change the delivery address for order ORD-10455?',
-    category: 'orders',
     status: 'closed',
     unreadCount: 0,
     orderId: 'ord-10455',
@@ -146,24 +134,10 @@ export const DEV_CONVERSATIONS = [
       },
       {
         id: 'msg-009',
-        sender: 'vendor',
+        sender: 'support',
         text: 'The address on ORD-10455 is updated. The courier will deliver to 14 Ring Road East, Accra.',
         sentAt: '2026-09-16T10:00:00Z',
       },
     ],
   },
 ]
-
-export const MOCK_MESSAGES_SUMMARY_PREVIOUS = {
-  totalConversations: 0,
-  unreadMessages: 0,
-  avgResponseHours: 0,
-  resolvedThisWeek: 0,
-}
-
-export const DEV_MESSAGES_SUMMARY_PREVIOUS = {
-  totalConversations: 4,
-  unreadMessages: 2,
-  avgResponseHours: 3.2,
-  resolvedThisWeek: 1,
-}

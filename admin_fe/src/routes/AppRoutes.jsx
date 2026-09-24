@@ -30,6 +30,7 @@ import PaymentDetail from '../pages/PaymentDetail'
 import Carts from '../pages/Carts'
 import Wishlists from '../pages/Wishlists'
 import Searches from '../pages/Searches'
+import SupportTickets from '../pages/SupportTickets'
 import ResetPassword from '../pages/ResetPassword'
 import VendorDetail from '../pages/VendorDetail'
 import VendorProducts from '../pages/VendorProducts'
@@ -324,7 +325,14 @@ export default function AppRoutes() {
         )}
       />
       <Route path="/finance" element={<ComingSoonRoute />} />
-      <Route path="/support" element={<ComingSoonRoute />} />
+      <Route
+        path="/support"
+        element={(
+          <ProtectedRoute>
+            <SupportTickets />
+          </ProtectedRoute>
+        )}
+      />
       <Route path="/staff" element={<ComingSoonRoute />} />
       <Route path="/audit" element={<ComingSoonRoute />} />
       <Route path="/settings" element={<ComingSoonRoute />} />

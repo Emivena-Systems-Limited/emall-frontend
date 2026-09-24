@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router'
 import {
   CheckCircle2,
   ChevronDown,
@@ -8,21 +7,20 @@ import {
   Eye,
   Globe,
   Info,
-  Layers3,
+  MessageSquareText,
   Minus,
   MoreHorizontal,
   Package,
-  Pencil,
   Plus,
   Power,
   PowerOff,
   Share2,
   ShoppingCart,
   Star,
-  Trash2,
   XCircle,
 } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
+import ProductListingTypeBadge from './ProductListingTypeBadge'
 import VariantOptionRow from './VariantOptionRow'
 import notify from '../../lib/notify'
 import { formatItemWeight, formatPackageDimensions, getMetadataValue, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsEntries, mapKeyDetailsFromRecord, sortKeyDetailEntries } from '../../utils/productMetadata'
@@ -41,10 +39,22 @@ import {
   getVariantAttributeValue,
   getVariantCompatibleModels,
   isSameVariantOption,
+  normalizeVariantAttributeEntries,
   resolveCanonicalVariantOption,
   resolveVariantAttributeFields,
   resolveVariantImageUrl,
 } from '../../utils/productPayload'
+import {
+  applyVariantOptionSelection,
+  buildFamilyLeafSelections,
+  buildVisibleOptionGroups,
+  detectVariantFamilies,
+  findLeafVariant,
+  getAvailableOptionValues,
+  getVariantSelectionMap,
+  getVisibleFamilySecondaryGroups,
+  resolveInitialFamilyState,
+} from '../../utils/variantOptionTree'
 
 const cediFormatter = new Intl.NumberFormat('en-GH', {
   style: 'currency',
@@ -147,15 +157,19 @@ function groupHasImageForValue(images = {}, value) {
   ))
 }
 
-function resolveGroupPresentation(group) {
-  if (isColorAttribute(group?.key, group?.label)) return 'images'
+function resolveGroupPresentation(group, { allowImages = true } = {}) {
+  if (!allowImages) return 'chips'
 
   const values = group?.values ?? []
   const images = group?.images ?? {}
   if (values.length === 0) return 'chips'
 
   const everyValueHasImage = values.every((value) => groupHasImageForValue(images, value))
-  return everyValueHasImage ? 'images' : 'chips'
+  if (everyValueHasImage) return 'images'
+  if (isColorAttribute(group?.key, group?.label) && values.some((value) => groupHasImageForValue(images, value))) {
+    return 'images'
+  }
+  return 'chips'
 }
 
 function getVariantOptionValue(variant, groupKey) {
@@ -186,42 +200,15 @@ function findMainProductVariant(preview) {
   return variants[0] ?? null
 }
 
-function findMatchingVariant(preview, { groupKey = '', value = '' } = {}) {
-  const variants = preview?.variants ?? []
-  if (groupKey && value) {
-    const match = variants.find((variant) => (
-      isSameVariantOption(getVariantOptionValue(variant, groupKey), value)
-    ))
-    if (match) return match
-  }
-  return findMainProductVariant(preview) ?? variants[0] ?? null
-}
-
-function isMainProductVariant(preview, variant) {
-  if (!variant) return true
-  const mainVariant = findMainProductVariant(preview)
-  if (!mainVariant) return false
-  if (mainVariant.id != null && variant.id != null) {
-    return String(mainVariant.id) === String(variant.id)
-  }
-  const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
-  return isSameVariantOption(attributeKey, preview.mainAttribute)
-    && isSameVariantOption(String(attributeValue ?? ''), preview.mainAttributeValue)
-}
-
 function resolveGalleryImages(preview, variant) {
   const productGallery = (preview?.gallery ?? []).filter(Boolean)
-  if (!variant || isMainProductVariant(preview, variant)) {
-    return productGallery
-  }
-
   const variantImages = collectVariantImageUrls(variant).slice(0, MAX_VARIANT_IMAGE_COUNT)
   if (variantImages.length > 0) return variantImages
   return productGallery
 }
 
-function resolveCompatibleModelOptions(preview, { groupKey = '', value = '' } = {}) {
-  const variant = findMatchingVariant(preview, { groupKey, value })
+function resolveCompatibleModelOptions(preview, selections = {}) {
+  const variant = findLeafVariant(preview?.variants, selections)
   if (!variant) return []
   return getVariantCompatibleModels(variant)
 }
@@ -231,48 +218,35 @@ function pickDefaultCompatibleModel(preview, options = []) {
   return resolveCanonicalVariantOption(options[0], preview.compatibleModels) || options[0]
 }
 
-/**
- * Attribute groups are independent SKUs, not a color × size matrix.
- * Default to the listing's main option; other groups stay unselected until chosen.
- */
 function resolveInitialVariantSelections(preview) {
   const groups = preview.variantOptionGroups ?? []
-  const mainVariant = findMainProductVariant(preview)
+  const variants = preview.variants ?? []
+  const leaf = findMainProductVariant(preview) ?? variants[0] ?? null
+  const selections = leaf
+    ? getVariantSelectionMap(leaf, groups)
+    : Object.fromEntries(groups.map((group) => [group.key, group.values?.[0] ?? '']))
 
-  if (!mainVariant) {
-    const firstGroup = groups[0]
-    return {
-      groupKey: firstGroup?.key ?? '',
-      value: firstGroup?.values?.[0] ?? '',
-      compatibleModel: '',
-    }
-  }
+  groups.forEach((group) => {
+    if (selections[group.key]) return
+    const available = getAvailableOptionValues(variants, group, selections, groups)
+    selections[group.key] = available[0] ?? ''
+  })
 
-  const { attributeKey, attributeValue } = resolveVariantAttributeFields(mainVariant)
-  const group = groups.find((item) => isSameVariantOption(item.key, attributeKey))
-    ?? groups.find((item) => getVariantOptionValue(mainVariant, item.key))
-    ?? groups[0]
-  const rawValue = String(attributeValue ?? '').trim()
-    || (group ? getVariantOptionValue(mainVariant, group.key) : '')
-    || preview.mainAttributeValue
-    || ''
-  const value = group
-    ? (resolveCanonicalVariantOption(rawValue, group.values) || rawValue)
-    : rawValue
-  const variantModels = getVariantCompatibleModels(mainVariant)
+  const resolved = findLeafVariant(variants, selections) ?? leaf
+  const variantModels = getVariantCompatibleModels(resolved)
   const compatibleModel = variantModels.length > 0
     ? (resolveCanonicalVariantOption(variantModels[0], preview.compatibleModels) || variantModels[0])
     : ''
 
-  return {
-    groupKey: group?.key ?? attributeKey ?? '',
-    value,
-    compatibleModel,
-  }
+  return { selections, compatibleModel }
 }
 
 function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) {
-  const variants = Array.isArray(rawRecord?.variants) ? rawRecord.variants : []
+  const variants = [
+    rawRecord?.variants,
+    rawRecord?.data?.variants,
+    product?.variants,
+  ].find((list) => Array.isArray(list) && list.length > 0) ?? []
   const metadata = Array.isArray(rawRecord?.metadata) ? rawRecord.metadata : []
   const productSku = getMetadataValue(metadata, 'sku')
     || (product?.sku && product.sku !== '—' ? product.sku : '')
@@ -304,19 +278,29 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     const groupKey = resolveGroupStoreKey(attributeKey)
     const group = ensureVariantGroupStore(variantGroups, groupKey)
     group.values.add(valueText)
-    if (imageUrl) group.images[valueText] = imageUrl
+    if (!imageUrl) return
+    const existingKey = Object.keys(group.images).find((key) => isSameVariantOption(key, valueText))
+    if (!existingKey) group.images[valueText] = imageUrl
   }
 
   variants.forEach((variant) => {
-    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
-    const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
     const variantImages = collectVariantImageUrls(variant)
     variantImages.forEach((url) => variantImageUrls.add(url))
     const varImage = variantImages[0] || resolveVariantImageUrl(variant)
+    const namedEntries = normalizeVariantAttributeEntries(variant.attributes)
 
+    if (namedEntries.length > 0) {
+      namedEntries.forEach((entry) => {
+        const attachImage = entry.is_primary
+        addVariantOption(entry.name, entry.value, attachImage ? varImage : null)
+      })
+      return
+    }
+
+    const { attributeKey, attributeValue } = resolveVariantAttributeFields(variant)
+    const valueText = attributeValue != null && attributeValue !== '' ? String(attributeValue) : ''
     if (attributeKey && valueText) {
       addVariantOption(attributeKey, valueText, varImage)
-      return
     }
 
     const legacyColor = getVariantAttributeValue(variant, 'color')
@@ -384,6 +368,8 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
   const descriptiveImages = mapDescriptiveImageUrls(rawRecord?.descriptive_images)
   const customKeyDetailEntries = mapKeyDetailsEntries(rawRecord)
 
+  const variantFamilies = detectVariantFamilies(variants)
+
   return {
     id: product?.id,
     slug: rawRecord?.slug || String(product?.id ?? ''),
@@ -403,6 +389,7 @@ function buildStorefrontPreview({ product, rawRecord, images, conditionLabel }) 
     gallery,
     compatibleModels,
     variantOptionGroups,
+    variantFamilies,
     mainAttribute,
     mainAttributeValue,
     keyDetails,
@@ -533,9 +520,13 @@ function QuantitySelector({ value, onChange, disabled }) {
 function InfoPanel({
   preview,
   activeVariant,
-  selectedGroupKey,
-  selectedValue,
+  selectedOptions,
   onSelectOption,
+  activeFamilyId,
+  familyPrimary = {},
+  familySecondary = {},
+  onSelectFamilyPrimary,
+  onSelectFamilySecondary,
   selectedCompatibleModel,
   setSelectedCompatibleModel,
   compatibleModelOptions = [],
@@ -543,29 +534,43 @@ function InfoPanel({
 }) {
   const [quantity, setQuantity] = useState(1)
 
-  const variantStock = activeVariant?.quantity != null && activeVariant.quantity !== ''
-    ? toNumber(activeVariant.quantity, 0)
-    : null
+  const variantFamilies = preview.variantFamilies ?? []
+  const useFamilyPicker = variantFamilies.some((family) => (family.primaryValues?.length ?? 0) > 0)
+
+  const variantStock = activeVariant?.inventory?.available_quantity != null
+    ? toNumber(activeVariant.inventory.available_quantity, 0)
+    : activeVariant?.quantity != null && activeVariant.quantity !== ''
+      ? toNumber(activeVariant.quantity, 0)
+      : null
   const stockCount = variantStock != null ? variantStock : preview.stockCount
-  const lowStockThreshold = activeVariant?.minimum_threshold != null
-    ? toNumber(activeVariant.minimum_threshold, preview.lowStockThreshold ?? 10)
+  const lowStockThreshold = activeVariant?.inventory?.minimum_threshold != null
+    ? toNumber(activeVariant.inventory.minimum_threshold, preview.lowStockThreshold ?? 10)
     : activeVariant?.low_stock_threshold != null
       ? toNumber(activeVariant.low_stock_threshold, preview.lowStockThreshold ?? 10)
-    : (preview.lowStockThreshold ?? 10)
+      : activeVariant?.minimum_threshold != null
+        ? toNumber(activeVariant.minimum_threshold, preview.lowStockThreshold ?? 10)
+        : (preview.lowStockThreshold ?? 10)
   const outOfStock = stockCount <= 0
-  const variantOptionGroups = preview.variantOptionGroups ?? []
+  const visibleOptionGroups = buildVisibleOptionGroups(
+    preview.variants,
+    preview.variantOptionGroups ?? [],
+    selectedOptions,
+  )
   const compatibleModelValues = compatibleModelOptions.length
     ? compatibleModelOptions
     : (activeVariant ? getVariantCompatibleModels(activeVariant) : (preview.compatibleModels ?? []))
-  const selectedGroupValues = new Set(
-    (variantOptionGroups.find((group) => isSameVariantOption(group.key, selectedGroupKey))?.values ?? [])
-      .map((value) => String(value).toLowerCase()),
+  const selectedOptionValues = new Set(
+    Object.values(selectedOptions ?? {})
+      .map((value) => String(value).toLowerCase())
+      .filter(Boolean),
   )
   const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
-    && selectedGroupValues.size > 0
-    && compatibleModelValues.every((value) => selectedGroupValues.has(String(value).toLowerCase()))
+    && selectedOptionValues.size > 0
+    && compatibleModelValues.every((value) => selectedOptionValues.has(String(value).toLowerCase()))
   const showCompatibleModels = compatibleModelValues.length > 0 && !hasDuplicateCompatibleModels
   const isLowStock = !outOfStock && stockCount <= lowStockThreshold
+  const hasResolvedLeaf = Boolean(activeVariant?.id)
+  const hasSelectedOptions = Object.values(selectedOptions ?? {}).some((value) => String(value ?? '').trim())
 
   return (
     <aside className="min-w-0 bg-white p-3 sm:p-4">
@@ -628,20 +633,61 @@ function InfoPanel({
             {displayPriceInfo.compareAt != null ? formatCedi(displayPriceInfo.compareAt) : formatCedi(displayPriceInfo.price)}
           </span>
         </p>
+        {activeVariant?.variant_name ? (
+          <p className="text-xs font-semibold text-slate-700">{activeVariant.variant_name}</p>
+        ) : null}
       </div>
 
-      {variantOptionGroups.map((group) => (
-        <VariantOptionRow
-          key={group.key}
-          label={group.label}
-          values={group.values}
-          images={group.images}
-          selected={isSameVariantOption(selectedGroupKey, group.key) ? selectedValue : ''}
-          onSelect={(value) => onSelectOption(group.key, value)}
-          presentation={resolveGroupPresentation(group)}
-        />
-      ))}
-      {showCompatibleModels && selectedValue ? (
+      {useFamilyPicker ? (
+        variantFamilies.map((family, familyIdx) => {
+          const isFamilyActive = activeFamilyId === family.id
+          const selectedPrimary = isFamilyActive ? (familyPrimary[family.id] ?? '') : ''
+          const selectedSec = familySecondary[family.id] ?? {}
+
+          return (
+            <div key={family.id}>
+              {familyIdx > 0 && (
+                <div className="my-2 flex items-center gap-2">
+                  <div className="h-px flex-1 bg-slate-100" />
+                  <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-400">or</span>
+                  <div className="h-px flex-1 bg-slate-100" />
+                </div>
+              )}
+              <VariantOptionRow
+                label={family.primaryLabel}
+                values={family.primaryValues}
+                images={family.primaryImages}
+                selected={selectedPrimary}
+                onSelect={(value) => onSelectFamilyPrimary(family.id, value)}
+                presentation={resolveGroupPresentation({ key: family.primaryKey, values: family.primaryValues, images: family.primaryImages })}
+              />
+              {isFamilyActive && getVisibleFamilySecondaryGroups(family, selectedPrimary).map((secGroup) => (
+                <VariantOptionRow
+                  key={secGroup.key}
+                  label={secGroup.label}
+                  values={secGroup.values}
+                  selected={selectedSec[secGroup.key] ?? ''}
+                  onSelect={(value) => onSelectFamilySecondary(family.id, secGroup.key, value)}
+                  presentation="chips"
+                />
+              ))}
+            </div>
+          )
+        })
+      ) : (
+        visibleOptionGroups.map((group, index) => (
+          <VariantOptionRow
+            key={group.key}
+            label={group.label}
+            values={group.values}
+            images={index === 0 ? group.images : undefined}
+            selected={selectedOptions?.[group.key] ?? ''}
+            onSelect={(value) => onSelectOption(group.key, value)}
+            presentation={resolveGroupPresentation(group, { allowImages: index === 0 })}
+          />
+        ))
+      )}
+      {showCompatibleModels && hasSelectedOptions ? (
         <VariantOptionRow
           label="Compatible Model"
           values={compatibleModelValues}
@@ -684,9 +730,18 @@ function InfoPanel({
           Add to Cart
         </button>
       </div>
-      <p className="mt-2 flex items-center gap-1.5 text-[0.625rem] font-semibold text-slate-400">
-        <Info className="size-3" />
-        Preview only — purchase actions are disabled in this view.
+      <p className="mt-2 flex items-start gap-1.5 text-[0.625rem] font-semibold text-slate-400">
+        <Info className="size-3 mt-0.5 shrink-0" />
+        <span>
+          Preview only — purchase actions are disabled in this view.
+          {hasResolvedLeaf ? (
+            <>
+              {' '}Cart would send variant{' '}
+              <span className="font-bold text-slate-500">{activeVariant.id}</span>
+              {activeVariant.sku ? ` (${activeVariant.sku})` : ''}.
+            </>
+          ) : null}
+        </span>
       </p>
 
       <div className="mt-3 grid gap-1.5 text-[0.625rem] text-slate-500 min-[480px]:flex min-[480px]:items-center min-[480px]:justify-between min-[480px]:gap-3">
@@ -700,16 +755,15 @@ function InfoPanel({
 // ─── Key details / description / reviews blocks ────────────────────────────
 
 function PreviewActionsMenu({
-  productId,
   canActivate,
   canDeactivate,
   canApprove,
   canReject,
+  onViewReason,
   onActivate,
   onDeactivate,
   onApprove,
   onReject,
-  onDelete,
 }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
@@ -717,8 +771,6 @@ function PreviewActionsMenu({
 
   const menuItemClass =
     'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50'
-  const dangerItemClass =
-    'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50'
 
   return (
     <>
@@ -736,24 +788,6 @@ function PreviewActionsMenu({
       </button>
 
       <PortalMenu open={open} onClose={close} triggerRef={triggerRef} menuWidth={220}>
-        <Link
-          to={`/products/${productId}/edit?section=info`}
-          role="menuitem"
-          onClick={close}
-          className={menuItemClass}
-        >
-          <Pencil className="size-4" />
-          Edit product info
-        </Link>
-        <Link
-          to={`/products/${productId}/edit?section=variations`}
-          role="menuitem"
-          onClick={close}
-          className={menuItemClass}
-        >
-          <Layers3 className="size-4" />
-          Manage variations
-        </Link>
         {canApprove && (
           <button
             type="button"
@@ -763,6 +797,17 @@ function PreviewActionsMenu({
           >
             <CheckCircle2 className="size-4 text-emerald-600" />
             Approve listing
+          </button>
+        )}
+        {onViewReason && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { close(); onViewReason?.() }}
+            className={menuItemClass}
+          >
+            <MessageSquareText className="size-4 text-red-600" />
+            View rejection reason
           </button>
         )}
         {canReject && (
@@ -798,15 +843,6 @@ function PreviewActionsMenu({
             Hide from shoppers
           </button>
         )}
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => { close(); onDelete?.() }}
-          className={dangerItemClass}
-        >
-          <Trash2 className="size-4" />
-          Delete product
-        </button>
       </PortalMenu>
     </>
   )
@@ -829,7 +865,7 @@ function KeyDetailsBlock({ tags, keyDetails, customKeyDetailEntries = [], active
     .filter(([key]) => !overflowKeys.has(key))
 
   return (
-    <section className="relative min-w-0 h-full bg-white p-4 sm:p-6">
+    <section className="relative min-w-0 bg-white p-4 sm:p-6">
       <button
         type="button"
         onClick={onShare}
@@ -876,9 +912,38 @@ function KeyDetailsBlock({ tags, keyDetails, customKeyDetailEntries = [], active
   )
 }
 
-function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews }) {
+function ReviewGhostFiller() {
   return (
-    <section id="reviews" className="min-w-0 bg-white p-3 sm:p-4">
+    <div
+      className="relative mt-4 hidden min-h-0 flex-1 overflow-hidden lg:block"
+      aria-hidden="true"
+      style={{
+        WebkitMaskImage: 'linear-gradient(to bottom, #000 50%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, #000 50%, transparent 100%)',
+      }}
+    >
+      <div className="absolute inset-x-0 top-0 space-y-2">
+        {Array.from({ length: 24 }, (_, index) => (
+          <div key={index} className="flex gap-2 border-t border-slate-100 pt-3">
+            <span className="size-6 shrink-0 rounded-full bg-slate-100" />
+            <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
+              <span className="block h-2 w-24 rounded-full bg-slate-100" />
+              <span className="block h-1.5 w-full rounded-full bg-slate-50" />
+              <span className="block h-1.5 w-2/3 rounded-full bg-slate-50" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews, fillHeight = false }) {
+  return (
+    <section
+      id="reviews"
+      className={`min-w-0 bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-0 flex-col lg:h-full lg:flex-1' : ''}`}
+    >
       <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
       <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
       <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
@@ -941,7 +1006,7 @@ function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews }
         ))}
       </div>
 
-      <div className="mt-5 text-center">
+      <div className="mt-5 shrink-0 text-center">
         <button
           type="button"
           disabled
@@ -951,6 +1016,7 @@ function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews }
           See All Reviews
         </button>
       </div>
+      {fillHeight ? <ReviewGhostFiller /> : null}
     </section>
   )
 }
@@ -962,13 +1028,11 @@ function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews }
  * products (uploaded before the wide-banner format existed) safely on the legacy 2×2 grid.
  */
 function useDescriptiveImagesLandscapeLayout(imageUrls) {
-  const [isLandscapeLayout, setIsLandscapeLayout] = useState(false)
+  const imageKey = imageUrls.join('|')
+  const [measured, setMeasured] = useState({ key: '', landscape: false })
 
   useEffect(() => {
-    if (imageUrls.length === 0) {
-      setIsLandscapeLayout(false)
-      return undefined
-    }
+    if (imageUrls.length === 0) return undefined
 
     let cancelled = false
 
@@ -980,15 +1044,15 @@ function useDescriptiveImagesLandscapeLayout(imageUrls) {
           && result?.height > 0
           && result.width / result.height >= DESCRIPTIVE_IMAGE_LANDSCAPE_RATIO_THRESHOLD
         ))
-        setIsLandscapeLayout(allLandscape)
+        setMeasured({ key: imageKey, landscape: allLandscape })
       })
 
     return () => {
       cancelled = true
     }
-  }, [imageUrls])
+  }, [imageKey, imageUrls])
 
-  return isLandscapeLayout
+  return measured.key === imageKey && measured.landscape
 }
 
 function ExpandedKeyDetailsPanel({ entries }) {
@@ -1161,23 +1225,33 @@ export default function ProductStorefrontPreview({
   )
   const initialSelections = useMemo(() => resolveInitialVariantSelections(preview), [preview])
   const initialVariant = useMemo(
-    () => findMatchingVariant(preview, initialSelections),
+    () => findLeafVariant(preview.variants, initialSelections.selections),
     [preview, initialSelections],
   )
 
   const [activeImage, setActiveImage] = useState(
     () => resolveGalleryImages(preview, initialVariant)[0] ?? null,
   )
-  const [selectedGroupKey, setSelectedGroupKey] = useState(initialSelections.groupKey)
-  const [selectedValue, setSelectedValue] = useState(initialSelections.value)
+  const [selectedOptions, setSelectedOptions] = useState(initialSelections.selections)
   const [selectedCompatibleModel, setSelectedCompatibleModel] = useState(initialSelections.compatibleModel)
 
+  const variantFamilies = useMemo(
+    () => preview.variantFamilies ?? [],
+    [preview.variantFamilies],
+  )
+  const useFamilyPicker = variantFamilies.some((family) => (family.primaryValues?.length ?? 0) > 0)
+
+  const initialFamilyState = useMemo(
+    () => resolveInitialFamilyState(variantFamilies),
+    [variantFamilies],
+  )
+  const [activeFamilyId, setActiveFamilyId] = useState(initialFamilyState.activeFamilyId)
+  const [familyPrimary, setFamilyPrimary] = useState(initialFamilyState.familyPrimary)
+  const [familySecondary, setFamilySecondary] = useState(initialFamilyState.familySecondary)
+
   const compatibleModelOptions = useMemo(
-    () => resolveCompatibleModelOptions(preview, {
-      groupKey: selectedGroupKey,
-      value: selectedValue,
-    }),
-    [preview, selectedGroupKey, selectedValue],
+    () => resolveCompatibleModelOptions(preview, selectedOptions),
+    [preview, selectedOptions],
   )
 
   const effectiveCompatibleModel = useMemo(() => {
@@ -1191,24 +1265,25 @@ export default function ProductStorefrontPreview({
     return pickDefaultCompatibleModel(preview, compatibleModelOptions)
   }, [compatibleModelOptions, selectedCompatibleModel, preview])
 
-  const activeVariant = useMemo(
-    () => findMatchingVariant(preview, { groupKey: selectedGroupKey, value: selectedValue }),
-    [preview, selectedGroupKey, selectedValue],
-  )
+  const activeVariant = useMemo(() => {
+    if (useFamilyPicker && activeFamilyId) {
+      const family = variantFamilies.find((f) => f.id === activeFamilyId)
+      if (family) {
+        const leafSelections = buildFamilyLeafSelections(
+          family,
+          familyPrimary[activeFamilyId] ?? '',
+          familySecondary[activeFamilyId] ?? {},
+        )
+        return findLeafVariant(preview.variants, leafSelections) ?? null
+      }
+    }
+    return findLeafVariant(preview.variants, selectedOptions)
+  }, [useFamilyPicker, activeFamilyId, variantFamilies, familyPrimary, familySecondary, preview, selectedOptions])
 
   const galleryImages = useMemo(
     () => resolveGalleryImages(preview, activeVariant),
     [preview, activeVariant],
   )
-  const gallerySignature = galleryImages.join('|')
-
-  useEffect(() => {
-    const nextGallery = gallerySignature ? gallerySignature.split('|') : []
-    setActiveImage((current) => {
-      if (current && nextGallery.includes(current)) return current
-      return nextGallery[0] ?? null
-    })
-  }, [gallerySignature])
 
   const displayActiveImage = useMemo(() => {
     if (activeImage && galleryImages.includes(activeImage)) return activeImage
@@ -1216,12 +1291,38 @@ export default function ProductStorefrontPreview({
   }, [activeImage, galleryImages])
 
   const handleOptionSelect = (groupKey, value) => {
-    setSelectedGroupKey(groupKey)
-    setSelectedValue(value)
+    const next = applyVariantOptionSelection({
+      variants: preview.variants,
+      groups: preview.variantOptionGroups,
+      currentSelections: selectedOptions,
+      groupKey,
+      value,
+    })
+    setSelectedOptions(next)
 
-    const matchingVariant = findMatchingVariant(preview, { groupKey, value })
+    const matchingVariant = findLeafVariant(preview.variants, next)
     const availableModels = getVariantCompatibleModels(matchingVariant)
     setSelectedCompatibleModel(pickDefaultCompatibleModel(preview, availableModels))
+  }
+
+  const handleSelectFamilyPrimary = (familyId, value) => {
+    setActiveFamilyId(familyId)
+    setFamilyPrimary((prev) => ({ ...prev, [familyId]: value }))
+    const family = variantFamilies.find((f) => f.id === familyId)
+    if (family) {
+      const secMap = {}
+      getVisibleFamilySecondaryGroups(family, value).forEach((group) => {
+        secMap[group.key] = group.values[0] ?? ''
+      })
+      setFamilySecondary((prev) => ({ ...prev, [familyId]: secMap }))
+    }
+  }
+
+  const handleSelectFamilySecondary = (familyId, secKey, value) => {
+    setFamilySecondary((prev) => ({
+      ...prev,
+      [familyId]: { ...(prev[familyId] ?? {}), [secKey]: value },
+    }))
   }
 
   const handleCompatibleModelSelect = (newModel) => {
@@ -1287,30 +1388,32 @@ export default function ProductStorefrontPreview({
           <Globe className="size-3 shrink-0" />
           <span className="truncate">e-mall.com/product/{preview.slug}</span>
         </div>
+        <span className="shrink-0">
+          <ProductListingTypeBadge isSimpleListing={product?.isSimpleListing} size="sm" />
+        </span>
         <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-brand ring-1 ring-brand/20 sm:inline-flex">
           <Eye className="size-3" />
           Customer view
         </span>
         {actions && (
           <PreviewActionsMenu
-            productId={actions.productId}
             canActivate={actions.canActivate}
             canDeactivate={actions.canDeactivate}
             canApprove={actions.canApprove}
             canReject={actions.canReject}
+            onViewReason={actions.onViewReason}
             onActivate={actions.onActivate}
             onDeactivate={actions.onDeactivate}
             onApprove={actions.onApprove}
             onReject={actions.onReject}
-            onDelete={actions.onDelete}
           />
         )}
       </div>
 
       <div className="bg-[#f2f2f2] p-2 sm:p-3">
         <div className="w-full space-y-3 sm:space-y-4">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-stretch">
-            <div className="contents lg:flex lg:min-h-full lg:flex-col lg:gap-4">
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-start">
+            <div className="contents lg:flex lg:flex-col lg:gap-4">
               <div className="order-1 min-w-0">
                 <PreviewGallery
                   gallery={galleryImages}
@@ -1319,7 +1422,7 @@ export default function ProductStorefrontPreview({
                   title={preview.title}
                 />
               </div>
-              <div className="order-3 min-w-0 lg:flex-1">
+              <div className="order-3 min-w-0">
                 <KeyDetailsBlock
                   tags={preview.tags}
                   keyDetails={preview.keyDetails}
@@ -1337,14 +1440,18 @@ export default function ProductStorefrontPreview({
                 />
               </div>
             </div>
-            <div className="contents lg:flex lg:min-h-full lg:flex-col lg:gap-4">
+            <div className="contents lg:flex lg:flex-col lg:gap-4">
               <div className="order-2 min-w-0">
                 <InfoPanel
                   preview={preview}
                   activeVariant={activeVariant}
-                  selectedGroupKey={selectedGroupKey}
-                  selectedValue={selectedValue}
+                  selectedOptions={selectedOptions}
                   onSelectOption={handleOptionSelect}
+                  activeFamilyId={activeFamilyId}
+                  familyPrimary={familyPrimary}
+                  familySecondary={familySecondary}
+                  onSelectFamilyPrimary={handleSelectFamilyPrimary}
+                  onSelectFamilySecondary={handleSelectFamilySecondary}
                   selectedCompatibleModel={effectiveCompatibleModel}
                   setSelectedCompatibleModel={handleCompatibleModelSelect}
                   compatibleModelOptions={compatibleModelOptions}

@@ -31,7 +31,7 @@ export const NOTIFICATION_TYPES = {
     label: 'Customer message',
     category: 'customers',
     ctaLabel: 'View Message',
-    defaultTo: '/messages',
+    defaultTo: '/orders',
     icon: MessageSquare,
     iconWrap: 'bg-violet-50 text-violet-700 ring-violet-100',
   },
@@ -120,7 +120,7 @@ export const DEV_VENDOR_NOTIFICATIONS = [
     message: 'Kwame Mensah asked about a colour mismatch on order ORD-10391.',
     dateTime: '2026-09-07T12:18:00',
     read: false,
-    link: '/messages',
+    link: '/orders',
   },
   {
     id: 'notif-003',
@@ -201,7 +201,7 @@ export const DEV_VENDOR_NOTIFICATIONS = [
     message: 'Ama Serwaa is asking for a delivery update on ORD-10482.',
     dateTime: '2026-09-05T12:44:00',
     read: false,
-    link: '/messages',
+    link: '/orders',
   },
   {
     id: 'notif-012',
@@ -282,7 +282,7 @@ export const DEV_VENDOR_NOTIFICATIONS = [
     message: 'Nana Adwoa asked whether the standing desk fits a 2.4m ceiling.',
     dateTime: '2026-08-28T16:27:00',
     read: true,
-    link: '/messages',
+    link: '/orders',
   },
   {
     id: 'notif-021',

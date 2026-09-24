@@ -1,5 +1,5 @@
-import { Link } from 'react-router'
 import { Package } from 'lucide-react'
+import ProductListingTypeBadge from './ProductListingTypeBadge'
 
 export default function ProductIdentity({ product, hideVendor = false }) {
   const subtitle = hideVendor
@@ -20,14 +20,19 @@ export default function ProductIdentity({ product, hideVendor = false }) {
           <Package className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </span>
       )}
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-900">{product.name || 'Untitled listing'}</p>
-        {(subtitle || skuSuffix) && (
-          <p className="mt-0.5 truncate text-xs text-slate-500">
-            {subtitle}
-            {skuSuffix}
-          </p>
-        )}
+      <div className="min-w-0 max-w-md">
+        <p className="truncate text-sm font-semibold text-slate-900" title={product.name || 'Untitled listing'}>
+          {product.name || 'Untitled listing'}
+        </p>
+        <div className="mt-0.5 flex min-w-0 items-center gap-2">
+          {(subtitle || skuSuffix) ? (
+            <p className="min-w-0 truncate text-xs text-slate-500">
+              {subtitle}
+              {skuSuffix}
+            </p>
+          ) : null}
+          <ProductListingTypeBadge isSimpleListing={product.isSimpleListing} size="sm" />
+        </div>
       </div>
     </div>
   )

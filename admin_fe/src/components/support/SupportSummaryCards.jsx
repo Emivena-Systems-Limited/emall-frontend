@@ -1,10 +1,10 @@
-import { Clock, Inbox, MessageCircle, CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Clock, Inbox, MessageCircle } from 'lucide-react'
 
 const cards = [
   {
     key: 'totalConversations',
     label: 'Requests',
-    helper: 'Tickets from customers',
+    helper: 'Tickets from shoppers',
     icon: Inbox,
     accent: 'text-sky-700',
     bg: 'bg-sky-50',
@@ -27,7 +27,7 @@ const cards = [
     accent: 'text-violet-700',
     bg: 'bg-violet-50',
     ring: 'ring-violet-100',
-    format: (v) => (v > 0 ? `${v.toFixed(1)}h` : '—'),
+    format: (value) => (value > 0 ? `${value.toFixed(1)}h` : '—'),
   },
   {
     key: 'resolvedThisWeek',
@@ -40,7 +40,7 @@ const cards = [
   },
 ]
 
-export default function MessagesSummaryCards({ summary }) {
+export default function SupportSummaryCards({ summary }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
       {cards.map(({ key, label, helper, icon: Icon, accent, bg, ring, format }) => {

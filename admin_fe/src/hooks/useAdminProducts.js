@@ -6,6 +6,7 @@ import {
   fetchAdminPendingProducts,
   fetchAdminProductById,
   fetchAdminProducts,
+  fetchAdminVendorProducts,
   toggleAdminProductActive,
   updateAdminProduct,
   updateAdminProductStatus,
@@ -46,7 +47,7 @@ export function productListQueryKey({
   ]
 }
 
-export function useAdminProductRoster(filters = {}, page = 1) {
+export function useAdminProductRoster(filters = {}, page = 1, { enabled = true } = {}) {
   const pendingQueue = Boolean(filters.pendingQueue)
   const query = useQuery({
     queryKey: productListQueryKey({ ...filters, page, pendingQueue }),
@@ -55,6 +56,7 @@ export function useAdminProductRoster(filters = {}, page = 1) {
         ? fetchAdminPendingProducts({ ...filters, page, perPage: PRODUCT_PAGE_SIZE })
         : fetchAdminProducts({ ...filters, page, perPage: PRODUCT_PAGE_SIZE })
     ),
+    enabled,
     staleTime: STALE_TIME,
     placeholderData: keepPreviousData,
   })
@@ -88,23 +90,44 @@ function bumpProductCount(queryClient, status, delta) {
   })
 }
 
-export function useProductStatusCounts(currentStatus = '', currentTotal = null) {
-  const queries = useQueries({
-    queries: PRODUCT_STATUS_TABS.map((tab) => ({
-      queryKey: productCountQueryKey(tab.status),
-      queryFn: () => (
-        tab.status === 'pending'
-          ? fetchAdminPendingProducts({ page: 1, perPage: 1 })
-          : fetchAdminProducts({ status: tab.status, page: 1, perPage: 1 })
-      ),
-      staleTime: Infinity,
-      gcTime: 30 * 60 * 1000,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    })),
+export function useAdminVendorProductRoster(vendorId, filters = {}, page = 1) {
+  const query = useQuery({
+    queryKey: [
+      ...ADMIN_PRODUCTS_QUERY_KEY,
+      'vendor',
+      vendorId ?? '',
+      filters.status ?? '',
+      filters.visibility ?? '',
+      filters.search ?? '',
+      page,
+      PRODUCT_PAGE_SIZE,
+    ],
+    queryFn: () => fetchAdminVendorProducts({
+      vendorId,
+      status: filters.status,
+      visibility: filters.visibility,
+      search: filters.search,
+      page,
+      perPage: PRODUCT_PAGE_SIZE,
+    }),
+    enabled: Boolean(vendorId),
+    staleTime: STALE_TIME,
+    placeholderData: keepPreviousData,
   })
 
+  return {
+    products: query.data?.products ?? [],
+    pagination: query.data?.pagination ?? EMPTY_PAGINATION,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    isPlaceholderData: query.isPlaceholderData,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  }
+}
+
+function summarizeStatusCounts(queries, currentStatus, currentTotal) {
   const summary = { total: 0, pending: 0, approved: 0, rejected: 0 }
 
   PRODUCT_STATUS_TABS.forEach((tab, index) => {
@@ -117,6 +140,45 @@ export function useProductStatusCounts(currentStatus = '', currentTotal = null) 
   })
 
   return summary
+}
+
+export function useProductStatusCounts(currentStatus = '', currentTotal = null, { enabled = true } = {}) {
+  const queries = useQueries({
+    queries: PRODUCT_STATUS_TABS.map((tab) => ({
+      queryKey: productCountQueryKey(tab.status),
+      queryFn: () => (
+        tab.status === 'pending'
+          ? fetchAdminPendingProducts({ page: 1, perPage: 1 })
+          : fetchAdminProducts({ status: tab.status, page: 1, perPage: 1 })
+      ),
+      enabled,
+      staleTime: Infinity,
+      gcTime: 30 * 60 * 1000,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    })),
+  })
+
+  return summarizeStatusCounts(queries, currentStatus, currentTotal)
+}
+
+export function useVendorProductStatusCounts(vendorId, currentStatus = '', currentTotal = null) {
+  const queries = useQueries({
+    queries: PRODUCT_STATUS_TABS.map((tab) => ({
+      queryKey: [...ADMIN_PRODUCTS_QUERY_KEY, 'vendor-count', vendorId ?? '', tab.status ?? ''],
+      queryFn: () => fetchAdminVendorProducts({
+        vendorId,
+        status: tab.status,
+        page: 1,
+        perPage: 1,
+      }),
+      enabled: Boolean(vendorId),
+      staleTime: STALE_TIME,
+    })),
+  })
+
+  return summarizeStatusCounts(queries, currentStatus, currentTotal)
 }
 
 export function productDetailQueryKey(id) {

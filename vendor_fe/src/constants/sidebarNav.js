@@ -31,9 +31,8 @@ export const NAV_SECTIONS = [
     label: 'Main',
     items: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/notifications', icon: Bell, label: 'Notifications', badgeKey: 'notifications' },
-      { to: '/orders', icon: ShoppingCart, label: 'Orders' },
       { to: '/products', icon: Package, label: 'Products' },
+      { to: '/orders', icon: ShoppingCart, label: 'Orders' },
       { to: '/customers', icon: Users, label: 'Customers' },
       { to: '/promotions', icon: Tag, label: 'Promotions', comingSoon: true },
     ],
@@ -44,15 +43,15 @@ export const NAV_SECTIONS = [
       { to: '/analytics', icon: BarChart3, label: 'Analytics & Reports', comingSoon: false },
       { to: '/finance', icon: CircleDollarSign, label: 'Finance' },
       { to: '/reviews', icon: Star, label: 'Reviews & Ratings' },
+      { to: '/notifications', icon: Bell, label: 'Notifications', badgeKey: 'notifications' },
     ],
   },
   {
     label: 'Settings',
     items: [
-      { to: '/profile', icon: User, label: 'Profile' },
-      // { to: '/settings', icon: Settings, label: 'Store Settings' },
-      { to: '/users', icon: UserCog, label: 'Users & Permissions', comingSoon: false },
       { to: '/help', icon: HelpCircle, label: 'Help & Support' },
+      { to: '/profile', icon: User, label: 'Profile' },
+      { to: '/users', icon: UserCog, label: 'Users & Permissions', comingSoon: false },
     ],
   },
 ]

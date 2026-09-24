@@ -1,20 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { Inbox, Package, Search, Sparkles } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
+import SmartBackLink from '../components/navigation/SmartBackLink'
 import EmptyState from '../components/dashboard/EmptyState'
 import ProductRoster, { ProductRosterSkeleton } from '../components/products/ProductRoster'
 import ProductStatsGrid from '../components/products/ProductStatsGrid'
 import ProductStatusModal from '../components/products/ProductStatusModal'
-import ProductRemoveModal from '../components/products/ProductRemoveModal'
+import ProductVariationsModal from '../components/products/ProductVariationsModal'
 import ProductVisibilityModal from '../components/products/ProductVisibilityModal'
+import ProductRejectionReasonModal from '../components/products/ProductRejectionReasonModal'
 import { PRODUCT_STATUS_TABS, PRODUCT_VISIBILITY_OPTIONS } from '../constants/adminProducts'
-import { useAdminProductRoster, useProductStatusCounts } from '../hooks/useAdminProducts'
+import { useVendor } from '../hooks/useAdminVendors'
+import {
+  useAdminProductRoster,
+  useAdminVendorProductRoster,
+  useProductStatusCounts,
+  useVendorProductStatusCounts,
+} from '../hooks/useAdminProducts'
 import { formatCount } from '../utils/formatters'
 import { parseApiError } from '../utils/parseApiError'
 
 export default function Products() {
+  const [searchParams] = useSearchParams()
+  const scopedVendorId = searchParams.get('vendor') || ''
+  const { vendor: scopedVendor } = useVendor(scopedVendorId)
+  const storeName = scopedVendor?.store || 'this vendor'
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
@@ -24,7 +36,8 @@ export default function Products() {
   const [page, setPage] = useState(1)
   const [statusProduct, setStatusProduct] = useState(null)
   const [visibilityProduct, setVisibilityProduct] = useState(null)
-  const [removing, setRemoving] = useState(null)
+  const [reasonProduct, setReasonProduct] = useState(null)
+  const [variationsProduct, setVariationsProduct] = useState(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -34,7 +47,13 @@ export default function Products() {
     return () => window.clearTimeout(timer)
   }, [query])
 
-  const filters = { status, visibility, vendorId, search }
+  const filters = { status, visibility, vendorId: scopedVendorId ? '' : vendorId, search }
+  const catalog = useAdminProductRoster(filters, page, { enabled: !scopedVendorId })
+  const vendorCatalog = useAdminVendorProductRoster(
+    scopedVendorId,
+    { status, visibility, search },
+    page,
+  )
   const {
     products,
     pagination,
@@ -43,7 +62,7 @@ export default function Products() {
     isError,
     error,
     refetch,
-  } = useAdminProductRoster(filters, page)
+  } = scopedVendorId ? vendorCatalog : catalog
 
   const vendorOptions = useMemo(() => {
     const map = new Map()
@@ -57,7 +76,15 @@ export default function Products() {
   const hasFilters = Boolean(query.trim() || status || visibility || vendorId)
   const activeTab = PRODUCT_STATUS_TABS.find((tab) => tab.status === status)?.key ?? 'all'
   const currentTotal = !isLoading && !isPlaceholderData ? pagination.total : null
-  const summary = useProductStatusCounts(status, currentTotal)
+  const catalogSummary = useProductStatusCounts(status, scopedVendorId ? null : currentTotal, {
+    enabled: !scopedVendorId,
+  })
+  const vendorSummary = useVendorProductStatusCounts(
+    scopedVendorId,
+    status,
+    scopedVendorId ? currentTotal : null,
+  )
+  const summary = scopedVendorId ? vendorSummary : catalogSummary
   const tabCounts = {
     all: summary.total,
     pending: summary.pending,
@@ -86,7 +113,7 @@ export default function Products() {
   }
 
   return (
-    <DashboardLayout pageTitle="Catalogue">
+    <DashboardLayout pageTitle={scopedVendorId ? `${storeName} products` : 'Catalogue'}>
       <div className="page-enter space-y-5">
         <DashboardReveal index={0}>
           <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
@@ -98,16 +125,26 @@ export default function Products() {
                 </span>
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
-                    Marketplace
+                    {scopedVendorId ? 'Store catalogue' : 'Marketplace'}
                   </p>
                   <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                    Catalogue
+                    {scopedVendorId ? `Products for ${storeName}` : 'Catalogue'}
                   </h2>
                   <p className="mt-1.5 text-sm text-slate-500">
-                    Review vendor listings, open the shopper preview, and decide what goes live.
+                    {scopedVendorId
+                      ? `Listings submitted by ${storeName}.`
+                      : 'Review vendor listings, open the shopper preview, and decide what goes live.'}
                   </p>
                 </div>
               </div>
+              {scopedVendorId ? (
+                <SmartBackLink
+                  fallback="/vendors"
+                  fallbackLabel="Back to vendors"
+                  variant="button-outline"
+                  className="ml-auto inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                />
+              ) : (
               <Link
                 to="/products/pending"
                 className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
@@ -120,11 +157,12 @@ export default function Products() {
                   </span>
                 ) : null}
               </Link>
+              )}
             </div>
           </header>
         </DashboardReveal>
 
-        {summary.pending > 0 && status !== 'pending' ? (
+        {!scopedVendorId && summary.pending > 0 && status !== 'pending' ? (
           <DashboardReveal index={1}>
             <Link
               to="/products/pending"
@@ -177,7 +215,7 @@ export default function Products() {
               })}
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_200px]">
+            <div className={`mt-4 grid gap-3 ${scopedVendorId ? 'lg:grid-cols-[minmax(0,1fr)_200px]' : 'lg:grid-cols-[minmax(0,1fr)_200px_200px]'}`}>
               <label htmlFor="product-search" className="relative min-w-0">
                 <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -189,6 +227,8 @@ export default function Products() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pr-3 pl-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
                 />
               </label>
+              {!scopedVendorId ? (
+              <>
               <label htmlFor="product-vendor" className="sr-only">Store</label>
               <select
                 id="product-vendor"
@@ -206,6 +246,8 @@ export default function Products() {
                   <option key={id} value={id}>{name}</option>
                 ))}
               </select>
+              </>
+              ) : null}
               <label htmlFor="product-visibility" className="sr-only">Visibility</label>
               <select
                 id="product-visibility"
@@ -257,7 +299,8 @@ export default function Products() {
               hasFilters={hasFilters}
               onStatus={setStatusProduct}
               onVisibility={setVisibilityProduct}
-              onRemove={setRemoving}
+              onViewReason={setReasonProduct}
+              onViewVariations={setVariationsProduct}
             />
           )}
         </DashboardReveal>
@@ -273,10 +316,15 @@ export default function Products() {
         product={visibilityProduct}
         onClose={() => setVisibilityProduct(null)}
       />
-      <ProductRemoveModal
-        open={Boolean(removing)}
-        product={removing}
-        onClose={() => setRemoving(null)}
+      <ProductRejectionReasonModal
+        open={Boolean(reasonProduct)}
+        product={reasonProduct}
+        onClose={() => setReasonProduct(null)}
+      />
+      <ProductVariationsModal
+        open={Boolean(variationsProduct)}
+        product={variationsProduct}
+        onClose={() => setVariationsProduct(null)}
       />
     </DashboardLayout>
   )

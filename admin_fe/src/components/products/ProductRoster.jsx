@@ -4,12 +4,11 @@ import { ChevronLeft, ChevronRight, Package } from 'lucide-react'
 import EmptyState from '../dashboard/EmptyState'
 import SmartNavLink from '../navigation/SmartNavLink'
 import { formatCount, formatCedi } from '../../utils/formatters'
-import { formatProductDate } from '../../utils/normalizeAdminProducts'
 import { prefetchAdminProduct } from '../../hooks/useAdminProducts'
 import useNavigationState from '../../hooks/useNavigationState'
 import ProductActions from './ProductActions'
 import ProductIdentity, { ProductRosterSkeleton } from './ProductIdentity'
-import ProductStatusBadge from './ProductStatusBadge'
+import ProductStatusBadge, { ProductVisibilityBadge } from './ProductStatusBadge'
 
 export { ProductRosterSkeleton }
 
@@ -25,7 +24,8 @@ export default function ProductRoster({
   hasFilters = false,
   onStatus,
   onVisibility,
-  onRemove,
+  onViewReason,
+  onViewVariations,
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -60,44 +60,57 @@ export default function ProductRoster({
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
       <div className="hidden overflow-x-auto md:block">
-        <table className="min-w-full text-left text-sm">
+        <table className="min-w-full table-fixed text-left text-sm">
           <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-5 py-2.5">Listing</th>
+              <th className="w-[42%] px-5 py-2.5">Listing</th>
+              <th className="px-5 py-2.5">Category</th>
               <th className="px-5 py-2.5">Price</th>
+              <th className="px-5 py-2.5">Stock</th>
               <th className="px-5 py-2.5">Review</th>
-              <th className="px-5 py-2.5">Added</th>
+              <th className="px-5 py-2.5">Shoppers</th>
               <th className="px-5 py-2.5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {products.map((product) => (
               <tr key={product.id} className="transition-colors hover:bg-slate-50/80">
-                <td className="px-5 py-3">
+                <td className="max-w-0 px-5 py-3">
                   <SmartNavLink
                     to={`/products/${product.id}`}
                     onMouseEnter={() => prefetch(product.id)}
                     onFocus={() => prefetch(product.id)}
-                    className="block rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand"
+                    className="block min-w-0 rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand"
                   >
                     <ProductIdentity product={product} />
                   </SmartNavLink>
                 </td>
-                <td className="px-5 py-3 font-semibold tabular-nums text-slate-900">
-                  {formatCedi(product.price)}
+                <td className="max-w-0 truncate px-5 py-3 text-slate-600" title={product.category}>
+                  {product.category || '—'}
                 </td>
                 <td className="px-5 py-3">
-                  <ProductStatusBadge status={product.approvalStatus} isActive={product.isActive} />
+                  <p className="font-semibold tabular-nums text-slate-900">{formatCedi(product.price)}</p>
+                  {product.hasDiscount ? (
+                    <p className="text-xs tabular-nums text-slate-400 line-through">{formatCedi(product.regularPrice)}</p>
+                  ) : null}
                 </td>
-                <td className="px-5 py-3 text-slate-500">{formatProductDate(product.createdAt)}</td>
+                <td className="px-5 py-3 tabular-nums text-slate-700">
+                  {product.stock == null ? '—' : formatCount(product.stock)}
+                </td>
+                <td className="px-5 py-3">
+                  <ProductStatusBadge status={product.approvalStatus} />
+                </td>
+                <td className="px-5 py-3">
+                  <ProductVisibilityBadge isActive={product.isActive} approvalStatus={product.approvalStatus} />
+                </td>
                 <td className="px-5 py-3 text-right">
                   <ProductActions
                     product={product}
                     onView={() => navigate(`/products/${product.id}`, { state: navigationState })}
-                    onEdit={() => navigate(`/products/${product.id}/edit`, { state: navigationState })}
                     onStatus={onStatus}
                     onVisibility={onVisibility}
-                    onRemove={onRemove}
+                    onViewReason={onViewReason}
+                    onViewVariations={onViewVariations}
                   />
                 </td>
               </tr>
@@ -121,14 +134,16 @@ export default function ProductRoster({
               <ProductActions
                 product={product}
                 onView={() => navigate(`/products/${product.id}`, { state: navigationState })}
-                onEdit={() => navigate(`/products/${product.id}/edit`, { state: navigationState })}
                 onStatus={onStatus}
                 onVisibility={onVisibility}
-                onRemove={onRemove}
+                onViewReason={onViewReason}
+                onViewVariations={onViewVariations}
               />
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <ProductStatusBadge status={product.approvalStatus} isActive={product.isActive} />
+              <ProductStatusBadge status={product.approvalStatus} />
+              <ProductVisibilityBadge isActive={product.isActive} approvalStatus={product.approvalStatus} />
+              <span className="min-w-0 truncate text-xs text-slate-500">{product.category || '—'}</span>
               <span className="text-xs font-semibold tabular-nums text-slate-700">{formatCedi(product.price)}</span>
             </div>
           </li>
