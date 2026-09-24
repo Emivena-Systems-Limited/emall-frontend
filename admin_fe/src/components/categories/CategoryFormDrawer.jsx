@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Formik } from 'formik'
-import { CheckCircle2, ChevronDown, FolderPlus, Image as ImageIcon, Loader2, Pencil } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  CheckCircle2,
+  ChevronDown,
+  Circle,
+  FolderPlus,
+  Image as ImageIcon,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 import SlideDrawer from '../vendors/SlideDrawer'
 import FieldError from '../auth/FieldError'
 import CategoryImage from './CategoryImage'
@@ -8,9 +20,11 @@ import CategoryImageField from './CategoryImageField'
 import { CATEGORY_KINDS, CATEGORY_WRITE_ENABLED } from '../../constants/categories'
 import notify from '../../lib/notify'
 import {
+  ADMIN_CATEGORIES_QUERY_KEY,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
 } from '../../hooks/useAdminCategories'
+import { createAdminCategory } from '../../services/categoryService'
 import { parseApiError } from '../../utils/parseApiError'
 import { getCategoryFormSchema } from '../../utils/validationSchemas'
 import {
@@ -68,6 +82,37 @@ function getCategoryFormValues({ mode, category, parentId, tree = [] }) {
     isFeatured: Boolean(category?.isFeatured),
     imageFile: null,
     thumbnailFile: null,
+    subcategories: [],
+  }
+}
+
+let subcategoryDraftCounter = 0
+
+function createEmptySubcategoryDraft() {
+  subcategoryDraftCounter += 1
+  return {
+    key: `subcategory-draft-${Date.now()}-${subcategoryDraftCounter}`,
+    name: '',
+    isActive: true,
+    isFeatured: false,
+    imageFile: null,
+    thumbnailFile: null,
+  }
+}
+
+function buildSubcategoryCreatePayload(row, parentId) {
+  const name = row.name.trim()
+  return {
+    name,
+    slug: slugifyCategoryName(name),
+    parentId,
+    isActive: row.isActive,
+    isFeatured: row.isFeatured,
+    imageFile: row.imageFile,
+    thumbnailFile: row.thumbnailFile,
+    imageUrl: '',
+    thumbnailUrl: '',
+    images: [],
   }
 }
 
@@ -221,8 +266,228 @@ function CategorySuccessPanel({ name, onClose, onContinue }) {
   )
 }
 
+function SubcategoryRow({ index, row, busy, onChange, onRemove }) {
+  const [expanded, setExpanded] = useState(true)
+  const nameRef = useRef(null)
+
+  useEffect(() => {
+    if (!expanded) return
+    const input = nameRef.current
+    if (input && !input.value.trim()) input.focus()
+  }, [expanded])
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center gap-2 px-3.5 py-3">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] font-bold text-slate-500">
+          {index + 1}
+        </span>
+        <input
+          ref={nameRef}
+          value={row.name}
+          disabled={busy}
+          onChange={(event) => onChange({ ...row, name: event.target.value })}
+          placeholder={`Subcategory ${index + 1} name`}
+          aria-label={`Subcategory ${index + 1} name`}
+          className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-900 outline-none transition-colors focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setExpanded((value) => !value)}
+          className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed"
+          aria-label={expanded ? 'Collapse subcategory details' : 'Expand subcategory details'}
+          aria-expanded={expanded}
+        >
+          <ChevronDown className={`size-4 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onRemove}
+          className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed"
+          aria-label={`Remove subcategory ${index + 1}`}
+        >
+          <Trash2 className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="space-y-3 border-t border-slate-100 px-3.5 py-3.5">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-[1.35fr_1fr]">
+            <CategoryImageField
+              id={`subcategory-${row.key}-image`}
+              label="Cover image"
+              hint="Cover"
+              file={row.imageFile}
+              onFileChange={(file) => onChange({ ...row, imageFile: file })}
+              disabled={busy}
+              aspectClass="aspect-[4/3]"
+            />
+            <CategoryImageField
+              id={`subcategory-${row.key}-thumbnail`}
+              label="Thumbnail"
+              hint="Thumbnail"
+              file={row.thumbnailFile}
+              onFileChange={(file) => onChange({ ...row, thumbnailFile: file })}
+              disabled={busy}
+              aspectClass="aspect-square"
+            />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <SwitchField
+              id={`subcategory-${row.key}-active`}
+              label="Active"
+              hint="Visible to shoppers"
+              checked={row.isActive}
+              onChange={(next) => onChange({ ...row, isActive: next })}
+              disabled={busy}
+            />
+            <SwitchField
+              id={`subcategory-${row.key}-featured`}
+              label="Featured"
+              hint="Highlight on storefront"
+              checked={row.isFeatured}
+              onChange={(next) => onChange({ ...row, isFeatured: next })}
+              disabled={busy}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SubcategoriesSection({ subcategories, busy, error, onChangeSubcategories }) {
+  const addRow = () => {
+    onChangeSubcategories([...(subcategories ?? []), createEmptySubcategoryDraft()])
+  }
+
+  const updateRow = (key, next) => {
+    onChangeSubcategories(subcategories.map((row) => (row.key === key ? next : row)))
+  }
+
+  const removeRow = (key) => {
+    onChangeSubcategories(subcategories.filter((row) => row.key !== key))
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-700">Subcategories</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            Add subcategories now and they&apos;ll be created together with this department.
+          </p>
+        </div>
+        {subcategories.length > 0 ? (
+          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold tabular-nums text-slate-500">
+            {subcategories.length}
+          </span>
+        ) : null}
+      </div>
+
+      {subcategories.length > 0 && (
+        <div id="category-subcategories" className="mt-3 space-y-2.5">
+          {subcategories.map((row, index) => (
+            <SubcategoryRow
+              key={row.key}
+              index={index}
+              row={row}
+              busy={busy}
+              onChange={(next) => updateRow(row.key, next)}
+              onRemove={() => removeRow(row.key)}
+            />
+          ))}
+        </div>
+      )}
+
+      {error ? <p className="mt-2 text-[11px] font-semibold text-rose-700">{error}</p> : null}
+
+      <button
+        type="button"
+        disabled={busy}
+        onClick={addRow}
+        className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-brand/40 hover:bg-brand-light/30 hover:text-brand disabled:cursor-not-allowed"
+      >
+        <Plus className="size-4" aria-hidden="true" />
+        {subcategories.length > 0 ? 'Add another subcategory' : 'Add a subcategory'}
+      </button>
+    </section>
+  )
+}
+
+function BatchStepIcon({ status }) {
+  if (status === 'saving') return <Loader2 className="size-4 animate-spin text-brand" aria-hidden="true" />
+  if (status === 'done') return <CheckCircle2 className="size-4 text-emerald-600" aria-hidden="true" />
+  if (status === 'error') return <XCircle className="size-4 text-rose-600" aria-hidden="true" />
+  return <Circle className="size-4 text-slate-300" aria-hidden="true" />
+}
+
+function BatchStepChecklist({ steps }) {
+  const settled = steps.filter((step) => step.status === 'done' || step.status === 'error').length
+  const total = steps.length
+  const percent = total ? Math.round((settled / total) * 100) : 0
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+          <span>{settled} of {total} saved</span>
+          <span>{percent}%</span>
+        </div>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full rounded-full bg-brand transition-all duration-300"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
+
+      <ul className="space-y-2">
+        {steps.map((step) => (
+          <li
+            key={step.key}
+            className={`flex items-start gap-3 rounded-2xl border px-3.5 py-3 transition-colors ${
+              step.status === 'error'
+                ? 'border-rose-200 bg-rose-50/60'
+                : step.status === 'done'
+                  ? 'border-emerald-200 bg-emerald-50/60'
+                  : step.status === 'saving'
+                    ? 'border-brand/30 bg-brand-light/40'
+                    : 'border-slate-200 bg-white'
+            }`}
+          >
+            <span className="mt-0.5 shrink-0">
+              <BatchStepIcon status={step.status} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-900">{step.label || 'Untitled'}</p>
+              <p className="mt-0.5 text-[11px] font-medium text-slate-400">
+                {step.kind === 'department' ? 'Department' : 'Subcategory'}
+                {' · '}
+                {step.status === 'saving'
+                  ? 'Saving…'
+                  : step.status === 'done'
+                    ? 'Saved'
+                    : step.status === 'error'
+                      ? 'Failed'
+                      : 'Waiting'}
+              </p>
+              {step.status === 'error' && step.error ? (
+                <p className="mt-1 text-[11px] font-medium text-rose-700">{step.error}</p>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function CategoryForm({ mode, category, parentId, tree, onClose }) {
   const isEdit = mode === 'edit'
+  const queryClient = useQueryClient()
   const createMutation = useCreateCategoryMutation()
   const updateMutation = useUpdateCategoryMutation()
   const mutation = isEdit ? updateMutation : createMutation
@@ -231,6 +496,8 @@ function CategoryForm({ mode, category, parentId, tree, onClose }) {
   const [activeCategory, setActiveCategory] = useState(category)
   const [savedName, setSavedName] = useState('')
   const [resumeParentId, setResumeParentId] = useState('')
+  const [batchSteps, setBatchSteps] = useState([])
+  const [batchDepartmentId, setBatchDepartmentId] = useState('')
   const initialValues = useMemo(
     () => getCategoryFormValues({ mode, category, parentId, tree }),
     [mode, category, parentId, tree],
@@ -260,6 +527,90 @@ function CategoryForm({ mode, category, parentId, tree, onClose }) {
     })
   }, [tree, activeCategory?.id])
 
+  const updateBatchStep = (key, patch) => {
+    setBatchSteps((current) => current.map((step) => (step.key === key ? { ...step, ...patch } : step)))
+  }
+
+  const runBatchSave = async (departmentPayload, subcategoryRows) => {
+    const steps = [
+      {
+        key: 'department',
+        kind: 'department',
+        label: departmentPayload.name,
+        status: 'pending',
+        error: '',
+        payload: departmentPayload,
+      },
+      ...subcategoryRows.map((row) => ({
+        key: row.key,
+        kind: 'subcategory',
+        label: row.name.trim(),
+        status: 'pending',
+        error: '',
+        payload: row,
+      })),
+    ]
+
+    setBatchSteps(steps)
+    setBatchDepartmentId('')
+    setPhase('saving')
+
+    updateBatchStep('department', { status: 'saving' })
+    let newDepartmentId
+    try {
+      const result = await createAdminCategory(departmentPayload)
+      newDepartmentId = result?.category?.id ?? ''
+      updateBatchStep('department', { status: 'done' })
+    } catch (error) {
+      updateBatchStep('department', {
+        status: 'error',
+        error: parseApiError(error, 'Could not create this category.').message,
+      })
+      await queryClient.invalidateQueries({ queryKey: ADMIN_CATEGORIES_QUERY_KEY })
+      setPhase('summary')
+      return
+    }
+
+    setBatchDepartmentId(newDepartmentId)
+
+    for (const row of subcategoryRows) {
+      updateBatchStep(row.key, { status: 'saving' })
+      try {
+        await createAdminCategory(buildSubcategoryCreatePayload(row, newDepartmentId))
+        updateBatchStep(row.key, { status: 'done' })
+      } catch (error) {
+        updateBatchStep(row.key, {
+          status: 'error',
+          error: parseApiError(error, 'Could not create this subcategory.').message,
+        })
+      }
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ADMIN_CATEGORIES_QUERY_KEY })
+    setPhase('summary')
+  }
+
+  const retryFailedSubcategories = async () => {
+    const failedSteps = batchSteps.filter((step) => step.kind === 'subcategory' && step.status === 'error')
+    if (failedSteps.length === 0 || !batchDepartmentId) return
+
+    setPhase('saving')
+    for (const step of failedSteps) {
+      updateBatchStep(step.key, { status: 'saving', error: '' })
+      try {
+        await createAdminCategory(buildSubcategoryCreatePayload(step.payload, batchDepartmentId))
+        updateBatchStep(step.key, { status: 'done' })
+      } catch (error) {
+        updateBatchStep(step.key, {
+          status: 'error',
+          error: parseApiError(error, 'Could not create this subcategory.').message,
+        })
+      }
+    }
+    await queryClient.invalidateQueries({ queryKey: ADMIN_CATEGORIES_QUERY_KEY })
+    setPhase('summary')
+  }
+
   return (
     <Formik
       initialValues={initialValues}
@@ -287,9 +638,34 @@ function CategoryForm({ mode, category, parentId, tree, onClose }) {
           images: activeCategory?.images ?? [],
         }
 
+        const pendingSubcategories = (!isEdit && !lockedUnderParent && values.kind === 'department')
+          ? (values.subcategories ?? []).filter((row) => row.name.trim())
+          : []
+
+        if (pendingSubcategories.length > 0) {
+          const seenNames = new Set()
+          const hasDuplicate = pendingSubcategories.some((row) => {
+            const key = row.name.trim().toLowerCase()
+            if (seenNames.has(key)) return true
+            seenNames.add(key)
+            return false
+          })
+          if (hasDuplicate) {
+            helpers.setFieldError('subcategories', 'Give each subcategory a different name.')
+            helpers.setSubmitting(false)
+            return
+          }
+        }
+
         if (!CATEGORY_WRITE_ENABLED) {
           notify.info('This category cannot be saved yet. Your details stay in the form.')
           helpers.setSubmitting(false)
+          return
+        }
+
+        if (pendingSubcategories.length > 0) {
+          helpers.setSubmitting(false)
+          runBatchSave(payload, pendingSubcategories)
           return
         }
 
@@ -368,6 +744,92 @@ function CategoryForm({ mode, category, parentId, tree, onClose }) {
                 })
               }}
             />
+          </SlideDrawer>
+        ) : phase === 'saving' ? (
+          <SlideDrawer
+            open
+            onClose={() => {}}
+            labelledBy="category-form-title"
+            title="Saving your categories"
+            subtitle="Hang tight — this only takes a moment"
+            icon={Loader2}
+            widthClass="max-w-xl"
+          >
+            <BatchStepChecklist steps={batchSteps} />
+          </SlideDrawer>
+        ) : phase === 'summary' ? (
+          <SlideDrawer
+            open
+            onClose={onClose}
+            labelledBy="category-form-title"
+            title={
+              batchSteps.find((step) => step.kind === 'department')?.status === 'error'
+                ? 'Could not create this category'
+                : 'Category batch saved'
+            }
+            subtitle="Here's how each item went"
+            icon={CheckCircle2}
+            widthClass="max-w-xl"
+            footer={(() => {
+              const departmentStep = batchSteps.find((step) => step.kind === 'department')
+              const failedSubcategories = batchSteps.filter(
+                (step) => step.kind === 'subcategory' && step.status === 'error',
+              )
+
+              if (departmentStep?.status === 'error') {
+                return (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPhase('form')}
+                      className="flex-[1.4] inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )
+              }
+
+              if (failedSubcategories.length > 0) {
+                return (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={retryFailedSubcategories}
+                      className="flex-[1.4] inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                    >
+                      Retry {failedSubcategories.length} failed
+                    </button>
+                  </div>
+                )
+              }
+
+              return (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                >
+                  Done
+                </button>
+              )
+            })()}
+          >
+            <BatchStepChecklist steps={batchSteps} />
           </SlideDrawer>
         ) : (
           <CategoryFormFields
@@ -458,6 +920,7 @@ function CategoryFormFields({
   ))
   const previewCover = useFilePreview(values.imageFile, category?.imageUrl)
   const previewThumb = useFilePreview(values.thumbnailFile, category?.thumbnailUrl)
+  const pendingSubcategoryCount = (values.subcategories ?? []).filter((row) => row.name.trim()).length
 
   useEffect(() => {
     if (phase === 'pick') {
@@ -538,7 +1001,15 @@ function CategoryFormFields({
               className="flex-[1.4] inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {isContinue ? 'Save changes' : isEdit ? 'Save changes' : lockedUnderParent ? 'Create subcategory' : 'Create category'}
+              {isContinue
+                ? 'Save changes'
+                : isEdit
+                  ? 'Save changes'
+                  : lockedUnderParent
+                    ? 'Create subcategory'
+                    : pendingSubcategoryCount > 0
+                      ? `Create category + ${pendingSubcategoryCount} subcategor${pendingSubcategoryCount === 1 ? 'y' : 'ies'}`
+                      : 'Create category'}
             </button>
           </div>
         )
@@ -787,6 +1258,15 @@ function CategoryFormFields({
               />
             </section>
           </>
+        )}
+
+        {phase === 'form' && !isEdit && !lockedUnderParent && values.kind === 'department' && (
+          <SubcategoriesSection
+            subcategories={values.subcategories ?? []}
+            busy={busy}
+            error={showError('subcategories') ? errors.subcategories : ''}
+            onChangeSubcategories={(next) => setFieldValue('subcategories', next)}
+          />
         )}
       </div>
     </SlideDrawer>

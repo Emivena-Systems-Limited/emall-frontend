@@ -185,8 +185,9 @@ export async function updateAdminProduct(productId, body) {
 }
 
 export async function updateAdminProductStatus({ id, status, rejectionReason = '' }) {
+  const normalizedStatus = toProductApiStatus(status) || 'approved'
   const payload = {
-    status: toProductApiStatus(status) || 'approved',
+    status: normalizedStatus === 'pending' ? 'pending_approval' : normalizedStatus,
   }
   if (payload.status === 'rejected') {
     payload.rejected_reason = String(rejectionReason ?? '').trim()

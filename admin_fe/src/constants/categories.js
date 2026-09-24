@@ -9,8 +9,8 @@ export const CATEGORY_ENDPOINTS = {
 
 export const CATEGORY_WRITE_ENABLED = true
 
-export const CATEGORY_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp'
-export const CATEGORY_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+export const CATEGORY_IMAGE_ACCEPT = 'image/jpeg,image/png'
+export const CATEGORY_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 export const CATEGORY_IMAGE_TYPE_REGULAR = 'regular_image'
 export const CATEGORY_IMAGE_TYPE_THUMBNAIL = 'thumbnail'
 

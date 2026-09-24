@@ -37,11 +37,11 @@ export default function CategoryImageField({
   const applyFile = (nextFile) => {
     if (!nextFile) return
     if (!isAcceptedType(nextFile)) {
-      notify.error('Use JPG, PNG, or WEBP images only.')
+      notify.error('Use JPG or PNG images only.')
       return
     }
     if (nextFile.size > CATEGORY_IMAGE_MAX_BYTES) {
-      notify.error('Image must be 5MB or less.')
+      notify.error('Image must be 2MB or less.')
       return
     }
     onFileChange(nextFile)
@@ -127,7 +127,7 @@ export default function CategoryImageField({
         />
       </div>
       {error ? <FieldError message={error} /> : null}
-      <p className="mt-1.5 text-[11px] text-slate-400">JPG, PNG, or WEBP · 5MB max</p>
+      <p className="mt-1.5 text-[11px] text-slate-400">JPG or PNG · 2MB max</p>
     </div>
   )
 }
