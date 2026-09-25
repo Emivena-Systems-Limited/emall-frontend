@@ -67,7 +67,7 @@ function pickNumber(source, keys) {
 export function normalizeUserStatus(raw) {
   const value = String(raw ?? '').trim().toLowerCase().replace(/\s+/g, '_')
   if (['verified', 'active', 'approved', 'live'].includes(value)) return 'verified'
-  if (['pending', 'unverified', 'not_verified', 'pending_review', 'pending_approval', 'submitted'].includes(value)) {
+  if (['pending', 'unverified', 'not_verified', 'pending_review', 'pending_approval', 'pending_verification', 'submitted'].includes(value)) {
     return 'pending'
   }
   if (['rejected', 'declined', 'denied'].includes(value)) return 'rejected'

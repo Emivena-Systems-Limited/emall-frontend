@@ -2,6 +2,21 @@ import { Package, ShoppingBag } from 'lucide-react'
 import OverflowTooltip from '../common/OverflowTooltip'
 import { formatCount } from '../../utils/formatters'
 
+export function CartKindBadge({ cart, className = '' }) {
+  const guest = Boolean(cart?.isGuest)
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${
+        guest
+          ? 'bg-sky-50 text-sky-800 ring-sky-100'
+          : 'bg-slate-100 text-slate-700 ring-slate-200'
+      } ${className}`}
+    >
+      {guest ? 'Guest' : 'Shopper'}
+    </span>
+  )
+}
+
 export default function CartIdentity({ cart }) {
   const thumbs = cart?.thumbs ?? []
   const countLabel = cart?.itemsCount === 1 ? '1 item' : `${formatCount(cart?.itemsCount ?? 0)} items`

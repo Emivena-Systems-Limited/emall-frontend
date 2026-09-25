@@ -18,12 +18,12 @@ export function cartStatsQueryKey() {
   return [...ADMIN_CART_ANALYTICS_QUERY_KEY, 'stats']
 }
 
-export function cartListQueryKey({ status = 'active', page = 1 } = {}) {
-  return [...ADMIN_CART_ANALYTICS_QUERY_KEY, 'list', status ?? '', page, CART_PAGE_SIZE]
+export function cartListQueryKey({ status = 'active', owner = '', page = 1 } = {}) {
+  return [...ADMIN_CART_ANALYTICS_QUERY_KEY, 'list', status ?? '', owner ?? '', page, CART_PAGE_SIZE]
 }
 
-export function cartTopProductsQueryKey() {
-  return [...ADMIN_CART_ANALYTICS_QUERY_KEY, 'top-products', CART_TOP_PRODUCTS_LIMIT]
+export function cartTopProductsQueryKey(limit = CART_TOP_PRODUCTS_LIMIT) {
+  return [...ADMIN_CART_ANALYTICS_QUERY_KEY, 'top-products', limit]
 }
 
 export function useCartAnalyticsStats() {
@@ -44,9 +44,10 @@ export function useCartAnalyticsStats() {
 
 export function useAdminCartRoster(filters = {}, page = 1) {
   const status = filters.status ?? 'active'
+  const owner = filters.owner ?? ''
   const query = useQuery({
-    queryKey: cartListQueryKey({ status, page }),
-    queryFn: () => fetchAdminCarts({ status, page, perPage: CART_PAGE_SIZE }),
+    queryKey: cartListQueryKey({ status, owner, page }),
+    queryFn: () => fetchAdminCarts({ status, owner, page, perPage: CART_PAGE_SIZE }),
     staleTime: STALE_TIME,
     placeholderData: keepPreviousData,
   })
@@ -63,10 +64,10 @@ export function useAdminCartRoster(filters = {}, page = 1) {
   }
 }
 
-export function useCartTopProducts() {
+export function useCartTopProducts({ limit = CART_TOP_PRODUCTS_LIMIT } = {}) {
   const query = useQuery({
-    queryKey: cartTopProductsQueryKey(),
-    queryFn: () => fetchCartTopProducts({ limit: CART_TOP_PRODUCTS_LIMIT }),
+    queryKey: cartTopProductsQueryKey(limit),
+    queryFn: () => fetchCartTopProducts({ limit }),
     staleTime: STALE_TIME,
   })
 

@@ -8,6 +8,7 @@ import {
   normalizeAdminUserAddresses,
   normalizeAdminUserDetail,
   normalizeAdminUsers,
+  normalizeUserStatus,
   toApiUserStatus,
 } from '../utils/normalizeAdminUsers'
 import {
@@ -21,6 +22,66 @@ function compactParams(params) {
   return Object.fromEntries(
     Object.entries(params).filter(([, value]) => value !== '' && value != null && value !== false),
   )
+}
+
+function sameLabel(left, right) {
+  return String(left ?? '').trim().toLowerCase() === String(right ?? '').trim().toLowerCase()
+}
+
+function userMatchesSearch(user, search) {
+  const needle = String(search ?? '').trim().toLowerCase()
+  if (!needle) return true
+  const haystack = [
+    user?.name,
+    user?.firstName,
+    user?.lastName,
+    user?.email,
+    user?.phone,
+    user?.city,
+    user?.district,
+    user?.region,
+  ].filter(Boolean).join(' ').toLowerCase()
+  return haystack.includes(needle)
+}
+
+function applyUserFilters(users, pagination, {
+  status = '',
+  search = '',
+  region = '',
+  district = '',
+  city = '',
+  phoneVerified = '',
+  activity = '',
+} = {}) {
+  const rows = Array.isArray(users) ? users : []
+  const expectedStatus = status ? normalizeUserStatus(status) : ''
+
+  const matches = rows.filter((user) => {
+    if (expectedStatus && user.status !== expectedStatus) return false
+    if (region && !sameLabel(user.region, region)) return false
+    if (district && !sameLabel(user.district, district)) return false
+    if (city && !sameLabel(user.city, city)) return false
+    if (phoneVerified === 'verified' && !user.phoneVerifiedAt) return false
+    if (phoneVerified === 'unverified' && user.phoneVerifiedAt) return false
+    if (activity === 'with_orders' && !(user.counts?.orders > 0)) return false
+    if (activity === 'no_orders' && user.counts?.orders > 0) return false
+    if (search && !userMatchesSearch(user, search)) return false
+    return true
+  })
+
+  if (matches.length === rows.length) return { users: rows, pagination }
+
+  return {
+    users: matches,
+    pagination: {
+      ...pagination,
+      total: matches.length,
+      lastPage: 1,
+      page: 1,
+      from: matches.length ? 1 : 0,
+      to: matches.length,
+    },
+  }
 }
 
 export async function fetchAdminUsers({
@@ -50,10 +111,11 @@ export async function fetchAdminUsers({
   })
   const envelope = assertAuthEnvelope(data, 'Could not load users.')
 
-  return {
-    users: normalizeAdminUsers(envelope),
-    pagination: extractUserPagination(envelope),
-  }
+  return applyUserFilters(
+    normalizeAdminUsers(envelope),
+    extractUserPagination(envelope),
+    { status, search, region, district, city, phoneVerified, activity },
+  )
 }
 
 export async function fetchAdminUserById(userId) {
@@ -103,8 +165,9 @@ export async function fetchAdminUserOrders({
 }
 
 export async function updateAdminUserStatus({ userId, status }) {
+  const normalizedStatus = toApiUserStatus(status) || 'verified'
   const payload = {
-    status: toApiUserStatus(status) || 'verified',
+    status: normalizeUserStatus(status) === 'pending' ? 'pending_verification' : normalizedStatus,
   }
 
   const { data } = await apiClient.patch(USER_ADMIN_ENDPOINTS.status(userId), payload)
@@ -113,7 +176,10 @@ export async function updateAdminUserStatus({ userId, status }) {
     ?? normalizeAdminUser(envelope?.data ?? envelope, { userId })
 
   return {
-    user: user?.id ? user : { id: String(userId), status: payload.status },
+    user: {
+      ...(user?.id ? user : { id: String(userId) }),
+      status: normalizeUserStatus(payload.status),
+    },
     message: envelope?.reason || envelope?.message || 'User status updated.',
   }
 }

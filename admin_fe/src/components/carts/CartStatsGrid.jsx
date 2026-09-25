@@ -34,15 +34,12 @@ function formatStatValue(stat, stats) {
 }
 
 function shouldShowStat(stat, stats) {
-  if (stat.key === 'total') return true
-  if (stat.key === 'active') return stats.active > 0 || stats.total > 0
-  if (stat.key === 'withItems') return stats.withItems > 0
+  if (['total', 'totalItems', 'totalValue', 'averageValue'].includes(stat.key)) {
+    return true
+  }
   if (stat.key === 'empty') return stats.empty > 0
   if (stat.key === 'shopper') return stats.shopper > 0
   if (stat.key === 'guest') return stats.guest > 0
-  if (stat.key === 'totalItems') return stats.totalItems > 0
-  if (stat.key === 'totalValue') return stats.totalValue > 0
-  if (stat.key === 'averageValue') return stats.averageValue > 0
   if (stat.key === 'abandoned') return stats.abandoned > 0
   if (stat.key === 'converted') return stats.converted > 0
   return true

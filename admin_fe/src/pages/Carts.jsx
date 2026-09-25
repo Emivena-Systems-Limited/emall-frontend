@@ -6,7 +6,17 @@ import EmptyState from '../components/dashboard/EmptyState'
 import CartRoster, { CartRosterSkeleton } from '../components/carts/CartRoster'
 import CartStatsGrid, { CartStatsSkeleton } from '../components/carts/CartStatsGrid'
 import CartTopProducts from '../components/carts/CartTopProducts'
-import { CART_STATUS_TABS } from '../constants/cartAnalytics'
+import {
+  CART_OWNER_TABS,
+  CART_STATUS_TABS,
+  CART_TOP_PRODUCTS_FETCH_LIMIT,
+  CART_TOP_PRODUCTS_PAGE_SIZE,
+} from '../constants/cartAnalytics'
+import {
+  deriveCartStatsFromCarts,
+  mergeCartStats,
+  paginateCartRecords,
+} from '../utils/normalizeCartAnalytics'
 import {
   useAdminCartRoster,
   useCartAnalyticsStats,
@@ -17,7 +27,9 @@ import { parseApiError } from '../utils/parseApiError'
 
 export default function Carts() {
   const [status, setStatus] = useState('active')
+  const [owner, setOwner] = useState('')
   const [page, setPage] = useState(1)
+  const [topPage, setTopPage] = useState(1)
   const {
     items,
     pagination,
@@ -25,24 +37,51 @@ export default function Carts() {
     isError,
     error,
     refetch,
-  } = useAdminCartRoster({ status }, page)
+  } = useAdminCartRoster({ status, owner }, page)
   const { stats, isLoading: statsLoading } = useCartAnalyticsStats()
   const {
     products,
     isLoading: topLoading,
     isError: topError,
     refetch: refetchTop,
-  } = useCartTopProducts()
+  } = useCartTopProducts({ limit: CART_TOP_PRODUCTS_FETCH_LIMIT })
+  const topPageData = paginateCartRecords(products, {
+    page: topPage,
+    perPage: CART_TOP_PRODUCTS_PAGE_SIZE,
+    total: products.length,
+  })
+  const derived = deriveCartStatsFromCarts(items)
+  const waitingFromRankings = products.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0)
+  const displayStats = mergeCartStats({
+    ...stats,
+    active: stats.active || pagination.total || derived.withItems,
+    total: stats.total || pagination.total || derived.withItems,
+  }, {
+    ...derived,
+    totalItems: derived.totalItems || waitingFromRankings,
+    withItems: derived.withItems || pagination.total,
+  })
 
+  const filledItems = items
   const activeTab = CART_STATUS_TABS.find((tab) => tab.status === status)?.key ?? 'active'
   const tabCounts = {
-    active: stats.active,
-    all: stats.total,
+    active: displayStats.active,
+    all: displayStats.total,
   }
-  const hasFilters = status !== 'active'
+  const ownerCounts = {
+    '': displayStats.shopper + displayStats.guest || displayStats.total,
+    shopper: displayStats.shopper,
+    guest: displayStats.guest,
+  }
+  const hasFilters = status !== 'active' || Boolean(owner)
 
   const updateStatus = (nextStatus) => {
     setStatus(nextStatus)
+    setPage(1)
+  }
+
+  const updateOwner = (nextOwner) => {
+    setOwner(nextOwner)
     setPage(1)
   }
 
@@ -77,85 +116,119 @@ export default function Carts() {
         </DashboardReveal>
 
         <DashboardReveal index={1}>
-          {statsLoading ? <CartStatsSkeleton /> : <CartStatsGrid stats={stats} />}
+          {statsLoading && !items.length ? <CartStatsSkeleton /> : <CartStatsGrid stats={displayStats} />}
         </DashboardReveal>
 
         <DashboardReveal index={2}>
           <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:p-5">
-            <div className="flex flex-wrap gap-2">
-              {CART_STATUS_TABS.map((tab) => {
-                const active = activeTab === tab.key
-                const count = tabCounts[tab.key]
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => updateStatus(tab.status)}
-                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-                      active
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-                    }`}
-                  >
-                    {tab.label}
-                    {count > 0 ? (
-                      <span className={`tabular-nums ${active ? 'text-white/70' : 'text-slate-400'}`}>
-                        {formatCount(count)}
-                      </span>
-                    ) : null}
-                  </button>
-                )
-              })}
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex flex-wrap gap-2">
+                {CART_STATUS_TABS.map((tab) => {
+                  const active = activeTab === tab.key
+                  const count = tabCounts[tab.key]
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => updateStatus(tab.status)}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                        active
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                      }`}
+                    >
+                      {tab.label}
+                      {count > 0 ? (
+                        <span className={`tabular-nums ${active ? 'text-white/70' : 'text-slate-400'}`}>
+                          {formatCount(count)}
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+              <span className="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden="true" />
+              <div className="flex flex-wrap gap-2">
+                {CART_OWNER_TABS.map((tab) => {
+                  const active = owner === tab.key
+                  const count = ownerCounts[tab.key]
+                  return (
+                    <button
+                      key={tab.key || 'anyone'}
+                      type="button"
+                      onClick={() => updateOwner(tab.key)}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                        active
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                      }`}
+                    >
+                      {tab.label}
+                      {count > 0 ? (
+                        <span className={`tabular-nums ${active ? 'text-white/70' : 'text-slate-400'}`}>
+                          {formatCount(count)}
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </section>
         </DashboardReveal>
 
         <DashboardReveal index={3}>
-          <div className="grid items-start gap-5 xl:grid-cols-5">
-            <div className="min-w-0 xl:col-span-3">
-              {isLoading ? (
-                <CartRosterSkeleton />
-              ) : isError ? (
-                <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
-                  <EmptyState
-                    icon={ShoppingBag}
-                    title="Could not load carts"
-                    description={parseApiError(error, 'The cart list is unavailable right now.').message}
-                    action={(
-                      <button
-                        type="button"
-                        onClick={() => refetch()}
-                        className="cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                      >
-                        Try again
-                      </button>
-                    )}
-                  />
-                </section>
-              ) : (
-                <CartRoster
-                  items={items}
-                  total={pagination.total}
-                  rangeStart={pagination.from}
-                  rangeEnd={pagination.to}
-                  page={pagination.page}
-                  totalPages={pagination.lastPage}
-                  onPageChange={handlePageChange}
-                  onClearFilters={() => updateStatus('active')}
-                  hasFilters={hasFilters}
-                  status={status}
-                />
-              )}
-            </div>
-            <div className="min-w-0 xl:col-span-2">
-              <CartTopProducts
-                products={products}
-                isLoading={topLoading}
-                isError={topError}
-                onRetry={() => refetchTop()}
+          {isLoading ? (
+            <CartRosterSkeleton />
+          ) : isError ? (
+            <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+              <EmptyState
+                icon={ShoppingBag}
+                title="Could not load carts"
+                description={parseApiError(error, 'The cart list is unavailable right now.').message}
+                action={(
+                  <button
+                    type="button"
+                    onClick={() => refetch()}
+                    className="cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  >
+                    Try again
+                  </button>
+                )}
               />
-            </div>
-          </div>
+            </section>
+          ) : (
+            <CartRoster
+              items={filledItems}
+              total={pagination.total}
+              rangeStart={pagination.from}
+              rangeEnd={pagination.to}
+              page={pagination.page}
+              totalPages={pagination.lastPage}
+              onPageChange={handlePageChange}
+              onClearFilters={() => {
+                updateStatus('active')
+                setOwner('')
+              }}
+              hasFilters={hasFilters}
+              status={status}
+            />
+          )}
+        </DashboardReveal>
+
+        <DashboardReveal index={4}>
+          <CartTopProducts
+            products={topPageData.items}
+            isLoading={topLoading}
+            isError={topError}
+            onRetry={() => refetchTop()}
+            page={topPageData.pagination.page}
+            totalPages={topPageData.pagination.lastPage}
+            total={topPageData.pagination.total}
+            rangeStart={topPageData.pagination.from}
+            rangeEnd={topPageData.pagination.to}
+            onPageChange={setTopPage}
+          />
         </DashboardReveal>
       </div>
     </DashboardLayout>

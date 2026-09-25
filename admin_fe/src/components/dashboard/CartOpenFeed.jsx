@@ -3,7 +3,7 @@ import { ShoppingBag } from 'lucide-react'
 import OverflowTooltip from '../common/OverflowTooltip'
 import EmptyState from './EmptyState'
 import { formatOrderMoney } from '../../utils/formatters'
-import CartIdentity from '../carts/CartIdentity'
+import CartIdentity, { CartKindBadge } from '../carts/CartIdentity'
 import { CART_DASHBOARD_FEED_LIMIT } from '../../constants/cartAnalytics'
 
 export default function CartOpenFeed({ items = [], isLoading, isError, onRetry }) {
@@ -76,20 +76,23 @@ export default function CartOpenFeed({ items = [], isLoading, isError, onRetry }
                     <CartIdentity cart={cart} />
                   </td>
                   <td className="px-5 py-3">
-                    {cart.shopperId ? (
-                      <div className="max-w-36">
-                        <OverflowTooltip text={cart.shopperName}>
-                          <Link
-                            to={`/users/${encodeURIComponent(cart.shopperId)}`}
-                            className="block w-full truncate font-medium text-slate-700 transition-colors hover:text-brand"
-                          >
-                            {cart.shopperName}
-                          </Link>
-                        </OverflowTooltip>
-                      </div>
-                    ) : (
-                      <span className="text-slate-500">{cart.shopperName || 'Guest'}</span>
-                    )}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <CartKindBadge cart={cart} />
+                      {cart.shopperId ? (
+                        <div className="max-w-36">
+                          <OverflowTooltip text={cart.shopperName}>
+                            <Link
+                              to={`/users/${encodeURIComponent(cart.shopperId)}`}
+                              className="block w-full truncate font-medium text-slate-700 transition-colors hover:text-brand"
+                            >
+                              {cart.shopperName}
+                            </Link>
+                          </OverflowTooltip>
+                        </div>
+                      ) : (
+                        <span className="text-slate-500">Guest</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-right font-semibold tabular-nums text-slate-900">
                     {cart.itemsCount > 0 ? formatOrderMoney(cart.total) : '—'}

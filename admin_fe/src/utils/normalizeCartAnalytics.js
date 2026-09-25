@@ -18,24 +18,54 @@ function firstText(...values) {
   return ''
 }
 
-function pickNumber(source, keys, fallback = 0) {
-  for (const key of keys) {
-    const raw = source?.[key]
-    if (raw == null || raw === '' || Array.isArray(raw) || isRecord(raw)) continue
+function compactKey(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function readNumeric(raw, depth = 0) {
+  if (raw == null || raw === '' || depth > 2) return null
+  if (typeof raw === 'number' || typeof raw === 'string') {
     const value = Number(raw)
-    if (Number.isFinite(value)) return value
+    return Number.isFinite(value) ? value : null
   }
-  return fallback
+  if (isRecord(raw)) {
+    return readNumeric(
+      raw.count ?? raw.value ?? raw.amount ?? raw.total ?? raw.sum ?? raw.qty ?? raw.quantity,
+      depth + 1,
+    )
+  }
+  return null
+}
+
+function statsRecords(source) {
+  if (!isRecord(source)) return []
+  return [
+    source,
+    source.stats,
+    source.analytics,
+    source.summary,
+    source.counts,
+    source.metrics,
+    source.totals,
+  ].filter(isRecord)
 }
 
 function pickOptionalNumber(source, keys) {
-  for (const key of keys) {
-    const raw = source?.[key]
-    if (raw == null || raw === '' || Array.isArray(raw) || isRecord(raw)) continue
-    const value = Number(raw)
-    if (Number.isFinite(value)) return value
+  const wanted = new Set(keys.map(compactKey).filter(Boolean))
+  if (wanted.size === 0) return null
+
+  for (const record of statsRecords(source)) {
+    for (const [key, raw] of Object.entries(record)) {
+      if (!wanted.has(compactKey(key))) continue
+      const value = readNumeric(raw)
+      if (value != null) return value
+    }
   }
   return null
+}
+
+function pickNumber(source, keys, fallback = 0) {
+  return pickOptionalNumber(source, keys) ?? fallback
 }
 
 function titleCaseName(value) {
@@ -47,14 +77,32 @@ function titleCaseName(value) {
     .join(' ')
 }
 
+function coerceStatsArray(list) {
+  if (!Array.isArray(list)) return {}
+  return list.reduce((acc, item) => {
+    if (!isRecord(item)) return acc
+    const key = item.key ?? item.name ?? item.metric ?? item.slug ?? item.label
+    const value = item.value ?? item.count ?? item.amount ?? item.total
+    if (key != null && value != null) acc[String(key)] = value
+    return acc
+  }, {})
+}
+
 function unwrapStats(body) {
   const envelope = unwrapApiEnvelope(body)
   const payload = envelope?.data ?? envelope
+  if (Array.isArray(payload)) return coerceStatsArray(payload)
   if (!isRecord(payload)) return {}
-  if (Array.isArray(payload.data) && ('current_page' in payload || 'last_page' in payload)) return {}
   if (isRecord(payload.stats)) return payload.stats
   if (isRecord(payload.analytics)) return payload.analytics
   if (isRecord(payload.summary)) return payload.summary
+  if (isRecord(payload.counts)) return payload.counts
+  if (Array.isArray(payload.data) && ('current_page' in payload || 'last_page' in payload)) {
+    const { data, ...rest } = payload
+    void data
+    return Object.keys(rest).length > 0 ? rest : {}
+  }
+  if (Array.isArray(payload.data)) return coerceStatsArray(payload.data)
   return payload
 }
 
@@ -96,7 +144,7 @@ function buildOwnerMix(shopper, guest) {
 export function normalizeCartStats(body) {
   const source = unwrapStats(body)
   const byStatus = statusMap(source)
-  const active = statusCount(source, byStatus, ['active_carts', 'open_carts'], ['active', 'open'])
+  const active = statusCount(source, byStatus, ['active_carts', 'open_carts', 'activeCarts', 'openCarts'], ['active', 'open'])
   const abandoned = statusCount(
     source,
     byStatus,
@@ -109,13 +157,69 @@ export function normalizeCartStats(body) {
     ['converted_carts', 'checked_out_carts', 'completed_carts'],
     ['converted', 'checked_out', 'completed'],
   )
-  const guest = pickNumber(source, ['guest_carts', 'guest_count', 'anonymous_carts'])
-  const shopper = pickNumber(source, ['user_carts', 'registered_carts', 'shopper_carts', 'customer_carts'])
-  const total = pickNumber(source, ['total_carts', 'carts', 'total'], active + abandoned + converted)
-  const emptyField = pickOptionalNumber(source, ['empty_carts', 'empty'])
-  const withItemsField = pickOptionalNumber(source, ['carts_with_items', 'non_empty_carts'])
+  const guest = pickNumber(source, [
+    'guest_carts',
+    'guest_count',
+    'anonymous_carts',
+    'guestCarts',
+    'guests',
+  ])
+  const shopper = pickNumber(source, [
+    'user_carts',
+    'registered_carts',
+    'shopper_carts',
+    'customer_carts',
+    'userCarts',
+    'shoppers',
+  ])
+  const total = pickNumber(
+    source,
+    ['total_carts', 'carts', 'total', 'totalCarts', 'cart_count', 'baskets'],
+    active + abandoned + converted,
+  )
+  const emptyField = pickOptionalNumber(source, ['empty_carts', 'empty', 'empty_count'])
+  const withItemsField = pickOptionalNumber(source, [
+    'carts_with_items',
+    'non_empty_carts',
+    'filled_carts',
+    'baskets_with_items',
+  ])
   const empty = emptyField ?? 0
   const withItems = withItemsField ?? (emptyField != null ? Math.max(0, total - empty) : 0)
+  const totalItems = pickNumber(source, [
+    'total_items',
+    'total_quantity',
+    'items_quantity',
+    'item_quantity',
+    'total_items_count',
+    'items_in_carts',
+    'items_count',
+    'item_count',
+    'totalItems',
+    'totalQuantity',
+  ])
+  const totalValue = pickNumber(source, [
+    'total_cart_value',
+    'total_value',
+    'cart_value',
+    'basket_value',
+    'cart_total',
+    'total_amount',
+    'subtotal',
+    'totalValue',
+    'cartValue',
+    'basketValue',
+  ])
+  const averageValue = pickNumber(source, [
+    'average_cart_value',
+    'avg_cart_value',
+    'average_value',
+    'avg_value',
+    'average_basket_value',
+    'aov',
+    'averageValue',
+    'avgCartValue',
+  ], withItems > 0 && totalValue > 0 ? totalValue / withItems : 0)
 
   return {
     total,
@@ -126,11 +230,46 @@ export function normalizeCartStats(body) {
     shopper,
     empty,
     withItems,
-    totalItems: pickNumber(source, ['total_items', 'items_count', 'item_count']),
-    totalValue: pickNumber(source, ['total_cart_value', 'total_value', 'cart_value']),
-    averageValue: pickNumber(source, ['average_cart_value', 'avg_cart_value', 'average_value']),
+    totalItems,
+    totalValue,
+    averageValue,
     mix: buildOwnerMix(shopper, guest),
   }
+}
+
+export function deriveCartStatsFromCarts(carts = []) {
+  const list = Array.isArray(carts) ? carts : []
+  const filled = list.filter((cart) => (cart.itemsCount ?? 0) > 0)
+  const totalItems = filled.reduce((sum, cart) => {
+    const fromLines = (cart.items ?? []).reduce((count, item) => count + (Number(item.quantity) || 0), 0)
+    return sum + (fromLines || Number(cart.itemsCount) || 0)
+  }, 0)
+  const totalValue = filled.reduce((sum, cart) => sum + (Number(cart.total) || 0), 0)
+  const guest = list.filter((cart) => cart.isGuest).length
+  const shopper = list.filter((cart) => !cart.isGuest).length
+
+  return {
+    withItems: filled.length,
+    empty: Math.max(0, list.length - filled.length),
+    totalItems,
+    totalValue,
+    averageValue: filled.length ? totalValue / filled.length : 0,
+    guest,
+    shopper,
+  }
+}
+
+export function mergeCartStats(primary, fallback) {
+  const next = { ...(primary ?? emptyCartStats()) }
+  const extra = fallback ?? {}
+  ;['withItems', 'empty', 'totalItems', 'totalValue', 'averageValue', 'guest', 'shopper'].forEach((key) => {
+    if (!(Number(next[key]) > 0) && Number(extra[key]) > 0) next[key] = extra[key]
+  })
+  if (!(Number(next.total) > 0) && extra.withItems != null) {
+    next.total = Math.max(next.total, (extra.withItems ?? 0) + (extra.empty ?? 0))
+  }
+  next.mix = next.mix?.length ? next.mix : buildOwnerMix(next.shopper, next.guest)
+  return next
 }
 
 function extractCartList(body) {
@@ -220,7 +359,7 @@ function shopperFrom(record) {
   }
 }
 
-export function normalizeAdminCart(record, index) {
+export function normalizeAdminCart(record) {
   if (!isRecord(record)) return null
   const id = firstText(record.id, record.cart_id)
   if (!id) return null
@@ -291,6 +430,31 @@ export function normalizeCartTopProducts(body) {
       if (right.quantity !== left.quantity) return right.quantity - left.quantity
       return right.cartsCount - left.cartsCount
     })
+}
+
+export function paginateCartRecords(items, { page = 1, perPage = CART_PAGE_SIZE, total } = {}) {
+  const list = Array.isArray(items) ? items : []
+  const safePerPage = Number.isFinite(perPage) && perPage > 0 ? perPage : CART_PAGE_SIZE
+  const safeTotal = Number.isFinite(total) && total >= 0 ? total : list.length
+  const lastPage = Math.max(1, Math.ceil((safeTotal || 1) / safePerPage))
+  const safePage = Math.min(Math.max(1, Number(page) || 1), lastPage)
+  const needsSlice = list.length > safePerPage || list.length > safeTotal
+  const start = (safePage - 1) * safePerPage
+  const pageItems = needsSlice ? list.slice(start, start + safePerPage) : list
+  const from = pageItems.length ? start + 1 : 0
+  const to = pageItems.length ? start + pageItems.length : 0
+
+  return {
+    items: pageItems,
+    pagination: {
+      page: safePage,
+      lastPage,
+      total: safeTotal,
+      perPage: safePerPage,
+      from,
+      to,
+    },
+  }
 }
 
 export function emptyCartPagination() {
