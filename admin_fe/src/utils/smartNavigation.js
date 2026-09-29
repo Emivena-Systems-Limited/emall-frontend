@@ -63,7 +63,7 @@ const ROUTE_DESTINATIONS = [
   { test: /^\/notifications$/, label: 'Notifications', short: 'All notifications' },
   { test: /^\/categories$/, label: 'Categories', short: 'All categories' },
   { test: /^\/carts$/, label: 'Carts', short: 'All carts' },
-  { test: /^\/wishlists$/, label: 'Wishlists', short: 'All wishlists' },
+  { test: /^\/wishlists$/, label: 'Wishlists', short: 'Back to Wishlists' },
   { test: /^\/searches$/, label: 'Searches', short: 'All searches' },
   { test: /^\/support$/, label: 'Customer tickets', short: 'Customer tickets' },
   { test: /^\/profile$/, label: 'Profile', short: 'Profile' },

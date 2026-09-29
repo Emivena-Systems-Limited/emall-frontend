@@ -2,7 +2,6 @@ export const USER_ADMIN_ENDPOINTS = {
   LIST: '/api/user/admin/users',
   byId: (id) => `/api/user/admin/users/${encodeURIComponent(id)}`,
   addresses: (id) => `/api/user/admin/users/${encodeURIComponent(id)}/addresses`,
-  orders: (id) => `/api/user/admin/users/${encodeURIComponent(id)}/orders`,
   status: (id) => `/api/user/admin/users/${encodeURIComponent(id)}/status`,
 }
 
@@ -10,7 +9,7 @@ export const USER_PAGE_SIZE = 20
 
 export const USER_API_STATUS = {
   verified: 'verified',
-  pending: 'unverified',
+  pending: 'pending_verification',
   rejected: 'rejected',
   suspended: 'suspended',
 }

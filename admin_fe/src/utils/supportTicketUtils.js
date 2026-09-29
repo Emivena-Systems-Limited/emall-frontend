@@ -35,7 +35,9 @@ export function isClosedTicket(ticket) {
 export function computeTicketSummary(tickets) {
   const totalConversations = tickets.length
   const unreadMessages = tickets.reduce((sum, ticket) => sum + (ticket.unreadCount || 0), 0)
-  const openCount = tickets.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length
+  const openCount = tickets.filter((ticket) => (
+    ticket.status === 'open' || ticket.status === 'pending' || ticket.status === 'in_progress'
+  )).length
   const weekAgo = new Date()
   weekAgo.setDate(weekAgo.getDate() - 7)
   const resolvedThisWeek = tickets.filter((ticket) => {
@@ -128,18 +130,21 @@ export function markTicketRead(tickets, ticketId) {
   ))
 }
 
-export function appendTicketReply(tickets, ticketId, text) {
-  const now = new Date().toISOString()
-  const reply = { id: `msg-${Date.now()}`, sender: 'support', text, sentAt: now }
+export function appendTicketMessage(tickets, ticketId, message) {
+  if (!ticketId || !message?.text) return tickets
+  const sentAt = message.sentAt || new Date().toISOString()
 
   return tickets.map((ticket) => {
     if (ticket.id !== ticketId) return ticket
+    const messages = ticket.messages || []
+    if (message.id && messages.some((item) => item.id === message.id)) return ticket
+
     return {
       ...ticket,
-      messages: [...(ticket.messages || []), reply],
-      preview: text.slice(0, 80),
-      updatedAt: now,
-      status: ticket.status === 'open' ? 'pending' : ticket.status,
+      messages: [...messages, { ...message, sentAt }],
+      preview: message.text.slice(0, 140),
+      updatedAt: sentAt,
+      status: ticket.status === 'open' ? 'in_progress' : ticket.status,
     }
   })
 }

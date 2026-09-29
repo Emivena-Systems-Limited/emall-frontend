@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useParams } from 'react-router'
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router'
 import { useSelector } from 'react-redux'
 import BrandDetail from '../pages/BrandDetail'
 import Brands from '../pages/Brands'
@@ -25,6 +25,9 @@ import Reviews from '../pages/Reviews'
 import ReviewDetail from '../pages/ReviewDetail'
 import Inventory from '../pages/Inventory'
 import InventoryDetail from '../pages/InventoryDetail'
+import { FinanceProvider } from '../context/FinanceDataContext'
+import FinanceOverview from '../pages/FinanceOverview'
+import FinanceSection from '../pages/FinanceSection'
 import Payments from '../pages/Payments'
 import PaymentDetail from '../pages/PaymentDetail'
 import Carts from '../pages/Carts'
@@ -66,6 +69,16 @@ function RootRedirect() {
       to={isAuthenticated ? getLastAppPath(DEFAULT_POST_LOGIN_PATH) : '/login'}
       replace
     />
+  )
+}
+
+function FinanceGate() {
+  return (
+    <ProtectedRoute>
+      <FinanceProvider>
+        <Outlet />
+      </FinanceProvider>
+    </ProtectedRoute>
   )
 }
 
@@ -324,7 +337,10 @@ export default function AppRoutes() {
           </ProtectedRoute>
         )}
       />
-      <Route path="/finance" element={<ComingSoonRoute />} />
+      <Route path="/finance" element={<FinanceGate />}>
+        <Route index element={<FinanceOverview />} />
+        <Route path=":section" element={<FinanceSection />} />
+      </Route>
       <Route
         path="/support"
         element={(

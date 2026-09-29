@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient'
+import { ORDER_ADMIN_ENDPOINTS } from '../constants/adminOrders'
 import { USER_ADMIN_ENDPOINTS, USER_PAGE_SIZE } from '../constants/adminUsers'
 import { assertAuthEnvelope } from '../utils/parseApiError'
 import {
@@ -14,6 +15,7 @@ import {
 import {
   extractAdminOrderPagination,
   normalizeAdminOrders,
+  paginateAdminVendorOrders,
 } from '../utils/normalizeAdminOrders'
 import { toUserHasOrdersParam, toUserPhoneVerifiedParam } from '../utils/userFilters'
 import { LATEST_FIRST_QUERY } from '../utils/sortLatestFirst'
@@ -153,21 +155,35 @@ export async function fetchAdminUserOrders({
   page = 1,
   perPage = USER_PAGE_SIZE,
 } = {}) {
-  const { data } = await apiClient.get(USER_ADMIN_ENDPOINTS.orders(userId), {
+  if (!userId) {
+    return {
+      orders: [],
+      pagination: extractAdminOrderPagination({ data: [] }),
+    }
+  }
+
+  const { data } = await apiClient.get(ORDER_ADMIN_ENDPOINTS.byUser(userId), {
     params: compactParams({ page, per_page: perPage, ...LATEST_FIRST_QUERY }),
   })
   const envelope = assertAuthEnvelope(data, 'Could not load order history.')
+  const orders = normalizeAdminOrders(envelope)
+  const pagination = extractAdminOrderPagination(envelope)
+  const serverPaginated = pagination.lastPage > 1 && orders.length < pagination.total
 
-  return {
-    orders: normalizeAdminOrders(envelope),
-    pagination: extractAdminOrderPagination(envelope),
+  if (serverPaginated) {
+    return { orders, pagination }
   }
+
+  return paginateAdminVendorOrders(orders, {
+    total: Math.max(pagination.total, orders.length),
+    page,
+    perPage,
+  })
 }
 
 export async function updateAdminUserStatus({ userId, status }) {
-  const normalizedStatus = toApiUserStatus(status) || 'verified'
   const payload = {
-    status: normalizeUserStatus(status) === 'pending' ? 'pending_verification' : normalizedStatus,
+    status: toApiUserStatus(status) || 'verified',
   }
 
   const { data } = await apiClient.patch(USER_ADMIN_ENDPOINTS.status(userId), payload)

@@ -3,6 +3,7 @@ export const ORDER_ADMIN_ENDPOINTS = {
   STATS: '/api/orders/admin/orders/stats',
   byId: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}`,
   byVendor: (vendorId) => `/api/orders/admin/vendor/${encodeURIComponent(vendorId)}`,
+  byUser: (userId) => `/api/orders/admin/user-order/${encodeURIComponent(userId)}`,
   paymentStatus: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}/payment-status`,
   deliveryStatus: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}/delivery-status`,
   cancel: (id) => `/api/orders/admin/orders/${encodeURIComponent(id)}/cancel`,

@@ -66,8 +66,8 @@ export default function Wishlists() {
         </DashboardReveal>
 
         <DashboardReveal index={2}>
-          <div className="grid items-start gap-5 xl:grid-cols-5">
-            <div className="min-w-0 xl:col-span-3">
+          <div className="grid items-stretch gap-5 xl:grid-cols-5">
+            <div className="flex h-full min-w-0 flex-col xl:col-span-3">
               {isLoading ? (
                 <WishlistRosterSkeleton />
               ) : isError ? (
@@ -99,9 +99,9 @@ export default function Wishlists() {
                 />
               )}
             </div>
-            <div className="min-w-0 xl:col-span-2">
+            <div className="flex h-full min-w-0 flex-col xl:col-span-2">
               <WishlistTopProducts
-                products={products}
+                products={products.slice(0, 5)}
                 isLoading={topLoading}
                 isError={topError}
                 onRetry={() => refetchTop()}

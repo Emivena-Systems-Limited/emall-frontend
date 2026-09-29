@@ -86,6 +86,13 @@ function getTicketId(ticket) {
   return ticket?.id ?? ticket?.ticket_id ?? ticket?.uuid ?? ticket?.ticket_number ?? ticket?.reference
 }
 
+function replyBelongsToCustomer(reply) {
+  if (reply?.is_staff === true || reply?.is_staff === 1 || reply?.is_staff === '1' || reply?.is_staff === 'true') return false
+  if (reply?.is_staff === false || reply?.is_staff === 0 || reply?.is_staff === '0' || reply?.is_staff === 'false') return true
+  const senderType = String(reply?.sender_type_slug ?? reply?.sender_type ?? reply?.author_type ?? reply?.role ?? '').toLowerCase()
+  return reply?.is_customer === true || ['customer', 'user'].includes(senderType)
+}
+
 function TicketConversation({ ticketId, onDismiss }) {
   const queryClient = useQueryClient()
   const [replyError, setReplyError] = useState('')
@@ -144,8 +151,7 @@ function TicketConversation({ ticketId, onDismiss }) {
               <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{originalMessage}</p>
             </article>
             {visibleReplies.map((reply, index) => {
-              const senderType = String(reply.sender_type ?? reply.author_type ?? reply.role ?? '').toLowerCase()
-              const fromCustomer = reply.is_customer === true || ['customer', 'user'].includes(senderType)
+              const fromCustomer = replyBelongsToCustomer(reply)
               return <article key={reply.id ?? index} className={`max-w-[90%] rounded-2xl px-4 py-3 ${fromCustomer ? 'ml-auto rounded-br-md bg-auth-primary text-white' : 'rounded-bl-md border border-slate-200 bg-white text-slate-800'}`}><p className={`text-[0.68rem] font-bold uppercase tracking-wide ${fromCustomer ? 'text-white/65' : 'text-auth-primary'}`}>{fromCustomer ? 'You' : 'Support team'}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{reply.message ?? reply.body ?? reply.content}</p>{formatTicketDate(reply.created_at) ? <p className={`mt-2 text-[0.65rem] ${fromCustomer ? 'text-white/60' : 'text-slate-400'}`}>{formatTicketDate(reply.created_at)}</p> : null}</article>
             })}
             {!visibleReplies.length ? <p className="py-3 text-center text-xs text-slate-500">No reply from the support team yet. We’ll show it here when they respond.</p> : null}
@@ -205,7 +211,9 @@ export default function AccountSupportPanel() {
     },
     onError: (error) => setFormError(error.response?.data?.reason || error.response?.data?.message || error.message || 'Unable to submit your request.'),
   })
-  const tickets = ticketsQuery.data?.tickets ?? []
+  const tickets = ticketsQuery.data?.tickets
+    ?? ticketsQuery.data?.support_tickets?.data
+    ?? []
 
   function selectTopic(topic) {
     setQuery(topic.label)
@@ -341,7 +349,7 @@ export default function AccountSupportPanel() {
           <div className="mt-4 divide-y divide-slate-100 border-y border-slate-100">
             {tickets.map((ticket) => {
               const ticketId = getTicketId(ticket)
-              return <button type="button" key={ticketId} onClick={() => setSelectedTicketId(ticketId)} disabled={!ticketId} className="group flex w-full items-center justify-between gap-4 py-4 text-left disabled:cursor-not-allowed"><div><p className="text-sm font-bold text-slate-900 group-hover:text-auth-primary">{ticket.subject ?? ticket.topic?.name ?? 'Support request'}</p><p className="mt-1 text-xs text-slate-500">{ticket.ticket_number ?? ticket.reference ?? ticketId}</p></div><div className="flex items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-[0.68rem] font-bold capitalize text-slate-600">{ticket.status ?? 'open'}</span><ChevronRight className="size-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-auth-primary" /></div></button>
+              return <button type="button" key={ticketId} onClick={() => setSelectedTicketId(ticketId)} disabled={!ticketId} className="group flex w-full items-center justify-between gap-4 py-4 text-left disabled:cursor-not-allowed"><div><p className="text-sm font-bold text-slate-900 group-hover:text-auth-primary">{ticket.subject ?? ticket.topic?.name ?? 'Support request'}</p><p className="mt-1 text-xs text-slate-500">{ticket.ticket_number ?? ticket.reference ?? ticketId}</p></div><div className="flex items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-[0.68rem] font-bold capitalize text-slate-600">{String(ticket.status ?? 'open').replaceAll('_', ' ')}</span><ChevronRight className="size-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-auth-primary" /></div></button>
             })}
           </div>
         ) : <p className="mt-4 text-sm text-slate-500">You haven’t submitted any support requests yet.</p>}

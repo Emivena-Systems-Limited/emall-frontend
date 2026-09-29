@@ -1,5 +1,4 @@
 import {
-  CircleDollarSign,
   Package,
   Settings,
   Shield,
@@ -40,17 +39,6 @@ export const COMING_SOON = {
       'Account lookup with order and dispute history',
       'Risk flags for abuse and payment issues',
       'Support notes shared with the help desk',
-    ],
-  },
-  '/finance': {
-    icon: CircleDollarSign,
-    title: 'Finance',
-    eyebrow: 'Treasury',
-    description: 'GMV, take rate, payouts, and holds for the whole marketplace.',
-    capabilities: [
-      'Payout batches and vendor ledger',
-      'Holds for disputes and KYC gaps',
-      'Settlement exports for finance ops',
     ],
   },
   '/staff': {

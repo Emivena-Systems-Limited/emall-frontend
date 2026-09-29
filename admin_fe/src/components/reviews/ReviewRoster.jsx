@@ -2,6 +2,8 @@ import { Link, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import EmptyState from '../dashboard/EmptyState'
+import SmartNavLink from '../navigation/SmartNavLink'
+import useNavigationState from '../../hooks/useNavigationState'
 import { formatCount } from '../../utils/formatters'
 import { formatReviewDate } from '../../utils/normalizeAdminReviews'
 import { prefetchAdminReview } from '../../hooks/useAdminReviews'
@@ -27,8 +29,10 @@ export default function ReviewRoster({
   onRemove,
 }) {
   const navigate = useNavigate()
+  const navigationState = useNavigationState()
   const queryClient = useQueryClient()
   const prefetch = (id) => prefetchAdminReview(queryClient, id)
+  const openReview = (id) => navigate(`/reviews/${encodeURIComponent(id)}`, { state: navigationState })
 
   if (total === 0) {
     return (
@@ -73,14 +77,14 @@ export default function ReviewRoster({
             {reviews.map((review) => (
               <tr key={review.id} className="transition-colors hover:bg-slate-50/80">
                 <td className="px-5 py-3">
-                  <Link
+                  <SmartNavLink
                     to={`/reviews/${encodeURIComponent(review.id)}`}
                     onMouseEnter={() => prefetch(review.id)}
                     onFocus={() => prefetch(review.id)}
                     className="block rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand"
                   >
                     <ReviewIdentity review={review} />
-                  </Link>
+                  </SmartNavLink>
                 </td>
                 <td className="px-5 py-3">
                   <div className="max-w-52">
@@ -128,7 +132,7 @@ export default function ReviewRoster({
                 <td className="px-5 py-3 text-right">
                   <ReviewActions
                     review={review}
-                    onView={() => navigate(`/reviews/${encodeURIComponent(review.id)}`)}
+                    onView={() => openReview(review.id)}
                     onStatus={onStatus}
                     onFeatured={onFeatured}
                     onRemove={onRemove}
@@ -144,17 +148,17 @@ export default function ReviewRoster({
         {reviews.map((review) => (
           <li key={review.id} className="px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <Link
+              <SmartNavLink
                 to={`/reviews/${encodeURIComponent(review.id)}`}
                 onMouseEnter={() => prefetch(review.id)}
                 onFocus={() => prefetch(review.id)}
                 className="min-w-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <ReviewIdentity review={review} />
-              </Link>
+              </SmartNavLink>
               <ReviewActions
                 review={review}
-                onView={() => navigate(`/reviews/${encodeURIComponent(review.id)}`)}
+                onView={() => openReview(review.id)}
                 onStatus={onStatus}
                 onFeatured={onFeatured}
                 onRemove={onRemove}

@@ -40,12 +40,35 @@ export async function getSupportConfig() {
   return unwrap(data)
 }
 
+function extractSupportTickets(payload) {
+  const paginator = payload?.support_tickets
+  if (Array.isArray(paginator?.data)) return paginator.data
+  if (Array.isArray(payload?.tickets)) return payload.tickets
+  if (Array.isArray(payload?.data)) return payload.data
+  if (Array.isArray(payload)) return payload
+  return []
+}
+
 export async function getSupportTickets(params = {}) {
   const { data } = await apiClient.get(SUPPORT_ENDPOINTS.TICKETS, {
     params: { page: 1, per_page: 10, ...params },
     skipAuthLogout: true,
   })
-  return unwrap(data)
+  const payload = unwrap(data)
+  const tickets = extractSupportTickets(payload)
+  const paginator = payload?.support_tickets
+
+  return {
+    ...(payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}),
+    tickets,
+    expectedResponseTime: payload?.expected_response_time ?? '',
+    pagination: payload?.pagination ?? {
+      current_page: paginator?.current_page ?? 1,
+      last_page: paginator?.last_page ?? 1,
+      per_page: paginator?.per_page ?? 10,
+      total: paginator?.total ?? tickets.length,
+    },
+  }
 }
 
 export async function getSupportTicket(ticketId) {

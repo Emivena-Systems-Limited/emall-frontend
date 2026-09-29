@@ -678,12 +678,16 @@ export function extractVendorOrderList(body) {
   const nestedLists = [
     payload?.data,
     payload?.orders,
+    payload?.orders?.data,
     payload?.items,
     payload?.results,
     payload?.data?.orders,
+    payload?.data?.orders?.data,
     payload?.data?.data,
     envelope?.orders,
+    envelope?.orders?.data,
     body?.data?.orders,
+    body?.data?.orders?.data,
   ]
 
   for (const nested of nestedLists) {
@@ -694,16 +698,48 @@ export function extractVendorOrderList(body) {
   return []
 }
 
+function isOrderPaginator(value) {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && (
+      value.current_page != null
+      || value.last_page != null
+      || value.per_page != null
+      || Array.isArray(value.data)
+    ),
+  )
+}
+
+function resolveOrdersPage(payload) {
+  if (!payload || Array.isArray(payload)) return payload
+  if (payload.current_page != null || payload.last_page != null) return payload
+
+  const nested = isOrderPaginator(payload.orders) ? payload.orders : null
+  const summary = payload.pagination
+    && typeof payload.pagination === 'object'
+    && !Array.isArray(payload.pagination)
+    ? payload.pagination
+    : null
+
+  if (nested || summary) {
+    return { ...(nested ?? {}), ...(summary ?? {}) }
+  }
+
+  return payload
+}
+
 export function extractVendorOrdersPagination(body) {
   const envelope = unwrapApiEnvelope(body)
-  const payload = envelope?.data ?? body
+  const payload = resolveOrdersPage(envelope?.data ?? body)
 
   if (!payload || Array.isArray(payload)) {
     return {
       currentPage: 1,
       lastPage: 1,
       total: Array.isArray(payload) ? payload.length : 0,
-      perPage: Array.isArray(payload) ? payload.length : 20,
+      perPage: Array.isArray(payload) ? payload.length || 20 : 20,
     }
   }
 

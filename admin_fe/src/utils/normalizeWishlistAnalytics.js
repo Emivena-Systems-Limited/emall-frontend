@@ -121,10 +121,15 @@ function optionLabel(productName, variantName) {
 export function normalizeWishlistItem(record, index) {
   if (!isRecord(record)) return null
   const product = isRecord(record.product) ? record.product : {}
-  const variant = isRecord(record.variant) ? record.variant : {}
+  const variant = isRecord(record.variant)
+    ? record.variant
+    : isRecord(record.product_variant)
+      ? record.product_variant
+      : {}
   const user = isRecord(record.user) ? record.user : {}
   const id = firstText(record.id)
   const productId = firstText(record.product_id, product.id)
+  const variantId = firstText(record.product_variant_id, record.variant_id, variant.id)
   const productName = firstText(product.name, variant.variant_name, record.product_name)
   if (!id && !productId) return null
 
@@ -135,6 +140,7 @@ export function normalizeWishlistItem(record, index) {
   return {
     id: id || `${productId}-${index + 1}`,
     productId,
+    variantId,
     productName: productName || 'Listing',
     option: optionLabel(productName, variant.variant_name),
     image: productImage(variant) || productImage(product),
