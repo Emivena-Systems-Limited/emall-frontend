@@ -38,6 +38,7 @@ export function computeTicketSummary(tickets) {
   const openCount = tickets.filter((ticket) => (
     ticket.status === 'open' || ticket.status === 'pending' || ticket.status === 'in_progress'
   )).length
+  const openedThisWeek = openCount
   const weekAgo = new Date()
   weekAgo.setDate(weekAgo.getDate() - 7)
   const resolvedThisWeek = tickets.filter((ticket) => {
@@ -71,6 +72,7 @@ export function computeTicketSummary(tickets) {
     openCount,
     avgResponseHours,
     resolvedThisWeek,
+    openedThisWeek,
   }
 }
 

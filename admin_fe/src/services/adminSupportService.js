@@ -36,7 +36,7 @@ export async function replyToAdminSupportTicket({ ticketId, message }) {
 }
 
 export async function closeAdminSupportTicket({ ticketId }) {
-  const { data } = await apiClient.post(SUPPORT_ADMIN_ENDPOINTS.close(ticketId))
-  assertAuthEnvelope(data, 'Could not close this request.')
+  const { data } = await apiClient.patch(SUPPORT_ADMIN_ENDPOINTS.close(ticketId))
+  const envelope = assertAuthEnvelope(data, 'Could not close this request.')
   return { ticketId }
 }

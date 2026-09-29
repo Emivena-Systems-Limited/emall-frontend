@@ -85,7 +85,7 @@ export default function TicketListItem({ ticket, active, onSelect }) {
 export function TicketThread({ ticket, onSend, onClose, isSending = false, isClosing = false, draft, onDraftChange }) {
   if (!ticket) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-slate-50/50 p-8 text-center">
+      <div className="flex min-h-[280px] flex-1 flex-col items-center justify-center bg-slate-50/50 p-8 text-center lg:h-full">
         <span className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-white text-slate-300 ring-1 ring-slate-200">
           <Ticket className="size-6" strokeWidth={1.5} />
         </span>
@@ -100,8 +100,8 @@ export function TicketThread({ ticket, onSend, onClose, isSending = false, isClo
   const closed = isClosedTicket(ticket)
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-slate-100 px-5 py-4">
+    <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:overflow-hidden">
+      <div className="shrink-0 border-b border-slate-100 px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-bold tracking-[0.14em] text-brand uppercase">
@@ -145,7 +145,7 @@ export function TicketThread({ ticket, onSend, onClose, isSending = false, isClo
         </div>
       </div>
 
-      <div className="space-y-4 px-5 py-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
         {(ticket.messages || []).map((message) => {
           const fromSupport = isSupportSender(message.sender)
 
@@ -182,11 +182,11 @@ export function TicketThread({ ticket, onSend, onClose, isSending = false, isClo
       </div>
 
       {closed ? (
-        <p className="border-t border-slate-100 px-5 py-4 text-center text-xs font-semibold text-slate-500">
+        <p className="shrink-0 border-t border-slate-100 px-5 py-4 text-center text-xs font-semibold text-slate-500">
           This request is closed.
         </p>
       ) : (
-        <div className="border-t border-slate-100 p-4">
+        <div className="shrink-0 border-t border-slate-100 p-4">
           <form
             onSubmit={(event) => {
               event.preventDefault()

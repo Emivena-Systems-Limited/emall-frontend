@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Ticket } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import EmptyState from '../components/dashboard/EmptyState'
@@ -82,6 +82,26 @@ export default function SupportTickets() {
   )
   const hasActiveFilters = search.trim() !== '' || categoryFilter !== 'all'
   const hasTickets = pagination.total > 0 || tickets.length > 0
+  const showSplit = !isLoading && !isError && hasTickets && visibleTickets.length > 0
+  const panelRef = useRef(null)
+
+  useEffect(() => {
+    const scroller = document.querySelector('[data-dashboard-scroll-panel]')
+    const panel = panelRef.current
+    if (!showSplit || !scroller || !panel) return undefined
+
+    const media = window.matchMedia('(min-width: 1024px)')
+    const clamp = () => {
+      if (!media.matches || !panelRef.current) return
+      const limit = scroller.scrollTop
+        + panelRef.current.getBoundingClientRect().top
+        - scroller.getBoundingClientRect().top
+      if (scroller.scrollTop > limit + 1) scroller.scrollTop = limit
+    }
+
+    scroller.addEventListener('scroll', clamp, { passive: true })
+    return () => scroller.removeEventListener('scroll', clamp)
+  }, [showSplit])
 
   const handleFilterChange = (nextFilter) => {
     setCategoryFilter(nextFilter)
@@ -124,7 +144,14 @@ export default function SupportTickets() {
 
         {hasTickets && <SupportSummaryCards summary={summary} />}
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
+        <section
+          ref={panelRef}
+          className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)] ${
+            showSplit
+              ? 'lg:sticky lg:top-0 lg:z-20 lg:flex lg:h-[calc(100dvh-3.5rem)] lg:max-h-[calc(100dvh-3.5rem)] lg:flex-col'
+              : ''
+          }`}
+        >
           {isLoading ? (
             <TicketListSkeleton />
           ) : isError ? (
@@ -150,7 +177,7 @@ export default function SupportTickets() {
             />
           ) : (
             <>
-              <div className="border-b border-slate-100 px-5 py-4">
+              <div className="shrink-0 border-b border-slate-100 px-5 py-4">
                 <SupportToolbar
                   search={search}
                   onSearchChange={setSearch}
@@ -172,9 +199,9 @@ export default function SupportTickets() {
                   compact
                 />
               ) : (
-                <div className="grid lg:grid-cols-[minmax(280px,340px)_1fr]">
-                  <div className="flex flex-col border-b border-slate-100 lg:border-r lg:border-b-0">
-                    <div>
+                <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(280px,340px)_1fr] lg:overflow-hidden">
+                  <div className="flex min-h-0 flex-col border-b border-slate-100 lg:overflow-hidden lg:border-r lg:border-b-0">
+                    <div className="min-h-0 flex-1 lg:overflow-y-auto">
                       {visibleTickets.map((ticket) => (
                         <TicketListItem
                           key={ticket.id}

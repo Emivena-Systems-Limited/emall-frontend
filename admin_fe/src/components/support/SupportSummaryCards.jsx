@@ -20,14 +20,13 @@ const cards = [
     ring: 'ring-brand-muted',
   },
   {
-    key: 'avgResponseHours',
-    label: 'Avg. Response',
-    helper: 'Time to first reply',
+    key: 'openedThisWeek',
+    label: 'Opened',
+    helper: 'Recent Opened Requests',
     icon: Clock,
     accent: 'text-violet-700',
     bg: 'bg-violet-50',
     ring: 'ring-violet-100',
-    format: (value) => (value > 0 ? `${value.toFixed(1)}h` : '—'),
   },
   {
     key: 'resolvedThisWeek',
@@ -43,9 +42,9 @@ const cards = [
 export default function SupportSummaryCards({ summary }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-      {cards.map(({ key, label, helper, icon: Icon, accent, bg, ring, format }) => {
+      {cards.map(({ key, label, helper, icon: Icon, accent, bg, ring }) => {
         const raw = summary[key] ?? 0
-        const value = format ? format(raw) : raw
+        const value = raw
 
         return (
           <article
