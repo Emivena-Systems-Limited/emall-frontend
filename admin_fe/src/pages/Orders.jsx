@@ -9,6 +9,7 @@ import OrderStatsGrid from '../components/orders/OrderStatsGrid'
 import OrderFiltersDrawer from '../components/orders/OrderFiltersDrawer'
 import { ORDER_STATUS_TABS } from '../constants/adminOrders'
 import { useAdminOrderRoster, useAdminOrderStats } from '../hooks/useAdminOrders'
+import { useAdminVendors } from '../hooks/useAdminVendors'
 import { countOrderDrawerFilters, getOrderFilterChips } from '../utils/orderFilters'
 import { formatCount } from '../utils/formatters'
 import { parseApiError } from '../utils/parseApiError'
@@ -24,6 +25,8 @@ export default function Orders() {
   const [vendorLabel, setVendorLabel] = useState('')
   const [userId, setUserId] = useState(searchParams.get('user_id') || '')
   const [userLabel, setUserLabel] = useState('')
+  const [startDate, setStartDate] = useState(searchParams.get('start_date') || '')
+  const [endDate, setEndDate] = useState(searchParams.get('end_date') || '')
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -35,7 +38,16 @@ export default function Orders() {
     return () => window.clearTimeout(timer)
   }, [query])
 
-  const filters = { status, paymentStatus, deliveryStatus, vendorId, userId, search }
+  const filters = {
+    status,
+    paymentStatus,
+    deliveryStatus,
+    vendorId,
+    userId,
+    search,
+    startDate,
+    endDate,
+  }
   const {
     orders,
     pagination,
@@ -45,15 +57,20 @@ export default function Orders() {
     refetch,
   } = useAdminOrderRoster(filters, page)
   const { stats } = useAdminOrderStats()
+  const { data: vendors = [] } = useAdminVendors('')
 
-  const vendorOptions = useMemo(() => {
-    const map = new Map()
-    if (vendorId) map.set(vendorId, vendorLabel || 'Selected store')
-    orders.forEach((order) => {
-      if (order.vendorId) map.set(order.vendorId, order.vendorName || 'Store')
-    })
-    return [...map.entries()]
-  }, [orders, vendorId, vendorLabel])
+  const rosterOrders = useMemo(() => orders.map((order) => {
+    if (order.vendorLogo || !order.vendorId) return order
+    const vendor = vendors.find((item) => String(item.id) === String(order.vendorId))
+    if (!vendor?.logo) return order
+    return { ...order, vendorLogo: vendor.logo }
+  }), [orders, vendors])
+
+  const resolvedVendorLabel = useMemo(() => {
+    if (!vendorId) return ''
+    const match = vendors.find((vendor) => String(vendor.id) === String(vendorId))
+    return match?.store || match?.name || vendorLabel || 'Selected store'
+  }, [vendorId, vendorLabel, vendors])
 
   const userOptions = useMemo(() => {
     const map = new Map()
@@ -64,24 +81,34 @@ export default function Orders() {
     return [...map.entries()]
   }, [orders, userId, userLabel])
 
-  const drawerFilterCount = countOrderDrawerFilters({ paymentStatus, deliveryStatus, vendorId, userId })
+  const drawerFilterCount = countOrderDrawerFilters({
+    paymentStatus,
+    deliveryStatus,
+    vendorId,
+    userId,
+    startDate,
+    endDate,
+  })
   const chips = getOrderFilterChips({
     paymentStatus,
     deliveryStatus,
     vendorId,
-    vendorLabel,
+    vendorLabel: resolvedVendorLabel,
     userId,
     userLabel,
+    startDate,
+    endDate,
   })
   const hasFilters = Boolean(query.trim() || status || drawerFilterCount)
-  const activeTab = ORDER_STATUS_TABS.find((tab) => tab.status === status)?.key ?? 'all'
+  const activeTab = ORDER_STATUS_TABS.find((tab) => tab.status === status)?.key ?? ''
+  const statsActiveKey = status || 'all'
   const tabCounts = {
     all: stats.total,
     pending: stats.pending,
     processing: stats.processing,
     shipped: stats.shipped,
     delivered: stats.delivered,
-    cancelled: stats.cancelled,
+    refunded: stats.refunded,
   }
 
   const updateStatus = (nextStatus) => {
@@ -96,6 +123,8 @@ export default function Orders() {
     setVendorLabel('')
     setUserId('')
     setUserLabel('')
+    setStartDate('')
+    setEndDate('')
     setPage(1)
   }
 
@@ -116,6 +145,10 @@ export default function Orders() {
     if (key === 'userId') {
       setUserId('')
       setUserLabel('')
+    }
+    if (key === 'dateRange') {
+      setStartDate('')
+      setEndDate('')
     }
     setPage(1)
   }
@@ -153,7 +186,7 @@ export default function Orders() {
         <DashboardReveal index={1}>
           <OrderStatsGrid
             stats={stats}
-            activeKey={activeTab}
+            activeKey={statsActiveKey}
             onSelect={updateStatus}
           />
         </DashboardReveal>
@@ -212,7 +245,7 @@ export default function Orders() {
               </button>
             </div>
 
-            {chips.length > 0 && (
+            {(chips.length > 0 || status || query.trim()) && (
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {chips.map((chip) => (
                   <button
@@ -228,7 +261,7 @@ export default function Orders() {
                 ))}
                 <button
                   type="button"
-                  onClick={clearDrawerFilters}
+                  onClick={clearFilters}
                   className="cursor-pointer text-xs font-semibold text-slate-500 hover:text-brand"
                 >
                   Clear filters
@@ -260,7 +293,7 @@ export default function Orders() {
             </section>
           ) : (
             <OrderRoster
-              orders={orders}
+              orders={rosterOrders}
               total={pagination.total}
               rangeStart={pagination.from}
               rangeEnd={pagination.to}
@@ -281,7 +314,8 @@ export default function Orders() {
         deliveryStatus={deliveryStatus}
         vendorId={vendorId}
         userId={userId}
-        vendorOptions={vendorOptions}
+        startDate={startDate}
+        endDate={endDate}
         userOptions={userOptions}
         onPaymentChange={(value) => {
           setPaymentStatus(value)
@@ -292,8 +326,9 @@ export default function Orders() {
           setPage(1)
         }}
         onVendorChange={(nextId) => {
+          const match = vendors.find((vendor) => String(vendor.id) === String(nextId))
           setVendorId(nextId)
-          setVendorLabel(vendorOptions.find(([id]) => id === nextId)?.[1] ?? '')
+          setVendorLabel(match?.store || match?.name || '')
           setPage(1)
         }}
         onUserChange={(nextId) => {
@@ -301,7 +336,16 @@ export default function Orders() {
           setUserLabel(userOptions.find(([id]) => id === nextId)?.[1] ?? '')
           setPage(1)
         }}
-        onClear={clearDrawerFilters}
+        onStartDateChange={(value) => {
+          setStartDate(value)
+          setPage(1)
+        }}
+        onEndDateChange={(value) => {
+          setEndDate(value)
+          setPage(1)
+        }}
+        onClear={clearFilters}
+        canReset={hasFilters}
         resultCount={pagination.total}
       />
     </DashboardLayout>

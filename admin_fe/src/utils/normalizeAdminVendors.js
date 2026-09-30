@@ -235,6 +235,7 @@ export function normalizeAdminVendor(record) {
   return {
     id: String(nested.id ?? nested.vendor_id ?? ''),
     store: firstText(nested.store_name, nested.trading_name, nested.business_name, nested.shop_name, 'Untitled store'),
+    logo: firstText(nested.store_logo, nested.logo_url, nested.logo, nested.avatar, nested.profile_image, nested.store_image),
     businessName: firstText(nested.business_name),
     tradingName: firstText(nested.trading_name),
     owner: owner || '—',

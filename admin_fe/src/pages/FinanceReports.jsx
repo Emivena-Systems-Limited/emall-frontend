@@ -6,11 +6,11 @@ import YearSelector from '../components/dashboard/YearSelector'
 import FinanceShell from '../components/finance/FinanceShell'
 import StatGrid from '../components/finance/StatGrid'
 import TruncatedCell from '../components/finance/TruncatedCell'
+import CategoryFilterSelect from '../components/finance/CategoryFilterSelect'
 import VendorFilterSelect from '../components/finance/VendorFilterSelect'
 import { CHART_AXIS_TICK, CHART_AXIS_TICK_Y } from '../constants/chartTheme'
 import { PAYOUT_STATUSES, PAYOUT_STATUS_ORDER } from '../constants/finance'
 import {
-  FINANCE_CATEGORIES,
   REPORT_TYPES,
   TRANSACTION_METHODS,
   TRANSACTION_STATUSES,
@@ -116,10 +116,12 @@ export default function FinanceReports() {
               <input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} className={`${FIELD} mt-1`} />
             </label>
             <VendorFilterSelect id="report-vendor-filter" value={filters.vendorId} onChange={(vendorId) => setFilters({ ...filters, vendorId })} />
-            <select aria-label="Category" value={filters.categoryId} onChange={(event) => setFilters({ ...filters, categoryId: event.target.value })} className={FIELD}>
-              <option value="">All categories</option>
-              {FINANCE_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
+            <CategoryFilterSelect
+              id="report-category-filter"
+              value={filters.categoryId}
+              onChange={(categoryId) => setFilters({ ...filters, categoryId })}
+              includeAll
+            />
             <select aria-label="Status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} className={FIELD}>
               <option value="">All statuses</option>
               {statusOptions.map((status) => <option key={status} value={status}>{statusLabels[status].label}</option>)}

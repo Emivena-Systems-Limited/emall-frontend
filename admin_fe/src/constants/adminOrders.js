@@ -177,11 +177,11 @@ export const DELIVERY_STATUSES = {
 
 export const ORDER_STATUS_TABS = [
   { key: 'all', label: 'All', status: '' },
-  { key: 'pending', label: 'Pending', status: 'pending' },
+  { key: 'pending', label: 'Pending delivery', status: 'pending' },
   { key: 'processing', label: 'Processing', status: 'processing' },
   { key: 'shipped', label: 'Shipped', status: 'shipped' },
   { key: 'delivered', label: 'Delivered', status: 'delivered' },
-  { key: 'cancelled', label: 'Cancelled', status: 'cancelled' },
+  { key: 'refunded', label: 'Refunded', status: 'refunded' },
 ]
 
 export const ORDER_PAYMENT_OPTIONS = [
@@ -198,6 +198,7 @@ export const ORDER_DELIVERY_OPTIONS = [
   { key: 'processing', label: 'Processing' },
   { key: 'shipped', label: 'Shipped' },
   { key: 'delivered', label: 'Delivered' },
+  { key: 'refunded', label: 'Refunded' },
   { key: 'cancelled', label: 'Cancelled' },
 ]
 

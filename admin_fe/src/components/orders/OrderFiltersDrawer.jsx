@@ -1,4 +1,5 @@
-import { CreditCard, RotateCcw, SlidersHorizontal, Store, Truck, UserRound } from 'lucide-react'
+import { CalendarRange, CreditCard, RotateCcw, SlidersHorizontal, Store, Truck, UserRound } from 'lucide-react'
+import VendorFilterSelect from '../finance/VendorFilterSelect'
 import { formatCount } from '../../utils/formatters'
 import { countOrderDrawerFilters } from '../../utils/orderFilters'
 import {
@@ -6,6 +7,8 @@ import {
   ORDER_PAYMENT_OPTIONS,
 } from '../../constants/adminOrders'
 import SlideDrawer from '../vendors/SlideDrawer'
+
+const DATE_FIELD = 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light'
 
 function FilterCard({ icon: Icon, title, description, children }) {
   return (
@@ -51,16 +54,27 @@ export default function OrderFiltersDrawer({
   deliveryStatus,
   vendorId,
   userId,
-  vendorOptions = [],
+  startDate = '',
+  endDate = '',
   userOptions = [],
   onPaymentChange,
   onDeliveryChange,
   onVendorChange,
   onUserChange,
+  onStartDateChange,
+  onEndDateChange,
   onClear,
+  canReset = false,
   resultCount = 0,
 }) {
-  const activeCount = countOrderDrawerFilters({ paymentStatus, deliveryStatus, vendorId, userId })
+  const activeCount = countOrderDrawerFilters({
+    paymentStatus,
+    deliveryStatus,
+    vendorId,
+    userId,
+    startDate,
+    endDate,
+  })
 
   return (
     <SlideDrawer
@@ -71,12 +85,12 @@ export default function OrderFiltersDrawer({
       subtitle={
         activeCount > 0
           ? `${activeCount} filter${activeCount === 1 ? '' : 's'} applied`
-          : 'Narrow the list by payment, delivery, store, or shopper'
+          : 'Narrow the list by payment, delivery, store, shopper, or date'
       }
       icon={SlidersHorizontal}
       footer={(
         <>
-          {activeCount > 0 && (
+          {(activeCount > 0 || canReset) && (
             <button
               type="button"
               onClick={onClear}
@@ -123,18 +137,45 @@ export default function OrderFiltersDrawer({
           </FilterSelect>
         </FilterCard>
 
-        <FilterCard icon={Store} title="Store" description="Vendors on the current result set">
-          <FilterSelect
+        <FilterCard icon={Store} title="Vendor" description="Every store on the marketplace">
+          <VendorFilterSelect
             id="order-vendor"
-            label="Store"
             value={vendorId}
             onChange={onVendorChange}
-          >
-            <option value="">Any store</option>
-            {vendorOptions.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </FilterSelect>
+            label="Vendor"
+            placeholder="All vendors"
+          />
+        </FilterCard>
+
+        <FilterCard icon={CalendarRange} title="Order date" description="Orders placed in this range">
+          <div className="grid grid-cols-2 gap-3">
+            <label htmlFor="order-start-date" className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Start date
+              </span>
+              <input
+                id="order-start-date"
+                type="date"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(event) => onStartDateChange(event.target.value)}
+                className={DATE_FIELD}
+              />
+            </label>
+            <label htmlFor="order-end-date" className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                End date
+              </span>
+              <input
+                id="order-end-date"
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(event) => onEndDateChange(event.target.value)}
+                className={DATE_FIELD}
+              />
+            </label>
+          </div>
         </FilterCard>
 
         <FilterCard icon={UserRound} title="Shopper" description="Customers on the current result set">

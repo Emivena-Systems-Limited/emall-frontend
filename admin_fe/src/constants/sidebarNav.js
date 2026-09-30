@@ -61,7 +61,7 @@ export const NAV_SECTIONS = [
           { to: '/finance/payouts', label: 'Payouts' },
           { to: '/finance/transactions', label: 'Transactions' },
           { to: '/finance/commissions', label: 'Commissions' },
-          { to: '/finance/invoices', label: 'Invoices / Statements' },
+          // { to: '/finance/invoices', label: 'Invoices / Statements' },
           { to: '/finance/reports', label: 'Reports' },
           { to: '/finance/settings', label: 'Settings' },
         ],

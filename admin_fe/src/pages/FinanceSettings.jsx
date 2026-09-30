@@ -1,31 +1,99 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
 import FinanceConfirmModal from '../components/finance/FinanceConfirmModal'
 import FinanceShell from '../components/finance/FinanceShell'
-import { PAYOUT_FREQUENCIES } from '../constants/financeLedger'
+import { clampCommissionRateInput, MAX_COMMISSION_RATE, PAYOUT_FREQUENCIES } from '../constants/financeLedger'
 import { useFinanceData } from '../hooks/useFinanceData'
-import notify from '../lib/notify'
+import { usePayoutSettings } from '../hooks/usePayoutSettings'
+import { parseApiError } from '../utils/parseApiError'
 import { getProfileDisplayName } from '../utils/profileUtils'
 
 const FIELD = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:cursor-not-allowed disabled:bg-slate-50'
+const CHECKBOX = 'size-4 shrink-0 cursor-pointer rounded accent-brand disabled:cursor-not-allowed'
+const COMMISSION_PRESETS = [5, 8, 10, 12, 15]
+
+function CommissionRateField({ initialRate, disabled }) {
+  const [rate, setRate] = useState(String(initialRate))
+  const numeric = Number(rate)
+
+  return (
+    <div className="mt-4 max-w-md">
+      <label className="block text-xs font-semibold text-slate-500">
+        Default marketplace commission (%)
+        <input
+          name="defaultRate"
+          disabled={disabled}
+          type="number"
+          min="0"
+          max={MAX_COMMISSION_RATE}
+          step="0.1"
+          value={rate}
+          onChange={(event) => setRate(clampCommissionRateInput(event.target.value))}
+          className={`${FIELD} mt-1`}
+        />
+      </label>
+      <div className="mt-2.5 flex flex-wrap gap-2" role="group" aria-label="Suggested commission rates">
+        {COMMISSION_PRESETS.map((preset) => {
+          const active = numeric === preset
+          return (
+            <button
+              key={preset}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => setRate(String(preset))}
+              className={`cursor-pointer rounded-full px-3 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${
+                active
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+              }`}
+            >
+              {preset}%
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export default function FinanceSettings() {
-  const { settings, setSettings, canConfigure, commissionConfig, setCommissionConfig, setCommissionHistory, user } = useFinanceData()
+  const { setSettings, canConfigure, commissionConfig, setCommissionConfig, setCommissionHistory, user } = useFinanceData()
+  const {
+    settings,
+    defaultRate,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    saveSettings,
+  } = usePayoutSettings()
   const [pending, setPending] = useState(null)
   const formKey = [
     settings.frequency,
     settings.minimumThreshold,
     settings.processingRule,
-    commissionConfig.defaultRate,
+    defaultRate,
     settings.paymentMethods.map((method) => method.enabled).join(''),
     Object.values(settings.methods).join(''),
   ].join('|')
 
+  useEffect(() => {
+    if (isLoading || isError) return
+    setSettings(settings)
+    setCommissionConfig((current) => (
+      current.defaultRate === defaultRate ? current : { ...current, defaultRate }
+    ))
+  }, [defaultRate, isError, isLoading, setCommissionConfig, setSettings, settings])
+
   const save = async () => {
     if (!pending) return
-    await new Promise((resolve) => { window.setTimeout(resolve, 500) })
-    setSettings(pending.settings)
+    const result = await saveSettings({
+      settings: pending.settings,
+      defaultRate: pending.defaultRate,
+    })
+    setSettings(result.settings)
     if (!Number.isNaN(pending.defaultRate) && pending.defaultRate !== commissionConfig.defaultRate) {
       setCommissionConfig((current) => ({ ...current, defaultRate: pending.defaultRate }))
       setCommissionHistory((current) => [{
@@ -38,12 +106,23 @@ export default function FinanceSettings() {
       }, ...current])
     }
     setPending(null)
-    notify.success('Finance settings saved.')
   }
 
   return (
     <FinanceShell>
       <DashboardReveal index={2}>
+        {isLoading ? (
+          <section className="rounded-2xl border border-slate-200/80 bg-white px-5 py-8 text-sm text-slate-500">
+            Loading finance settings…
+          </section>
+        ) : isError ? (
+          <section className="rounded-2xl border border-slate-200/80 bg-white px-5 py-8">
+            <p className="text-sm text-slate-700">{parseApiError(error, 'Could not load finance settings.').message}</p>
+            <button type="button" onClick={() => refetch()} className="mt-4 cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
+              Try again
+            </button>
+          </section>
+        ) : (
         <form
           key={formKey}
           className="space-y-5"
@@ -52,7 +131,7 @@ export default function FinanceSettings() {
             if (!canConfigure) return
             const data = new FormData(event.currentTarget)
             setPending({
-              defaultRate: Number(data.get('defaultRate')),
+              defaultRate: Math.min(MAX_COMMISSION_RATE, Math.max(0, Number(data.get('defaultRate')))),
               settings: {
                 frequency: String(data.get('frequency')),
                 minimumThreshold: Number(data.get('minimumThreshold')),
@@ -90,7 +169,7 @@ export default function FinanceSettings() {
               <div className="mt-2 flex flex-wrap gap-4">
                 {Object.entries(settings.methods).map(([method, enabled]) => (
                   <label key={method} className="flex items-center gap-2 text-sm text-slate-700">
-                    <input type="checkbox" name={`method-${method}`} defaultChecked={enabled} />
+                    <input type="checkbox" name={`method-${method}`} defaultChecked={enabled} className={CHECKBOX} />
                     {method}
                   </label>
                 ))}
@@ -103,9 +182,7 @@ export default function FinanceSettings() {
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
               Vendor and category overrides are edited on the Commissions tab. The default rate can also be saved here. The final commission model still needs a decision with Courage and Eugene.
             </p>
-            <label className="mt-4 block max-w-xs text-xs font-semibold text-slate-500">Default marketplace commission (%)
-              <input name="defaultRate" disabled={!canConfigure} type="number" min="0" max="100" step="0.1" defaultValue={commissionConfig.defaultRate} className={`${FIELD} mt-1`} />
-            </label>
+            <CommissionRateField initialRate={defaultRate} disabled={!canConfigure} />
           </section>
 
           <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
@@ -121,7 +198,7 @@ export default function FinanceSettings() {
                     </p>
                   </div>
                   <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <input type="checkbox" name={`pay-${method.key}`} disabled={!canConfigure} defaultChecked={method.enabled} />
+                    <input type="checkbox" name={`pay-${method.key}`} disabled={!canConfigure} defaultChecked={method.enabled} className={CHECKBOX} />
                     Enabled
                   </label>
                 </li>
@@ -136,6 +213,7 @@ export default function FinanceSettings() {
             </button>
           </div>
         </form>
+        )}
       </DashboardReveal>
 
       <FinanceConfirmModal

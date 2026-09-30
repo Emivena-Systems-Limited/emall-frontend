@@ -46,10 +46,13 @@ export function InventoryRosterSkeleton({ rows = 6 }) {
   )
 }
 
-export default function InventoryIdentity({ item, size = 'md' }) {
+export default function InventoryIdentity({ item, size = 'md', showOption = true }) {
   const large = size === 'lg'
   const box = large ? 'size-16 rounded-2xl' : 'size-10 rounded-xl'
-  const subtitle = [item?.variantName, item?.sku].filter(Boolean).join(' · ')
+  const subtitle = [showOption ? item?.variantName : '', item?.sku].filter(Boolean).join(' · ')
+  const fallback = showOption
+    ? (large && item?.vendorName ? item.vendorName : 'Standard option')
+    : ''
 
   return (
     <div className="flex min-w-0 items-center gap-3">
@@ -60,9 +63,11 @@ export default function InventoryIdentity({ item, size = 'md' }) {
             {item?.productName || '—'}
           </p>
         </OverflowTooltip>
-        <p className={`truncate ${large ? 'mt-0.5 text-sm text-slate-500' : 'text-xs text-slate-500'}`}>
-          {subtitle || (large && item?.vendorName ? item.vendorName : 'Standard option')}
-        </p>
+        {subtitle || fallback ? (
+          <p className={`truncate ${large ? 'mt-0.5 text-sm text-slate-500' : 'text-xs text-slate-500'}`}>
+            {subtitle || fallback}
+          </p>
+        ) : null}
       </div>
     </div>
   )

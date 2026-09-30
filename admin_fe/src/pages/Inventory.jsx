@@ -1,25 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Boxes, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Boxes, Search } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
-import InventoryFiltersDrawer from '../components/inventory/InventoryFiltersDrawer'
+import VendorFilterSelect from '../components/finance/VendorFilterSelect'
 import InventoryRoster, { InventoryRosterSkeleton } from '../components/inventory/InventoryRoster'
 import InventoryStatsGrid from '../components/inventory/InventoryStatsGrid'
 import { INVENTORY_VIEWS } from '../constants/inventory'
 import { useAdminInventoryRoster, useAdminInventoryStats } from '../hooks/useAdminInventory'
 import { formatCount } from '../utils/formatters'
 import { parseApiError } from '../utils/parseApiError'
-import { countInventoryDrawerFilters, getInventoryFilterChips } from '../utils/inventoryFilters'
 
 export default function Inventory() {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [view, setView] = useState('')
   const [vendorId, setVendorId] = useState('')
-  const [vendorName, setVendorName] = useState('')
   const [page, setPage] = useState(1)
-  const [filtersOpen, setFiltersOpen] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -40,12 +37,11 @@ export default function Inventory() {
   } = useAdminInventoryRoster(filters, page)
   const { stats } = useAdminInventoryStats()
 
-  const drawerFilterCount = countInventoryDrawerFilters({ vendorId })
-  const chips = getInventoryFilterChips({ vendorId, vendorName })
-  const hasFilters = Boolean(query.trim() || drawerFilterCount)
+  const hasFilters = Boolean(query.trim() || vendorId)
   const activeTab = INVENTORY_VIEWS.find((tab) => tab.view === view)?.key ?? 'all'
   const tabCounts = {
     all: stats.total,
+    in_stock: stats.inStock,
     low: stats.lowStock,
     out: stats.outOfStock,
   }
@@ -55,24 +51,11 @@ export default function Inventory() {
     setPage(1)
   }
 
-  const clearDrawerFilters = () => {
-    setVendorId('')
-    setVendorName('')
-    setPage(1)
-  }
-
   const clearFilters = () => {
     setQuery('')
     setSearch('')
     setView('')
-    clearDrawerFilters()
-  }
-
-  const removeChip = (key) => {
-    if (key === 'vendor') {
-      setVendorId('')
-      setVendorName('')
-    }
+    setVendorId('')
     setPage(1)
   }
 
@@ -151,46 +134,24 @@ export default function Inventory() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pr-3 pl-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
                 />
               </label>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(true)}
-                aria-expanded={filtersOpen}
-                aria-haspopup="dialog"
-                className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-brand/40 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-              >
-                <SlidersHorizontal className="size-3.5" />
-                Filters
-                {drawerFilterCount > 0 && (
-                  <span className="flex min-h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
-                    {drawerFilterCount}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {chips.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                {chips.map((chip) => (
-                  <button
-                    key={chip.key}
-                    type="button"
-                    onClick={() => removeChip(chip.key)}
-                    aria-label={`Remove ${chip.label} filter`}
-                    className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                  >
-                    <span className="min-w-0 break-words">{chip.label}</span>
-                    <X className="size-3.5 shrink-0 text-slate-400" />
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={clearDrawerFilters}
-                  className="cursor-pointer text-xs font-semibold text-slate-500 hover:text-brand"
-                >
-                  Clear filters
-                </button>
+              <div className="w-full sm:w-72 sm:shrink-0">
+                <VendorFilterSelect
+                  id="inventory-vendor-filter"
+                  value={vendorId}
+                  onChange={(nextVendorId) => {
+                    setVendorId(nextVendorId)
+                    setPage(1)
+                  }}
+                  label="Store"
+                  allLabel="All stores"
+                  placeholder="All stores"
+                  searchPlaceholder="Search stores"
+                  loadingMessage="Loading stores…"
+                  errorMessage="Could not load stores."
+                  emptyMessage="No stores match that search."
+                />
               </div>
-            )}
+            </div>
           </section>
         </DashboardReveal>
 
@@ -230,20 +191,6 @@ export default function Inventory() {
           )}
         </DashboardReveal>
       </div>
-
-      <InventoryFiltersDrawer
-        open={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        vendorId={vendorId}
-        vendorName={vendorName}
-        onVendorChange={({ vendorId: nextId, vendorName: nextName }) => {
-          setVendorId(nextId)
-          setVendorName(nextName)
-          setPage(1)
-        }}
-        onClear={clearDrawerFilters}
-        resultCount={pagination.total}
-      />
     </DashboardLayout>
   )
 }

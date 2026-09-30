@@ -159,26 +159,81 @@ function isTruthyFlag(value) {
   return value === true || value === 1 || value === '1' || String(value ?? '').trim().toLowerCase() === 'true'
 }
 
-function formatAttributeLabel(source) {
+function attributeEntries(source) {
+  if (!isRecord(source)) return []
   const attributes = source.attributes ?? source.attribute_values ?? source.options ?? source.variant_attributes
-  if (typeof attributes === 'string' && attributes.trim()) return attributes.trim()
+  if (typeof attributes === 'string' && attributes.trim()) {
+    return [{ name: '', value: attributes.trim() }]
+  }
   if (Array.isArray(attributes)) {
-    return attributes
+    const entries = attributes
       .map((item) => {
-        if (!item) return ''
-        if (typeof item === 'string') return item
-        return firstText(item.value, item.name, item.label)
+        if (!item) return null
+        if (typeof item === 'string') {
+          const value = item.trim()
+          return value ? { name: '', value } : null
+        }
+        const value = firstText(item.value, item.label)
+        if (!value) return null
+        return { name: firstText(item.name, item.attribute, item.key), value }
       })
       .filter(Boolean)
-      .join(' · ')
-  }
-  if (isRecord(attributes)) {
-    return Object.values(attributes)
-      .map((value) => (isRecord(value) ? firstText(value.value, value.name, value.label) : String(value ?? '').trim()))
+    if (entries.length) return entries
+  } else if (isRecord(attributes)) {
+    const entries = Object.entries(attributes)
+      .map(([key, value]) => {
+        if (isRecord(value)) {
+          const text = firstText(value.value, value.label)
+          return text ? { name: firstText(value.name, value.attribute, key), value: text } : null
+        }
+        const text = String(value ?? '').trim()
+        return text ? { name: String(key), value: text } : null
+      })
       .filter(Boolean)
-      .join(' · ')
+    if (entries.length) return entries
   }
-  return ''
+
+  return []
+}
+
+function withFlatVariantValue(source, entries) {
+  if (entries.length || !isRecord(source)) return entries
+  const flatValue = firstText(source.value, source.variant_value)
+  if (!flatValue) return entries
+  return [{ name: firstText(source.attribute), value: flatValue }]
+}
+
+function isGeneratedSimpleOption(entry, productName) {
+  if (!entry?.value) return false
+  if (namesMatch(entry.name, 'Default') && namesMatch(entry.value, 'Standard')) return true
+  return Boolean(productName)
+    && namesMatch(entry.name, productName)
+    && namesMatch(entry.value, productName)
+}
+
+function formatAttributeLabel(source) {
+  return attributeEntries(source).map((entry) => entry.value).filter(Boolean).join(' · ')
+}
+
+function resolveVariantValueName(nested, source, productName) {
+  const seen = new Set()
+  const entries = [
+    ...withFlatVariantValue(nested, attributeEntries(nested)),
+    ...attributeEntries(source),
+  ].filter((entry) => {
+    const key = `${entry.name.toLowerCase()}::${entry.value.toLowerCase()}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  const meaningful = entries.filter((entry) => !isGeneratedSimpleOption(entry, productName))
+  if (meaningful.length) {
+    return meaningful.map((entry) => entry.value).join(' · ')
+  }
+
+  const named = firstText(nested.variant_name, source.variant_name)
+  if (!named || namesMatch(named, productName) || namesMatch(named, 'standard')) return ''
+  return named
 }
 
 export function normalizeInventoryStatus(raw, quantity, threshold, extras = {}) {
@@ -241,6 +296,7 @@ function resolveVariant(source, productName) {
   return {
     variantId: firstText(source.variant_id, source.product_variant_id, nested.id),
     variantName: label,
+    variantValueName: resolveVariantValueName(nested, source, productName),
     sku: firstText(nested.sku, source.sku, nested.barcode, source.barcode),
   }
 }
@@ -307,6 +363,7 @@ export function normalizeAdminInventory(record) {
     sku: variant.sku,
     variantId: variant.variantId,
     variantName: variant.variantName,
+    variantValueName: variant.variantValueName,
     productId: listing.productId,
     productName: listing.productName,
     productImage: listing.productImage,
@@ -346,13 +403,19 @@ export function normalizeInventoryStats(body) {
     ? (isRecord(payload.stats) ? payload.stats : payload)
     : {}
 
+  const total = pickNumber(source, ['total_records', 'total', 'total_skus', 'skus', 'inventory_count', 'count'])
+  const lowStock = pickNumber(source, ['low_stock_records', 'low_stock', 'low_stock_count', 'low'])
+  const outOfStock = pickNumber(source, ['out_of_stock_records', 'out_of_stock', 'out_of_stock_count', 'out'])
+  const explicitInStock = pickOptionalNumber(source, ['in_stock_records', 'in_stock', 'in_stock_count', 'healthy', 'available_skus'])
+
   return {
-    total: pickNumber(source, ['total', 'total_skus', 'skus', 'inventory_count', 'count']),
-    inStock: pickNumber(source, ['in_stock', 'in_stock_count', 'healthy', 'available_skus']),
-    lowStock: pickNumber(source, ['low_stock', 'low_stock_count', 'low']),
-    outOfStock: pickNumber(source, ['out_of_stock', 'out_of_stock_count', 'out']),
-    onHand: pickNumber(source, ['on_hand', 'total_units', 'total_quantity', 'quantity']),
-    reserved: pickNumber(source, ['reserved', 'reserved_units', 'reserved_quantity']),
+    total,
+    inStock: explicitInStock != null ? explicitInStock : Math.max(0, total - lowStock - outOfStock),
+    lowStock,
+    outOfStock,
+    onHand: pickNumber(source, ['total_quantity', 'on_hand', 'total_units', 'quantity']),
+    reserved: pickNumber(source, ['total_reserved_quantity', 'reserved_quantity', 'reserved', 'reserved_units']),
+    available: pickNumber(source, ['total_available_quantity', 'available_quantity', 'available']),
   }
 }
 
@@ -409,5 +472,6 @@ export function emptyInventoryStats() {
     outOfStock: 0,
     onHand: 0,
     reserved: 0,
+    available: 0,
   }
 }

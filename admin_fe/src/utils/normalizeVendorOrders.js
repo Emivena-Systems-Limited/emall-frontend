@@ -499,6 +499,29 @@ function normalizeDelivery(record) {
     city: firstValue(shipping?.city_or_town, shipping?.city, shipping?.town),
     country: firstValue(shipping?.country),
     notes: firstValue(shipping?.delivery_note, shipping?.notes, record?.delivery_note, record?.notes),
+    carrier: firstValue(
+      record?.carrier,
+      record?.courier,
+      shipping?.carrier,
+      shipping?.courier,
+      record?.shipment?.carrier,
+      parentOrder?.carrier,
+    ),
+    trackingNumber: firstValue(
+      record?.tracking_number,
+      record?.tracking_code,
+      record?.shipment_tracking_number,
+      shipping?.tracking_number,
+      shipping?.tracking_code,
+      record?.shipment?.tracking_number,
+      parentOrder?.tracking_number,
+    ),
+    trackingUrl: firstValue(
+      record?.tracking_url,
+      shipping?.tracking_url,
+      record?.shipment?.tracking_url,
+      parentOrder?.tracking_url,
+    ),
   }
 }
 

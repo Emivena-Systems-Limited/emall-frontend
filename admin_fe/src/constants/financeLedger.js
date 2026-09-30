@@ -412,6 +412,22 @@ function groupByMonth(rows, getDate, getValue) {
   }))
 }
 
+export const MAX_COMMISSION_RATE = 99
+
+export function clampCommissionRateInput(raw) {
+  const text = String(raw ?? '')
+  if (text === '') return ''
+  const number = Number(text)
+  if (!Number.isFinite(number)) return text
+  if (number < 0) return '0'
+  if (number > MAX_COMMISSION_RATE) return String(MAX_COMMISSION_RATE)
+  return text
+}
+
+export function isCommissionRate(value) {
+  return Number.isFinite(value) && value >= 0 && value <= MAX_COMMISSION_RATE
+}
+
 export function rateLabel(rate) {
   return rate == null ? 'Default' : `${rate}%`
 }

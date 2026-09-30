@@ -1,11 +1,11 @@
-import { Link, useLocation, useNavigate } from 'react-router'
+import { useState } from 'react'
+import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Package, Store } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Package } from 'lucide-react'
 import EmptyState from '../dashboard/EmptyState'
 import ProductThumbnail from '../dashboard/ProductThumbnail'
 import { formatCount } from '../../utils/formatters'
 import { formatOrderDate, getOrderApiId } from '../../utils/normalizeAdminOrders'
-import { buildNavigationState } from '../../utils/smartNavigation'
 import { isPendingDelivery } from '../../constants/adminOrders'
 import { prefetchAdminOrder } from '../../hooks/useAdminOrders'
 import OrderActions from './OrderActions'
@@ -13,6 +13,33 @@ import OrderIdTooltip from './OrderIdTooltip'
 import OrderItemPrice from './OrderItemPrice'
 import PaymentStatusBadge from './PaymentStatusBadge'
 import DeliveryStatusBadge from './DeliveryStatusBadge'
+import { getStoreInitials, getVendorAvatarTone } from '../../utils/vendorFilters'
+
+function StoreIdentity({ name, logo, vendorId }) {
+  const [failed, setFailed] = useState(false)
+  const label = name || 'Store'
+  const showLogo = Boolean(logo) && !failed
+
+  return (
+    <div className="flex min-w-0 max-w-48 items-center gap-2.5">
+      {showLogo ? (
+        <img
+          src={logo}
+          alt=""
+          onError={() => setFailed(true)}
+          className="size-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+        />
+      ) : (
+        <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ring-1 ${getVendorAvatarTone(vendorId)}`}>
+          {getStoreInitials(label) || 'S'}
+        </span>
+      )}
+      <p className="min-w-0 truncate font-medium text-slate-700" title={name || undefined}>
+        {name || '—'}
+      </p>
+    </div>
+  )
+}
 
 export function OrderRosterSkeleton({ rows = 6 }) {
   return (
@@ -75,20 +102,8 @@ export default function OrderRoster({
   onClearFilters,
   hasFilters = false,
 }) {
-  const navigate = useNavigate()
-  const location = useLocation()
   const queryClient = useQueryClient()
   const prefetch = (id) => prefetchAdminOrder(queryClient, id)
-
-  const openProduct = (order) => {
-    const productId = order.productId || order.items?.[0]?.productId
-    if (!productId) return
-    const variantId = order.variantId || order.items?.[0]?.variantId
-    const search = variantId ? `?variant=${encodeURIComponent(variantId)}` : ''
-    navigate(`/products/${encodeURIComponent(productId)}${search}`, {
-      state: buildNavigationState(location, { returnLabel: 'Back to orders' }),
-    })
-  }
 
   if (total === 0) {
     return (
@@ -98,7 +113,7 @@ export default function OrderRoster({
           title={hasFilters ? 'No orders match these filters' : 'No orders yet'}
           description={
             hasFilters
-              ? 'Try a different status, payment, store, or search, or clear the current filters.'
+              ? 'Try a different status, payment, store, date, or search, or clear the current filters.'
               : 'Marketplace checkouts will appear here as shoppers place them.'
           }
           action={hasFilters ? (
@@ -168,14 +183,17 @@ export default function OrderRoster({
                         {order.customer?.name || '—'}
                       </p>
                     )}
+                    {order.customer?.email ? (
+                      <p className="mt-0.5 max-w-48 truncate text-xs text-slate-500" title={order.customer.email}>
+                        {order.customer.email}
+                      </p>
+                    ) : null}
                     {order.customer?.phone ? (
                       <p className="mt-0.5 text-xs text-slate-500">{order.customer.phone}</p>
                     ) : null}
                   </td>
                   <td className="px-5 py-3">
-                    <p className="max-w-40 truncate text-slate-600" title={order.vendorName || undefined}>
-                      {order.vendorName || '—'}
-                    </p>
+                    <StoreIdentity name={order.vendorName} logo={order.vendorLogo} vendorId={order.vendorId} />
                   </td>
                   <td className="px-5 py-3">
                     <OrderItemPrice amount={order.totalAmount} />
@@ -187,11 +205,7 @@ export default function OrderRoster({
                     <DeliveryStatusBadge status={order.deliveryStatus} />
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <OrderActions
-                      order={order}
-                      onView={() => navigate(`/orders/${encodeURIComponent(apiId)}`)}
-                      onViewProduct={order.productId || order.items?.[0]?.productId ? openProduct : null}
-                    />
+                    <OrderActions order={order} />
                   </td>
                 </tr>
               )
@@ -223,19 +237,18 @@ export default function OrderRoster({
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{formatOrderDate(order.orderDate)}</p>
                 </Link>
-                <OrderActions
-                  order={order}
-                  onView={() => navigate(`/orders/${encodeURIComponent(apiId)}`)}
-                  onViewProduct={order.productId || order.items?.[0]?.productId ? openProduct : null}
-                />
+                <OrderActions order={order} />
               </div>
               <div className="mt-3 space-y-1 text-sm">
                 <p className="font-semibold text-slate-800">{order.customer?.name || '—'}</p>
+                {order.customer?.email ? (
+                  <p className="truncate text-xs text-slate-500">{order.customer.email}</p>
+                ) : null}
+                {order.customer?.phone ? (
+                  <p className="text-xs text-slate-500">{order.customer.phone}</p>
+                ) : null}
                 {order.vendorName ? (
-                  <p className="inline-flex items-center gap-1 text-xs text-slate-500">
-                    <Store className="size-3" aria-hidden="true" />
-                    {order.vendorName}
-                  </p>
+                  <StoreIdentity name={order.vendorName} logo={order.vendorLogo} vendorId={order.vendorId} />
                 ) : null}
                 {extra > 0 ? (
                   <p className="text-xs text-slate-500">+{extra} more product{extra === 1 ? '' : 's'}</p>

@@ -21,14 +21,11 @@ export default function InventoryStatsGrid({ stats, activeKey, onSelect }) {
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {INVENTORY_STATS.map((stat) => {
         const Icon = ICONS[stat.icon] ?? Boxes
-        const interactive = stat.key !== 'in_stock'
-        const selected = interactive && activeKey === stat.key
+        const selected = activeKey === stat.key
         const value = values[stat.key]
-        const cardClass = `group relative flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl border bg-white px-4 py-3.5 text-left shadow-[0_16px_45px_rgba(15,23,42,0.04)] ${
-          interactive
-            ? 'cursor-pointer transition-all duration-200 hover:shadow-[0_22px_60px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2'
-            : ''
-        } ${selected ? 'border-slate-300 ring-1 ring-slate-200' : 'border-slate-200/80'}`
+        const cardClass = `group relative flex min-w-0 cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border bg-white px-4 py-3.5 text-left shadow-[0_16px_45px_rgba(15,23,42,0.04)] transition-all duration-200 hover:shadow-[0_22px_60px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+          selected ? 'border-slate-300 ring-1 ring-slate-200' : 'border-slate-200/80'
+        }`
         const inner = (
           <>
             <span
@@ -48,14 +45,6 @@ export default function InventoryStatsGrid({ stats, activeKey, onSelect }) {
             </span>
           </>
         )
-
-        if (!interactive) {
-          return (
-            <div key={stat.key} className={cardClass}>
-              {inner}
-            </div>
-          )
-        }
 
         return (
           <button

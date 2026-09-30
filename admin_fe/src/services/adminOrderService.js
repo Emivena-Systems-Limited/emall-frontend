@@ -46,12 +46,29 @@ function orderMatchesSearch(order, search) {
   return haystack.includes(needle)
 }
 
-function applyOrderSearch(orders, pagination, search) {
+function orderMatchesDateRange(order, startDate, endDate) {
+  if (!startDate && !endDate) return true
+  const time = new Date(order?.orderDate).getTime()
+  if (Number.isNaN(time)) return false
+  if (startDate) {
+    const start = new Date(`${startDate}T00:00:00`).getTime()
+    if (Number.isFinite(start) && time < start) return false
+  }
+  if (endDate) {
+    const end = new Date(`${endDate}T23:59:59.999`).getTime()
+    if (Number.isFinite(end) && time > end) return false
+  }
+  return true
+}
+
+function applyOrderSearch(orders, pagination, search, { startDate = '', endDate = '' } = {}) {
   const needle = String(search ?? '').trim()
   const rows = Array.isArray(orders) ? orders : []
-  if (!needle) return { orders: rows, pagination }
+  if (!needle && !startDate && !endDate) return { orders: rows, pagination }
 
-  const matches = rows.filter((order) => orderMatchesSearch(order, needle))
+  const matches = rows.filter((order) => (
+    orderMatchesSearch(order, needle) && orderMatchesDateRange(order, startDate, endDate)
+  ))
   if (matches.length === rows.length) return { orders: rows, pagination }
 
   return {
@@ -74,6 +91,8 @@ export async function fetchAdminOrders({
   vendorId = '',
   userId = '',
   search = '',
+  startDate = '',
+  endDate = '',
   page = 1,
   perPage = ORDER_PAGE_SIZE,
 } = {}) {
@@ -85,6 +104,8 @@ export async function fetchAdminOrders({
       vendor_id: vendorId,
       user_id: userId,
       search: String(search ?? '').trim(),
+      start_date: startDate,
+      end_date: endDate,
       page,
       per_page: perPage,
       ...LATEST_FIRST_QUERY,
@@ -96,6 +117,7 @@ export async function fetchAdminOrders({
     normalizeAdminOrders(envelope),
     extractAdminOrderPagination(envelope),
     search,
+    { startDate, endDate },
   )
 }
 

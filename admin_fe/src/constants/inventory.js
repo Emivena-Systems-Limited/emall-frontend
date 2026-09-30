@@ -43,6 +43,7 @@ export const INVENTORY_STATUSES = [
 
 export const INVENTORY_VIEWS = [
   { key: 'all', label: 'All', view: '' },
+  { key: 'in_stock', label: 'In stock', view: 'in_stock' },
   { key: 'low', label: 'Low stock', view: 'low' },
   { key: 'out', label: 'Out of stock', view: 'out' },
 ]
@@ -64,7 +65,7 @@ export const INVENTORY_STATS = [
     icon: 'check',
     accent: '#059669',
     well: 'bg-emerald-50 ring-emerald-100',
-    view: '',
+    view: 'in_stock',
   },
   {
     key: 'low',

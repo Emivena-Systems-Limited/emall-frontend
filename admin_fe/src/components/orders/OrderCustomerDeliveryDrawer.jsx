@@ -52,7 +52,9 @@ export default function OrderCustomerDeliveryDrawer({ open, order, onClose }) {
 
   if (!open || !order) return null
 
-  const cityRegion = [order.delivery.city, order.delivery.region].filter(Boolean).join(', ')
+  const delivery = order.delivery ?? {}
+  const customer = order.customer ?? {}
+  const cityRegion = [delivery.city, delivery.region].filter(Boolean).join(', ')
 
   return createPortal(
     <>
@@ -76,7 +78,7 @@ export default function OrderCustomerDeliveryDrawer({ open, order, onClose }) {
               <h2 id="order-customer-delivery-title" className="mt-1 text-lg font-bold text-slate-900">
                 {order.orderNumber}
               </h2>
-              <p className="mt-1 text-sm text-slate-500">{order.customer.name}</p>
+              <p className="mt-1 text-sm text-slate-500">{customer.name}</p>
             </div>
             <button
               type="button"
@@ -92,9 +94,9 @@ export default function OrderCustomerDeliveryDrawer({ open, order, onClose }) {
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           <DrawerSection icon={UserRound} title="Customer Information">
             <dl>
-              <DetailRow label="Customer Name" value={order.customer.name} />
-              <DetailRow label="Email Address" value={order.customer.email} />
-              <DetailRow label="Phone Number" value={order.customer.phone} singleLine />
+              <DetailRow label="Customer Name" value={customer.name} />
+              <DetailRow label="Email Address" value={customer.email} />
+              <DetailRow label="Phone Number" value={customer.phone} singleLine />
             </dl>
             {order.userId ? (
               <Link
@@ -108,31 +110,52 @@ export default function OrderCustomerDeliveryDrawer({ open, order, onClose }) {
 
           <DrawerSection icon={MapPin} title="Delivery Information">
             <dl>
-              <DetailRow label="Delivery Address" value={order.delivery.address} />
+              <DetailRow label="Delivery Address" value={delivery.address} />
               {cityRegion ? <DetailRow label="City / Region" value={cityRegion} /> : null}
-              {order.delivery.country ? (
-                <DetailRow label="Country" value={order.delivery.country} singleLine />
+              {delivery.country ? (
+                <DetailRow label="Country" value={delivery.country} singleLine />
               ) : null}
               <DetailRow label="Delivery Method" value={order.deliveryMethod} singleLine />
               <DetailRow label="Delivery Status" value={<DeliveryStatusBadge status={order.deliveryStatus} />} />
-              <DetailRow label="Delivery Notes" value={order.delivery.notes || '—'} />
+              {delivery.carrier ? (
+                <DetailRow label="Carrier" value={delivery.carrier} singleLine />
+              ) : null}
+              {delivery.trackingNumber ? (
+                <DetailRow label="Tracking number" value={delivery.trackingNumber} singleLine />
+              ) : null}
+              {String(delivery.trackingUrl || '').startsWith('http') ? (
+                <DetailRow
+                  label="Tracking"
+                  value={(
+                    <a
+                      href={delivery.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-brand hover:text-brand-hover"
+                    >
+                      Open tracking
+                    </a>
+                  )}
+                />
+              ) : null}
+              <DetailRow label="Delivery Notes" value={delivery.notes || '—'} />
             </dl>
           </DrawerSection>
 
-          {(order.customer.phone || order.delivery.address) && (
+          {(customer.phone || delivery.address) && (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Quick contact</p>
-              {order.customer.phone ? (
+              {customer.phone ? (
                 <a
-                  href={`tel:${order.customer.phone}`}
+                  href={`tel:${customer.phone}`}
                   className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-brand hover:text-brand-hover"
                 >
                   <Phone className="size-4" />
-                  {order.customer.phone}
+                  {customer.phone}
                 </a>
               ) : null}
-              {order.delivery.address ? (
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{order.delivery.address}</p>
+              {delivery.address ? (
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{delivery.address}</p>
               ) : null}
             </div>
           )}

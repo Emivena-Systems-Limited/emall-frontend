@@ -1,5 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router'
 import {
+  ArrowLeft,
   Boxes,
   Calendar,
   Clock,
@@ -15,9 +16,26 @@ import InventoryIdentity, { InventoryRosterSkeleton } from '../components/invent
 import InventoryStatusBadge from '../components/inventory/InventoryStatusBadge'
 import { getInventoryStatusMeta } from '../constants/inventory'
 import { useAdminInventory } from '../hooks/useAdminInventory'
+import useSmartBack from '../hooks/useSmartBack'
 import { formatCount } from '../utils/formatters'
 import { formatInventoryDateTime } from '../utils/normalizeAdminInventory'
 import { parseApiError } from '../utils/parseApiError'
+
+function InventoryBackLink() {
+  const { to, label } = useSmartBack('/inventory', { fallbackLabel: 'Back to inventory' })
+
+  return (
+    <Link
+      to={to}
+      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-1.5 pr-3.5 pl-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-brand/40 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+    >
+      <span className="flex size-7 items-center justify-center rounded-full bg-slate-950 text-white">
+        <ArrowLeft className="size-3.5" strokeWidth={2.25} aria-hidden="true" />
+      </span>
+      {label}
+    </Link>
+  )
+}
 
 function FactRow({ icon: Icon, label, children }) {
   return (
@@ -129,14 +147,6 @@ export default function InventoryDetail() {
           <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
             <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-brand" />
 
-            <SmartBackLink
-              fallback="/inventory"
-              fallbackLabel="Back to inventory"
-              variant="text-subtle"
-              iconClassName="size-3.5"
-              className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-brand"
-            />
-
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
@@ -151,7 +161,7 @@ export default function InventoryDetail() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 lg:justify-end">
                 {item.productId ? (
                   <Link
                     to={`/products/${encodeURIComponent(item.productId)}`}
@@ -170,6 +180,7 @@ export default function InventoryDetail() {
                     Open store
                   </Link>
                 ) : null}
+                <InventoryBackLink />
               </div>
             </div>
           </header>

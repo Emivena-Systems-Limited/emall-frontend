@@ -32,6 +32,8 @@ export function orderListQueryKey({
   vendorId = '',
   userId = '',
   search = '',
+  startDate = '',
+  endDate = '',
   page = 1,
 } = {}) {
   return [
@@ -43,6 +45,8 @@ export function orderListQueryKey({
     vendorId ?? '',
     userId ?? '',
     search ?? '',
+    startDate ?? '',
+    endDate ?? '',
     page,
     ORDER_PAGE_SIZE,
   ]

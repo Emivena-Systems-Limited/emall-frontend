@@ -55,6 +55,19 @@ function vendorFrom(record) {
       record?.vendor_name,
       record?.seller_name,
     ),
+    logo: firstText(
+      nested.store_logo,
+      nested.logo_url,
+      nested.logo,
+      nested.avatar,
+      nested.profile_image,
+      itemVendor.store_logo,
+      itemVendor.logo_url,
+      itemVendor.logo,
+      itemVendor.avatar,
+      record?.store_logo,
+      record?.vendor_logo,
+    ),
   }
 }
 
@@ -80,6 +93,7 @@ export function toAdminOrder(record) {
     apiId: getOrderApiId(order),
     vendorId: vendor.id,
     vendorName: vendor.name,
+    vendorLogo: vendor.logo,
     userId: firstText(order.customer?.id, record?.user_id, record?.customer_id),
   }
 }

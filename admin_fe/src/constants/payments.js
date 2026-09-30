@@ -6,6 +6,13 @@ export const PAYMENT_ADMIN_ENDPOINTS = {
   byId: (id) => `/api/payment/admin/payments/${encodeURIComponent(id)}`,
   status: (id) => `/api/payment/admin/payments/${encodeURIComponent(id)}/status`,
   refund: (id) => `/api/payment/admin/payments/${encodeURIComponent(id)}/refund`,
+  PAYOUT_SETTINGS: '/api/payment/admin/get/payout-settings',
+  SAVE_PAYOUT_SETTINGS: '/api/payment/admin/payout-settings',
+  COMMISSIONS: '/api/payment/admin/get-commissions',
+  COMMISSION_CONFIGURATIONS: '/api/payment/admin/get/commission-configurations',
+  UPDATE_COMMISSION_RATE: '/api/payment/admin/update/commission-rate',
+  UPDATE_VENDOR_COMMISSION_RATE: '/api/payment/admin/update/vendor/commission-rate',
+  UPDATE_CATEGORY_COMMISSION_RATE: '/api/payment/admin/update/category/commission-rate',
 }
 
 export const PAYMENT_PAGE_SIZE = 20

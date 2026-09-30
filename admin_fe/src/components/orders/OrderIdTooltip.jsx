@@ -90,7 +90,7 @@ export default function OrderIdTooltip({ value, highlight = false }) {
   }
 
   return (
-    <span className="inline-flex max-w-full items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <button
         ref={triggerRef}
         type="button"
@@ -99,7 +99,7 @@ export default function OrderIdTooltip({ value, highlight = false }) {
         onFocus={show}
         onBlur={hide}
         aria-label={highlight ? `New order ID ${full}` : `Order ID ${full}`}
-        className={`inline-flex max-w-full cursor-pointer items-center rounded-md px-1 py-0.5 font-mono text-sm tracking-wide underline decoration-dotted underline-offset-4 transition-colors focus-visible:outline-none ${
+        className={`inline-flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-md px-1 py-0.5 font-mono text-sm tracking-wide underline decoration-dotted underline-offset-4 transition-colors focus-visible:outline-none ${
           highlight
             ? 'bg-brand-light/80 font-bold text-brand decoration-brand/40 hover:bg-brand-light focus-visible:bg-brand-light'
             : 'font-semibold text-slate-900 decoration-slate-300 hover:bg-slate-50 hover:text-brand hover:decoration-brand/40 focus-visible:bg-slate-50'

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import VendorDialog, { VendorDialogBody, VendorDialogFooter, VendorDialogHeader } from '../vendors/VendorDialog'
 
@@ -13,6 +13,11 @@ export default function FinanceConfirmModal({
   onConfirm,
 }) {
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!open) setBusy(false)
+  }, [open])
+
   if (!open) return null
   const danger = tone === 'danger'
 
@@ -21,6 +26,8 @@ export default function FinanceConfirmModal({
     try {
       await onConfirm()
     } catch {
+      // The caller reports the error. Keep the dialog open for another attempt.
+    } finally {
       setBusy(false)
     }
   }

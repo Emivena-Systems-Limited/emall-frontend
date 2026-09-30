@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { Search, Wallet } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
@@ -13,8 +14,10 @@ import { formatCount } from '../utils/formatters'
 import { parseApiError } from '../utils/parseApiError'
 
 export default function Payments() {
-  const [query, setQuery] = useState('')
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  const initialSearch = searchParams.get('search') || ''
+  const [query, setQuery] = useState(initialSearch)
+  const [search, setSearch] = useState(initialSearch)
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [statusItem, setStatusItem] = useState(null)

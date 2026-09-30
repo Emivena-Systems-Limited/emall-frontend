@@ -1,7 +1,21 @@
 import { ORDER_DELIVERY_OPTIONS, ORDER_PAYMENT_OPTIONS } from '../constants/adminOrders'
 
-export function countOrderDrawerFilters({ paymentStatus, deliveryStatus, vendorId, userId } = {}) {
-  return [paymentStatus, deliveryStatus, vendorId, userId].filter(Boolean).length
+function formatFilterDate(value) {
+  if (!value) return ''
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export function countOrderDrawerFilters({
+  paymentStatus,
+  deliveryStatus,
+  vendorId,
+  userId,
+  startDate,
+  endDate,
+} = {}) {
+  return [paymentStatus, deliveryStatus, vendorId, userId, startDate || endDate].filter(Boolean).length
 }
 
 export function getOrderFilterChips({
@@ -11,6 +25,8 @@ export function getOrderFilterChips({
   vendorLabel,
   userId,
   userLabel,
+  startDate,
+  endDate,
 } = {}) {
   const chips = []
   if (paymentStatus) {
@@ -23,5 +39,11 @@ export function getOrderFilterChips({
   }
   if (vendorId) chips.push({ key: 'vendorId', label: vendorLabel || 'Selected store' })
   if (userId) chips.push({ key: 'userId', label: userLabel || 'Selected shopper' })
+  if (startDate || endDate) {
+    const from = formatFilterDate(startDate)
+    const to = formatFilterDate(endDate)
+    const label = from && to ? `${from} – ${to}` : (from ? `From ${from}` : `Until ${to}`)
+    chips.push({ key: 'dateRange', label })
+  }
   return chips
 }

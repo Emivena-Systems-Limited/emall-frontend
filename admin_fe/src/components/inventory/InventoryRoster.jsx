@@ -9,6 +9,24 @@ import InventoryActions from './InventoryActions'
 import InventoryIdentity, { InventoryRosterSkeleton } from './InventoryIdentity'
 import InventoryStatusBadge from './InventoryStatusBadge'
 
+function VariantValueCell({ name }) {
+  if (!name) {
+    return (
+      <span className="inline-flex max-w-full items-center whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200">
+        Non Applicable
+      </span>
+    )
+  }
+
+  return (
+    <div className="max-w-44">
+      <OverflowTooltip text={name}>
+        <span className="block truncate text-sm font-medium text-slate-800">{name}</span>
+      </OverflowTooltip>
+    </div>
+  )
+}
+
 export { InventoryRosterSkeleton }
 
 export default function InventoryRoster({
@@ -26,23 +44,32 @@ export default function InventoryRoster({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const prefetch = (id) => prefetchAdminInventory(queryClient, id)
-  const showStore = items.some((item) => item.vendorId || item.vendorName)
+  const rows = view === 'low'
+    ? items.filter((item) => item.status !== 'out')
+    : view === 'in_stock'
+      ? items.filter((item) => item.status === 'in_stock')
+      : items
+  const showStore = rows.some((item) => item.vendorId || item.vendorName)
 
-  if (total === 0) {
+  if (total === 0 || rows.length === 0) {
     const emptyTitle = hasFilters
       ? 'No stock records match these filters'
-      : view === 'low'
-        ? 'No low-stock items'
-        : view === 'out'
-          ? 'Nothing is out of stock'
-          : 'No inventory yet'
+      : view === 'in_stock'
+        ? 'No in-stock items'
+        : view === 'low'
+          ? 'No low-stock items'
+          : view === 'out'
+            ? 'Nothing is out of stock'
+            : 'No inventory yet'
     const emptyCopy = hasFilters
       ? 'Try a different store or search, or clear the current filters.'
-      : view === 'low'
-        ? 'No listings are at or below their alert level right now.'
-        : view === 'out'
-          ? 'Every tracked option still has units on hand.'
-          : 'Stock records will appear here once they are returned by the API.'
+      : view === 'in_stock'
+        ? 'No listings have units ready to sell right now.'
+        : view === 'low'
+          ? 'No listings are at or below their alert level right now.'
+          : view === 'out'
+            ? 'Every tracked option still has units on hand.'
+            : 'Stock records will appear here once they are returned by the API.'
 
     return (
       <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
@@ -68,9 +95,10 @@ export default function InventoryRoster({
     <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.04)]">
       <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 text-[11px] font-bold tracking-wide whitespace-nowrap text-slate-500 uppercase">
             <tr>
               <th className="px-5 py-2.5">Listing</th>
+              <th className="px-5 py-2.5">Variant</th>
               {showStore ? <th className="px-5 py-2.5">Store</th> : null}
               <th className="px-5 py-2.5">On hand</th>
               <th className="px-5 py-2.5">Reserved</th>
@@ -79,7 +107,7 @@ export default function InventoryRoster({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {items.map((item) => (
+            {rows.map((item) => (
               <tr key={item.id} className="transition-colors hover:bg-slate-50/80">
                 <td className="px-5 py-3">
                   <Link
@@ -88,8 +116,11 @@ export default function InventoryRoster({
                     onFocus={() => prefetch(item.id)}
                     className="block max-w-72 rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand"
                   >
-                    <InventoryIdentity item={item} />
+                    <InventoryIdentity item={item} showOption={false} />
                   </Link>
+                </td>
+                <td className="px-5 py-3">
+                  <VariantValueCell name={item.variantValueName} />
                 </td>
                 {showStore ? (
                   <td className="px-5 py-3">
@@ -135,7 +166,7 @@ export default function InventoryRoster({
       </div>
 
       <ul className="divide-y divide-slate-100 md:hidden">
-        {items.map((item) => (
+        {rows.map((item) => (
           <li key={item.id} className="px-4 py-4">
             <div className="flex items-start justify-between gap-3">
               <Link
@@ -144,7 +175,7 @@ export default function InventoryRoster({
                 onFocus={() => prefetch(item.id)}
                 className="min-w-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
-                <InventoryIdentity item={item} />
+                <InventoryIdentity item={item} showOption={false} />
               </Link>
               <InventoryActions
                 item={item}
@@ -156,6 +187,9 @@ export default function InventoryRoster({
             {item.vendorName ? (
               <p className="mt-2 max-w-52 truncate text-xs text-slate-500">{item.vendorName}</p>
             ) : null}
+            <div className="mt-2">
+              <VariantValueCell name={item.variantValueName} />
+            </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <InventoryStatusBadge status={item.status} />
               <span className="text-xs font-semibold tabular-nums text-slate-600">

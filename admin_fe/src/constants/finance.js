@@ -26,7 +26,7 @@ export const FINANCE_TABS = [
   { key: 'payouts', to: '/finance/payouts', label: 'Payouts' },
   { key: 'transactions', to: '/finance/transactions', label: 'Transactions' },
   { key: 'commissions', to: '/finance/commissions', label: 'Commissions' },
-  { key: 'invoices', to: '/finance/invoices', label: 'Invoices / Statements' },
+  // { key: 'invoices', to: '/finance/invoices', label: 'Invoices / Statements' },
   { key: 'reports', to: '/finance/reports', label: 'Reports' },
   { key: 'settings', to: '/finance/settings', label: 'Settings' },
 ]
