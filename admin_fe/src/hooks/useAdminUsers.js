@@ -5,6 +5,9 @@ import {
   fetchAdminUserAddresses,
   fetchAdminUserById,
   fetchAdminUserOrders,
+  fetchAdminUserReviews,
+  fetchAdminUserActivity,
+  fetchAdminUserStats,
   fetchAdminUsers,
   updateAdminUserStatus,
 } from '../services/adminUserService'
@@ -24,6 +27,8 @@ export function userListQueryKey({
   city = '',
   phoneVerified = '',
   activity = '',
+  dateFrom = '',
+  dateTo = '',
   page = 1,
 } = {}) {
   return [
@@ -36,6 +41,8 @@ export function userListQueryKey({
     city ?? '',
     phoneVerified ?? '',
     activity ?? '',
+    dateFrom ?? '',
+    dateTo ?? '',
     page,
     USER_PAGE_SIZE,
   ]
@@ -79,6 +86,12 @@ function bumpUserCount(queryClient, status, delta) {
 }
 
 export function useUserStatusCounts(currentStatus = '', currentTotal = null) {
+  const stats = useQuery({
+    queryKey: [...ADMIN_USERS_QUERY_KEY, 'stats'],
+    queryFn: () => fetchAdminUserStats(),
+    staleTime: STALE_TIME,
+    retry: false,
+  })
   const queries = useQueries({
     queries: USER_STATUS_TABS.map((tab) => ({
       queryKey: userCountQueryKey(tab.status),
@@ -98,6 +111,8 @@ export function useUserStatusCounts(currentStatus = '', currentTotal = null) {
     rejected: 0,
     suspended: 0,
   }
+
+  if (stats.data) return stats.data
 
   USER_STATUS_TABS.forEach((tab, index) => {
     const fromList = tab.status === currentStatus && currentTotal != null
@@ -122,6 +137,24 @@ export function userAddressesQueryKey(id, page = 1) {
 
 export function userOrdersQueryKey(id, page = 1) {
   return [...ADMIN_USERS_QUERY_KEY, 'orders', String(id ?? ''), page, USER_PAGE_SIZE]
+}
+
+export function useAdminUserReviews(userId, page = 1) {
+  const query = useQuery({
+    queryKey: [...ADMIN_USERS_QUERY_KEY, 'reviews', String(userId ?? ''), page, USER_PAGE_SIZE],
+    queryFn: () => fetchAdminUserReviews({ userId, page, perPage: USER_PAGE_SIZE }),
+    enabled: Boolean(userId), staleTime: STALE_TIME, placeholderData: keepPreviousData,
+  })
+  return { reviews: query.data?.reviews ?? [], pagination: query.data?.pagination ?? emptyUserPagination(), isLoading: query.isLoading, isError: query.isError, error: query.error, refetch: query.refetch }
+}
+
+export function useAdminUserActivity(userId, page = 1) {
+  const query = useQuery({
+    queryKey: [...ADMIN_USERS_QUERY_KEY, 'activity', String(userId ?? ''), page, USER_PAGE_SIZE],
+    queryFn: () => fetchAdminUserActivity({ userId, page, perPage: USER_PAGE_SIZE }),
+    enabled: Boolean(userId), staleTime: STALE_TIME, placeholderData: keepPreviousData,
+  })
+  return { activity: query.data?.activity ?? [], pagination: query.data?.pagination ?? emptyUserPagination(), isLoading: query.isLoading, isError: query.isError, error: query.error, refetch: query.refetch }
 }
 
 function findCachedUser(queryClient, id) {

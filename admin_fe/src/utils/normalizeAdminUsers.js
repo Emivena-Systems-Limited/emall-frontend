@@ -183,6 +183,7 @@ export function extractUserCounts(body, record = {}) {
     addresses: pickNumber(source, ['addresses_count', 'address_count', 'total_addresses']),
     spent: pickNumber(source, ['total_spent', 'spent', 'lifetime_value', 'gmv', 'total_amount']),
     reviews: pickNumber(source, ['reviews_count', 'review_count']),
+    returns: pickNumber(source, ['return_requests_count', 'returns_count', 'refund_requests_count']),
     wishlist: pickNumber(source, ['wishlist_items_count', 'wishlist_count', 'saved_items_count']),
   }
 }

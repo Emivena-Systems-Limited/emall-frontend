@@ -72,7 +72,7 @@ export const NAV_SECTIONS = [
   {
     label: 'Customers',
     items: [
-      { to: '/users', icon: Users, label: 'Users' },
+      { to: '/users', icon: Users, label: 'Customers' },
       { to: '/wishlists', icon: Heart, label: 'Wishlist' },
       { to: '/reviews', icon: Star, label: 'Reviews' },
       { to: '/searches', icon: Search, label: 'Search', comingSoon: true },

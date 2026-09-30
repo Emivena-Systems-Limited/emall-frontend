@@ -94,6 +94,8 @@ export async function fetchAdminUsers({
   city = '',
   phoneVerified = '',
   activity = '',
+  dateFrom = '',
+  dateTo = '',
   page = 1,
   perPage = USER_PAGE_SIZE,
 } = {}) {
@@ -106,6 +108,8 @@ export async function fetchAdminUsers({
       city_or_town: String(city ?? '').trim(),
       phone_verified: toUserPhoneVerifiedParam(phoneVerified),
       has_orders: toUserHasOrdersParam(activity),
+      joined_from: dateFrom,
+      joined_to: dateTo,
       page,
       per_page: perPage,
       ...LATEST_FIRST_QUERY,
@@ -118,6 +122,21 @@ export async function fetchAdminUsers({
     extractUserPagination(envelope),
     { status, search, region, district, city, phoneVerified, activity },
   )
+}
+
+export async function fetchAdminUserStats(periodDays) {
+  const { data } = await apiClient.get(USER_ADMIN_ENDPOINTS.STATS, {
+    params: compactParams({ period_days: periodDays }),
+  })
+  const envelope = assertAuthEnvelope(data, 'Could not load customer statistics.')
+  const source = envelope?.data?.stats ?? envelope?.stats ?? envelope?.data ?? envelope
+  return {
+    total: Number(source?.total_customers ?? source?.total ?? source?.all ?? 0),
+    pending: Number(source?.new_customers ?? source?.pending_verification ?? source?.pending ?? source?.new ?? 0),
+    verified: Number(source?.active_customers ?? source?.verified ?? source?.active ?? 0),
+    rejected: Number(source?.inactive_customers ?? source?.rejected ?? source?.inactive ?? 0),
+    suspended: Number(source?.suspended_customers ?? source?.suspended ?? 0),
+  }
 }
 
 export async function fetchAdminUserById(userId) {
@@ -179,6 +198,73 @@ export async function fetchAdminUserOrders({
     page,
     perPage,
   })
+}
+
+function extractRecords(envelope, keys) {
+  for (const source of [envelope, envelope?.data]) {
+    if (Array.isArray(source)) return source
+    for (const key of keys) if (Array.isArray(source?.[key])) return source[key]
+  }
+  return []
+}
+
+function extractPagination(envelope, fallbackCount = 0) {
+  const source = envelope?.pagination ?? envelope?.meta ?? envelope?.data?.pagination ?? envelope?.data?.meta ?? {}
+  return {
+    page: Number(source.current_page ?? source.page ?? 1),
+    lastPage: Number(source.last_page ?? source.lastPage ?? 1),
+    perPage: Number(source.per_page ?? source.perPage ?? USER_PAGE_SIZE),
+    total: Number(source.total ?? fallbackCount),
+    from: Number(source.from ?? (fallbackCount ? 1 : 0)),
+    to: Number(source.to ?? fallbackCount),
+  }
+}
+
+export async function fetchAdminUserReviews({ userId, page = 1, perPage = USER_PAGE_SIZE } = {}) {
+  const { data } = await apiClient.get(USER_ADMIN_ENDPOINTS.reviews(userId), {
+    params: compactParams({ page, per_page: perPage }),
+  })
+  const envelope = assertAuthEnvelope(data, 'Could not load customer reviews.')
+  const reviews = extractRecords(envelope, ['reviews', 'items', 'records'])
+  return { reviews, pagination: extractPagination(envelope, reviews.length) }
+}
+
+export async function fetchAdminUserActivity({ userId, page = 1, perPage = USER_PAGE_SIZE } = {}) {
+  const { data } = await apiClient.get(USER_ADMIN_ENDPOINTS.activity(userId), {
+    params: compactParams({ page, per_page: perPage }),
+  })
+  const envelope = assertAuthEnvelope(data, 'Could not load customer activity.')
+  const activity = extractRecords(envelope, ['activity', 'activities', 'activity_logs', 'items', 'records'])
+  return { activity, pagination: extractPagination(envelope, activity.length) }
+}
+
+export async function exportAdminUsers(filters = {}) {
+  const { data, headers } = await apiClient.get(USER_ADMIN_ENDPOINTS.EXPORT, {
+    params: compactParams({
+      status: toApiUserStatus(filters.status),
+      search: String(filters.search ?? '').trim(),
+      region: String(filters.region ?? '').trim(),
+      district: String(filters.district ?? '').trim(),
+      city_or_town: String(filters.city ?? '').trim(),
+      phone_verified: toUserPhoneVerifiedParam(filters.phoneVerified),
+      has_orders: toUserHasOrdersParam(filters.activity),
+      joined_from: filters.dateFrom,
+      joined_to: filters.dateTo,
+      sort_by: 'created_at',
+      sort_direction: 'desc',
+    }),
+    responseType: 'blob',
+    headers: { Accept: 'text/csv, application/octet-stream' },
+  })
+  const disposition = String(headers?.['content-disposition'] ?? '')
+  const filename = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i)?.[1]
+  const contentType = String(headers?.['content-type'] ?? 'text/csv;charset=utf-8')
+  const blob = data instanceof Blob ? data : new Blob([data], { type: contentType })
+
+  return {
+    blob,
+    filename: filename ? decodeURIComponent(filename) : `customers-${new Date().toISOString().slice(0, 10)}.csv`,
+  }
 }
 
 export async function updateAdminUserStatus({ userId, status }) {

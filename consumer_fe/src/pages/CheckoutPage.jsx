@@ -77,6 +77,7 @@ import {
 } from '../utils/buyNowItem'
 import { getAddressList } from '../utils/userAddressHelpers'
 import Images from '../utils/Images'
+import { notificationQueryKeys } from '../hooks/useNotificationUnreadCount'
 
 const regionOptions = GHANA_LOCATIONS.map((region) => ({
   value: region.id,
@@ -2380,6 +2381,12 @@ export default function CheckoutPage() {
       })))
       setPlacedOrder(response)
       setOrderStatus('success')
+
+      // The backend creates an unread order notification as part of checkout.
+      // Refresh every mounted notification consumer immediately so the navbar
+      // badge and notification page update without a route change or reload.
+      void queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all })
+
       if (isBuyNowMode) {
         clearBuyNowItem()
       } else {

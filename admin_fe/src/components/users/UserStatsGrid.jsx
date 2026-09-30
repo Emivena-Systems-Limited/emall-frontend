@@ -20,7 +20,7 @@ export default function UserStatsGrid({ summary, activeKey, onSelect }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {USER_STATUS_STATS.map((stat) => {
         const Icon = ICONS[stat.icon] ?? Users
         const selected = activeKey === stat.key

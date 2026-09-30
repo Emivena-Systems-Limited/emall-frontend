@@ -1,4 +1,4 @@
-import { MapPin, Phone, RotateCcw, ShoppingBag, SlidersHorizontal } from 'lucide-react'
+import { CalendarDays, MapPin, Phone, RotateCcw, ShoppingBag, SlidersHorizontal } from 'lucide-react'
 import { GHANA_REGIONS } from '../../constants/adminDashboardData'
 import { USER_ACTIVITY_FILTERS, USER_PHONE_FILTERS } from '../../constants/adminUsers'
 import { formatCount } from '../../utils/formatters'
@@ -50,6 +50,8 @@ export default function UserFiltersDrawer({
   city,
   phoneVerified,
   activity,
+  dateFrom,
+  dateTo,
   districtOptions = [],
   cityOptions = [],
   onRegionChange,
@@ -57,6 +59,8 @@ export default function UserFiltersDrawer({
   onCityChange,
   onPhoneVerifiedChange,
   onActivityChange,
+  onDateFromChange,
+  onDateToChange,
   onClear,
   resultCount = 0,
 }) {
@@ -66,6 +70,8 @@ export default function UserFiltersDrawer({
     city,
     phoneVerified,
     activity,
+    dateFrom,
+    dateTo,
   })
 
   return (
@@ -103,6 +109,28 @@ export default function UserFiltersDrawer({
       )}
     >
       <div className="space-y-4">
+        <FilterCard icon={CalendarDays} title="Date joined" description="Choose when the customer created their account">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            From
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => onDateFromChange(event.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
+            />
+          </label>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            To
+            <input
+              type="date"
+              min={dateFrom || undefined}
+              value={dateTo}
+              onChange={(event) => onDateToChange(event.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
+            />
+          </label>
+        </FilterCard>
+
         <FilterCard icon={MapPin} title="Location" description="Region, district, and town on the shopper profile">
           <FilterSelect id="user-region" label="Region" value={region} onChange={onRegionChange}>
             <option value="">Any region</option>

@@ -6,8 +6,10 @@ export function countUserDrawerFilters({
   city = '',
   phoneVerified = '',
   activity = '',
+  dateFrom = '',
+  dateTo = '',
 } = {}) {
-  return [region, district, city, phoneVerified, activity].filter(Boolean).length
+  return [region, district, city, phoneVerified, activity, dateFrom, dateTo].filter(Boolean).length
 }
 
 export function getUserFilterChips({
@@ -16,6 +18,8 @@ export function getUserFilterChips({
   city = '',
   phoneVerified = '',
   activity = '',
+  dateFrom = '',
+  dateTo = '',
 } = {}) {
   const chips = []
   if (region) chips.push({ key: 'region', label: region })
@@ -29,6 +33,8 @@ export function getUserFilterChips({
     const option = USER_ACTIVITY_FILTERS.find((item) => item.key === activity)
     chips.push({ key: 'activity', label: option?.label || 'Activity' })
   }
+  if (dateFrom) chips.push({ key: 'dateFrom', label: `Joined after ${dateFrom}` })
+  if (dateTo) chips.push({ key: 'dateTo', label: `Joined before ${dateTo}` })
   return chips
 }
 

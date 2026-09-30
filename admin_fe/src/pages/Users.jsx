@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, SlidersHorizontal, Users as UsersIcon, X } from 'lucide-react'
+import { Download, Search, SlidersHorizontal, Users as UsersIcon, X } from 'lucide-react'
 import DashboardLayout from '../components/dashboard/DashboardLayout'
 import DashboardReveal from '../components/dashboard/DashboardReveal'
 import EmptyState from '../components/dashboard/EmptyState'
@@ -8,10 +8,13 @@ import UserStatsGrid from '../components/users/UserStatsGrid'
 import UserStatusModal from '../components/users/UserStatusModal'
 import UserArchiveModal from '../components/users/UserArchiveModal'
 import UserFiltersDrawer from '../components/users/UserFiltersDrawer'
+import CustomerDetailsDrawer from '../components/users/CustomerDetailsDrawer'
 import { USER_STATUS_TABS } from '../constants/adminUsers'
 import { useAdminUserRoster, useUserStatusCounts } from '../hooks/useAdminUsers'
 import { formatCount } from '../utils/formatters'
 import { parseApiError } from '../utils/parseApiError'
+import { exportAdminUsers } from '../services/adminUserService'
+import notify from '../lib/notify'
 import {
   countUserDrawerFilters,
   getUserFilterChips,
@@ -27,10 +30,15 @@ export default function Users() {
   const [city, setCity] = useState('')
   const [phoneVerified, setPhoneVerified] = useState('')
   const [activity, setActivity] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [statusUser, setStatusUser] = useState(null)
   const [archiving, setArchiving] = useState(null)
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [customerTab, setCustomerTab] = useState('overview')
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -40,7 +48,7 @@ export default function Users() {
     return () => window.clearTimeout(timer)
   }, [query])
 
-  const filters = { status, search, region, district, city, phoneVerified, activity }
+  const filters = { status, search, region, district, city, phoneVerified, activity, dateFrom, dateTo }
   const {
     users,
     pagination,
@@ -50,6 +58,27 @@ export default function Users() {
     error,
     refetch,
   } = useAdminUserRoster(filters, page)
+  const visibleUsers = users
+
+  const handleExport = async () => {
+    setIsExporting(true)
+    try {
+      const { blob, filename } = await exportAdminUsers(filters)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+    } catch (error) {
+      notify.fromError(error, 'Could not export customers')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const districtOptions = useMemo(
     () => uniqueSortedLabels(users.map((user) => user.district), district),
@@ -66,6 +95,8 @@ export default function Users() {
     city,
     phoneVerified,
     activity,
+    dateFrom,
+    dateTo,
   })
   const chips = getUserFilterChips({
     region,
@@ -73,6 +104,8 @@ export default function Users() {
     city,
     phoneVerified,
     activity,
+    dateFrom,
+    dateTo,
   })
   const hasFilters = Boolean(query.trim() || status || drawerFilterCount)
   const activeTab = USER_STATUS_TABS.find((tab) => tab.status === status)?.key ?? 'all'
@@ -97,6 +130,8 @@ export default function Users() {
     setCity('')
     setPhoneVerified('')
     setActivity('')
+    setDateFrom('')
+    setDateTo('')
     setPage(1)
   }
 
@@ -117,6 +152,8 @@ export default function Users() {
     if (key === 'city') setCity('')
     if (key === 'phoneVerified') setPhoneVerified('')
     if (key === 'activity') setActivity('')
+    if (key === 'dateFrom') setDateFrom('')
+    if (key === 'dateTo') setDateTo('')
     setPage(1)
   }
 
@@ -126,7 +163,7 @@ export default function Users() {
   }
 
   return (
-    <DashboardLayout pageTitle="Users">
+    <DashboardLayout pageTitle="Customers">
       <div className="page-enter space-y-5">
         <DashboardReveal index={0}>
           <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:px-6">
@@ -140,10 +177,10 @@ export default function Users() {
                   Marketplace
                 </p>
                 <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                  Users
+                  Customers
                 </h2>
                 <p className="mt-1.5 text-sm text-slate-500">
-                  Look up shoppers, verify or suspend accounts, and open order history from one roster.
+                  View, search, filter, and manage customer accounts across the marketplace.
                 </p>
               </div>
             </div>
@@ -160,7 +197,7 @@ export default function Users() {
 
         <DashboardReveal index={2}>
           <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.04)] sm:p-5">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {USER_STATUS_TABS.map((tab) => {
                 const active = activeTab === tab.key
                 return (
@@ -181,6 +218,7 @@ export default function Users() {
                   </button>
                 )
               })}
+              <button type="button" onClick={handleExport} disabled={isExporting || !pagination.total} className="ml-auto inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-brand/40 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"><Download className="size-3.5" />{isExporting ? 'Exporting…' : 'Export'}</button>
             </div>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -191,7 +229,7 @@ export default function Users() {
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search name, email, or phone"
+                  placeholder="Search customer name, ID, email, or phone"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pr-3 pl-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light"
                 />
               </label>
@@ -260,7 +298,7 @@ export default function Users() {
             </section>
           ) : (
             <UserRoster
-              users={users}
+              users={visibleUsers}
               total={pagination.total}
               rangeStart={pagination.from}
               rangeEnd={pagination.to}
@@ -270,7 +308,7 @@ export default function Users() {
               onClearFilters={clearFilters}
               hasFilters={hasFilters}
               onStatus={setStatusUser}
-              onArchive={setArchiving}
+                onView={(customer, tab = 'overview') => { setSelectedCustomer(customer); setCustomerTab(tab) }}
             />
           )}
         </DashboardReveal>
@@ -284,6 +322,8 @@ export default function Users() {
         city={city}
         phoneVerified={phoneVerified}
         activity={activity}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
         districtOptions={districtOptions}
         cityOptions={cityOptions}
         onRegionChange={(value) => {
@@ -308,6 +348,8 @@ export default function Users() {
           setActivity(value)
           setPage(1)
         }}
+        onDateFromChange={(value) => { setDateFrom(value); setPage(1) }}
+        onDateToChange={(value) => { setDateTo(value); setPage(1) }}
         onClear={clearDrawerFilters}
         resultCount={pagination.total}
       />
@@ -321,6 +363,7 @@ export default function Users() {
         user={archiving}
         onClose={() => setArchiving(null)}
       />
+      <CustomerDetailsDrawer key={`${selectedCustomer?.id ?? 'closed'}-${customerTab}`} customer={selectedCustomer} initialTab={customerTab} onClose={() => setSelectedCustomer(null)} onStatus={(customer) => { setSelectedCustomer(null); setStatusUser(customer) }} />
     </DashboardLayout>
   )
 }

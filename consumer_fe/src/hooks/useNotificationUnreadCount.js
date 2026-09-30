@@ -21,8 +21,11 @@ export default function useNotificationUnreadCount() {
     queryKey: notificationQueryKeys.unreadCount,
     queryFn: getUnreadNotificationCount,
     enabled: isAuthenticated,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: false,
   })
 
