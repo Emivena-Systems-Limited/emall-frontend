@@ -41,6 +41,7 @@ export function buildNavbarCategoryMenuItems(parentCategories = []) {
       subcategories: buildSubcategoryLinks(slug, children),
       featuredTitle: `FEATURED ${(parent.name ?? slug).toUpperCase()}`,
       featured: [],
+      isFeatured: parent.isFeatured === true,
       promo: null,
     }
   })

@@ -4,6 +4,7 @@ import Images from '../../utils/Images'
 
 const sizeStyles = {
   sm: 'h-8 w-auto max-w-36 sm:h-9 sm:max-w-40',
+  nav: 'h-8 w-auto max-w-[7.75rem] sm:h-9 sm:max-w-[8.75rem] lg:h-11 lg:max-w-none',
   md: 'h-10 w-auto max-w-44 sm:h-11 sm:max-w-48',
   lg: 'h-12 w-auto max-w-52 sm:h-14 sm:max-w-60',
 }
@@ -15,7 +16,12 @@ export default function StoreLogo({
   linkTo = '/',
   linked = true,
 }) {
-  const src = variant === 'light' ? Images.common.logo_white : Images.common.logo
+  const sources = {
+    light: Images.common.logo_white,
+    dark: Images.common.logo,
+    brand: Images.common.ez_mall_logo,
+  }
+  const src = sources[variant] ?? sources.dark
 
   const image = (
     <img

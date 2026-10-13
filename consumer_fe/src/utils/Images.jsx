@@ -41,6 +41,7 @@ import automotive from "../assets/images/categories/automotive.png";
 
 import logo from "../assets/images/logo.png";
 import logo_white from "../assets/images/logo_white.png";
+import ez_mall_logo from "../assets/images/ez_mall_logo.png";
 
 import {
   CATEGORY_BANNER_ASSETS,
@@ -61,6 +62,7 @@ const shop = {
   shop_logo,
   logo,
   logo_white,
+  ez_mall_logo,
 }
 
 const sample_hero_banners = {
@@ -94,6 +96,7 @@ const common = {
   wishlist_empty: empty_wishlist_icon,
   logo,
   logo_white,
+  ez_mall_logo,
 }
 
 /** Spotlight banners used on Categories page header */

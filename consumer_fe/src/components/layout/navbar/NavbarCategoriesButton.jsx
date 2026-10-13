@@ -1,4 +1,4 @@
-import { ChevronDown, List } from 'lucide-react'
+import { ChevronDown, LayoutGrid } from 'lucide-react'
 import { Link } from 'react-router'
 
 export default function NavbarCategoriesButton({
@@ -10,12 +10,6 @@ export default function NavbarCategoriesButton({
   onToggle,
   panelId = 'categories-mega-menu',
 }) {
-  const sharedClass = `inline-flex items-center justify-center gap-1.5 rounded-full bg-white font-semibold text-auth-primary transition-colors hover:bg-white/90 ${
-    fullWidth
-      ? 'w-full px-3.5 py-2 text-sm'
-      : 'shrink-0 min-w-[11rem] px-5 py-2 text-sm xl:min-w-[12rem]'
-  } ${className}`
-
   if (mode === 'dropdown') {
     return (
       <button
@@ -24,10 +18,12 @@ export default function NavbarCategoriesButton({
         aria-controls={panelId}
         data-categories-toggle
         onClick={onToggle}
-        className={`${sharedClass} ${isOpen ? 'ring-2 ring-white/40 ring-offset-2 ring-offset-auth-primary' : ''}`}
+        className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-nav-red px-2.5 text-xs font-semibold text-white transition-colors hover:bg-nav-red-deep ${
+          isOpen ? 'bg-nav-red-deep' : ''
+        } ${fullWidth ? 'w-full justify-center' : ''} ${className}`}
       >
-        <List className="size-3.5" strokeWidth={2.25} />
-        Categories
+        <LayoutGrid className="size-3.5" strokeWidth={2.25} />
+        All Categories
         <ChevronDown
           className={`size-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
           strokeWidth={2.25}
@@ -37,9 +33,15 @@ export default function NavbarCategoriesButton({
   }
 
   return (
-    <Link to="/categories" onClick={onNavigate} className={sharedClass}>
-      <List className="size-3.5" strokeWidth={2.25} />
-      Categories
+    <Link
+      to="/categories"
+      onClick={onNavigate}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-md bg-nav-red px-2.5 text-xs font-semibold text-white transition-colors hover:bg-nav-red-deep ${
+        fullWidth ? 'w-full justify-center' : ''
+      } ${className}`}
+    >
+      <LayoutGrid className="size-3.5" strokeWidth={2.25} />
+      All Categories
     </Link>
   )
 }

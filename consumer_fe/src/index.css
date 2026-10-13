@@ -86,6 +86,9 @@
   --color-auth-primary-hover: #b33428;
   --color-auth-accent: #c9a227;
   --color-auth-muted: #8a8a8a;
+  --color-nav-red: #e21b24;
+  --color-nav-red-deep: #c4161e;
+  --color-nav-promo: #f0d4ff;
 
   /* --font-sans: "Amazon Ember", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; -- previous setting, kept for easy revert */
   --font-sans: "Onest", "Amazon Ember", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;

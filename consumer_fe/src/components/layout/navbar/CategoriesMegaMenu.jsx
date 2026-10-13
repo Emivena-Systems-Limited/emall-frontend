@@ -1,245 +1,84 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, ChevronRight, PackageSearch, Tag } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
 import Container from '../Container'
 import { useNavbarCategoryMenu } from '../../../hooks/useNavbarCategoryMenu'
-import { formatCedi } from '../../../utils/formatCurrency'
-import { buildPromotionsHref } from '../../../utils/listingFilterParams'
 
 const panelEase = [0.16, 1, 0.3, 1]
 
-function FeaturedProductCard({ product, onNavigate }) {
-  return (
-    <Link
-      to={product.href?.replace(/^\/products\//, '/')}
-      onClick={onNavigate}
-      className="group flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white p-2 transition-all hover:border-slate-300 hover:shadow-sm"
-    >
-      <div className="size-12 shrink-0 overflow-hidden rounded-lg bg-slate-50">
-        <img
-          src={product.image}
-          alt={product.name}
-          className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-          loading="lazy"
-        />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-800">{product.name}</p>
-        <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
-          {product.compareAt ? (
-            <>
-              <span className="text-xs text-slate-400 line-through">
-                {formatCedi(product.compareAt)}
-              </span>
-              <span className="text-sm font-semibold text-auth-primary">
-                {formatCedi(product.price)}
-              </span>
-            </>
-          ) : (
-            <span className="text-sm font-semibold text-auth-primary">
-              {formatCedi(product.price)}
-            </span>
-          )}
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function FeaturedProductsEmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-white text-slate-300 shadow-sm ring-1 ring-slate-200">
-        <PackageSearch className="size-5" strokeWidth={1.75} aria-hidden />
-      </div>
-      <p className="mt-3 text-sm font-semibold text-slate-800">No featured products yet</p>
-      <p className="mt-1 max-w-[12rem] text-xs leading-relaxed text-slate-500">
-        Curated picks for this category will appear here soon.
-      </p>
-    </div>
-  )
-}
-
-function PromoBanner({ promo, onNavigate }) {
-  return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-[#FFF4C2]">
-      <div className="relative h-40 overflow-hidden sm:h-44">
-        <img
-          src={promo.image}
-          alt={promo.productName}
-          className="size-full object-cover"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 bg-linear-to-t from-[#FFF4C2] via-transparent to-transparent" />
-      </div>
-
-      <div className="flex flex-1 flex-col px-4 pb-4 pt-1">
-        <p className="text-lg font-bold tracking-tight text-slate-900">{promo.discount}</p>
-        <p className="mt-2 text-[0.8125rem] leading-relaxed text-slate-600">{promo.headline}</p>
-
-        <div className="mt-4">
-          <p className="text-xs font-medium text-slate-500">{promo.priceLabel}</p>
-          <div className="mt-1.5 inline-flex rounded-lg bg-white px-3 py-1.5 shadow-sm">
-            <span className="text-sm font-bold text-slate-900">
-              {formatCedi(promo.price)}
-            </span>
-          </div>
-        </div>
-
-        <Link
-          to={promo.href?.replace(/^\/products\//, '/')}
-          onClick={onNavigate}
-          className="mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-3 text-xs font-bold tracking-[0.08em] text-white transition-colors hover:bg-auth-primary-hover"
-        >
-          {promo.cta}
-          <ArrowRight className="size-3.5" strokeWidth={2.5} />
-        </Link>
-      </div>
-    </div>
-  )
+function visibleSubcategories(category) {
+  return (category?.subcategories ?? []).filter((sub) => sub.id !== 'all')
 }
 
 function MegaMenuSkeleton() {
   return (
-    <div className="grid grid-cols-[minmax(14rem,max-content)_minmax(0,1fr)]" aria-hidden="true">
-      <div className="space-y-2 border-r border-slate-100 p-3">
-        {Array.from({ length: 8 }, (_, index) => (
-          <div key={index} className="flex items-center gap-2.5 px-3 py-2">
-            <span className="size-6 shrink-0 animate-pulse rounded-md bg-slate-200" />
-            <span className="h-3 flex-1 animate-pulse rounded bg-slate-200" />
+    <div className="grid grid-cols-[18.5rem_minmax(0,1fr)]" aria-hidden="true">
+      <div className="space-y-1 border-r border-slate-200 py-3">
+        {Array.from({ length: 10 }, (_, index) => (
+          <div key={index} className="px-4 py-2">
+            <span className="block h-3.5 w-36 animate-pulse rounded bg-slate-200" />
           </div>
         ))}
       </div>
-      <div className="space-y-3 p-5">
-        <div className="h-3 w-40 animate-pulse rounded bg-slate-200" />
-        <div className="h-24 animate-pulse rounded-xl bg-slate-100" />
-        <div className="h-24 animate-pulse rounded-xl bg-slate-100" />
-      </div>
-    </div>
-  )
-}
-
-function CategoryMenuQuickLinks({ onNavigate }) {
-  return (
-    <div className="space-y-1 border-t border-slate-100 p-3">
-      <Link
-        to="/categories"
-        onClick={onNavigate}
-        className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-all duration-200 hover:scale-[1.02] hover:bg-slate-50 hover:text-auth-primary-hover active:scale-[0.98]"
-      >
-        All Categories
-      </Link>
-      <Link
-        to="/promotions"
-        onClick={onNavigate}
-        className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-auth-primary transition-all duration-200 hover:scale-[1.02] hover:bg-slate-50 hover:text-auth-primary-hover active:scale-[0.98]"
-      >
-        All Promotions
-      </Link>
-    </div>
-  )
-}
-
-function PromoEmptyState({ categoryLabel, promotionsHref, onNavigate }) {
-  return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-dashed border-[#E8D48A] bg-[#FFF9E6]">
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-        <div className="flex size-12 items-center justify-center rounded-full bg-white/80 text-[#C9A227] shadow-sm">
-          <Tag className="size-5" strokeWidth={1.75} aria-hidden />
+      <div className="px-8 py-6">
+        <span className="block h-5 w-40 animate-pulse rounded bg-slate-200" />
+        <span className="mt-3 block h-3.5 w-16 animate-pulse rounded bg-slate-200" />
+        <div className="mt-8 grid grid-cols-2 gap-x-12 gap-y-4">
+          {Array.from({ length: 6 }, (_, index) => (
+            <span key={index} className="block h-3.5 w-28 animate-pulse rounded bg-slate-200" />
+          ))}
         </div>
-        <p className="mt-3 text-sm font-bold text-slate-900">No promotions yet</p>
-        <p className="mt-1 max-w-[10rem] text-xs leading-relaxed text-slate-600">
-          Special offers and deals for {categoryLabel ?? 'this category'} are coming soon.
-        </p>
-        <Link
-          to={promotionsHref}
-          onClick={onNavigate}
-          className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-auth-primary px-4 py-2.5 text-xs font-bold tracking-[0.08em] text-white transition-colors hover:bg-auth-primary-hover"
-        >
-          Browse Promotions
-          <ArrowRight className="size-3.5" strokeWidth={2.5} />
-        </Link>
       </div>
     </div>
   )
 }
 
-function CategoryPanelContent({ category, activeSubcategoryId, onSubcategoryChange, onNavigate }) {
-  const featured = category.featured ?? []
-  const hasFeatured = featured.length > 0
-  const hasPromo = Boolean(category.promo)
-  const promotionsHref = buildPromotionsHref(category.id, activeSubcategoryId)
+function CategoryDetail({ category, onNavigate }) {
+  const subcategories = visibleSubcategories(category)
 
   return (
     <motion.div
       key={category.id}
-      initial={{ opacity: 0, x: 8 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -8 }}
-      transition={{ duration: 0.22, ease: panelEase }}
-      className="grid min-h-88 grid-cols-[minmax(14rem,max-content)_minmax(0,1fr)_17.5rem] xl:grid-cols-[minmax(15rem,max-content)_minmax(0,1fr)_19rem]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16, ease: panelEase }}
+      className="px-6 py-5"
     >
-      <nav aria-label="Subcategories" className="scrollbar-theme max-h-[min(32rem,calc(100vh-8rem))] shrink-0 overflow-y-auto border-r border-slate-100 py-2 pr-2">
-        <ul className="space-y-0.5">
-          {category.subcategories.map((sub) => {
-            const isActive = sub.id === activeSubcategoryId
+      <h2 className="text-base font-bold tracking-tight text-slate-900">{category.label}</h2>
+      <Link
+        to={category.href}
+        onClick={onNavigate}
+        className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-nav-red transition-colors hover:text-nav-red-deep"
+      >
+        View all
+        <ArrowRight className="size-3.5" strokeWidth={2.25} aria-hidden />
+      </Link>
 
-            return (
-              <li key={sub.id}>
-                <Link
-                  to={sub.href}
-                  onClick={onNavigate}
-                  onMouseEnter={() => onSubcategoryChange(sub.id)}
-                  onFocus={() => onSubcategoryChange(sub.id)}
-                  className={`flex items-center whitespace-nowrap rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                    isActive
-                      ? 'bg-slate-100 font-semibold text-slate-900'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  {sub.label}
-                </Link>
-              </li>
-            )
-          })}
+      {subcategories.length > 0 ? (
+        <ul className="mt-6 grid grid-cols-2 gap-x-12 gap-y-4">
+          {subcategories.map((sub) => (
+            <li key={sub.id}>
+              <Link
+                to={sub.href}
+                onClick={onNavigate}
+                className="flex items-start gap-2 text-xs text-slate-800 transition-colors hover:text-nav-red"
+              >
+                <span className="mt-[0.45rem] size-1 shrink-0 rounded-full bg-current" aria-hidden />
+                <span>{sub.label}</span>
+              </Link>
+            </li>
+          ))}
         </ul>
-      </nav>
-
-      <div className="border-r border-slate-100 px-4 py-4">
-        <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-slate-400">
-          {category.featuredTitle ?? 'FEATURED PRODUCTS'}
-        </p>
-        <div className="mt-2.5 space-y-2">
-          {hasFeatured ? (
-            featured.map((product) => (
-              <FeaturedProductCard key={product.id} product={product} onNavigate={onNavigate} />
-            ))
-          ) : (
-            <FeaturedProductsEmptyState />
-          )}
-        </div>
-      </div>
-
-      <div className="p-3 pl-4">
-        {hasPromo ? (
-          <PromoBanner promo={category.promo} onNavigate={onNavigate} />
-        ) : (
-          <PromoEmptyState
-            categoryLabel={category.label}
-            promotionsHref={promotionsHref}
-            onNavigate={onNavigate}
-          />
-        )}
-      </div>
+      ) : null}
     </motion.div>
   )
 }
 
 export default function CategoriesMegaMenu({ open, onClose }) {
-  const { menuItems, isLoading, defaultCategoryId, getDefaultSubcategoryId } = useNavbarCategoryMenu()
+  const { menuItems, isLoading, defaultCategoryId } = useNavbarCategoryMenu()
   const [activeCategoryId, setActiveCategoryId] = useState(null)
-  const [activeSubcategoryId, setActiveSubcategoryId] = useState('all')
 
   const activeCategory =
     menuItems.find((item) => item.id === activeCategoryId) ?? menuItems[0]
@@ -256,17 +95,9 @@ export default function CategoriesMegaMenu({ open, onClose }) {
   }, [open, onClose])
 
   useEffect(() => {
-    if (open && defaultCategoryId) {
-      const category = menuItems.find((item) => item.id === defaultCategoryId) ?? menuItems[0]
-      setActiveCategoryId(category?.id ?? null)
-      setActiveSubcategoryId(getDefaultSubcategoryId(category))
-    }
-  }, [open, defaultCategoryId, menuItems, getDefaultSubcategoryId])
-
-  const handleCategoryEnter = (category) => {
-    setActiveCategoryId(category.id)
-    setActiveSubcategoryId(getDefaultSubcategoryId(category))
-  }
+    if (!open || !defaultCategoryId) return
+    setActiveCategoryId(defaultCategoryId)
+  }, [open, defaultCategoryId])
 
   return (
     <>
@@ -300,7 +131,7 @@ export default function CategoriesMegaMenu({ open, onClose }) {
             <Container className="pointer-events-none py-0">
               <div
                 data-categories-panel
-                className="pointer-events-auto overflow-hidden rounded-b-2xl border border-slate-100 border-t-0 bg-white shadow-[0_28px_60px_-20px_rgba(15,23,42,0.22)]"
+                className="pointer-events-auto w-full max-w-3xl overflow-hidden rounded-b-xl border border-slate-200 border-t-0 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.35)]"
               >
                 {isLoading ? (
                   <MegaMenuSkeleton />
@@ -309,62 +140,66 @@ export default function CategoriesMegaMenu({ open, onClose }) {
                     Categories are unavailable right now.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-[minmax(16rem,max-content)_minmax(0,1fr)]">
-                    <nav aria-label="Product categories" className="flex max-h-[min(36rem,calc(100vh-7rem))] shrink-0 flex-col border-r border-slate-100 py-3 pr-1">
-                      <ul className="scrollbar-theme min-h-0 flex-1 space-y-0.5 overflow-y-auto">
-                        {menuItems.map((category) => {
-                          const isActive = category.id === activeCategoryId
+                  <div className="flex max-h-[min(34rem,calc(100vh-7.5rem))] flex-col">
+                    <div className="grid min-h-0 flex-1 grid-cols-[18.5rem_minmax(0,1fr)] overflow-hidden">
+                      <nav
+                        aria-label="Product categories"
+                        className="overflow-x-hidden overflow-y-auto border-r border-slate-200 py-2"
+                      >
+                        <ul>
+                          {menuItems.map((category) => {
+                            const isActive = category.id === activeCategory?.id
 
-                          return (
-                            <li key={category.id}>
-                              <Link
-                                to={category.href}
-                                onClick={onClose}
-                                onMouseEnter={() => handleCategoryEnter(category)}
-                                onFocus={() => handleCategoryEnter(category)}
-                                className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
-                                  isActive
-                                    ? 'bg-slate-100 font-medium text-slate-900'
-                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                                }`}
-                              >
-                                <span className="flex min-w-0 items-center gap-2.5">
-                                  {category.image ? (
-                                    <img
-                                      src={category.image}
-                                      alt=""
-                                      className="size-6 shrink-0 object-contain"
-                                      loading="lazy"
-                                    />
-                                  ) : null}
-                                  <span className="truncate">{category.label}</span>
-                                </span>
-                                {isActive && (
-                                  <ChevronRight
-                                    className="size-4 shrink-0 text-slate-400"
-                                    strokeWidth={2.25}
+                            return (
+                              <li key={category.id} className="relative">
+                                <Link
+                                  to={category.href}
+                                  onClick={onClose}
+                                  onMouseEnter={() => setActiveCategoryId(category.id)}
+                                  onFocus={() => setActiveCategoryId(category.id)}
+                                  aria-current={isActive ? 'true' : undefined}
+                                  className={`block px-4 py-2 text-xs transition-colors ${
+                                    isActive
+                                      ? 'font-medium text-nav-red'
+                                      : 'text-slate-800 hover:text-slate-950'
+                                  }`}
+                                >
+                                  {category.label}
+                                </Link>
+                                {isActive ? (
+                                  <span
+                                    aria-hidden="true"
+                                    className="absolute top-1/2 right-0 h-4 w-[3px] -translate-y-1/2 bg-nav-red"
                                   />
-                                )}
-                              </Link>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                      <CategoryMenuQuickLinks onNavigate={onClose} />
-                    </nav>
+                                ) : null}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </nav>
 
-                    <div className="min-w-0 overflow-hidden">
-                      {activeCategory ? (
-                        <AnimatePresence mode="wait">
-                          <CategoryPanelContent
-                            key={activeCategory.id}
-                            category={activeCategory}
-                            activeSubcategoryId={activeSubcategoryId}
-                            onSubcategoryChange={setActiveSubcategoryId}
-                            onNavigate={onClose}
-                          />
-                        </AnimatePresence>
-                      ) : null}
+                      <div className="min-h-[16rem] overflow-y-auto">
+                        {activeCategory ? (
+                          <AnimatePresence mode="wait">
+                            <CategoryDetail
+                              key={activeCategory.id}
+                              category={activeCategory}
+                              onNavigate={onClose}
+                            />
+                          </AnimatePresence>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 justify-end border-t border-slate-200 px-5 py-2.5">
+                      <Link
+                        to="/categories"
+                        onClick={onClose}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-nav-red transition-colors hover:text-nav-red-deep"
+                      >
+                        Browse all categories
+                        <ArrowRight className="size-3.5" strokeWidth={2.25} aria-hidden />
+                      </Link>
                     </div>
                   </div>
                 )}

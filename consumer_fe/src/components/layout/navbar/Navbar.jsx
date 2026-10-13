@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Menu, X } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import Container from '../Container'
 import StoreLogo from '../StoreLogo'
 import NavbarAuthLinks from './NavbarAuthLinks'
 import NavbarCartButton from './NavbarCartButton'
 import NavbarNotificationButton from './NavbarNotificationButton'
-import NavbarCategoriesButton from './NavbarCategoriesButton'
 import NavbarSearch from './NavbarSearch'
+import NavbarCategoryBar from './NavbarCategoryBar'
 import MobileCategoriesPanel from './MobileCategoriesPanel'
 import CategoriesMegaMenu from './CategoriesMegaMenu'
 
@@ -42,71 +41,61 @@ export default function Navbar({ cartCount = 0 }) {
   return (
     <header
       data-site-header
-      className="sticky top-0 z-[100] border-b border-white/10 bg-auth-primary text-white shadow-sm shadow-black/5"
+      className="sticky top-0 z-[100] bg-white text-slate-900 shadow-[0_1px_0_rgba(15,23,42,0.06),0_8px_18px_-14px_rgba(15,23,42,0.45)]"
     >
-      <div className="relative z-[110] bg-auth-primary">
+      <div className="relative z-[110] bg-white">
         <Container>
-          {/* Mobile + tablet top row */}
-          <div className="relative z-20 flex items-center gap-1.5 py-2 lg:hidden">
+          <div className="flex items-center gap-2 py-2.5 lg:hidden">
             <button
               type="button"
-              data-categories-toggle
+              aria-label="Open categories"
               aria-expanded={categoriesOpen}
               aria-controls="mobile-categories-panel"
-              aria-label={categoriesOpen ? 'Close categories' : 'Open categories'}
+              data-categories-toggle
               onClick={toggleCategories}
-              className="relative inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-white transition-colors hover:bg-white/10"
+              className="inline-flex size-9 shrink-0 items-center justify-center text-slate-800"
             >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={categoriesOpen ? 'close' : 'menu'}
-                  initial={{ opacity: 0, rotate: -90, scale: 0.7 }}
-                  animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                  exit={{ opacity: 0, rotate: 90, scale: 0.7 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex"
-                >
-                  {categoriesOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-                </motion.span>
-              </AnimatePresence>
+              <Menu className="size-6" strokeWidth={1.75} />
             </button>
 
-            <StoreLogo variant="light" size="sm" className="min-w-0" />
+            <StoreLogo variant="brand" size="nav" className="min-w-0" />
 
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div
+              className={`ml-auto flex shrink-0 items-center gap-0.5 ${
+                categoriesOpen ? 'relative z-[130]' : ''
+              }`}
+            >
               <NavbarNotificationButton />
-              <NavbarCartButton count={cartCount} />
-              <NavbarAuthLinks compact />
+              <NavbarCartButton count={cartCount} iconOnly />
+              <NavbarAuthLinks iconOnly />
             </div>
           </div>
 
-          {/* Mobile + tablet search row */}
-          <div className="pb-2 lg:hidden">
+          <div className="pb-2.5 lg:hidden">
             <NavbarSearch compact onFocus={categoriesOpen ? closeCategories : undefined} />
           </div>
 
-          {/* Desktop row */}
-          <div className="hidden h-14 items-center gap-3 lg:flex xl:gap-4">
-            <StoreLogo variant="light" size="sm" className="mr-0.5 shrink-0" />
-
-            <NavbarCategoriesButton
-              mode="dropdown"
-              isOpen={categoriesOpen}
-              onToggle={toggleCategories}
-            />
+          <div className="hidden h-[4.5rem] items-center gap-5 lg:flex xl:gap-8">
+            <StoreLogo variant="brand" size="nav" className="shrink-0" />
 
             <div className="min-w-0 flex-1">
               <NavbarSearch onFocus={categoriesOpen ? closeCategories : undefined} />
             </div>
 
-            <div className="ml-auto flex items-center gap-3 xl:gap-4">
-              <NavbarNotificationButton />
-              <NavbarAuthLinks />
+            <div className="flex shrink-0 items-start gap-5">
+              <NavbarNotificationButton className="mt-px" />
               <NavbarCartButton count={cartCount} />
+              <NavbarAuthLinks />
             </div>
           </div>
         </Container>
       </div>
+
+      <NavbarCategoryBar
+        isOpen={categoriesOpen}
+        onToggle={toggleCategories}
+        onNavigate={closeCategories}
+      />
 
       <CategoriesMegaMenu open={categoriesOpen} onClose={closeCategories} />
       <MobileCategoriesPanel open={categoriesOpen} onClose={closeCategories} />
