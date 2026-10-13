@@ -5,6 +5,8 @@ import mastercard from '../assets/images/mastercard.png'
 import paypal from '../assets/images/paypal.png'
 import playstore from '../assets/images/playstore.png'
 import appstore from '../assets/images/apple_store.svg'
+import appStoreBadge from '../assets/images/app_store.png'
+import playStoreBadge from '../assets/images/play_store.png'
 import heroBannerOne from '../assets/images/hero_sample_one.png'
 import heroBannerTwo from '../assets/images/hero_sample_two.png'
 import heroBannerThree from '../assets/images/hero_sample_three.png'
@@ -49,6 +51,7 @@ import automotive from "../assets/images/categories/automotive.png";
 import logo from "../assets/images/logo.png";
 import logo_white from "../assets/images/logo_white.png";
 import ez_mall_logo from "../assets/images/ez_mall_logo.png";
+import ez_mall_logo_white from "../assets/images/ez_mall_logo_white.png";
 
 import {
   CATEGORY_BANNER_ASSETS,
@@ -110,10 +113,13 @@ const common = {
   paypal,
   playstore,
   appstore,
+  app_store: appStoreBadge,
+  play_store: playStoreBadge,
   wishlist_empty: empty_wishlist_icon,
   logo,
   logo_white,
   ez_mall_logo,
+  ez_mall_logo_white,
 }
 
 /** Spotlight banners used on Categories page header */

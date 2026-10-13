@@ -13,7 +13,6 @@ import {
   preserveCartDisplayFields,
   removeItem,
   removeSavedItem,
-  replaceItems,
   saveForLater,
   selectCartItems,
   setGuestCartId,
@@ -116,14 +115,19 @@ function reconcileGuestCartResponse(dispatch, response, fallbackItem = null) {
     dispatch(setGuestCartId(guestCartId))
   }
 
+  // Add-item responses often include only the affected line(s), not the full cart.
+  // Upsert those lines so existing cart rows stay in Redux until a full GET sync.
   const items = extractCartItems(response)
   if (items.length > 0) {
     const localItems = store.getState().cart.items
-    dispatch(replaceItems(preserveCartDisplayFields(items, [
+    const enriched = preserveCartDisplayFields(items, [
       ...(fallbackItem ? [fallbackItem] : []),
       ...localItems,
-    ])))
-    return items
+    ])
+    for (const item of enriched) {
+      dispatch(upsertItem(item))
+    }
+    return enriched
   }
 
   const apiItem = parseAddToCartResponse(response)

@@ -641,12 +641,10 @@ function ProductInfoPanel({
         open={addedToCartOpen}
         product={product}
         image={addedToCartSnapshot?.image}
-        variantLabel={addedToCartSnapshot?.variantLabel}
+        brand={product.keyDetails?.Brand}
+        variantLabel={product.isSimpleListing ? 'Color: Default' : (addedToCartSnapshot?.variantLabel || 'Color: Default')}
+        price={displayPriceInfo.price}
         onClose={() => setAddedToCartOpen(false)}
-        onViewCart={() => {
-          setAddedToCartOpen(false)
-          navigate('/cart')
-        }}
       />
       <div className="border-b border-slate-200 pb-4">
         <h1 className="wrap-break-word text-lg font-bold capitalize leading-snug tracking-tight text-slate-950 sm:text-xl">

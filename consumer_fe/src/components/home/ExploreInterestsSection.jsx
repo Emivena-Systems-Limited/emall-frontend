@@ -1,9 +1,8 @@
 import { motion } from 'framer-motion'
 import Container from '../layout/Container'
-import { landingProductGridClass, landingSectionPanelClass } from '../../constants/landingLayout'
+import { landingProductGridClass } from '../../constants/landingLayout'
 import ProductCard from '../shared/ProductCard'
-import NationwideDeliveryBanner from './NationwideDeliveryBanner'
-import ViewAllLink from './ViewAllLink'
+import EssentialsCloseout from './EssentialsCloseout'
 import { exploreInterestsGrid } from '../../constants/exploreInterestsProducts'
 
 const ease = [0.16, 1, 0.3, 1]
@@ -36,34 +35,30 @@ export default function ExploreInterestsSection({ products = [] }) {
       className="bg-white py-4 sm:py-5 lg:py-6"
     >
       <Container>
-        <NationwideDeliveryBanner embedded />
-
-        <div className={`mt-5 sm:mt-6 ${landingSectionPanelClass}`}>
-          <div className="mb-5 flex items-center justify-between gap-4 sm:mb-6">
-            <h2
-              id="other-essentials-heading"
-              className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl"
-            >
-              Other Essentials Just For You
-            </h2>
-            <ViewAllLink to="/products/explore" />
-          </div>
-
-          <motion.div
-            key={productSetKey}
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: '-60px' }}
-            className={landingProductGridClass}
+        <div className="mb-5 sm:mb-6">
+          <h2
+            id="other-essentials-heading"
+            className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl"
           >
-            {displayProducts.map((product, index) => (
-              <motion.div key={`${product.id}-${index}`} variants={itemVariants}>
-                <ProductCard product={product} />
-              </motion.div>
-            ))}
-          </motion.div>
+            Other Essentials Just For You
+          </h2>
         </div>
+
+        <motion.div
+          key={productSetKey}
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-60px' }}
+          className={landingProductGridClass}
+        >
+          {displayProducts.map((product, index) => (
+            <motion.div key={`${product.id}-${index}`} variants={itemVariants}>
+              <ProductCard product={product} />
+            </motion.div>
+          ))}
+        </motion.div>
+        <EssentialsCloseout />
       </Container>
     </section>
   )

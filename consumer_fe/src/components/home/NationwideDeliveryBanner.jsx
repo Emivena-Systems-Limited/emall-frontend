@@ -1,6 +1,5 @@
 // import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router'
-import Container from '../layout/Container'
 import StoreLogo from '../layout/StoreLogo'
 
 const logoPanelClip = 'polygon(0 0, 100% 0, calc(100% - 1.75rem) 100%, 0 100%)'
@@ -12,13 +11,18 @@ export default function NationwideDeliveryBanner({ embedded = false }) {
       className="group flex w-full items-stretch overflow-hidden bg-auth-primary transition-colors hover:bg-auth-primary-hover"
     >
       <div
-        className="flex shrink-0 items-center bg-[#dc5748] py-4 pl-4 pr-11 transition-colors group-hover:bg-[#d14e44] sm:py-5 sm:pl-6 sm:pr-14 lg:pl-8 lg:pr-16"
+        className="flex shrink-0 self-stretch bg-auth-primary p-[3px]"
         style={{ clipPath: logoPanelClip }}
       >
-        <StoreLogo variant="light" linked={false} className="shrink-0" />
+        <div
+          className="flex items-center bg-white py-2.5 pr-8 pl-[clamp(0.6rem,2vw,1.85rem)] sm:py-3 sm:pr-11"
+          style={{ clipPath: logoPanelClip }}
+        >
+          <StoreLogo variant="brand" size="nav" linked={false} className="shrink-0" />
+        </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center gap-3 py-4 pr-4 sm:gap-4 sm:py-5 sm:pr-6 lg:pr-8">
+      <div className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-[clamp(0.75rem,2vw,2rem)] sm:gap-4 sm:py-3.5">
         <p className="min-w-0 text-sm font-semibold leading-snug text-white sm:text-base lg:text-lg">
           Nationwide Delivery For All Purchases
         </p>
@@ -34,9 +38,5 @@ export default function NationwideDeliveryBanner({ embedded = false }) {
     return banner
   }
 
-  return (
-    <section className="bg-white py-4 sm:py-5 lg:py-6">
-      <Container>{banner}</Container>
-    </section>
-  )
+  return <section className="w-full bg-white">{banner}</section>
 }

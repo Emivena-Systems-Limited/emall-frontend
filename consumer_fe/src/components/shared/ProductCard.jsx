@@ -1,77 +1,90 @@
 import { useState } from 'react'
-import { ShoppingCart, Star } from 'lucide-react'
+import { Heart, Star } from 'lucide-react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
-import { formatCedi } from '../../utils/formatCurrency'
-import { useOptionalMiniCart } from '../../context/MiniCartContext'
 import { STAR_EMPTY_FILL, STAR_FILL } from '../../constants/landingLayout'
+import { formatCedi } from '../../utils/formatCurrency'
 import { isProductInCart, selectCartItems } from '../../store/slices/cartSlice'
 import PortaledHoverTooltip from './PortaledHoverTooltip'
 import QuickAddToCartModal from '../product/QuickAddToCartModal'
+import AddedToCartFlyout from '../product/AddedToCartFlyout'
 import { LOCK_PURCHASE_ACTIONS, STORE_DELIVERY_ELIGIBILITY_ENABLED } from '../../config/featureFlags'
 import { resolveAuthUserCity, resolveLocalDeliveryEligibility } from '../../utils/storefront'
+import { addToWishlist } from '../../services/wishlistService'
+import { notify } from '../../lib/notify'
 
-function PriceDisplay({ price, compareAt }) {
-  const [integer, decimal] = formatCedi(price).split('.')
+function resolveDiscountPercent(price, compareAt, discountPercent) {
+  const given = Number(discountPercent)
+  if (Number.isFinite(given) && given > 0) return Math.round(given)
 
-  return (
-    <div className="min-w-0 flex-1">
-      <p className="truncate text-[1.125em] font-bold leading-tight text-slate-900 tabular-nums">
-        {integer}
-        {decimal && (
-          <sup className="text-[0.65em] font-bold">.{decimal}</sup>
-        )}
-      </p>
-      {compareAt && (
-        <p className="mt-0.5 truncate text-[0.9375em] leading-tight text-slate-400 line-through tabular-nums">
-          {formatCedi(compareAt)}
-        </p>
-      )}
-    </div>
-  )
+  const current = Number(price)
+  const regular = Number(compareAt)
+  if (!Number.isFinite(current) || !Number.isFinite(regular) || regular <= current || current <= 0) {
+    return null
+  }
+
+  return Math.round(((regular - current) / regular) * 100)
 }
 
 function StarRating({ rating, count }) {
-  if (!count || count <= 0) return null
-
-  const normalizedRating = Math.max(0, Math.min(5, Number(rating) || 0))
+  const value = Math.max(0, Math.min(5, Number(rating) || 0))
+  const reviews = Number(count) || 0
 
   return (
-    <div className="flex items-center gap-[0.25em]">
-      <span className="inline-flex items-center gap-px" aria-hidden="true">
+    <div className="flex h-4 items-center gap-1.5">
+      <span className="inline-flex" aria-label={`${value} out of 5 stars`}>
         {Array.from({ length: 5 }, (_, index) => {
-          const fill = Math.max(0, Math.min(1, normalizedRating - index))
-          const fillWidth = `${fill * 100}%`
+          const fill = Math.max(0, Math.min(1, value - index))
 
           return (
-            <span key={index} className="relative inline-flex size-[0.875em]">
-              <Star className="size-full" fill={STAR_EMPTY_FILL} strokeWidth={0} />
-              {fill > 0 && (
-                <span
-                  className="absolute inset-y-0 left-0 overflow-hidden"
-                  style={{ width: fillWidth }}
-                >
-                  <Star className="size-full" fill={STAR_FILL} strokeWidth={0} />
-                </span>
-              )}
+            <span key={index} className="relative size-3.5" aria-hidden>
+              <Star className="size-3.5" fill={STAR_EMPTY_FILL} strokeWidth={0} />
+              <span className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+                <Star className="size-3.5" fill={STAR_FILL} strokeWidth={0} />
+              </span>
             </span>
           )
         })}
       </span>
-      <span className="text-[0.875em] font-medium text-slate-500">
-        ({count})
-      </span>
+      <span className="text-[11px] leading-none text-slate-400">({reviews})</span>
     </div>
   )
 }
 
+function PriceDisplay({ price, compareAt, discountPercent }) {
+  const percent = resolveDiscountPercent(price, compareAt, discountPercent)
+
+  return (
+    <div className="flex h-5 min-w-0 items-baseline gap-1.5 overflow-hidden whitespace-nowrap">
+      <span className="shrink-0 text-[13px] font-bold leading-none text-slate-950 tabular-nums">
+        {formatCedi(price)}
+      </span>
+      {compareAt ? (
+        <span className="min-w-0 truncate text-[11px] leading-none text-slate-400 line-through tabular-nums">
+          {formatCedi(compareAt)}
+        </span>
+      ) : null}
+      {percent ? (
+        <span className="shrink-0 text-[11px] font-semibold leading-none text-nav-red">
+          -{percent}%
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+const revealActionClass =
+  'max-md:pointer-events-auto max-md:translate-y-0 max-md:opacity-100 md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100'
+
 export default function ProductCard({ product, hrefOverride, onAddToCart, disabledReason = '' }) {
-  const miniCart = useOptionalMiniCart()
   const cartItems = useSelector(selectCartItems)
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const user = useSelector((state) => state.auth.user)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [quickAddMounted, setQuickAddMounted] = useState(false)
+  const [addedSnapshot, setAddedSnapshot] = useState(null)
+  const [wishlisted, setWishlisted] = useState(false)
+  const [savingWishlist, setSavingWishlist] = useState(false)
   const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
   const productId = product.backendId ?? product.id
   const userCity = resolveAuthUserCity(user)
@@ -92,11 +105,39 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
     ? (effectiveDisabledReason || (isInCart ? 'Already in cart — add another option' : ''))
     : (isInCart ? 'Already in cart — add another option' : '')
 
+  const handleWishlist = async (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (!isAuthenticated) {
+      notify.error('Please sign in to save items to your wishlist')
+      return
+    }
+
+    const id = String(productId ?? '').trim()
+    if (!id || savingWishlist) return
+
+    setSavingWishlist(true)
+    try {
+      await addToWishlist({ product_id: id, product_variant_id: null })
+      setWishlisted(true)
+      notify.success(`${product.name} saved to wishlist`)
+    } catch (error) {
+      notify.fromError(error, 'Could not save item to your wishlist')
+    } finally {
+      setSavingWishlist(false)
+    }
+  }
+
   const handleAddToCart = (event) => {
     event.preventDefault()
     event.stopPropagation()
 
     if (cartLocked) return
+
+    if (event.detail > 0) {
+      event.currentTarget.blur()
+    }
 
     if (onAddToCart) {
       onAddToCart(product)
@@ -108,53 +149,43 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
   }
 
   return (
-    <article className="@container group relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-[clamp(0.6875rem,2.75cqi,1rem)] transition-shadow duration-300 hover:shadow-[0_8px_30px_-6px_rgba(15,23,42,0.15)]">
-      <Link
-        to={productHref}
-        className="relative block aspect-square w-full min-w-0 overflow-hidden bg-white"
-        tabIndex={-1}
-        aria-hidden="true"
-      >
-        <img
-          src={product.image}
-          alt=""
-          className="size-full min-h-0 min-w-0 max-h-full max-w-full object-contain transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
-          loading="lazy"
-        />
-        <div className="absolute left-[0.5em] top-[0.5em] flex flex-col gap-[0.25em]">
-          {product.discountPercent != null && (
-            <span className="rounded px-[0.5em] py-[0.125em] text-[0.75em] font-bold tracking-wide text-slate-900 bg-[#f5d020]">
-              {product.discountPercent}% OFF
-            </span>
-          )}
-          {product.isHot && (
-            <span className="rounded px-[0.5em] py-[0.125em] text-[0.75em] font-bold tracking-wide text-white bg-auth-primary">
-              HOT
-            </span>
-          )}
-          {product.compareAt && product.discountPercent == null && !product.isHot && (
-            <span className="rounded-full bg-auth-primary px-[0.5em] py-[0.125em] text-[0.75em] font-bold tracking-wide text-white">
-              SALE
-            </span>
-          )}
-        </div>
-      </Link>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-[0.375em] p-[0.75em]">
-        <Link to={productHref} className="block min-w-0">
-          <h3 className="truncate text-[1.05em] font-semibold leading-snug text-slate-900 transition-colors group-hover:text-auth-primary">
-            {product.name}
-          </h3>
-          <p className="mt-[0.125em] truncate text-[0.875em] text-slate-500">
-            {product.variant}
-          </p>
+    <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow duration-300 hover:shadow-[0_10px_28px_-12px_rgba(15,23,42,0.28)]">
+      <div className="relative overflow-clip">
+        <Link
+          to={productHref}
+          className="relative block aspect-square w-full bg-white"
+          tabIndex={-1}
+          aria-hidden="true"
+        >
+          <img
+            src={product.image}
+            alt=""
+            className="size-full object-contain object-center p-3"
+            loading="lazy"
+          />
         </Link>
 
-        <StarRating rating={product.rating} count={product.reviewCount} />
+        {product.isHot ? (
+          <span className="pointer-events-none absolute top-2 left-2 rounded bg-nav-red px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
+            HOT
+          </span>
+        ) : null}
 
-        <div className="mt-auto flex min-w-0 items-end justify-between gap-[0.5em] pt-[0.25em]">
-          <PriceDisplay price={product.price} compareAt={product.compareAt} />
+        <button
+          type="button"
+          aria-label={wishlisted ? `${product.name} is saved to your wishlist` : `Save ${product.name} to wishlist`}
+          aria-pressed={wishlisted}
+          disabled={savingWishlist}
+          onClick={handleWishlist}
+          className={`absolute top-2.5 right-2.5 z-10 flex size-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-[0_2px_10px_rgba(15,23,42,0.16)] transition-all duration-200 hover:text-nav-red ${revealActionClass}`}
+        >
+          <Heart
+            className={`size-4 ${wishlisted ? 'fill-nav-red text-nav-red' : ''}`}
+            strokeWidth={2}
+          />
+        </button>
 
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] md:translate-y-[calc(100%+2px)] md:group-hover:pointer-events-auto md:group-hover:translate-y-0 md:group-has-[:focus-visible]:pointer-events-auto md:group-has-[:focus-visible]:translate-y-0 max-md:pointer-events-auto [&>span]:flex [&>span]:w-full">
           <PortaledHoverTooltip content={tooltipContent}>
             <button
               type="button"
@@ -165,16 +196,26 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
               }
               disabled={cartLocked}
               onClick={handleAddToCart}
-              className={`flex size-[2.25em] shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                cartLocked
-                  ? 'border-slate-200 bg-slate-100 text-slate-400 shadow-none'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-auth-primary hover:bg-auth-primary hover:text-white'
-              }`}
+              className="flex h-7 w-full cursor-pointer items-center justify-center bg-nav-red text-xs font-semibold text-white transition-colors duration-200 hover:bg-nav-red-deep disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              <ShoppingCart className="size-[1em]" strokeWidth={2} />
+              + Add to Cart
             </button>
           </PortaledHoverTooltip>
         </div>
+      </div>
+
+      <div className="mt-auto flex min-w-0 flex-col gap-1.5 px-3 pt-3 pb-3.5">
+        <Link to={productHref} className="block min-w-0">
+          <h3 className="line-clamp-2 h-10 text-sm leading-5 font-medium text-slate-900">
+            {product.name}
+          </h3>
+        </Link>
+        <StarRating rating={product.rating} count={product.reviewCount} />
+        <PriceDisplay
+          price={product.price}
+          compareAt={product.compareAt}
+          discountPercent={product.discountPercent}
+        />
       </div>
 
       {quickAddMounted ? (
@@ -182,9 +223,21 @@ export default function ProductCard({ product, hrefOverride, onAddToCart, disabl
           open={quickAddOpen}
           product={product}
           onClose={() => setQuickAddOpen(false)}
-          onAdded={() => miniCart?.openMiniCart()}
+          onAdded={(snapshot) => {
+            setQuickAddOpen(false)
+            setAddedSnapshot(snapshot ?? { name: product.name, image: product.image, price: product.price })
+          }}
         />
       ) : null}
+      <AddedToCartFlyout
+        open={Boolean(addedSnapshot)}
+        product={{ ...product, name: addedSnapshot?.name ?? product.name }}
+        image={addedSnapshot?.image}
+        brand={addedSnapshot?.brand}
+        price={addedSnapshot?.price ?? product.price}
+        variantLabel={addedSnapshot?.variantLabel}
+        onClose={() => setAddedSnapshot(null)}
+      />
     </article>
   )
 }

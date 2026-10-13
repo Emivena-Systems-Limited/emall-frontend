@@ -2,7 +2,31 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { isSameVariantOption } from '../../utils/productVariantFields'
 
-function OptionImageButton({ value, selected, imageSrc, onSelect }) {
+function OptionImageButton({ value, selected, imageSrc, onSelect, compact = false }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect(value)}
+        aria-pressed={selected}
+        title={value}
+        className={`relative size-14 shrink-0 cursor-pointer overflow-hidden rounded-xl border bg-slate-50 transition outline-none focus-visible:ring-2 focus-visible:ring-nav-red/30 ${
+          selected
+            ? 'border-nav-red ring-2 ring-nav-red/15'
+            : 'border-slate-200 hover:border-slate-300'
+        }`}
+      >
+        {imageSrc ? (
+          <img src={imageSrc} alt="" className="size-full object-contain p-1" />
+        ) : (
+          <span className="flex size-full items-center justify-center px-1 text-[0.625rem] font-semibold text-slate-500">
+            {value}
+          </span>
+        )}
+      </button>
+    )
+  }
+
   return (
     <button
       type="button"
@@ -26,18 +50,24 @@ function OptionImageButton({ value, selected, imageSrc, onSelect }) {
   )
 }
 
-function OptionChipButton({ value, selected, onSelect }) {
+function OptionChipButton({ value, selected, onSelect, compact = false }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(value)}
       aria-pressed={selected}
       title={value}
-      className={`inline-flex min-h-12 min-w-[5.5rem] shrink-0 items-center justify-center whitespace-nowrap rounded-xl border-2 px-4 py-3 text-sm font-semibold leading-snug transition-colors outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 focus-visible:ring-offset-1 sm:min-h-[3.25rem] sm:px-5 sm:text-[0.9375rem] ${
-        selected
-          ? 'border-auth-primary bg-red-50 text-auth-primary shadow-[inset_0_0_0_1px_rgba(199,59,45,0.35)]'
-          : 'border-slate-200 bg-white text-slate-800 hover:border-auth-primary/50 hover:bg-slate-50 hover:text-slate-950'
-      }`}
+      className={compact
+        ? `inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-full border px-3.5 text-xs font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-nav-red/30 ${
+          selected
+            ? 'border-nav-red bg-nav-red text-white'
+            : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+        }`
+        : `inline-flex min-h-12 min-w-[5.5rem] shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl border-2 px-4 py-3 text-sm font-semibold leading-snug transition-colors outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 focus-visible:ring-offset-1 sm:min-h-[3.25rem] sm:px-5 sm:text-[0.9375rem] ${
+          selected
+            ? 'border-auth-primary bg-red-50 text-auth-primary shadow-[inset_0_0_0_1px_rgba(199,59,45,0.35)]'
+            : 'border-slate-200 bg-white text-slate-800 hover:border-auth-primary/50 hover:bg-slate-50 hover:text-slate-950'
+        }`}
     >
       {value}
     </button>
@@ -51,6 +81,7 @@ export default function VariantOptionRow({
   selected = '',
   onSelect,
   presentation = 'chips',
+  size = 'default',
 }) {
   const scrollerRef = useRef(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -110,12 +141,14 @@ export default function VariantOptionRow({
 
   const hasOverflow = canScrollLeft || canScrollRight
 
+  const compact = size === 'compact'
+
   return (
-    <div className="min-w-0 pt-3">
-      <p className="text-sm font-bold text-slate-950">
+    <div className={`min-w-0 ${compact ? 'pt-2.5' : 'pt-3'}`}>
+      <p className={compact ? 'text-xs font-semibold text-slate-800' : 'text-sm font-bold text-slate-950'}>
         {label}{selected ? `: ${selected}` : ''}
       </p>
-      <div className={`mt-2.5 flex min-w-0 items-center ${hasOverflow ? 'sm:gap-2' : ''}`}>
+      <div className={`flex min-w-0 items-center ${compact ? 'mt-1.5' : 'mt-2.5'} ${hasOverflow ? 'sm:gap-2' : ''}`}>
         {hasOverflow ? (
           <button
             type="button"
@@ -141,12 +174,14 @@ export default function VariantOptionRow({
                   selected={isSameVariantOption(selected, value)}
                   imageSrc={resolveImage(value)}
                   onSelect={onSelect}
+                  compact={size === 'compact'}
                 />
               ) : (
                 <OptionChipButton
                   value={value}
                   selected={isSameVariantOption(selected, value)}
                   onSelect={onSelect}
+                  compact={size === 'compact'}
                 />
               )}
             </div>

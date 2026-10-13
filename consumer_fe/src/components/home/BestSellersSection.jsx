@@ -1,127 +1,98 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { useCallback, useRef } from 'react'
+import { ArrowRight, Trophy } from 'lucide-react'
+import { Link } from 'react-router'
+import { useReducedMotion } from 'framer-motion'
 import Container from '../layout/Container'
-import { landingSectionPanelClass } from '../../constants/landingLayout'
 import ProductCard from '../shared/ProductCard'
-import ViewAllLink from './ViewAllLink'
 
-const ease = [0.16, 1, 0.3, 1]
-
-function CarouselTrack({ products }) {
+function BestsellersRow({ category }) {
+  const reduceMotion = useReducedMotion()
   const trackRef = useRef(null)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(true)
+  const headingId = `bestsellers-${category.id}-heading`
+  const products = category.products ?? []
 
-  const syncScrollState = useCallback(() => {
-    const el = trackRef.current
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 4)
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
-  }, [])
+  const scrollByCard = useCallback((direction) => {
+    const track = trackRef.current
+    if (!track) return
 
-  useEffect(() => {
-    const el = trackRef.current
-    if (!el) return
-    syncScrollState()
-    el.addEventListener('scroll', syncScrollState, { passive: true })
-    const ro = new ResizeObserver(syncScrollState)
-    ro.observe(el)
-    return () => {
-      el.removeEventListener('scroll', syncScrollState)
-      ro.disconnect()
+    const card = track.querySelector('[data-bestseller-card]')
+    const gap = Number.parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 12
+    const amount = (card?.offsetWidth ?? track.clientWidth * 0.7) + gap
+    track.scrollBy({ left: direction * amount, behavior: reduceMotion ? 'auto' : 'smooth' })
+  }, [reduceMotion])
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      scrollByCard(-1)
     }
-  }, [syncScrollState])
+    if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      scrollByCard(1)
+    }
+  }
 
-  const scroll = useCallback((dir) => {
-    const el = trackRef.current
-    if (!el) return
-    const cardWidth = el.querySelector('li')?.offsetWidth ?? 200
-    const gap = Number.parseFloat(getComputedStyle(el).gap) || 12
-    el.scrollBy({ left: dir * (cardWidth + gap) * 2, behavior: 'smooth' })
-  }, [])
+  if (!products.length) return null
 
   return (
-    <div className="relative">
-      <ul
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-4 sm:mb-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 id={headingId} className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+              Bestsellers
+            </h2>
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5c518] px-2 py-0.5 text-[11px] font-semibold text-slate-950">
+              <Trophy className="size-3" strokeWidth={2.25} aria-hidden />
+              Top Picks
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            Most loved by EZMall shoppers — top-rated picks
+          </p>
+        </div>
+        <Link
+          to={category.viewAllHref ?? category.href ?? '/promotions?filter=bestsellers'}
+          className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-nav-red transition-colors hover:text-nav-red-deep"
+        >
+          View All
+          <ArrowRight className="size-4" strokeWidth={2.25} aria-hidden />
+        </Link>
+      </div>
+
+      <div
         ref={trackRef}
-        className="flex gap-1.5 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] scrollbar-none sm:gap-2 lg:gap-2.5 [&::-webkit-scrollbar]:hidden"
-        style={{ scrollSnapType: 'x mandatory' }}
+        role="region"
+        aria-roledescription="carousel"
+        aria-labelledby={headingId}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth overscroll-x-contain outline-none [-ms-overflow-style:none] [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-amber-400/40 focus-visible:ring-offset-2 [&::-webkit-scrollbar]:hidden"
       >
         {products.map((product) => (
-          <li
+          <div
             key={product.id}
-            className="min-w-0 shrink-0 basis-[calc((100%-0.375rem)/2)] sm:basis-[calc((100%-1rem)/3)] md:basis-[calc((100%-1.125rem)/4)] lg:basis-[calc((100%-2.5rem)/6)]"
-            style={{ scrollSnapAlign: 'start' }}
+            data-bestseller-card
+            className="h-full w-[78%] shrink-0 snap-start sm:w-[46%] md:w-[31%] lg:w-[15.6%]"
           >
             <ProductCard product={product} />
-          </li>
+          </div>
         ))}
-      </ul>
-
-      {canScrollLeft && (
-        <button
-          type="button"
-          aria-label="Scroll left"
-          onClick={() => scroll(-1)}
-          className="absolute left-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
-        >
-          <ChevronLeft className="size-4.5 text-slate-700" strokeWidth={2.25} />
-        </button>
-      )}
-      {canScrollRight && (
-        <button
-          type="button"
-          aria-label="Scroll right"
-          onClick={() => scroll(1)}
-          className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:border-slate-300 hover:shadow-lg lg:flex size-9"
-        >
-          <ChevronRight className="size-4.5 text-slate-700" strokeWidth={2.25} />
-        </button>
-      )}
-
-      {canScrollLeft && (
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-white to-transparent lg:hidden" />
-      )}
-      {canScrollRight && (
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-linear-to-l from-white to-transparent" />
-      )}
+      </div>
     </div>
   )
 }
 
 export default function BestSellersSection({ categories = [] }) {
-  if (!categories.length) return null
+  const rows = categories.filter((category) => category.products?.length)
+  if (!rows.length) return null
 
   return (
-    <section aria-label="Best sellers" className="bg-white py-4 sm:py-5 lg:py-6">
+    <section aria-label="Bestsellers" className="bg-[#fbf6ee] py-4 sm:py-5 lg:py-6">
       <Container>
-        <div className="space-y-5 sm:space-y-6">
-          {categories.map((category, i) => (
-            <motion.div
-              key={category.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-60px' }}
-              transition={{ duration: 0.4, delay: i * 0.08, ease }}
-              className={landingSectionPanelClass}
-            >
-              <div className="mb-5 flex items-center justify-between gap-4 sm:mb-6">
-                <h2 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
-                  {category.label === 'Best Sellers' ? (
-                    category.label
-                  ) : (
-                    <>
-                      Best Sellers in{' '}
-                      <span className="text-auth-primary">{category.label}</span>
-                    </>
-                  )}
-                </h2>
-                <ViewAllLink to={category.viewAllHref ?? category.href} />
-              </div>
-
-              <CarouselTrack products={category.products} />
-            </motion.div>
+        <div className="space-y-8">
+          {rows.map((category) => (
+            <BestsellersRow key={category.id} category={category} />
           ))}
         </div>
       </Container>

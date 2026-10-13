@@ -21,6 +21,15 @@ function compactParams(params = {}) {
   )
 }
 
+export async function getLatestProducts() {
+  const { data } = await apiClient.get('/product/latest', { skipAuthLogout: true })
+  assertApiSuccess(data)
+
+  const payload = data?.data ?? data ?? {}
+  if (Array.isArray(payload)) return payload
+  return Array.isArray(payload.products) ? payload.products : []
+}
+
 export async function getProductCatalog(params = {}) {
   const requestParams = compactParams(params)
   const { data } = await apiClient.get(PRODUCT_CATALOG_ENDPOINT, {

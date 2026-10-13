@@ -20,6 +20,7 @@ export default function StoreLogo({
     light: Images.common.logo_white,
     dark: Images.common.logo,
     brand: Images.common.ez_mall_logo,
+    brandLight: Images.common.ez_mall_logo_white,
   }
   const src = sources[variant] ?? sources.dark
 

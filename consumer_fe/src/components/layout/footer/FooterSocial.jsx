@@ -52,9 +52,9 @@ export default function FooterSocial() {
             target="_blank"
             rel="noreferrer"
             aria-label={social.label}
-            className="flex size-10 cursor-pointer items-center justify-center rounded-full bg-white text-auth-primary transition-transform duration-200 hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white/80 transition-colors duration-200 hover:bg-white/20 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
-            <Icon className="size-4.5" />
+            <Icon className="size-4" />
           </a>
         )
       })}

@@ -302,9 +302,13 @@ html {
   }
 }
 
-.site-shell-header,
-.site-shell-footer {
+.site-shell-header {
   background-color: var(--color-auth-primary);
+  color: #fff;
+}
+
+.site-shell-footer {
+  background-color: #3a3a3a;
   color: #fff;
 }
 
