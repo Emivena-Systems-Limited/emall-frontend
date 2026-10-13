@@ -2,7 +2,6 @@ import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router'
 import Container from '../layout/Container'
-import { getPromotionsFilterHref, PROMOTION_FILTER_RECOMMENDED } from '../../constants/categoryQuickFilters'
 import ProductCard from '../shared/ProductCard'
 
 const ease = [0.16, 1, 0.3, 1]
@@ -38,7 +37,7 @@ export default function RecommendedSection({ products = [] }) {
             </p>
           </div>
           <Link
-            to={getPromotionsFilterHref(PROMOTION_FILTER_RECOMMENDED)}
+            to="/products/recommended"
             className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-nav-red transition-colors hover:text-nav-red-deep"
           >
             View All

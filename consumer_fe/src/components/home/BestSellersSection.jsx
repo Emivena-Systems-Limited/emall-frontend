@@ -52,7 +52,7 @@ function BestsellersRow({ category }) {
           </p>
         </div>
         <Link
-          to={category.viewAllHref ?? category.href ?? '/promotions?filter=bestsellers'}
+          to={category.viewAllHref ?? category.href ?? '/products/best-sellers'}
           className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-nav-red transition-colors hover:text-nav-red-deep"
         >
           View All

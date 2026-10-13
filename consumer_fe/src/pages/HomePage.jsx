@@ -10,7 +10,6 @@ import ShopByCategorySection from '../components/home/ShopByCategorySection'
 import FeaturedPicksSection from '../components/home/FeaturedPicksSection'
 import TrendingNowSection from '../components/home/TrendingNowSection'
 import SiteLayout from '../components/layout/SiteLayout'
-import { getPromotionsFilterHref, PROMOTION_FILTER_BESTSELLERS } from '../constants/categoryQuickFilters'
 import { useLandingPageData } from '../hooks/useLandingPageData'
 import { useLatestProducts } from '../hooks/useLatestProducts'
 import { normalizeLandingProducts } from '../utils/normalizeLandingProducts'
@@ -41,7 +40,7 @@ export default function HomePage() {
         {
           id: 'api-best-sellers',
           label: 'Best Sellers',
-          href: getPromotionsFilterHref(PROMOTION_FILTER_BESTSELLERS),
+          href: '/products/best-sellers',
           products: bestsellerSource,
         },
       ]

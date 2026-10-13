@@ -10,7 +10,10 @@ export default function CategoryFilterSidebar({
 }) {
   return (
     <aside className="hidden shrink-0 lg:sticky lg:top-16 lg:z-20 lg:block lg:w-64 lg:self-start xl:w-72">
-      <div className="scrollbar-theme max-h-[calc(100vh-4.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60">
+      <div
+        data-scroll-root=""
+        className="scrollbar-theme max-h-[calc(100vh-4.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60"
+      >
         <CategoryFilterPanelContent
           parentCategories={parentCategories}
           defaultCategorySlug={defaultCategorySlug}

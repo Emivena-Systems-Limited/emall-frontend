@@ -53,7 +53,7 @@ export default function NewArrivalsSection({ products = [] }) {
             </p>
           </div>
           <Link
-            to="/promotions"
+            to="/products?sort=newest"
             className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-nav-red transition-colors hover:text-nav-red-deep"
           >
             View All

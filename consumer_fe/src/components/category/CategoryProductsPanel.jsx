@@ -144,6 +144,8 @@ export default function CategoryProductsPanel({
   emptyLabel,
   onRetry,
   onPageChange,
+  bare = false,
+  gridClassName = GRID_CLASS,
 }) {
   const showSkeleton = isPending && products.length === 0
   const rangeLabel = formatResultRange(pagination.currentPage, pagination.perPage, pagination.total)
@@ -152,19 +154,29 @@ export default function CategoryProductsPanel({
     <div
       id={id}
       aria-busy={isPending || isFetching}
-      className="flex min-w-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60 sm:p-4"
+      className={
+        bare
+          ? 'flex min-w-0 flex-1 flex-col'
+          : 'flex min-w-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60 sm:p-4'
+      }
     >
-      <div className="mb-3 flex min-h-7 items-center justify-between gap-3 sm:mb-4">
-        <p className="text-sm font-semibold text-slate-800">
-          {showSkeleton ? 'Loading products' : rangeLabel}
-        </p>
-        {isFetching && products.length > 0 ? (
-          <span className="text-xs font-medium text-slate-400">Updating…</span>
-        ) : null}
-      </div>
+      {bare ? (
+        isFetching && products.length > 0 ? (
+          <p className="mb-3 text-xs font-medium text-slate-400">Updating…</p>
+        ) : null
+      ) : (
+        <div className="mb-3 flex min-h-7 items-center justify-between gap-3 sm:mb-4">
+          <p className="text-sm font-semibold text-slate-800">
+            {showSkeleton ? 'Loading products' : rangeLabel}
+          </p>
+          {isFetching && products.length > 0 ? (
+            <span className="text-xs font-medium text-slate-400">Updating…</span>
+          ) : null}
+        </div>
+      )}
 
       {showSkeleton ? (
-        <div className={GRID_CLASS} aria-hidden>
+        <div className={gridClassName} aria-hidden>
           {Array.from({ length: 8 }, (_, index) => (
             <ProductCardSkeleton key={index} />
           ))}
@@ -180,7 +192,7 @@ export default function CategoryProductsPanel({
               {getCatalogErrorMessage(error)}
             </p>
           ) : null}
-          <div className={`${GRID_CLASS} ${isPlaceholderData || isFetching ? 'opacity-70' : ''} transition-opacity`}>
+          <div className={`${gridClassName} ${isPlaceholderData || isFetching ? 'opacity-70' : ''} transition-opacity`}>
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

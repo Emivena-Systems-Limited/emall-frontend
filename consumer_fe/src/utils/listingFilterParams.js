@@ -90,24 +90,23 @@ export function buildPromotionsHref(categorySlug, subcategoryId) {
 }
 
 export function buildCategoryListingHref(categorySlug, subcategorySlug) {
-  if (!categorySlug) return '/categories'
+  if (!categorySlug) return '/products'
 
   const params = new URLSearchParams()
   params.set(FILTER_CATEGORY_PARAM, categorySlug)
 
   if (subcategorySlug && subcategorySlug !== 'all') {
     params.set(FILTER_SUBCATEGORY_PARAM, subcategorySlug)
-    return `/categories/${categorySlug}/${subcategorySlug}?${params.toString()}`
   }
 
-  return `/categories/${categorySlug}?${params.toString()}`
+  return `/products?${params.toString()}`
 }
 
 export function getCategoryListingPathname(href = '') {
   return String(href).split('?')[0]
 }
 
-/** Upgrade a /categories/:slug path (with or without query) to include catalog query params. */
+/** Upgrade a /categories/:slug path (with or without query) to the /products listing. */
 export function toCategoryListingHref(href) {
   const pathname = getCategoryListingPathname(href)
   const match = pathname.match(/^\/categories\/([^/]+)(?:\/([^/]+))?$/)
