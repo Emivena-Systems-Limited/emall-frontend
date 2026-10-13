@@ -20,12 +20,12 @@ import {
 } from '../constants/financeLedger'
 import { useAdminCommissions } from '../hooks/useAdminCommissions'
 import { useCommissionConfigurations } from '../hooks/useCommissionConfigurations'
+import { COMMISSION_HISTORY_PAGE_SIZE, useCommissionHistory } from '../hooks/useCommissionHistory'
 import { useFinanceData } from '../hooks/useFinanceData'
 import { usePageSlice } from '../hooks/usePageSlice'
 import notify from '../lib/notify'
 import { parseApiError } from '../utils/parseApiError'
 import { formatOrderMoney, formatPercent } from '../utils/formatters'
-import { getProfileDisplayName } from '../utils/profileUtils'
 
 const FIELD = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-light disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400'
 
@@ -47,10 +47,7 @@ function StatusBadge({ status }) {
 
 export default function FinanceCommissions() {
   const {
-    user,
     setCommissionConfig,
-    commissionHistory,
-    setCommissionHistory,
     canConfigure,
   } = useFinanceData()
   const [query, setQuery] = useState('')
@@ -60,10 +57,18 @@ export default function FinanceCommissions() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
+  const [historyPage, setHistoryPage] = useState(1)
   const [overrideVendor, setOverrideVendor] = useState('')
   const [overrideCategory, setOverrideCategory] = useState('')
   const [pending, setPending] = useState(null)
   const configuration = useCommissionConfigurations()
+  const historyQuery = useCommissionHistory({ page: historyPage, perPage: COMMISSION_HISTORY_PAGE_SIZE })
+  const commissionHistory = historyQuery.data?.records ?? []
+  const historyPagination = historyQuery.data?.pagination
+  const historyTotal = historyPagination?.total ?? commissionHistory.length
+  const historyTotalPages = historyPagination?.totalPages ?? 1
+  const historyRangeStart = historyTotal === 0 ? 0 : ((historyPage - 1) * COMMISSION_HISTORY_PAGE_SIZE) + 1
+  const historyRangeEnd = historyTotal === 0 ? 0 : historyRangeStart + commissionHistory.length - 1
   const marketplaceDefault = configuration.defaultRate
 
   useEffect(() => {
@@ -127,21 +132,10 @@ export default function FinanceCommissions() {
   const rangeStart = total === 0 ? 0 : ((page - 1) * FINANCE_PAGE_SIZE) + 1
   const rangeEnd = total === 0 ? 0 : rangeStart + records.length - 1
 
-  const recordChange = (previousRate, newRate, appliedTo) => {
-    setCommissionHistory((current) => [{
-      id: `CH-${Date.now()}`,
-      previousRate,
-      newRate,
-      appliedTo,
-      changedBy: getProfileDisplayName(user),
-      at: new Date().toISOString(),
-    }, ...current])
-  }
-
   const handleConfirm = async () => {
     if (!pending) return
     await pending.apply()
-    recordChange(pending.previousRate, pending.newRate, pending.appliedTo)
+    await historyQuery.refetch()
     notify.success('Commission rate updated.')
     setPending(null)
   }
@@ -321,9 +315,19 @@ export default function FinanceCommissions() {
           <div className="border-b border-slate-100 px-5 py-4">
             <h3 className="text-sm font-bold text-slate-900">Commission history</h3>
           </div>
-          {commissionHistory.length === 0 ? (
+          {historyQuery.isLoading ? (
+            <p className="px-5 py-8 text-sm text-slate-500">Loading commission history…</p>
+          ) : historyQuery.isError ? (
+            <div className="px-5 py-8">
+              <p className="text-sm text-slate-700">{parseApiError(historyQuery.error, 'Could not load commission history.').message}</p>
+              <button type="button" onClick={() => historyQuery.refetch()} className="mt-4 cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
+                Try again
+              </button>
+            </div>
+          ) : commissionHistory.length === 0 ? (
             <p className="px-5 py-8 text-sm text-slate-500">No rate changes yet.</p>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
@@ -336,16 +340,27 @@ export default function FinanceCommissions() {
                 <tbody className="divide-y divide-slate-100">
                   {commissionHistory.map((item) => (
                     <tr key={item.id}>
-                      <td className="px-4 py-3 tabular-nums">{formatPercent(item.previousRate)}</td>
-                      <td className="px-4 py-3 tabular-nums">{formatPercent(item.newRate)}</td>
+                      <td className="px-4 py-3 tabular-nums">{item.previousRate == null ? '—' : formatPercent(item.previousRate)}</td>
+                      <td className="px-4 py-3 tabular-nums">{item.newRate == null ? '—' : formatPercent(item.newRate)}</td>
                       <td className="px-4 py-3"><TruncatedCell text={item.appliedTo} /></td>
-                      <td className="px-4 py-3">{item.changedBy}</td>
+                      <td className="px-4 py-3">
+                        <ChangedBy name={item.changedByName} email={item.changedByEmail} />
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{formatFinanceDateTime(item.at)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            <FinancePager
+              page={historyPage}
+              totalPages={historyTotalPages}
+              rangeStart={historyRangeStart}
+              rangeEnd={historyRangeEnd}
+              total={historyTotal}
+              onPageChange={setHistoryPage}
+            />
+            </>
           )}
         </section>
       </DashboardReveal>
@@ -360,6 +375,16 @@ export default function FinanceCommissions() {
         onConfirm={handleConfirm}
       />
     </FinanceShell>
+  )
+}
+
+function ChangedBy({ name, email }) {
+  if (!name && !email) return <span className="text-slate-400">—</span>
+  return (
+    <div className="min-w-0 max-w-56">
+      {name ? <p className="truncate font-medium text-slate-900">{name}</p> : null}
+      {email ? <p className="mt-0.5 truncate text-xs text-slate-500">{email}</p> : null}
+    </div>
   )
 }
 

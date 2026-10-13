@@ -33,7 +33,7 @@ export default function UserRoster({
       {selected.length > 0 && <div className="border-b border-slate-100 bg-brand-light px-5 py-2 text-xs font-semibold text-brand">{selected.length} customer{selected.length === 1 ? '' : 's'} selected</div>}
       <div className="hidden overflow-x-auto lg:block">
         <table className="min-w-[1380px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 text-[10px] font-bold tracking-wide whitespace-nowrap text-slate-500 uppercase">
             <tr>
               <th className="w-10 px-4 py-3"><input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all customers on this page" className="size-4 accent-[#c73b2d]" /></th>
               <th className="px-3 py-3">Customer</th><th className="px-3 py-3">Customer ID</th><th className="px-3 py-3">Email</th><th className="px-3 py-3">Phone number</th><th className="px-3 py-3">Location</th><th className="px-3 py-3">Total orders</th><th className="px-3 py-3">Total spent</th><th className="px-3 py-3">Account status</th><th className="px-3 py-3">Date joined</th><th className="px-4 py-3 text-right">Actions</th>
