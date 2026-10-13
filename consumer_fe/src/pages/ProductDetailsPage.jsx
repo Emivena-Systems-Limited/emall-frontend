@@ -2184,7 +2184,7 @@ export default function ProductDetailsPage() {
   if (showSkeleton || !product) {
     return (
       <SiteLayout>
-        <main className="bg-[#f2f2f2] py-3 sm:py-4">
+        <main className="bg-white py-3 sm:py-4">
           <Container>
             <ProductDetailsSkeleton />
           </Container>
@@ -2621,7 +2621,7 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
   return (
     <SiteLayout>
-      <main className="bg-[#f2f2f2] py-3 sm:py-4">
+      <main className="bg-white py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
           <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
             <div className="contents lg:sticky lg:top-14 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">

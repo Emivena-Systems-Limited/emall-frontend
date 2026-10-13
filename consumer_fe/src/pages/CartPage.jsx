@@ -652,7 +652,7 @@ export default function CartPage() {
 
   return (
     <SiteLayout>
-      <main className={`bg-[#f2f2f2] py-4 sm:py-8 ${!isLoadingCart && items.length > 0 ? 'pb-24 lg:pb-8' : ''}`}>
+      <main className={`bg-white py-4 sm:py-8 ${!isLoadingCart && items.length > 0 ? 'pb-24 lg:pb-8' : ''}`}>
         <Container className="min-w-0 space-y-6 sm:space-y-8">
           {isLoadingCart ? (
             <CartPageSkeleton rows={Math.max(2, Math.min(items.length || 3, 4))} />

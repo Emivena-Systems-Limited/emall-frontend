@@ -37,7 +37,7 @@ export default function DeveloperGuide() {
   const currentTab = tabs.find((tab) => tab.id === activeTab)
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-white text-slate-900">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">

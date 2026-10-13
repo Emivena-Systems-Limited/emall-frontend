@@ -203,7 +203,7 @@ export default function CategoryPage() {
         </Container>
       </div>
 
-      <section className="bg-slate-50 py-4 sm:py-5 lg:py-6">
+      <section className="bg-white py-4 sm:py-5 lg:py-6">
         <Container>
           <div className="mb-4 flex items-center justify-between gap-3 sm:mb-5">
             <CategoryBreadcrumb

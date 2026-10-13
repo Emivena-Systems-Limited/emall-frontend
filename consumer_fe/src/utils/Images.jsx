@@ -9,6 +9,13 @@ import heroBannerOne from '../assets/images/hero_sample_one.png'
 import heroBannerTwo from '../assets/images/hero_sample_two.png'
 import heroBannerThree from '../assets/images/hero_sample_three.png'
 import heroBannerFour from '../assets/images/hero_sample_four.png'
+import appMainHero from '../assets/images/app_main_hero.png'
+import electronicsHero from '../assets/images/electronics_hero.png'
+import computingAndOfficeHero from '../assets/images/computing_and_office_hero.png'
+import cellPhoneAndAccessoriesHero from '../assets/images/cell_phone_and_accessories.png'
+import appliancesOneHero from '../assets/images/appliances_one_hero.png'
+import appliancesTwoHero from '../assets/images/appliances_two_hero.png'
+import furnitureHero from '../assets/images/furniture_hero.png'
 import fashion from '../assets/images/fashion.png'
 import electronics from '../assets/images/electronics.png'
 import home_kitchen from '../assets/images/home_kitchen.png'
@@ -72,6 +79,16 @@ const sample_hero_banners = {
   hero_banner_four: heroBannerFour,
 }
 
+const hero = {
+  app_main_hero: appMainHero,
+  electronics_hero: electronicsHero,
+  computing_and_office_hero: computingAndOfficeHero,
+  cell_phone_and_accessories: cellPhoneAndAccessoriesHero,
+  appliances_one_hero: appliancesOneHero,
+  appliances_two_hero: appliancesTwoHero,
+  furniture_hero: furnitureHero,
+}
+
 const top_categories = {
   fashion,
   electronics,
@@ -129,6 +146,7 @@ export const Images = {
   shop,
   common,
   sample_hero_banners,
+  hero,
   top_categories,
   categories,
   catalog,

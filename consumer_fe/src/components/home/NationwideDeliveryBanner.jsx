@@ -35,7 +35,7 @@ export default function NationwideDeliveryBanner({ embedded = false }) {
   }
 
   return (
-    <section className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
+    <section className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>{banner}</Container>
     </section>
   )

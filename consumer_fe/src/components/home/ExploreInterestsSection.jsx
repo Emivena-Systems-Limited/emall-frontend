@@ -33,7 +33,7 @@ export default function ExploreInterestsSection({ products = [] }) {
   return (
     <section
       aria-labelledby="other-essentials-heading"
-      className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6"
+      className="bg-white py-4 sm:py-5 lg:py-6"
     >
       <Container>
         <NationwideDeliveryBanner embedded />

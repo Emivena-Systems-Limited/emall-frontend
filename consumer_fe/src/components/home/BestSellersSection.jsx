@@ -94,7 +94,7 @@ export default function BestSellersSection({ categories = [] }) {
   if (!categories.length) return null
 
   return (
-    <section aria-label="Best sellers" className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
+    <section aria-label="Best sellers" className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>
         <div className="space-y-5 sm:space-y-6">
           {categories.map((category, i) => (

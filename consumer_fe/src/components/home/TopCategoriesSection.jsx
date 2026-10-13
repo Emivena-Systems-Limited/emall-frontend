@@ -29,7 +29,7 @@ export default function TopCategoriesSection() {
   }, [isPending, parentCategories])
 
   return (
-    <section aria-labelledby="top-categories-heading" className="w-full bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
+    <section aria-labelledby="top-categories-heading" className="w-full bg-white py-4 sm:py-5 lg:py-6">
       <Container className="w-full">
         <TopCategoriesCarousel
           categories={categories}

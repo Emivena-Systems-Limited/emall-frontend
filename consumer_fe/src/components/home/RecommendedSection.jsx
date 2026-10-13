@@ -23,7 +23,7 @@ export default function RecommendedSection({ products = [] }) {
   if (!products.length) return null
 
   return (
-    <section aria-labelledby="recommended-heading" className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
+    <section aria-labelledby="recommended-heading" className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>
         <div className={landingSectionPanelClass}>
 

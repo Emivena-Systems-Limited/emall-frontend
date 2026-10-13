@@ -20,7 +20,7 @@ export default function AuthLayout({ children, compact = false, wide = false }) 
       : 'auth-layout-frame--login'
 
   return (
-    <div className="auth-shell fixed inset-0 overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_42%,#f1f5f9_100%)] font-sans text-slate-900">
+    <div className="auth-shell fixed inset-0 overflow-hidden bg-white font-sans text-slate-900">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 auth-bg-dots opacity-70" />
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 auth-bg-grid" />
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 auth-bg-diagonal" />

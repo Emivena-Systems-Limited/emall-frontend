@@ -39,7 +39,7 @@ export default function HomePage() {
   return (
     <SiteLayout>
       <HeroSection />
-      <TopCategoriesSection />
+      {/* <TopCategoriesSection /> */}
       <RecommendedSection products={recommendedProducts} />
       <BestSellersSection categories={bestSellerCategories} />
       <FlashSalesSection products={flashSaleProducts} />

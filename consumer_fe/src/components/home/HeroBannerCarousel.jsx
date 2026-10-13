@@ -1,141 +1,125 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import HeroBannerCard from './HeroBannerCard'
 
 const ease = [0.16, 1, 0.3, 1]
 const AUTOPLAY_MS = 5000
-
-function useSlidesPerView(containerRef) {
-  const [slidesPerView, setSlidesPerView] = useState(1)
-
-  useEffect(() => {
-    const update = () => {
-      const width = containerRef.current?.clientWidth ?? window.innerWidth
-
-      if (width < 640) {
-        setSlidesPerView(1)
-        return
-      }
-
-      if (width < 1024) {
-        setSlidesPerView(2)
-        return
-      }
-
-      setSlidesPerView(4)
-    }
-
-    update()
-    window.addEventListener('resize', update)
-
-    const container = containerRef.current
-    const resizeObserver = container ? new ResizeObserver(update) : null
-    if (container) resizeObserver.observe(container)
-
-    return () => {
-      window.removeEventListener('resize', update)
-      resizeObserver?.disconnect()
-    }
-  }, [containerRef])
-
-  return slidesPerView
-}
-
-function buildPages(banners, slidesPerView) {
-  const pages = []
-
-  for (let i = 0; i < banners.length; i += slidesPerView) {
-    const page = banners.slice(i, i + slidesPerView)
-
-    if (page.length === 0) continue
-
-    if (page.length < slidesPerView) {
-      let fillIndex = 0
-      while (page.length < slidesPerView) {
-        page.push(banners[fillIndex % banners.length])
-        fillIndex += 1
-      }
-    }
-
-    pages.push(page)
-  }
-
-  return pages
-}
+const SLIDE_MS = 550
 
 export default function HeroBannerCarousel({ banners }) {
-  const containerRef = useRef(null)
-  const slidesPerView = useSlidesPerView(containerRef)
-  const pages = useMemo(() => buildPages(banners, slidesPerView), [banners, slidesPerView])
-  const pageCount = pages.length
-
-  const [activePage, setActivePage] = useState(0)
+  const count = banners.length
+  const looped = count > 1
+  const slides = looped ? [banners[count - 1], ...banners, banners[0]] : banners
+  const [index, setIndex] = useState(looped ? 1 : 0)
+  const [instant, setInstant] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
+  const indexRef = useRef(index)
+  indexRef.current = index
 
-  useEffect(() => {
-    setActivePage((prev) => Math.min(prev, Math.max(0, pageCount - 1)))
-  }, [pageCount, slidesPerView])
+  const active = !looped ? 0 : index === 0 ? count - 1 : index === count + 1 ? 0 : index - 1
 
-  const goToPage = useCallback(
-    (pageIndex) => {
-      setActivePage(Math.min(Math.max(pageIndex, 0), pageCount - 1))
+  const goTo = useCallback(
+    (slideIndex) => {
+      if (!count) return
+      setInstant(false)
+      setIndex(looped ? slideIndex + 1 : slideIndex)
     },
-    [pageCount],
+    [count, looped],
   )
 
   const goNext = useCallback(() => {
-    setActivePage((prev) => (prev >= pageCount - 1 ? 0 : prev + 1))
-  }, [pageCount])
+    if (!looped) return
+    setInstant(false)
+    setIndex((prev) => Math.min(prev + 1, count + 1))
+  }, [count, looped])
 
   const goPrev = useCallback(() => {
-    setActivePage((prev) => (prev <= 0 ? pageCount - 1 : prev - 1))
-  }, [pageCount])
+    if (!looped) return
+    setInstant(false)
+    setIndex((prev) => Math.max(prev - 1, 0))
+  }, [looped])
+
+  const settleClone = useCallback(() => {
+    const current = indexRef.current
+
+    if (current === count + 1) {
+      setInstant(true)
+      setIndex(1)
+      return
+    }
+
+    if (current === 0) {
+      setInstant(true)
+      setIndex(count)
+    }
+  }, [count])
 
   useEffect(() => {
-    if (isPaused || pageCount <= 1) return undefined
+    if (!looped || (index !== 0 && index !== count + 1)) return undefined
+
+    const id = window.setTimeout(settleClone, SLIDE_MS)
+    return () => window.clearTimeout(id)
+  }, [index, count, looped, settleClone])
+
+  useEffect(() => {
+    if (!instant) return undefined
+
+    let frame = 0
+    const outer = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => setInstant(false))
+    })
+
+    return () => {
+      window.cancelAnimationFrame(outer)
+      window.cancelAnimationFrame(frame)
+    }
+  }, [instant, index])
+
+  useEffect(() => {
+    if (isPaused || !looped) return undefined
 
     const id = window.setInterval(goNext, AUTOPLAY_MS)
     return () => window.clearInterval(id)
-  }, [isPaused, goNext, pageCount])
+  }, [isPaused, goNext, looped])
+
+  if (!count) return null
 
   return (
     <div
-      ref={containerRef}
       className="relative"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
       onBlur={() => setIsPaused(false)}
     >
-      <div className="overflow-hidden">
-        <motion.div
+      <div className="overflow-hidden rounded-2xl sm:rounded-3xl">
+        <div
           className="flex"
-          animate={{ x: `-${activePage * 100}%` }}
-          transition={{ duration: 0.55, ease }}
+          data-hero-index={index}
+          style={{
+            transform: `translateX(-${index * 100}%)`,
+            transition: instant ? 'none' : `transform ${SLIDE_MS}ms cubic-bezier(${ease.join(',')})`,
+          }}
         >
-          {pages.map((page, pageIndex) => (
+          {slides.map((banner, slideIndex) => (
             <div
-              key={`page-${pageIndex}`}
-              className="flex w-full shrink-0 gap-1.5 sm:gap-2 lg:gap-2.5"
+              key={`${banner.id}-${slideIndex}`}
+              className="w-full shrink-0"
+              aria-hidden={looped && (slideIndex === 0 || slideIndex === count + 1) ? true : undefined}
             >
-              {page.map((banner, index) => (
-                <div key={`${banner.id}-${pageIndex}-${index}`} className="min-w-0 flex-1">
-                  <HeroBannerCard banner={banner} />
-                </div>
-              ))}
+              <HeroBannerCard banner={banner} />
             </div>
           ))}
-        </motion.div>
+        </div>
       </div>
 
-      {pageCount > 1 && (
+      {looped ? (
         <>
           <button
             type="button"
             aria-label="Previous banners"
             onClick={goPrev}
-            className="absolute left-2 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 text-slate-700 shadow-md transition-colors hover:bg-white sm:left-3 sm:size-10"
+            className="absolute top-1/2 left-2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white sm:left-4 sm:size-10"
           >
             <ChevronLeft className="size-5" strokeWidth={2.25} />
           </button>
@@ -143,35 +127,33 @@ export default function HeroBannerCarousel({ banners }) {
             type="button"
             aria-label="Next banners"
             onClick={goNext}
-            className="absolute right-2 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 text-slate-700 shadow-md transition-colors hover:bg-white sm:right-3 sm:size-10"
+            className="absolute top-1/2 right-2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white sm:right-4 sm:size-10"
           >
             <ChevronRight className="size-5" strokeWidth={2.25} />
           </button>
         </>
-      )}
+      ) : null}
 
-      {pageCount > 1 && (
+      {looped ? (
         <div className="mt-3 flex items-center justify-center gap-2">
-          {pages.map((_, index) => {
-            const isActive = index === activePage
+          {banners.map((banner, slideIndex) => {
+            const isActive = slideIndex === active
 
             return (
               <button
-                key={index}
+                key={banner.id}
                 type="button"
-                aria-label={`Go to banner page ${index + 1}`}
+                aria-label={`Go to ${banner.name}`}
                 aria-current={isActive ? 'true' : undefined}
-                onClick={() => goToPage(index)}
+                onClick={() => goTo(slideIndex)}
                 className={`rounded-full transition-all duration-300 ${
-                  isActive
-                    ? 'size-2.5 bg-auth-primary'
-                    : 'size-2 bg-slate-300 hover:bg-slate-400'
+                  isActive ? 'size-2.5 bg-[#ffe14d]' : 'size-2 bg-[#ffe14d]/45 hover:bg-[#ffe14d]/70'
                 }`}
               />
             )
           })}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

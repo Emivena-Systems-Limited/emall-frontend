@@ -24,7 +24,7 @@ export default function FlashSalesSection({ products = [] }) {
   if (!products.length) return null
 
   return (
-    <section aria-labelledby="flash-sales-heading" className="bg-[#f2f2f2] py-4 sm:py-5 lg:py-6">
+    <section aria-labelledby="flash-sales-heading" className="bg-white py-4 sm:py-5 lg:py-6">
       <Container>
         <div className={landingSectionPanelClass}>
           <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
