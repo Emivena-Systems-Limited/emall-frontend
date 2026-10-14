@@ -405,12 +405,11 @@ export default function ProductListingPage({ type = 'all' }) {
                     animate={{ width: FILTER_SIDEBAR_WIDTH, opacity: 1 }}
                     exit={{ width: 0, opacity: 0 }}
                     transition={{ duration: 0.35, ease: LAYOUT_EASE }}
-                    className="hidden shrink-0 overflow-hidden lg:sticky lg:top-20 lg:z-20 lg:block lg:self-start"
+                    className="hidden shrink-0 overflow-hidden lg:sticky lg:top-16 lg:z-20 lg:block lg:self-start"
                   >
                     <div
                       style={{ width: FILTER_SIDEBAR_WIDTH }}
-                      data-scroll-root=""
-                      className="scrollbar-theme max-h-[calc(100vh-6.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60"
+                      className="flex max-h-[calc(100vh-4.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60"
                     >
                       <CategoryFilterPanelContent
                         parentCategories={parentCategories}
@@ -444,6 +443,7 @@ export default function ProductListingPage({ type = 'all' }) {
                 <CategoryProductsPanel
                   id="listing-products"
                   bare
+                  layout={viewMode}
                   products={products}
                   pagination={pagination}
                   isPending={catalogQuery.isPending}
@@ -456,7 +456,7 @@ export default function ProductListingPage({ type = 'all' }) {
                   onPageChange={handlePageChange}
                   gridClassName={
                     viewMode === 'list'
-                      ? 'grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] [&>*]:min-w-0'
+                      ? 'grid grid-cols-1 gap-3 sm:gap-4 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] [&>*]:min-w-0'
                       : desktopFiltersOpen
                         ? 'grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] [&>*]:min-w-0'
                         : 'grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] [&>*]:min-w-0'

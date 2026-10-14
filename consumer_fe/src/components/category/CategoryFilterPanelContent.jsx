@@ -36,6 +36,7 @@ import {
 } from '../../utils/listingFilterParams'
 import {
   clearCatalogQueryParams,
+  countSidebarCatalogFilters,
   isFreeShippingOnlyEnabled,
   isIncludeOutOfStockEnabled,
   isInStockOnlyEnabled,
@@ -998,12 +999,30 @@ export default function CategoryFilterPanelContent({
   const storeOptions = facetOptions.stores ?? []
   const isBrowseLayout = layout === 'browse'
   const pricePresets = isBrowseLayout ? LISTING_PRICE_PRESETS : PRICE_PRESETS
+  const hasActiveBrowseFilters = (
+    !allCategoriesActive
+    || selectedSubcategorySlugs.length > 0
+    || countSidebarCatalogFilters(searchParams) > 0
+  )
 
   if (isBrowseLayout) {
-    return (
-      <div className="flex flex-col px-4 pb-4 pt-2 sm:px-5 sm:pt-4">
-        {showHeading ? (
-          <h2 className="mb-3 text-base font-bold text-slate-950">Filters</h2>
+    const clearFiltersButton = (
+      <button
+        type="button"
+        onClick={handleClearAll}
+        disabled={!hasActiveBrowseFilters}
+        className="text-xs font-semibold text-nav-red transition-colors hover:text-nav-red-deep disabled:cursor-default disabled:text-slate-300"
+      >
+        Clear Filters
+      </button>
+    )
+
+    const browseBody = (
+      <>
+        {!showHeading ? (
+          <div className="mb-3 flex items-center justify-end border-b border-slate-100 pb-3">
+            {clearFiltersButton}
+          </div>
         ) : null}
         <section className="border-b border-slate-100 pb-4">
           <h3 className="text-[0.6875rem] font-bold tracking-[0.12em] text-slate-900 uppercase">
@@ -1151,6 +1170,29 @@ export default function CategoryFilterPanelContent({
           enabled={freeShippingOnly}
           onToggle={() => handleToggleFlag(CATALOG_FREE_SHIPPING_PARAM, !freeShippingOnly)}
         />
+      </>
+    )
+
+    if (!showHeading) {
+      return (
+        <div className="flex flex-col px-4 pb-4 pt-2 sm:px-5 sm:pt-4">
+          {browseBody}
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 pt-4 pb-3 sm:px-5">
+          <h2 className="text-base font-bold text-slate-950">Filters</h2>
+          {clearFiltersButton}
+        </div>
+        <div
+          data-scroll-root=""
+          className="scrollbar-theme min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 sm:px-5"
+        >
+          {browseBody}
+        </div>
       </div>
     )
   }

@@ -5,7 +5,22 @@ import { getCatalogErrorMessage } from '../../utils/catalogQueryParams'
 
 const GRID_CLASS = 'grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-4 [&>*]:min-w-0'
 
-function ProductCardSkeleton() {
+function ProductCardSkeleton({ layout = 'grid' }) {
+  if (layout === 'list') {
+    return (
+      <div className="flex gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:gap-4 sm:p-4">
+        <div className="size-[6.5rem] shrink-0 animate-pulse rounded-xl bg-slate-100 sm:size-36" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2 py-0.5">
+          <div className="h-3 w-2/5 animate-pulse rounded bg-slate-100" />
+          <div className="h-4 w-4/5 animate-pulse rounded bg-slate-100" />
+          <div className="h-3.5 w-1/3 animate-pulse rounded bg-slate-100" />
+          <div className="h-5 w-1/4 animate-pulse rounded bg-slate-100" />
+          <div className="mt-auto h-10 w-full animate-pulse rounded-xl bg-slate-100" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="aspect-square animate-pulse bg-slate-100" />
@@ -145,10 +160,12 @@ export default function CategoryProductsPanel({
   onRetry,
   onPageChange,
   bare = false,
+  layout = 'grid',
   gridClassName = GRID_CLASS,
 }) {
   const showSkeleton = isPending && products.length === 0
   const rangeLabel = formatResultRange(pagination.currentPage, pagination.perPage, pagination.total)
+  const skeletonCount = layout === 'list' ? 6 : 8
 
   return (
     <div
@@ -177,8 +194,8 @@ export default function CategoryProductsPanel({
 
       {showSkeleton ? (
         <div className={gridClassName} aria-hidden>
-          {Array.from({ length: 8 }, (_, index) => (
-            <ProductCardSkeleton key={index} />
+          {Array.from({ length: skeletonCount }, (_, index) => (
+            <ProductCardSkeleton key={index} layout={layout} />
           ))}
         </div>
       ) : isError && products.length === 0 ? (
@@ -194,7 +211,7 @@ export default function CategoryProductsPanel({
           ) : null}
           <div className={`${gridClassName} ${isPlaceholderData || isFetching ? 'opacity-70' : ''} transition-opacity`}>
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} layout={layout} />
             ))}
           </div>
           <CatalogPagination

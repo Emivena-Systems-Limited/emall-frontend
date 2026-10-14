@@ -36,6 +36,7 @@ import {
 import { getProductReviews } from '../services/reviewService'
 import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
+import { buildCategoryListingHref } from '../utils/listingFilterParams'
 import { STORE_DELIVERY_ELIGIBILITY_ENABLED, STORE_DIRECTORY_ENABLED, LOCK_PURCHASE_ACTIONS } from '../config/featureFlags'
 import { notify } from '../lib/notify'
 import { addToWishlist, getUserWishlist, removeFromWishlist } from '../services/wishlistService'
@@ -2317,6 +2318,62 @@ function resolveInitialVariantSelections(product) {
   return { selections, compatibleModel }
 }
 
+function ProductDetailsBreadcrumb({
+  title,
+  categoryLabel,
+  categorySlug,
+  subcategoryLabel,
+  subcategorySlug,
+}) {
+  const linkClass = 'cursor-pointer text-slate-400 transition-colors hover:text-slate-700'
+  const categoryHref = categorySlug ? buildCategoryListingHref(categorySlug) : null
+  const subcategoryHref = categorySlug && subcategorySlug
+    ? buildCategoryListingHref(categorySlug, subcategorySlug)
+    : null
+
+  return (
+    <nav aria-label="Breadcrumb">
+      <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+        <li>
+          <Link to="/" className={linkClass}>Home</Link>
+        </li>
+        <li aria-hidden="true" className="text-slate-300">/</li>
+        <li>
+          <Link to="/products" className={linkClass}>Products</Link>
+        </li>
+        {categoryLabel ? (
+          <>
+            <li aria-hidden="true" className="text-slate-300">/</li>
+            <li>
+              {categoryHref ? (
+                <Link to={categoryHref} className={linkClass}>{categoryLabel}</Link>
+              ) : (
+                <span className="text-slate-400">{categoryLabel}</span>
+              )}
+            </li>
+          </>
+        ) : null}
+        {subcategoryLabel ? (
+          <>
+            <li aria-hidden="true" className="text-slate-300">/</li>
+            <li>
+              {subcategoryHref ? (
+                <Link to={subcategoryHref} className={linkClass}>{subcategoryLabel}</Link>
+              ) : (
+                <span className="text-slate-400">{subcategoryLabel}</span>
+              )}
+            </li>
+          </>
+        ) : null}
+        <li aria-hidden="true" className="text-slate-300">/</li>
+        <li aria-current="page" className="max-w-[16rem] truncate text-slate-500 sm:max-w-md">
+          {title}
+        </li>
+      </ol>
+    </nav>
+  )
+}
+
 function ProductDetailsView({ product, apiProduct, landingData }) {
   const queryClient = useQueryClient()
   const initialSelections = useMemo(() => resolveInitialVariantSelections(product), [product])
@@ -2619,6 +2676,17 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
   return (
     <SiteLayout>
+      <div className="hidden border-y border-slate-200 bg-white sm:block">
+        <Container className="py-2.5">
+          <ProductDetailsBreadcrumb
+            title={product.title ?? product.name ?? 'Product'}
+            categoryLabel={product.category}
+            categorySlug={product.categorySlug}
+            subcategoryLabel={product.subcategory}
+            subcategorySlug={product.subcategorySlug}
+          />
+        </Container>
+      </div>
       <main className="bg-white py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
           <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
