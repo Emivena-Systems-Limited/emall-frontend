@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowRight } from 'lucide-react'
 import AuthLayout from '../../components/auth/AuthLayout'
 import AuthHomeLink from '../../components/auth/AuthHomeLink'
 import AuthTabs from '../../components/auth/AuthTabs'
@@ -30,6 +31,7 @@ import {
   validateGhanaPhone,
 } from '../../utils/validateGhanaPhone'
 import { scrollToFirstError } from '../../utils/scrollToFirstError'
+import Images from '../../utils/Images'
 
 const tabContentVariants = {
   initial: { opacity: 0, x: 12 },
@@ -167,19 +169,23 @@ export default function LoginPage() {
     }
   }
 
+  const registerState = buyNowAuthState ?? (redirectTo ? { from: redirectTo } : undefined)
+
   return (
-    <AuthLayout>
-      <motion.div {...formHeaderMotion} className="text-center">
-        <p className="auth-subheading font-medium tracking-wide text-auth-muted">
-          {buyNowItem ? 'Almost yours' : 'Welcome back'}
-        </p>
-        <h1 className="auth-heading mt-1.5 font-bold tracking-tight text-slate-900">
-          {buyNowItem ? 'Sign in to buy now' : 'Login to your account'}
+    <AuthLayout split panelImage={Images.auth.login_img}>
+      <motion.div {...formHeaderMotion} className="text-left">
+        <h1 className="text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2rem]">
+          {buyNowItem ? 'Sign in to buy now' : 'Welcome back'}
         </h1>
-        <p className="auth-body mx-auto mt-1.5 max-w-sm leading-relaxed text-slate-500">
+        <p className="mt-2 text-base font-medium text-slate-600">
+          {buyNowItem ? 'Almost yours' : 'Sign in to your eezmall account'}
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-400">
           {buyNowItem
             ? 'Verify with a code and we’ll take you straight to checkout for the item you’re holding.'
-            : 'Sign in with your phone number or email to continue shopping.'}
+            : activeTab === 'phone'
+              ? 'We’ll send a one-time code to your phone to sign you in.'
+              : 'We’ll send a one-time code to your email to sign you in.'}
         </p>
       </motion.div>
 
@@ -187,10 +193,10 @@ export default function LoginPage() {
         variants={formStaggerContainer}
         initial="hidden"
         animate="visible"
-        className="mt-4 sm:mt-5"
+        className="mt-6 sm:mt-7"
       >
         {buyNowItem ? (
-          <div className="-mt-1">
+          <div className="-mt-1 mb-4">
             <BuyNowAuthResume item={buyNowItem} onCancel={handleCancelBuyNow} />
           </div>
         ) : null}
@@ -253,30 +259,36 @@ export default function LoginPage() {
               type="submit"
               disabled={isSubmitting}
               whileTap={{ scale: 0.985 }}
-              className="mt-2 w-full rounded-xl bg-auth-primary py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3 min-[1800px]:py-4 min-[1800px]:text-base"
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-auth-primary py-3 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3.5"
             >
               {isSubmitting
                 ? 'Sending code…'
                 : buyNowItem
                   ? 'Send code & continue'
-                  : 'Login'}
+                  : (
+                    <>
+                      Send verification code
+                      <ArrowRight className="size-4" strokeWidth={2.25} aria-hidden="true" />
+                    </>
+                  )}
             </motion.button>
           </motion.div>
         </form>
 
-        <motion.p
-          variants={formActionsMotion}
-          className="auth-body mt-4 text-center text-auth-muted sm:mt-5"
-        >
-          Don&apos;t have an account?{' '}
+        <motion.div variants={formActionsMotion} className="mt-7 sm:mt-8">
+          <div className="relative flex items-center">
+            <div aria-hidden="true" className="h-px flex-1 bg-slate-200" />
+            <span className="px-3 text-xs font-medium text-slate-400">New to eezmall?</span>
+            <div aria-hidden="true" className="h-px flex-1 bg-slate-200" />
+          </div>
           <Link
             to="/register"
-            state={buyNowAuthState ?? (redirectTo ? { from: redirectTo } : undefined)}
-            className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
+            state={registerState}
+            className="mt-4 flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 sm:py-3.5"
           >
-            Register
+            Create account
           </Link>
-        </motion.p>
+        </motion.div>
 
         <AuthHomeLink
           to={buyNowItem?.href || '/'}

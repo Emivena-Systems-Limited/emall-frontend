@@ -117,7 +117,7 @@ export default function AccountAddressesPanel({ data, isLoading }) {
       <div className="flex flex-col gap-4 rounded-2xl bg-linear-to-br from-[#b92f23] to-auth-primary p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between sm:p-7">
         <div>
           <p className="text-sm font-semibold text-white/70">Address book</p>
-          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Your saved addresses</h1>
+          <h1 className="mt-1 text-lg font-bold sm:text-xl">Your saved addresses</h1>
           <p className="mt-2 max-w-xl text-sm text-white/75">Manage the delivery and billing locations used during checkout.</p>
         </div>
         <button
@@ -142,7 +142,7 @@ export default function AccountAddressesPanel({ data, isLoading }) {
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">
                   {type === 'shipping' ? 'Delivery' : 'Payments'}
                 </p>
-                <h2 className="mt-1 text-xl font-bold text-slate-950">
+                <h2 className="mt-1 text-base font-bold text-slate-950">
                   {type === 'shipping' ? 'Delivery addresses' : 'Billing addresses'}
                 </h2>
               </div>
@@ -188,7 +188,13 @@ export default function AccountAddressesPanel({ data, isLoading }) {
             const { name, value, type: inputType, checked } = event.target
             setForm((current) => ({ ...current, [name]: inputType === 'checkbox' ? checked : value }))
           }}
-          onRegionChange={(region) => setForm((current) => ({ ...current, region, city_or_town: '', town_custom: '' }))}
+          onRegionChange={(region) => setForm((current) => ({
+            ...current,
+            region,
+            city_or_town: '',
+            town_custom: '',
+            district: '',
+          }))}
           onTownChange={(city_or_town) => setForm((current) => ({
             ...current,
             city_or_town,

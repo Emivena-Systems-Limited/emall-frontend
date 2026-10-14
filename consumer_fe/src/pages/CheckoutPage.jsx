@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowLeft,
+  ArrowRight,
   Building2,
   Calendar,
   Check,
@@ -17,6 +19,8 @@ import {
   Pencil,
   Phone,
   Plus,
+  Save,
+  Store,
   Trash2,
   Truck,
   User,
@@ -62,6 +66,7 @@ import {
   LOCATION_OTHER_VALUE,
   getCityLabel,
   getCityOptionsByRegion,
+  getDistrictsByRegion,
 } from '../constants/ghanaLocations'
 import {
   validateGhanaPhone,
@@ -91,15 +96,45 @@ const paymentOptions = [
   { id: 'airteltigo', label: 'AirtelTigo Cash', type: 'airteltigo', image: Images.networks.at_cash },
 ]
 
+const DELIVERY_METHODS = [
+  {
+    id: 'home',
+    label: 'Home Delivery',
+    description: 'Delivered directly to your address. Fee based on location and speed.',
+    icon: Truck,
+  },
+  {
+    id: 'pickup_station',
+    label: 'Pickup Station',
+    description: 'Collect from a nearby partner station. Flat fee of ₵5.00.',
+    badge: { label: 'Coming soon', tone: 'muted' },
+    comingSoon: true,
+    icon: PackageCheck,
+  },
+  {
+    id: 'store_pickup',
+    label: 'Store Pickup',
+    description: "Pick up directly from the vendor's shop.",
+    badge: { label: 'Free', tone: 'green' },
+    icon: Store,
+  },
+]
+
 const initialAddress = {
   id: null,
   firstName: '',
   lastName: '',
+  email: '',
   region: '',
   town: '',
   townCustom: '',
+  district: '',
   address: '',
+  landmark: '',
+  digitalAddress: '',
+  country: 'Ghana',
   phone: '',
+  saveForFuture: true,
 }
 
 const initialCardDetails = {
@@ -265,13 +300,19 @@ function normalizeAddress(address) {
     id: address.id ?? address.address_id ?? null,
     firstName: address.first_name ?? address.firstName ?? firstName,
     lastName: address.last_name ?? address.lastName ?? lastNameParts.join(' '),
+    email: address.email ?? address.email_address ?? '',
     region: regionId,
     town: address.town === LOCATION_OTHER_VALUE ? LOCATION_OTHER_VALUE : town,
     townCustom: address.town === LOCATION_OTHER_VALUE
       ? String(address.townCustom ?? townRaw).trim()
       : townCustom,
+    district: address.district ?? address.district_id ?? '',
     address: address.address_line_1 ?? address.address ?? address.street_address ?? '',
+    landmark: address.landmark ?? address.address_line_2 ?? '',
+    digitalAddress: address.digitalAddress ?? address.digital_address ?? address.ghana_post_address ?? '',
+    country: address.country || 'Ghana',
     phone: address.phone ?? address.phone_number ?? '',
+    saveForFuture: address.saveForFuture !== false,
   }
 }
 
@@ -280,6 +321,7 @@ function buildDeliveryPrefill(user) {
     ...initialAddress,
     firstName: user?.first_name ?? user?.firstName ?? '',
     lastName: user?.last_name ?? user?.lastName ?? '',
+    email: user?.email ?? '',
     phone: user?.phone_number ?? user?.phone ?? '',
   }
 }
@@ -293,18 +335,26 @@ function buildBillingPrefill(user, shippingAddress) {
     : { town: savedShipping.town, townCustom: savedShipping.townCustom }
 
   return {
-    id: null,
+    ...initialAddress,
     firstName: user?.first_name ?? user?.firstName ?? savedShipping.firstName,
     lastName: user?.last_name ?? user?.lastName ?? savedShipping.lastName,
+    email: user?.email ?? savedShipping.email ?? '',
     region: regionId,
     town: townValues.town,
     townCustom: townValues.townCustom,
+    district: savedShipping.district ?? '',
     address: user?.address_line_1 ?? user?.address ?? user?.street_address ?? savedShipping.address,
+    landmark: savedShipping.landmark ?? '',
+    digitalAddress: savedShipping.digitalAddress ?? '',
     phone: user?.phone_number ?? user?.phone ?? savedShipping.phone,
   }
 }
 
 function buildSavedAddressPayload(address, type = 'shipping') {
+  const landmark = String(address.landmark ?? '').trim()
+  const digitalAddress = String(address.digitalAddress ?? '').trim()
+  const addressLine2 = [landmark, digitalAddress].filter(Boolean).join(' · ')
+
   return {
     type,
     first_name: String(address.firstName ?? '').trim(),
@@ -313,7 +363,8 @@ function buildSavedAddressPayload(address, type = 'shipping') {
     region: getRegionLabel(address.region),
     city_or_town: getTownLabel(address.region, address.town, address.townCustom),
     address_line_1: String(address.address ?? '').trim(),
-    country: 'Ghana',
+    ...(addressLine2 ? { address_line_2: addressLine2 } : {}),
+    country: String(address.country || 'Ghana').trim() || 'Ghana',
   }
 }
 
@@ -614,10 +665,16 @@ function Field({
   type = 'text',
   inputMode,
   autoComplete,
+  className = '',
+  compact = false,
 }) {
   return (
-    <label className="grid gap-2">
-      <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+    <label className={`grid ${compact ? 'gap-1.5' : 'gap-2'} ${className}`}>
+      <span
+        className={`inline-flex items-center gap-2 font-semibold text-slate-900 ${
+          compact ? 'text-xs' : 'text-sm'
+        }`}
+      >
         {Icon ? (
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-auth-primary/10 text-auth-primary">
             <Icon className="size-3.5" strokeWidth={2.1} aria-hidden />
@@ -625,7 +682,7 @@ function Field({
         ) : null}
         <span className="min-w-0">
           {label}
-          {required ? <span className="ml-1 text-auth-primary">*</span> : null}
+          {required ? <span className="text-auth-primary">*</span> : null}
         </span>
       </span>
       <input
@@ -638,10 +695,14 @@ function Field({
         inputMode={inputMode}
         autoComplete={autoComplete}
         aria-invalid={Boolean(error)}
-        className={`h-12 rounded-2xl border bg-white px-4 text-sm outline-none transition-colors placeholder:text-slate-300 sm:h-13 ${
+        className={`w-full rounded-xl border bg-white outline-none transition-colors placeholder:text-slate-400 ${
+          compact
+            ? 'min-h-[2.375rem] px-3 py-2.5 text-xs'
+            : 'h-11 px-3.5 text-sm'
+        } ${
           error
             ? 'border-auth-primary focus:border-auth-primary focus:ring-2 focus:ring-auth-primary/15'
-            : 'border-slate-300 focus:border-auth-primary focus:ring-2 focus:ring-auth-primary/10'
+            : 'border-slate-200 focus:border-auth-primary focus:ring-2 focus:ring-auth-primary/10'
         }`}
       />
       {error ? (
@@ -653,12 +714,299 @@ function Field({
   )
 }
 
-function CheckoutIntro() {
+function AddAddressButton({ label, onClick }) {
   return (
-    <section className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Checkout</h1>
-      <p className="mt-2 text-sm text-slate-800">Save your information for faster checkout</p>
-    </section>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-center gap-2 rounded-full border border-dashed border-slate-300 bg-white px-4 py-3.5 text-sm font-semibold text-auth-primary transition-colors hover:border-auth-primary/50 hover:bg-red-50/40"
+    >
+      <span className="flex size-6 items-center justify-center rounded-full bg-auth-primary text-white">
+        <Plus className="size-3.5" strokeWidth={2.5} aria-hidden />
+      </span>
+      {label}
+    </button>
+  )
+}
+
+function DeliveryMethodPicker({ value, onChange }) {
+  return (
+    <div>
+      <h2 className="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+        How would you like to receive your order?
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Choose your preferred delivery method before entering your details.
+      </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {DELIVERY_METHODS.map((method) => {
+          const selected = value === method.id
+          const Icon = method.icon
+          const isComingSoon = Boolean(method.comingSoon)
+
+          return (
+            <button
+              key={method.id}
+              type="button"
+              disabled={isComingSoon}
+              onClick={() => {
+                if (!isComingSoon) onChange(method.id)
+              }}
+              className={`rounded-2xl border p-3.5 text-left transition-colors ${
+                isComingSoon
+                  ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-70'
+                  : selected
+                    ? 'border-auth-primary bg-red-50/40 ring-1 ring-auth-primary/20'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
+            >
+              <span className="flex items-start gap-2.5">
+                <span
+                  className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border ${
+                    selected && !isComingSoon
+                      ? 'border-auth-primary bg-auth-primary'
+                      : 'border-slate-300 bg-white'
+                  }`}
+                  aria-hidden
+                >
+                  {selected && !isComingSoon ? <span className="size-1.5 rounded-full bg-white" /> : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className={`text-sm font-bold ${isComingSoon ? 'text-slate-500' : 'text-slate-950'}`}>
+                      {method.label}
+                    </span>
+                    {method.badge ? (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide ${
+                          method.badge.tone === 'green'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : method.badge.tone === 'muted'
+                              ? 'bg-slate-200 text-slate-600'
+                              : 'bg-red-50 text-auth-primary'
+                        }`}
+                      >
+                        {method.badge.label}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="mt-1 block text-xs leading-relaxed text-slate-500">
+                    {method.description}
+                  </span>
+                  <span className="mt-2 inline-flex text-slate-400">
+                    <Icon className="size-3.5" aria-hidden />
+                  </span>
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function AddressFormFields({
+  idPrefix,
+  address,
+  errors = {},
+  onAddressChange,
+  onAddressBlur,
+  onRegionChange,
+  onTownChange,
+  onTownCustomChange,
+}) {
+  const townOptions = useMemo(
+    () => getCityOptionsByRegion(address.region),
+    [address.region],
+  )
+  const districtOptions = useMemo(
+    () => getDistrictsByRegion(address.region).map((district) => ({
+      value: district.id,
+      label: district.name,
+    })),
+    [address.region],
+  )
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="First Name"
+          name="firstName"
+          required
+          compact
+          value={address.firstName}
+          onChange={onAddressChange}
+          onBlur={onAddressBlur}
+          error={errors.firstName}
+          placeholder="John"
+          autoComplete="given-name"
+        />
+        <Field
+          label="Last Name"
+          name="lastName"
+          required
+          compact
+          value={address.lastName}
+          onChange={onAddressChange}
+          onBlur={onAddressBlur}
+          error={errors.lastName}
+          placeholder="Doe"
+          autoComplete="family-name"
+        />
+      </div>
+
+      <Field
+        label="Email Address"
+        name="email"
+        type="email"
+        compact
+        value={address.email}
+        onChange={onAddressChange}
+        onBlur={onAddressBlur}
+        error={errors.email}
+        placeholder="john@example.com"
+        autoComplete="email"
+      />
+
+      <Field
+        label="Phone Number"
+        name="phone"
+        required
+        type="tel"
+        inputMode="tel"
+        compact
+        value={address.phone}
+        onChange={onAddressChange}
+        onBlur={onAddressBlur}
+        error={errors.phone}
+        placeholder="024 123 4567"
+        autoComplete="tel"
+      />
+
+      <Field
+        label="Street Address / House No."
+        name="address"
+        required
+        compact
+        value={address.address}
+        onChange={onAddressChange}
+        onBlur={onAddressBlur}
+        error={errors.address}
+        placeholder="House 12, Ring Road"
+        autoComplete="street-address"
+      />
+
+      <Field
+        label="Landmark / Area (optional)"
+        name="landmark"
+        compact
+        value={address.landmark}
+        onChange={onAddressChange}
+        onBlur={onAddressBlur}
+        placeholder="Near Accra Mall"
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SearchableSelect
+          id={`${idPrefix}-region`}
+          label="Region"
+          compact
+          value={address.region}
+          onChange={onRegionChange}
+          options={regionOptions}
+          placeholder="Search regions…"
+          emptyLabel="Select region"
+          error={errors.region}
+        />
+        <SearchableSelect
+          id={`${idPrefix}-town`}
+          label="City / Town"
+          compact
+          value={address.town}
+          onChange={onTownChange}
+          options={townOptions}
+          placeholder="Accra"
+          emptyLabel="Select city"
+          allowOther
+          otherValue={LOCATION_OTHER_VALUE}
+          otherLabel="Other (enter custom city)"
+          customValue={address.townCustom}
+          onCustomChange={onTownCustomChange}
+          customInputPlaceholder="Type your city name"
+          error={errors.town}
+          customError={errors.townCustom}
+          disabled={!address.region}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SearchableSelect
+          id={`${idPrefix}-district`}
+          label="District"
+          compact
+          value={address.district}
+          onChange={(value) => onAddressChange({ target: { name: 'district', value } })}
+          options={districtOptions}
+          placeholder="Search districts…"
+          emptyLabel={address.region ? 'Select district' : 'Select region first'}
+          disabled={!address.region}
+        />
+        <Field
+          label="GhanaPost Digital Address"
+          name="digitalAddress"
+          compact
+          value={address.digitalAddress}
+          onChange={onAddressChange}
+          onBlur={onAddressBlur}
+          placeholder="GA-123-4567"
+        />
+      </div>
+
+    </div>
+  )
+}
+
+function CheckoutIntro({ step = 'delivery', onBackToDelivery }) {
+  const linkClass = 'cursor-pointer text-slate-400 transition-colors hover:text-slate-700'
+  const isPaymentStep = step === 'payment'
+
+  return (
+    <header className="min-w-0">
+      <nav aria-label="Breadcrumb">
+        <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+          <li>
+            <Link to="/" className={linkClass}>Home</Link>
+          </li>
+          <li aria-hidden="true" className="text-slate-300">/</li>
+          <li>
+            <Link to="/cart" className={linkClass}>Cart</Link>
+          </li>
+          <li aria-hidden="true" className="text-slate-300">/</li>
+          <li aria-current={isPaymentStep ? undefined : 'page'}>
+            {isPaymentStep ? (
+              <button type="button" onClick={onBackToDelivery} className={linkClass}>
+                Delivery
+              </button>
+            ) : (
+              <span className="text-slate-500">Checkout</span>
+            )}
+          </li>
+          {isPaymentStep ? (
+            <>
+              <li aria-hidden="true" className="text-slate-300">/</li>
+              <li aria-current="page" className="text-slate-500">Payment</li>
+            </>
+          ) : null}
+        </ol>
+      </nav>
+      <div aria-hidden="true" className="mt-3 border-b border-slate-200" />
+      <h1 className="mt-4 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+        {isPaymentStep ? 'Payment' : 'Secure Checkout'}
+      </h1>
+    </header>
   )
 }
 
@@ -749,166 +1097,99 @@ function DeliveryInformation({
   onDeleteAddress,
   deletingAddressId,
   onAddAddress,
+  onCancel,
   onSaveAddress,
 }) {
-  const townOptions = useMemo(
-    () => getCityOptionsByRegion(address.region),
-    [address.region],
-  )
+  const addAnchorRef = useRef(null)
+  const restoreScrollOnCloseRef = useRef(false)
+  const showEmptyState = savedAddresses.length === 0 && !isAddingAddress && canSaveAddress
+  const showForm = isAddingAddress || (savedAddresses.length === 0 && !canSaveAddress)
+  const showList = savedAddresses.length > 0 && !isAddingAddress
+
+  useLayoutEffect(() => {
+    if (isAddingAddress || !restoreScrollOnCloseRef.current) return
+    restoreScrollOnCloseRef.current = false
+    addAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [isAddingAddress])
+
+  const handleCancel = () => {
+    restoreScrollOnCloseRef.current = true
+    onCancel?.()
+  }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
-      <div className="space-y-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-auth-primary/10 text-auth-primary">
-            <Truck className="size-5" strokeWidth={1.9} aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Delivery Address</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Where should we deliver your order?</p>
-          </div>
+    <div>
+      <h2 className="text-lg font-bold tracking-tight text-slate-950">Shipping Address</h2>
+      <p className="mt-1 text-sm text-slate-500">Where should we deliver your order?</p>
+
+      {showEmptyState ? (
+        <div ref={addAnchorRef} className="mt-4">
+          <AddAddressButton label="Add Shipping Address" onClick={onAddAddress} />
         </div>
-        {savedAddresses.length > 0 && !isAddingAddress && (
-          <button
-            type="button"
-            onClick={onAddAddress}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-auth-primary"
+      ) : null}
+
+      {showList ? (
+        <div className="mt-4 space-y-3">
+          <div
+            className={`grid gap-2.5 ${
+              savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
+            }`}
           >
-            <Plus className="size-4" />
-            Add another delivery address
-          </button>
-        )}
-      </div>
+            {savedAddresses.map((savedAddress, index) => {
+              const normalized = normalizeAddress(savedAddress)
+              const selected = normalized.id
+                ? normalized.id === address.id
+                : normalized.address === address.address && normalized.phone === address.phone
 
-      {savedAddresses.length > 0 && !isAddingAddress && (
-        <div
-          className={`mt-4 grid gap-2.5 ${
-            savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
-          }`}
-        >
-          {savedAddresses.map((savedAddress, index) => {
-            const normalized = normalizeAddress(savedAddress)
-            const selected = normalized.id
-              ? normalized.id === address.id
-              : normalized.address === address.address && normalized.phone === address.phone
-
-            return (
-              <SavedAddressCard
-                key={normalized.id ?? `${normalized.address}-${index}`}
-                savedAddress={savedAddress}
-                selected={selected}
-                onSelect={() => onSelectAddress(savedAddress)}
-                onEdit={() => onEditAddress(savedAddress)}
-                onDelete={() => onDeleteAddress(savedAddress)}
-                isDeleting={deletingAddressId === normalized.id}
-              />
-            )
-          })}
-        </div>
-      )}
-
-      {(savedAddresses.length === 0 || isAddingAddress) && (
-        <>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-5">
-            <Field
-              label="First name"
-              name="firstName"
-              icon={User}
-              required
-              value={address.firstName}
-              onChange={onAddressChange}
-              onBlur={onAddressBlur}
-              error={errors.firstName}
-              placeholder="e.g. Ama"
-              autoComplete="given-name"
-            />
-            <Field
-              label="Last name"
-              name="lastName"
-              icon={UserRound}
-              required
-              value={address.lastName}
-              onChange={onAddressChange}
-              onBlur={onAddressBlur}
-              error={errors.lastName}
-              placeholder="e.g. Mensah"
-              autoComplete="family-name"
-            />
-            <SearchableSelect
-              id="delivery-region"
-              label="Region"
-              icon={MapPin}
-              value={address.region}
-              onChange={onRegionChange}
-              options={regionOptions}
-              placeholder="Search regions…"
-              emptyLabel="Select region"
-              error={errors.region}
-            />
-            <SearchableSelect
-              id="delivery-town"
-              label="Town"
-              icon={Building2}
-              value={address.town}
-              onChange={onTownChange}
-              options={townOptions}
-              placeholder="Search towns…"
-              emptyLabel="Select town"
-              allowOther
-              otherValue={LOCATION_OTHER_VALUE}
-              otherLabel="Other (enter custom town)"
-              customValue={address.townCustom}
-              onCustomChange={onTownCustomChange}
-              customInputPlaceholder="Type your town name"
-              error={errors.town}
-              customError={errors.townCustom}
-              disabled={!address.region}
-            />
-            <Field
-              label="Address"
-              name="address"
-              icon={Home}
-              required
-              value={address.address}
-              onChange={onAddressChange}
-              onBlur={onAddressBlur}
-              error={errors.address}
-              placeholder="Street, landmark, or digital address"
-              autoComplete="street-address"
-            />
-            <Field
-              label="Phone Number"
-              name="phone"
-              icon={Phone}
-              required
-              type="tel"
-              inputMode="tel"
-              value={address.phone}
-              onChange={onAddressChange}
-              onBlur={onAddressBlur}
-              error={errors.phone}
-              placeholder="e.g. 024 123 4567"
-              autoComplete="tel"
-            />
+              return (
+                <SavedAddressCard
+                  key={normalized.id ?? `${normalized.address}-${index}`}
+                  savedAddress={savedAddress}
+                  selected={selected}
+                  onSelect={() => onSelectAddress(savedAddress)}
+                  onEdit={() => onEditAddress(savedAddress)}
+                  onDelete={() => onDeleteAddress(savedAddress)}
+                  isDeleting={deletingAddressId === normalized.id}
+                />
+              )
+            })}
           </div>
-          {canSaveAddress && (
+          <div ref={addAnchorRef}>
+            <AddAddressButton label="Add Shipping Address" onClick={onAddAddress} />
+          </div>
+        </div>
+      ) : null}
+
+      {showForm ? (
+        <div className="mt-4">
+          <AddressFormFields
+            idPrefix="shipping"
+            address={address}
+            errors={errors}
+            onAddressChange={onAddressChange}
+            onAddressBlur={onAddressBlur}
+            onRegionChange={onRegionChange}
+            onTownChange={onTownChange}
+            onTownCustomChange={onTownCustomChange}
+          />
+          {canSaveAddress ? (
             <div className="mt-5 flex flex-wrap justify-end gap-3">
-              {savedAddresses.length > 0 && (
+              {(savedAddresses.length > 0 || isAddingAddress) && onCancel ? (
                 <button
                   type="button"
-                  onClick={() => onSelectAddress(savedAddresses[0])}
+                  onClick={handleCancel}
                   disabled={isSavingAddress}
-                  className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
                 </button>
-              )}
+              ) : null}
               <button
                 type="button"
                 onClick={onSaveAddress}
                 disabled={isSavingAddress}
                 aria-busy={isSavingAddress}
-                className="inline-flex min-w-36 items-center justify-center gap-2 rounded-lg bg-auth-primary px-5 py-3 text-sm font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-80"
+                className="inline-flex min-w-36 items-center justify-center gap-2 rounded-full bg-auth-primary px-5 py-2.5 text-sm font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-80"
               >
                 {isSavingAddress ? (
                   <>
@@ -916,14 +1197,17 @@ function DeliveryInformation({
                     Saving…
                   </>
                 ) : (
-                  isEditingAddress ? 'Save changes' : 'Save address'
+                  <>
+                    <Save className="size-4" strokeWidth={2.25} aria-hidden />
+                    {isEditingAddress ? 'Save changes' : 'Save address'}
+                  </>
                 )}
               </button>
             </div>
-          )}
-        </>
-      )}
-    </section>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -948,111 +1232,92 @@ function BillingInformation({
   onCancel,
   onSaveAddress,
 }) {
-  const townOptions = useMemo(
-    () => getCityOptionsByRegion(draftAddress.region),
-    [draftAddress.region],
-  )
+  const addAnchorRef = useRef(null)
+  const restoreScrollOnCloseRef = useRef(false)
+  const showEmptyState = savedAddresses.length === 0 && !isAddingAddress
+  const showList = savedAddresses.length > 0 && !isAddingAddress
+
+  useLayoutEffect(() => {
+    if (isAddingAddress || !restoreScrollOnCloseRef.current) return
+    restoreScrollOnCloseRef.current = false
+    addAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [isAddingAddress])
+
+  const handleCancel = () => {
+    restoreScrollOnCloseRef.current = true
+    onCancel?.()
+  }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-5 lg:px-6">
-      <div className="space-y-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-auth-primary/10 text-auth-primary">
-            <CreditCard className="size-5" strokeWidth={1.9} aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-              Billing Information
-              <span className="ml-1 text-auth-primary">*</span>
-            </h2>
-            <p className="mt-0.5 text-sm text-slate-500">Required for receipts and payment records</p>
+    <div>
+      <h2 className="text-lg font-bold tracking-tight text-slate-950">Billing Address</h2>
+
+      {showEmptyState ? (
+        <div ref={addAnchorRef} className="mt-3 space-y-3">
+          <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm italic text-slate-500">
+            Billing address will be filled once you enter your shipping address above.
+          </p>
+          <AddAddressButton label="Add Billing Address" onClick={onAddAddress} />
+        </div>
+      ) : null}
+
+      {showList ? (
+        <div className="mt-4 space-y-3">
+          <div
+            className={`grid gap-2.5 ${
+              savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
+            }`}
+          >
+            {savedAddresses.map((savedAddress, index) => {
+              const normalized = normalizeAddress(savedAddress)
+              const selected = normalized.id === address.id
+
+              return (
+                <SavedAddressCard
+                  key={normalized.id ?? `${normalized.address}-${index}`}
+                  savedAddress={savedAddress}
+                  selected={selected}
+                  onSelect={() => onSelectAddress(savedAddress)}
+                  onEdit={() => onEditAddress(savedAddress)}
+                  onDelete={() => onDeleteAddress(savedAddress)}
+                  isDeleting={deletingAddressId === normalized.id}
+                />
+              )
+            })}
+          </div>
+          <div ref={addAnchorRef}>
+            <AddAddressButton label="Add Billing Address" onClick={onAddAddress} />
           </div>
         </div>
-        {!isAddingAddress && (
-          <button type="button" onClick={onAddAddress} className="inline-flex items-center gap-2 text-sm font-semibold text-auth-primary">
-            <Plus className="size-4" />
-            {savedAddresses.length > 0 ? 'Add another billing address' : 'Add billing address'}
-          </button>
-        )}
-      </div>
+      ) : null}
 
-      {savedAddresses.length === 0 && !isAddingAddress && (
-        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900" role="alert">
-          A billing address is required. Add one before placing your order.
-        </p>
-      )}
-
-      {savedAddresses.length > 0 && !isAddingAddress && (
-        <div
-          className={`mt-4 grid gap-2.5 ${
-            savedAddresses.length > 6 ? 'max-h-80 overflow-y-auto pr-1' : ''
-          }`}
-        >
-          {savedAddresses.map((savedAddress, index) => {
-            const normalized = normalizeAddress(savedAddress)
-            const selected = normalized.id === address.id
-
-            return (
-              <SavedAddressCard
-                key={normalized.id ?? `${normalized.address}-${index}`}
-                savedAddress={savedAddress}
-                selected={selected}
-                onSelect={() => onSelectAddress(savedAddress)}
-                onEdit={() => onEditAddress(savedAddress)}
-                onDelete={() => onDeleteAddress(savedAddress)}
-                isDeleting={deletingAddressId === normalized.id}
-              />
-            )
-          })}
-        </div>
-      )}
-
-      {isAddingAddress && (
-        <>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-5">
-            <Field label="First name" name="firstName" icon={User} required value={draftAddress.firstName} onChange={onAddressChange} onBlur={onAddressBlur} error={errors.firstName} placeholder="e.g. Ama" autoComplete="given-name" />
-            <Field label="Last name" name="lastName" icon={UserRound} required value={draftAddress.lastName} onChange={onAddressChange} onBlur={onAddressBlur} error={errors.lastName} placeholder="e.g. Mensah" autoComplete="family-name" />
-            <SearchableSelect
-              id="billing-region"
-              label="Region"
-              icon={MapPin}
-              value={draftAddress.region}
-              onChange={onRegionChange}
-              options={regionOptions}
-              placeholder="Search regions…"
-              emptyLabel="Select region"
-              error={errors.region}
-            />
-            <SearchableSelect
-              id="billing-town"
-              label="Town"
-              icon={Building2}
-              value={draftAddress.town}
-              onChange={onTownChange}
-              options={townOptions}
-              placeholder="Search towns…"
-              emptyLabel="Select town"
-              allowOther
-              otherValue={LOCATION_OTHER_VALUE}
-              otherLabel="Other (enter custom town)"
-              customValue={draftAddress.townCustom}
-              onCustomChange={onTownCustomChange}
-              customInputPlaceholder="Type your town name"
-              error={errors.town}
-              customError={errors.townCustom}
-              disabled={!draftAddress.region}
-            />
-            <Field label="Address" name="address" icon={Home} required value={draftAddress.address} onChange={onAddressChange} onBlur={onAddressBlur} error={errors.address} placeholder="Street, landmark, or digital address" autoComplete="street-address" />
-            <Field label="Phone Number" name="phone" icon={Phone} required type="tel" inputMode="tel" value={draftAddress.phone} onChange={onAddressChange} onBlur={onAddressBlur} error={errors.phone} placeholder="e.g. 024 123 4567" autoComplete="tel" />
-          </div>
+      {isAddingAddress ? (
+        <div className="mt-4">
+          <p className="mb-4 text-sm text-slate-500">Required for receipts and payment records</p>
+          <AddressFormFields
+            idPrefix="billing"
+            address={draftAddress}
+            errors={errors}
+            onAddressChange={onAddressChange}
+            onAddressBlur={onAddressBlur}
+            onRegionChange={onRegionChange}
+            onTownChange={onTownChange}
+            onTownCustomChange={onTownCustomChange}
+          />
           <div className="mt-5 flex flex-wrap justify-end gap-3">
-            <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700">Cancel</button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700"
+            >
+              Cancel
+            </button>
             <button
               type="button"
               onClick={onSaveAddress}
               disabled={isSavingAddress}
               aria-busy={isSavingAddress}
-              className="inline-flex min-w-44 items-center justify-center gap-2 rounded-lg bg-auth-primary px-5 py-3 text-sm font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-80"
+              className="inline-flex min-w-44 items-center justify-center gap-2 rounded-full bg-auth-primary px-5 py-2.5 text-sm font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-80"
             >
               {isSavingAddress ? (
                 <>
@@ -1060,13 +1325,16 @@ function BillingInformation({
                   Saving…
                 </>
               ) : (
-                isEditingAddress ? 'Save changes' : 'Save billing address'
+                <>
+                  <Save className="size-4" strokeWidth={2.25} aria-hidden />
+                  {isEditingAddress ? 'Save changes' : 'Save billing address'}
+                </>
               )}
             </button>
           </div>
-        </>
-      )}
-    </section>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -1244,17 +1512,17 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
                   className="size-16 shrink-0 rounded-lg border border-slate-200 bg-slate-50 object-contain p-0.5 sm:size-20"
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-bold leading-snug text-slate-900 line-clamp-2">{item.name}</h3>
+                  <h3 className="text-xs font-bold leading-snug text-slate-900 line-clamp-2 sm:text-[0.8125rem]">{item.name}</h3>
                   {optionLabel ? (
-                    <p className="mt-0.5 truncate text-xs text-slate-500">{optionLabel}</p>
+                    <p className="mt-0.5 truncate text-[0.6875rem] text-slate-500">{optionLabel}</p>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => onDelete(item.id)}
                     aria-label={`Remove ${item.name}`}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-auth-primary underline underline-offset-2 hover:text-auth-primary-hover"
+                    className="mt-2 inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-auth-primary underline underline-offset-2 hover:text-auth-primary-hover"
                   >
-                    <Trash2 className="size-3.5" strokeWidth={1.8} aria-hidden />
+                    <Trash2 className="size-3" strokeWidth={1.8} aria-hidden />
                     Remove
                   </button>
                 </div>
@@ -1281,69 +1549,131 @@ function OrderSummary({ items, onQuantityChange, onDelete }) {
   )
 }
 
-function OrderTotal({ itemCount, listSubtotal, discountTotal, totals, total }) {
+function OrderTotal({
+  items = [],
+  itemCount,
+  listSubtotal,
+  discountTotal,
+  totals,
+  total,
+  coupon,
+  onCouponChange,
+  onApplyCoupon,
+  couponMessage,
+}) {
   const netDelivery = Math.max(0, Number(totals.deliveryFee) - Number(totals.freeDelivery))
   const isFreeDelivery = netDelivery === 0
+  const itemLabel = `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
-      <h2 className="text-xl font-semibold text-slate-900">Order Total</h2>
-      <dl className="mt-4 space-y-4 border-t border-slate-200 pt-5 text-sm">
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Items</dt>
-          <dd className="font-semibold text-slate-950">{itemCount}</dd>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-[1.35rem]">
+          Order Summary
+        </h2>
+        <span className="text-sm font-medium text-slate-400">({itemLabel})</span>
+      </header>
+
+      {items.length > 0 ? (
+        <ul className="mt-5 space-y-4 border-b border-slate-200 pb-5">
+          {items.map((item) => {
+            const optionLabel = formatCartItemOptions(item) || 'Default'
+            const displayImage = resolveCartItemDisplayImage(item)
+            const quantity = Math.max(1, Number(item.quantity) || 1)
+            const unitPrice = Number(item.price ?? 0)
+            const lineTotal = Number(
+              item.displaySubtotal ?? unitPrice * quantity,
+            )
+
+            return (
+              <li key={item.key ?? item.id} className="flex items-start gap-3">
+                <div className="relative shrink-0">
+                  <img
+                    src={displayImage}
+                    alt=""
+                    className="size-14 rounded-lg border border-slate-200 bg-slate-50 object-contain p-0.5 sm:size-16"
+                  />
+                  <span className="absolute -right-1.5 -top-1.5 flex min-w-5 items-center justify-center rounded-full bg-auth-primary px-1 py-0.5 text-[0.65rem] font-bold leading-none text-white shadow-sm">
+                    {quantity}
+                  </span>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-xs font-bold leading-snug text-slate-900 line-clamp-2 sm:text-[0.8125rem]">
+                      {item.name}
+                    </h3>
+                    <p className="shrink-0 text-xs font-bold text-slate-950 sm:text-[0.8125rem]">
+                      {formatCheckoutAmount(lineTotal)}
+                    </p>
+                  </div>
+                  <p className="mt-0.5 truncate text-[0.6875rem] text-slate-500">{optionLabel}</p>
+                  <p className="mt-1 text-[0.6875rem] text-slate-400">
+                    Qty: {quantity} × {formatCheckoutAmount(unitPrice)}
+                  </p>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+
+      <div className="border-b border-slate-200 py-5">
+        <p className="text-sm font-bold text-slate-900">Promo Code</p>
+        <div className="mt-3 flex gap-2.5">
+          <input
+            value={coupon}
+            onChange={(event) => onCouponChange(event.target.value)}
+            placeholder="ENTER PROMO CODE"
+            className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3.5 text-sm uppercase tracking-wide text-slate-900 outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-400 focus:border-auth-primary focus:ring-2 focus:ring-red-50"
+          />
+          <button
+            type="button"
+            onClick={onApplyCoupon}
+            className="h-11 shrink-0 rounded-xl bg-[#e57373] px-5 text-sm font-bold text-white transition-colors hover:bg-[#de6666]"
+          >
+            Apply
+          </button>
         </div>
+        {couponMessage ? (
+          <p className="mt-2 text-xs font-semibold text-auth-primary">{couponMessage}</p>
+        ) : null}
+      </div>
+
+      <dl className="space-y-3.5 pt-5 text-sm">
         <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Subtotal</dt>
+          <dt className="text-slate-600">Subtotal</dt>
           <dd className="font-semibold text-slate-950">{formatCheckoutAmount(listSubtotal)}</dd>
         </div>
-        {discountTotal > 0 && (
+        {discountTotal > 0 ? (
           <div className="flex items-center justify-between gap-4 text-auth-primary">
             <dt>Discount</dt>
             <dd className="font-semibold">-{formatCheckoutAmount(discountTotal)}</dd>
           </div>
-        )}
+        ) : null}
         <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Tax</dt>
-          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(totals.tax)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-slate-700">Delivery</dt>
-          <dd className={`font-semibold ${isFreeDelivery ? 'text-emerald-700' : 'text-slate-950'}`}>
+          <dt className="text-slate-600">Shipping</dt>
+          <dd className={`font-semibold ${isFreeDelivery ? 'text-emerald-600' : 'text-slate-950'}`}>
             {isFreeDelivery ? 'Free' : formatCheckoutAmount(netDelivery)}
           </dd>
         </div>
-        {totals.couponDiscount > 0 && (
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-slate-600">VAT (15%)</dt>
+          <dd className="font-semibold text-slate-950">{formatCheckoutAmount(totals.tax)}</dd>
+        </div>
+        {totals.couponDiscount > 0 ? (
           <div className="flex items-center justify-between gap-4 text-auth-primary">
             <dt>Coupon Discount</dt>
             <dd className="font-semibold">-{formatCheckoutAmount(totals.couponDiscount)}</dd>
           </div>
-        )}
-        <div className="flex items-center justify-between gap-4 border-t border-slate-300 pt-4 text-base">
-          <dt className="font-bold text-slate-950">Total</dt>
-          <dd className="font-extrabold text-slate-950">{formatCheckoutAmount(total)}</dd>
+        ) : null}
+        <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-4">
+          <dt className="text-base font-bold text-slate-950">Total</dt>
+          <dd className="text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+            {formatCheckoutAmount(total)}
+          </dd>
         </div>
       </dl>
-    </section>
-  )
-}
-
-function PromoCode({ coupon, onCouponChange, onApplyCoupon, couponMessage }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
-      <h2 className="text-lg font-semibold text-slate-900">Promo Code</h2>
-      <div className="mt-4 flex gap-3">
-        <input
-          value={coupon}
-          onChange={(event) => onCouponChange(event.target.value)}
-          placeholder="EZ-te56"
-          className="h-13 min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 text-sm outline-none placeholder:text-slate-300 focus:border-auth-primary"
-        />
-        <button type="button" onClick={onApplyCoupon} className="min-w-22 rounded-2xl bg-auth-primary px-5 text-base font-bold text-white">
-          Apply
-        </button>
-      </div>
-      {couponMessage && <p className="mt-2 text-xs font-semibold text-auth-primary">{couponMessage}</p>}
     </section>
   )
 }
@@ -1619,6 +1949,8 @@ export default function CheckoutPage() {
   const [isAddingAddress, setIsAddingAddress] = useState(false)
   const [editingAddressId, setEditingAddressId] = useState(null)
   const [deletingAddressId, setDeletingAddressId] = useState(null)
+  const [deliveryMethod, setDeliveryMethod] = useState('home')
+  const [checkoutStep, setCheckoutStep] = useState('delivery')
   const [selectedPayment, setSelectedPayment] = useState('mtn')
   const [cardDetails, setCardDetails] = useState(initialCardDetails)
   const [cardErrors, setCardErrors] = useState({})
@@ -1988,6 +2320,45 @@ export default function CheckoutPage() {
     && (isBuyNowMode || checkoutCartItemIds.length > 0)
   )
 
+  const canContinueToPayment = (
+    items.length > 0
+    && hasAddress
+    && hasSavedDeliveryAddress
+    && (!isAuthenticated || hasSavedBillingAddress)
+    && !(isBuyNowMode && isInitiatingBuyNow)
+    && !(isBuyNowMode && !buyNowSessionId)
+    && (isBuyNowMode || checkoutCartItemIds.length > 0)
+  )
+
+  const handleContinueToPayment = () => {
+    if (!hasAddress || !hasSavedDeliveryAddress) {
+      notify.error(
+        isAuthenticated
+          ? 'Please save a shipping address before continuing'
+          : 'Please complete your shipping address before continuing',
+      )
+      return
+    }
+
+    if (isAuthenticated && !hasSavedBillingAddress) {
+      notify.error('Please save a billing address before continuing')
+      return
+    }
+
+    if (!canContinueToPayment) {
+      notify.error('Please complete delivery details before continuing')
+      return
+    }
+
+    setCheckoutStep('payment')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleBackToDelivery = () => {
+    setCheckoutStep('delivery')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   // Buy Now has no cart line to update on the backend — quantity edits just
   // rewrite the locally held item (and its sessionStorage copy).
   const handleBuyNowQuantityChange = (_itemId, quantity) => {
@@ -2080,6 +2451,7 @@ export default function CheckoutPage() {
       region: regionId,
       town: '',
       townCustom: '',
+      district: '',
     }))
     setAddressErrors((current) => {
       const next = { ...current }
@@ -2199,6 +2571,7 @@ export default function CheckoutPage() {
       region: regionId,
       town: '',
       townCustom: '',
+      district: '',
     }))
     setBillingAddressErrors((current) => {
       const next = { ...current }
@@ -2305,6 +2678,10 @@ export default function CheckoutPage() {
   }
 
   useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname, location.key])
+
+  useLayoutEffect(() => {
     if (orderStatus !== 'success') return
     window.scrollTo(0, 0)
   }, [orderStatus])
@@ -2401,7 +2778,7 @@ export default function CheckoutPage() {
 
   return (
     <SiteLayout>
-      <main className="bg-white py-7 sm:py-8">
+      <main className="bg-white pb-7 pt-2.5 sm:pb-8 sm:pt-2.5">
         <Container>
           {orderStatus === 'success' ? (
             <OrderSuccessScreen
@@ -2430,150 +2807,205 @@ export default function CheckoutPage() {
             <CheckoutPageSkeleton />
           ) : (
             <div className="space-y-6">
-              <CheckoutIntro />
+              <CheckoutIntro step={checkoutStep} onBackToDelivery={handleBackToDelivery} />
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] xl:items-start">
-                <div className={`grid gap-6 ${isAuthenticated ? 'lg:grid-cols-2' : ''}`}>
-                  <DeliveryInformation
-                  address={address}
-                  errors={addressErrors}
-                  savedAddresses={savedAddresses}
-                  isAddingAddress={isAddingAddress}
-                  isEditingAddress={Boolean(editingAddressId)}
-                  isSavingAddress={createAddressMutation.isPending || updateAddressMutation.isPending}
-                  canSaveAddress={isAuthenticated}
-                  onAddressChange={handleAddressChange}
-                  onAddressBlur={handleAddressBlur}
-                  onRegionChange={handleRegionChange}
-                  onTownChange={handleTownChange}
-                  onTownCustomChange={handleTownCustomChange}
-                  onSelectAddress={handleSelectAddress}
-                  onEditAddress={handleEditAddress}
-                  onDeleteAddress={(selectedAddress) => handleDeleteAddress(selectedAddress, 'shipping')}
-                  deletingAddressId={deletingAddressId}
-                  onAddAddress={handleAddAddress}
-                  onSaveAddress={handleSaveAddress}
-                  />
-                  {isAuthenticated && (
-                    <BillingInformation
-                    address={activeBillingAddress}
-                    draftAddress={billingAddressDraft}
-                    errors={billingAddressErrors}
-                    savedAddresses={billingAddresses}
-                    isAddingAddress={isAddingBillingAddress}
-                    isEditingAddress={Boolean(editingBillingAddressId)}
-                    isSavingAddress={createBillingAddressMutation.isPending || updateBillingAddressMutation.isPending}
-                    onAddressChange={handleBillingAddressChange}
-                    onAddressBlur={handleBillingAddressBlur}
-                    onRegionChange={handleBillingRegionChange}
-                    onTownChange={handleBillingTownChange}
-                    onTownCustomChange={handleBillingTownCustomChange}
-                    onSelectAddress={(selectedAddress) => {
-                      setBillingAddressId(normalizeAddress(selectedAddress).id)
-                      setBillingAddressErrors({})
-                      setEditingBillingAddressId(null)
-                    }}
-                    onEditAddress={(selectedAddress) => {
-                      const normalized = normalizeAddress(selectedAddress)
-                      if (!normalized.id) {
-                        notify.error('This address cannot be edited until it has been saved')
-                        return
-                      }
-                      setBillingAddressDraft(normalized)
-                      setBillingAddressErrors({})
-                      setEditingBillingAddressId(normalized.id)
-                      setIsAddingBillingAddress(true)
-                    }}
-                    onDeleteAddress={(selectedAddress) => handleDeleteAddress(selectedAddress, 'billing')}
-                    deletingAddressId={deletingAddressId}
-                    onAddAddress={() => {
-                      setBillingAddressDraft(
-                        billingAddresses.length === 0
-                          ? buildBillingPrefill(authenticatedUser, activeAddress)
-                          : buildDeliveryPrefill(authenticatedUser),
-                      )
-                      setBillingAddressErrors({})
-                      setEditingBillingAddressId(null)
-                      setIsAddingBillingAddress(true)
-                    }}
-                    onCancel={() => {
-                      setBillingAddressDraft(initialAddress)
-                      setBillingAddressErrors({})
-                      setEditingBillingAddressId(null)
-                      setIsAddingBillingAddress(false)
-                    }}
-                    onSaveAddress={handleSaveBillingAddress}
+              {checkoutStep === 'delivery' ? (
+                <div className="min-w-0 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] xl:items-stretch xl:gap-x-6">
+                  <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 xl:col-start-1">
+                    <DeliveryMethodPicker
+                      value={deliveryMethod}
+                      onChange={setDeliveryMethod}
                     />
-                  )}
-                </div>
 
-              <OrderTotal
-                  itemCount={orderItemCount}
-                  listSubtotal={orderListSubtotal}
-                  discountTotal={orderDiscountTotal}
-                  totals={feeTotals}
-                  total={orderTotal}
-                />
-              </div>
+                    <div className="mt-8 border-t border-slate-100 pt-6">
+                      <DeliveryInformation
+                        address={address}
+                        errors={addressErrors}
+                        savedAddresses={savedAddresses}
+                        isAddingAddress={isAddingAddress}
+                        isEditingAddress={Boolean(editingAddressId)}
+                        isSavingAddress={createAddressMutation.isPending || updateAddressMutation.isPending}
+                        canSaveAddress={isAuthenticated}
+                        onAddressChange={handleAddressChange}
+                        onAddressBlur={handleAddressBlur}
+                        onRegionChange={handleRegionChange}
+                        onTownChange={handleTownChange}
+                        onTownCustomChange={handleTownCustomChange}
+                        onSelectAddress={handleSelectAddress}
+                        onEditAddress={handleEditAddress}
+                        onDeleteAddress={(selectedAddress) => handleDeleteAddress(selectedAddress, 'shipping')}
+                        deletingAddressId={deletingAddressId}
+                        onAddAddress={handleAddAddress}
+                        onCancel={() => {
+                          setAddressErrors({})
+                          setEditingAddressId(null)
+                          setIsAddingAddress(false)
+                          if (savedAddresses[0]) {
+                            handleSelectAddress(savedAddresses[0])
+                          }
+                        }}
+                        onSaveAddress={handleSaveAddress}
+                      />
+                    </div>
 
-              <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
-                <div className="order-1 lg:col-start-1 lg:row-start-2">
-                  <PaymentDetails
-                    selectedPayment={selectedPayment}
-                    onSelectPayment={handleSelectPayment}
-                    cardDetails={cardDetails}
-                    cardErrors={cardErrors}
-                    onCardChange={handleCardChange}
-                    onCardBlur={handleCardBlur}
-                  />
-                </div>
+                    {isAuthenticated ? (
+                      <div className="mt-8 border-t border-slate-100 pt-6">
+                        <BillingInformation
+                          address={activeBillingAddress}
+                          draftAddress={billingAddressDraft}
+                          errors={billingAddressErrors}
+                          savedAddresses={billingAddresses}
+                          isAddingAddress={isAddingBillingAddress}
+                          isEditingAddress={Boolean(editingBillingAddressId)}
+                          isSavingAddress={createBillingAddressMutation.isPending || updateBillingAddressMutation.isPending}
+                          onAddressChange={handleBillingAddressChange}
+                          onAddressBlur={handleBillingAddressBlur}
+                          onRegionChange={handleBillingRegionChange}
+                          onTownChange={handleBillingTownChange}
+                          onTownCustomChange={handleBillingTownCustomChange}
+                          onSelectAddress={(selectedAddress) => {
+                            setBillingAddressId(normalizeAddress(selectedAddress).id)
+                            setBillingAddressErrors({})
+                            setEditingBillingAddressId(null)
+                            setIsAddingBillingAddress(false)
+                          }}
+                          onEditAddress={(selectedAddress) => {
+                            const normalized = normalizeAddress(selectedAddress)
+                            if (!normalized.id) {
+                              notify.error('This address cannot be edited until it has been saved')
+                              return
+                            }
+                            setBillingAddressDraft(normalized)
+                            setBillingAddressErrors({})
+                            setEditingBillingAddressId(normalized.id)
+                            setIsAddingBillingAddress(true)
+                          }}
+                          onDeleteAddress={(selectedAddress) => handleDeleteAddress(selectedAddress, 'billing')}
+                          deletingAddressId={deletingAddressId}
+                          onAddAddress={() => {
+                            setBillingAddressDraft(
+                              billingAddresses.length === 0
+                                ? buildBillingPrefill(authenticatedUser, activeAddress)
+                                : buildDeliveryPrefill(authenticatedUser),
+                            )
+                            setBillingAddressErrors({})
+                            setEditingBillingAddressId(null)
+                            setIsAddingBillingAddress(true)
+                          }}
+                          onCancel={() => {
+                            setBillingAddressDraft(initialAddress)
+                            setBillingAddressErrors({})
+                            setEditingBillingAddressId(null)
+                            setIsAddingBillingAddress(false)
+                          }}
+                          onSaveAddress={handleSaveBillingAddress}
+                        />
+                      </div>
+                    ) : null}
 
-                <div className="order-2 lg:col-span-2 lg:row-start-1">
-                  <OrderSummary
-                    items={displayItems}
-                    onQuantityChange={handleCheckoutQuantityChange}
-                    onDelete={handleCheckoutDelete}
-                  />
-                </div>
+                    <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                      <Link
+                        to="/cart"
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+                      >
+                        <ArrowLeft className="size-4" aria-hidden />
+                        Back to Cart
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={handleContinueToPayment}
+                        disabled={!canContinueToPayment}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-auth-primary px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Continue to Payment
+                        <ArrowRight className="size-4" aria-hidden />
+                      </button>
+                    </div>
+                  </section>
 
-                <aside className="order-3 min-w-0 space-y-5 lg:col-start-2 lg:row-start-2">
-                  <PromoCode
-                    coupon={coupon}
-                    onCouponChange={setCoupon}
-                    onApplyCoupon={handleApplyCoupon}
-                    couponMessage={couponMessage}
-                  />
-                  <div className="space-y-4">
-                    <button
-                    type="button"
-                    onClick={handlePlaceOrder}
-                    disabled={!canPlaceOrder || orderStatus === 'processing'}
-                    aria-busy={orderStatus === 'processing' || (isBuyNowMode && isInitiatingBuyNow)}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-auth-primary px-5 py-4 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {orderStatus === 'processing' ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" aria-hidden />
-                          Processing…
-                        </>
-                      ) : isBuyNowMode && isInitiatingBuyNow ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" aria-hidden />
-                          Preparing…
-                        </>
-                      ) : (
-                        'Place Order'
-                      )}
-                    </button>
-                    <Link
-                      to="/cart"
-                      className="flex w-full items-center justify-center rounded-lg border border-slate-400 px-5 py-4 text-base font-bold text-slate-800"
-                    >
-                      Continue Shopping
-                    </Link>
+                  <div className="mt-6 min-w-0 xl:col-start-2 xl:mt-0">
+                    <div className="xl:sticky xl:top-[7.75rem]">
+                      <OrderTotal
+                        items={displayItems}
+                        itemCount={orderItemCount}
+                        listSubtotal={orderListSubtotal}
+                        discountTotal={orderDiscountTotal}
+                        totals={feeTotals}
+                        total={orderTotal}
+                        coupon={coupon}
+                        onCouponChange={setCoupon}
+                        onApplyCoupon={handleApplyCoupon}
+                        couponMessage={couponMessage}
+                      />
+                    </div>
                   </div>
-                </aside>
-              </div>
+                </div>
+              ) : (
+                <div className="min-w-0 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] xl:items-stretch xl:gap-x-6">
+                  <div className="min-w-0 space-y-5 xl:col-start-1">
+                    <PaymentDetails
+                      selectedPayment={selectedPayment}
+                      onSelectPayment={handleSelectPayment}
+                      cardDetails={cardDetails}
+                      cardErrors={cardErrors}
+                      onCardChange={handleCardChange}
+                      onCardBlur={handleCardBlur}
+                    />
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <button
+                        type="button"
+                        onClick={handleBackToDelivery}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+                      >
+                        <ArrowLeft className="size-4" aria-hidden />
+                        Back to Delivery
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePlaceOrder}
+                        disabled={!canPlaceOrder || orderStatus === 'processing'}
+                        aria-busy={orderStatus === 'processing' || (isBuyNowMode && isInitiatingBuyNow)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-auth-primary px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {orderStatus === 'processing' ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" aria-hidden />
+                            Processing…
+                          </>
+                        ) : isBuyNowMode && isInitiatingBuyNow ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" aria-hidden />
+                            Preparing…
+                          </>
+                        ) : (
+                          <>
+                            Place Order
+                            <ArrowRight className="size-4" aria-hidden />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 min-w-0 xl:col-start-2 xl:mt-0">
+                    <div className="xl:sticky xl:top-[7.75rem]">
+                      <OrderTotal
+                        items={displayItems}
+                        itemCount={orderItemCount}
+                        listSubtotal={orderListSubtotal}
+                        discountTotal={orderDiscountTotal}
+                        totals={feeTotals}
+                        total={orderTotal}
+                        coupon={coupon}
+                        onCouponChange={setCoupon}
+                        onApplyCoupon={handleApplyCoupon}
+                        couponMessage={couponMessage}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Container>

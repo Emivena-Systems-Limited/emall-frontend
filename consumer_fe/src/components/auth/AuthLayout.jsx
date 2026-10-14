@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import StoreLogo from '../layout/StoreLogo'
+import AuthMarketingPanel from './AuthMarketingPanel'
 
 const pageVariants = {
   initial: { opacity: 0, y: 16 },
@@ -12,13 +13,7 @@ const cardVariants = {
   animate: { opacity: 1, y: 0, scale: 1 },
 }
 
-export default function AuthLayout({ children, compact = false, wide = false }) {
-  const frameClass = wide
-    ? 'auth-layout-frame--wide'
-    : compact
-      ? 'auth-layout-frame--compact'
-      : 'auth-layout-frame--login'
-
+function CardAuthLayout({ children, frameClass }) {
   return (
     <div className="auth-shell fixed inset-0 overflow-hidden bg-white font-sans text-slate-900">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 auth-bg-dots opacity-70" />
@@ -91,4 +86,82 @@ export default function AuthLayout({ children, compact = false, wide = false }) 
       </div>
     </div>
   )
+}
+
+function SplitAuthLayout({
+  children,
+  panelImage,
+  panelHeadline,
+  panelAccentLine,
+  panelDescription,
+  wide = false,
+}) {
+  const formMaxWidth = wide
+    ? 'max-w-xl xl:max-w-2xl'
+    : 'max-w-[22rem] sm:max-w-[24rem] xl:max-w-[26rem]'
+
+  return (
+    <div className="auth-shell fixed inset-0 overflow-hidden bg-white font-sans text-slate-900">
+      <div className="relative z-10 grid h-full min-h-0 lg:grid-cols-2">
+        <AuthMarketingPanel
+          image={panelImage}
+          headline={panelHeadline}
+          accentLine={panelAccentLine}
+          description={panelDescription}
+        />
+
+        <div className="relative flex min-h-0 flex-col overflow-y-auto overscroll-contain bg-white">
+          <div className="flex items-center justify-center border-b border-slate-100 px-4 py-3 lg:hidden">
+            <StoreLogo variant="brand" size="sm" className="[&_img]:h-8" />
+          </div>
+
+          <div className="flex flex-1 items-start justify-center px-4 py-6 sm:px-8 sm:py-10 lg:items-center lg:px-10 lg:py-12 xl:px-14">
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className={`my-auto w-full ${formMaxWidth}`}
+            >
+              {children}
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AuthLayout({
+  children,
+  compact = false,
+  wide = false,
+  split = false,
+  panelImage,
+  panelHeadline,
+  panelAccentLine,
+  panelDescription,
+}) {
+  if (split && panelImage) {
+    return (
+      <SplitAuthLayout
+        panelImage={panelImage}
+        panelHeadline={panelHeadline}
+        panelAccentLine={panelAccentLine}
+        panelDescription={panelDescription}
+        wide={wide}
+      >
+        {children}
+      </SplitAuthLayout>
+    )
+  }
+
+  const frameClass = wide
+    ? 'auth-layout-frame--wide'
+    : compact
+      ? 'auth-layout-frame--compact'
+      : 'auth-layout-frame--login'
+
+  return <CardAuthLayout frameClass={frameClass}>{children}</CardAuthLayout>
 }

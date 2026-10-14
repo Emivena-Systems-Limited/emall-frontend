@@ -37,6 +37,7 @@ import {
 import { resolveBackendMediaUrl } from '../../utils/resolveBackendMediaUrl'
 import { readReviewOrderItem } from '../../utils/reviewRouteState'
 import VendorReviewReply, { normalizeVendorReviewReply } from '../shared/VendorReviewReply'
+import CatalogLineItemCard from '../shared/CatalogLineItemCard'
 import {
   useEligibleReviewItemsQuery,
   useReviewMutations,
@@ -365,37 +366,34 @@ function EligibleItemList({ items = [], isLoading = false, onSelect }) {
       </div>
 
       {filtered.length ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-3 sm:space-y-4">
           {filtered.map((item) => (
-            <button
+            <CatalogLineItemCard
               key={item.id}
-              type="button"
               onClick={() => onSelect?.(item.id)}
-              className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-[0_8px_28px_rgba(15,23,42,0.04)] transition hover:border-auth-primary/40 hover:shadow-md"
-            >
-              <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50 p-1.5 sm:size-[4.5rem]">
-                <ReviewProductThumb
-                  src={item.image}
-                  alt=""
-                  className={item.image ? 'max-h-full max-w-full object-contain' : 'flex size-full items-center justify-center'}
-                />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-2 text-sm font-bold leading-5 text-slate-950">{item.name}</span>
-                {item.storeName ? (
-                  <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">
-                    Sold by <span className="font-semibold text-slate-700">{item.storeName}</span>
-                  </span>
-                ) : null}
-                {item.price != null ? (
-                  <span className="mt-1.5 block text-sm font-extrabold text-slate-950">{formatCedi(item.price)}</span>
-                ) : null}
-                <span className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-auth-primary">
-                  Write review
-                  <ChevronRight className="size-3.5" />
-                </span>
-              </span>
-            </button>
+              name={item.name}
+              href={item.productHref || '/'}
+              image={item.image}
+              imageFallback={<PackageCheck className="size-8" />}
+              optionLabel={item.variantLabel || undefined}
+              meta={item.storeName ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Sold by <span className="font-semibold text-slate-700">{item.storeName}</span>
+                </p>
+              ) : null}
+              quantity={item.quantity}
+              readOnlyQuantity
+              unitPrice={item.price}
+              lineTotal={item.price}
+              actions={[
+                {
+                  id: 'review',
+                  label: 'Write review',
+                  icon: FilePenLine,
+                  onClick: () => onSelect?.(item.id),
+                },
+              ]}
+            />
           ))}
         </div>
       ) : (
@@ -668,13 +666,13 @@ function ReviewsList() {
     <section>
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-auth-primary">
+          <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-auth-primary">
             Your feedback
           </p>
-          <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
+          <h2 className="mt-1 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
             My Reviews
           </h2>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-1.5 text-xs text-slate-500 sm:text-sm">
             View and manage all the reviews you have written.
           </p>
         </div>
@@ -1290,13 +1288,13 @@ function LeaveReview({ reviewId }) {
       </nav>
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-auth-primary">
+          <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-auth-primary">
             Customer feedback
           </p>
-          <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
+          <h2 className="mt-1 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
             {editing ? 'Edit Your Review' : showItemList ? 'Choose an item to review' : 'Write a Review'}
           </h2>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-1.5 text-xs text-slate-500 sm:text-sm">
             {showItemList
               ? 'Select a delivered item, then you’ll write your review on the next step.'
               : 'Share your experience to help other customers make better choices.'}

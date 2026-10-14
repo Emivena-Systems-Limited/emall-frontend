@@ -3,13 +3,13 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import {
-  ChevronRight, Eye, Heart, Loader2, Minus, PackageCheck, Plus,
+  ChevronRight, Eye, Heart, Loader2, PackageCheck,
   ShoppingCart, Trash2, X,
 } from 'lucide-react'
 import { accountSectionMeta } from './accountNavigation'
+import CatalogLineItemCard from '../shared/CatalogLineItemCard'
 import Images from '../../utils/Images'
 import { notify } from '../../lib/notify'
-import { formatCedi } from '../../utils/formatCurrency'
 import { getProductById } from '../../services/landingPageService'
 import { syncAuthenticatedCart } from '../../hooks/useAuthenticatedCart'
 import { AUTHENTICATED_CART_QUERY_KEY } from '../../constants/cart'
@@ -41,20 +41,23 @@ function EmptyWishlist() {
 
 function WishlistSkeleton() {
   return (
-    <div className="animate-pulse overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
+    <div className="space-y-3 sm:space-y-4">
       {[1, 2, 3].map((key) => (
-        <div key={key} className="grid gap-3 border-t border-slate-100 p-3 first:border-t-0 sm:p-3.5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-6 md:px-5">
-          <div className="flex min-w-0 gap-3">
-            <div className="mt-1.5 size-4 shrink-0 rounded bg-slate-200" />
-            <div className="size-16 shrink-0 rounded-lg bg-slate-200 sm:size-20" />
-            <div className="flex-1 space-y-2 py-0.5">
-              <div className="h-3.5 w-4/5 rounded bg-slate-200" />
-              <div className="h-2.5 w-2/5 rounded bg-slate-100" />
-              <div className="h-2.5 w-1/2 rounded bg-slate-100" />
+        <div
+          key={key}
+          className="animate-pulse rounded-2xl border border-slate-200 bg-white px-3.5 py-4 sm:px-5 sm:py-6"
+        >
+          <div className="flex items-start gap-3 sm:gap-5">
+            <div className="size-[4.5rem] shrink-0 rounded-xl bg-slate-200 sm:size-28 sm:rounded-2xl" />
+            <div className="min-w-0 flex-1 space-y-2 py-1">
+              <div className="h-4 w-4/5 rounded bg-slate-200" />
+              <div className="h-3 w-2/5 rounded bg-slate-100" />
+              <div className="mt-6 flex justify-between gap-4">
+                <div className="h-8 w-28 rounded-full bg-slate-100" />
+                <div className="h-6 w-20 rounded bg-slate-200" />
+              </div>
             </div>
           </div>
-          <div className="h-8 w-24 rounded-full bg-slate-100" />
-          <div className="space-y-1.5 md:text-right"><div className="h-3.5 w-16 rounded bg-slate-200 md:ml-auto" /><div className="h-2.5 w-12 rounded bg-slate-100 md:ml-auto" /></div>
         </div>
       ))}
     </div>
@@ -97,55 +100,56 @@ function VariantSelector({ item, onUpdate, busy }) {
 }
 
 function WishlistItem({ item, selected, onSelect, onRemove, onMove, onDetails, onVariant, busyAction }) {
-  const product = item.product ?? {}; const variant = item.variant ?? {}
+  const product = item.product ?? {}
+  const variant = item.variant ?? {}
   const [quantity, setQuantity] = useState(Math.max(1, Number(item.quantity) || 1))
   const price = Number(variant.discount_price ?? variant.price ?? product.regular_discount_price ?? product.regular_price ?? 0)
   const listPrice = Number(variant.price ?? product.regular_price ?? price)
-  const image = variant.images?.[0]?.image_url ?? product.images?.find((entry) => entry.is_primary)?.image_url ?? product.images?.[0]?.image_url
+  const image = variant.images?.[0]?.image_url
+    ?? product.images?.find((entry) => entry.is_primary)?.image_url
+    ?? product.images?.[0]?.image_url
+  const href = `/${product.slug ?? ''}`
+  const busy = Boolean(busyAction)
+
   return (
-    <article className={`relative grid gap-3 border-t p-3 first:border-t-0 sm:p-3.5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-6 md:px-5 ${selected ? 'border-red-100 bg-red-50/35' : 'border-slate-100'}`}>
-      <div className="flex min-w-0 gap-3">
-        <input type="checkbox" checked={selected} onChange={() => onSelect(item.id)} aria-label={`Select ${product.name}`} className="mt-1.5 size-4 accent-red-600" />
-        <Link to={`/${product.slug ?? ''}`} className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-1.5 sm:size-20">
-          {image ? (
-            <img src={image} alt={product.name ?? 'Wishlist product'} className="max-h-full max-w-full object-contain" />
-          ) : (
-            <Heart className="size-6 text-slate-300" />
-          )}
-        </Link>
-        <div className="min-w-0 py-0.5">
-          <Link to={`/${product.slug ?? ''}`} className="line-clamp-2 text-xs font-bold leading-4 text-slate-950 transition hover:text-auth-primary sm:text-[0.8125rem] sm:leading-4.5">
-            {product.name ?? 'Saved product'}
-          </Link>
+    <CatalogLineItemCard
+      name={product.name ?? 'Saved product'}
+      href={href}
+      image={image}
+      imageFallback={<Heart className="size-8" />}
+      selectable
+      showCheckboxOnMobile
+      selected={selected}
+      onSelect={() => onSelect(item.id)}
+      quantity={quantity}
+      onQuantityChange={setQuantity}
+      unitPrice={price}
+      lineTotal={price * quantity}
+      comparePrice={listPrice > price ? listPrice : undefined}
+      meta={(
+        <div className="mt-1">
           <VariantSelector item={item} onUpdate={onVariant} busy={busyAction === `variant:${item.id}`} />
-          {variant.sku ? <p className="mt-0.5 text-[11px] text-slate-400">SKU: {variant.sku}</p> : null}
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-            <button onClick={() => onDetails(item.id)} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-auth-primary">
-              <Eye className="size-3" /> Details
-            </button>
-            <button onClick={() => onMove(item.id)} disabled={Boolean(busyAction)} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-auth-primary disabled:opacity-50">
-              <ShoppingCart className="size-3" /> Move to cart
-            </button>
-            <button onClick={() => onRemove(item.id)} disabled={Boolean(busyAction)} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-auth-primary disabled:opacity-50">
-              <Trash2 className="size-3" /> Remove
-            </button>
-          </div>
+          {variant.sku ? <p className="mt-0.5 text-xs text-slate-400">SKU: {variant.sku}</p> : null}
         </div>
-      </div>
-      <div>
-        <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Quantity</span>
-        <div className="inline-flex items-center rounded-full bg-slate-50 p-0.5 ring-1 ring-slate-200">
-          <button onClick={() => setQuantity((v) => Math.max(1, v - 1))} disabled={quantity <= 1} aria-label="Decrease quantity" className="grid size-7 place-items-center rounded-full disabled:opacity-35"><Minus className="size-3" /></button>
-          <span className="min-w-7 text-center text-xs font-bold">{quantity}</span>
-          <button onClick={() => setQuantity((v) => v + 1)} aria-label="Increase quantity" className="grid size-7 place-items-center rounded-full text-auth-primary"><Plus className="size-3" /></button>
-        </div>
-      </div>
-      <div className="md:text-right">
-        <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Price</span>
-        <p className="text-sm font-extrabold text-slate-950">{formatCedi(price)}</p>
-        {listPrice > price ? <p className="mt-0.5 text-[11px] text-slate-400 line-through">{formatCedi(listPrice)}</p> : null}
-      </div>
-    </article>
+      )}
+      actions={[
+        { id: 'details', label: 'Details', icon: Eye, onClick: () => onDetails(item.id) },
+        {
+          id: 'move',
+          label: 'Move to cart',
+          icon: ShoppingCart,
+          onClick: () => onMove(item.id),
+          disabled: busy,
+        },
+        {
+          id: 'remove',
+          label: 'Remove',
+          icon: Trash2,
+          onClick: () => onRemove(item.id),
+          disabled: busy,
+        },
+      ]}
+    />
   )
 }
 
@@ -212,7 +216,59 @@ export default function AccountWishlistPanel() {
     { key: 'clear', label: 'Clear wishlist', icon: PackageCheck, danger: true },
   ], [selected.length])
   useEffect(() => { window.scrollTo(0, 0) }, [])
-  return <section><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-auth-primary">Saved products</p><h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{meta.title}</h2><p className="mt-2 max-w-2xl text-sm text-slate-500">{meta.description}</p></div>
+  return <section><div><p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-auth-primary">Saved products</p><h2 className="mt-1 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">{meta.title}</h2><p className="mt-1.5 max-w-2xl text-xs text-slate-500 sm:text-sm">{meta.description}</p></div>
     <div className="mt-5">{isPending ? <WishlistSkeleton /> : null}{isError ? <div className="rounded-2xl border border-red-100 bg-white px-6 py-16 text-center"><p className="font-bold">We couldn’t load your wishlist.</p><button onClick={() => refetch()} className="mt-4 rounded-xl bg-auth-primary px-5 py-2.5 text-sm font-bold text-white">Try again</button></div> : null}{!isPending && !isError && !items.length ? <EmptyWishlist /> : null}
-      {!isPending && !isError && items.length ? <><div className="mb-3 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"><label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600"><input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : items.map((item) => item.id))} className="size-4 accent-red-600" /> Select all</label><div className="flex flex-wrap gap-2">{toolbarActions.map(({ key, label, icon: Icon, disabled, primary, danger }) => <BusyButton key={key} busy={busyAction === key} disabled={disabled || Boolean(busyAction)} onClick={() => actionMutation.mutate({ type: key, ids: selected })} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition disabled:opacity-40 ${primary ? 'bg-auth-primary text-white' : danger ? 'border border-red-200 text-red-700' : 'border border-slate-200 text-slate-700'}`}><Icon className="size-4" />{label}</BusyButton>)}</div></div><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">{items.map((item) => <WishlistItem key={item.id} item={item} selected={selected.includes(item.id)} onSelect={toggle} onDetails={setDetailsId} onRemove={(id) => actionMutation.mutate({ type: 'remove', id })} onMove={(id) => actionMutation.mutate({ type: 'move', id })} onVariant={(id, variantId) => actionMutation.mutate({ type: 'variant', id, variantId })} busyAction={busyAction} />)}</div></> : null}</div>{detailsId ? <ItemDetailsModal itemId={detailsId} onClose={() => setDetailsId(null)} /> : null}</section>
+      {!isPending && !isError && items.length ? (
+        <>
+          <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={() => setSelected(allSelected ? [] : items.map((item) => item.id))}
+                className="size-4 accent-red-600"
+              />
+              Select all
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {toolbarActions.map(({ key, label, icon: Icon, disabled, primary, danger }) => (
+                <BusyButton
+                  key={key}
+                  busy={busyAction === key}
+                  disabled={disabled || Boolean(busyAction)}
+                  onClick={() => actionMutation.mutate({ type: key, ids: selected })}
+                  className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition disabled:opacity-40 ${
+                    primary
+                      ? 'bg-auth-primary text-white'
+                      : danger
+                        ? 'border border-red-200 text-red-700'
+                        : 'border border-slate-200 text-slate-700'
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </BusyButton>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3 sm:space-y-4">
+            {items.map((item) => (
+              <WishlistItem
+                key={item.id}
+                item={item}
+                selected={selected.includes(item.id)}
+                onSelect={toggle}
+                onDetails={setDetailsId}
+                onRemove={(id) => actionMutation.mutate({ type: 'remove', id })}
+                onMove={(id) => actionMutation.mutate({ type: 'move', id })}
+                onVariant={(id, variantId) => actionMutation.mutate({ type: 'variant', id, variantId })}
+                busyAction={busyAction}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+    {detailsId ? <ItemDetailsModal itemId={detailsId} onClose={() => setDetailsId(null)} /> : null}
+  </section>
 }

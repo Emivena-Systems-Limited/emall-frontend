@@ -52,6 +52,9 @@ import logo from "../assets/images/logo.png";
 import logo_white from "../assets/images/logo_white.png";
 import ez_mall_logo from "../assets/images/ez_mall_logo.png";
 import ez_mall_logo_white from "../assets/images/ez_mall_logo_white.png";
+import login_img from "../assets/images/login_img.png";
+import signup_img from "../assets/images/signup_img.png";
+import verify_img from "../assets/images/verify_img.png";
 
 import {
   CATEGORY_BANNER_ASSETS,
@@ -65,7 +68,11 @@ const brand = {
   iconsSprite: '/icons.svg',
 }
 
-const auth = {}
+const auth = {
+  login_img,
+  signup_img,
+  verify_img,
+}
 
 const shop = {
   default_store_banner,

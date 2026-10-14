@@ -169,7 +169,13 @@ export default function AccountOverviewPanel() {
             const { name, value, type, checked } = event.target
             setAddressForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }))
           }}
-          onRegionChange={(region) => setAddressForm((current) => ({ ...current, region, city_or_town: '', town_custom: '' }))}
+          onRegionChange={(region) => setAddressForm((current) => ({
+            ...current,
+            region,
+            city_or_town: '',
+            town_custom: '',
+            district: '',
+          }))}
           onTownChange={(city_or_town) => setAddressForm((current) => ({
             ...current,
             city_or_town,

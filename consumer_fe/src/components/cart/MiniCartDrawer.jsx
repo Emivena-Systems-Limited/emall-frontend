@@ -1,121 +1,69 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router'
 import { useSelector } from 'react-redux'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, Minus, Plus, ShoppingBag, X } from 'lucide-react'
+import { ShoppingBag, ShoppingCart } from 'lucide-react'
 import { useMiniCart } from '../../context/MiniCartContext'
-import { useCartActions } from '../../hooks/useCartActions'
 import { selectCartCount, selectCartItems } from '../../store/slices/cartSlice'
 import { formatCedi } from '../../utils/formatCurrency'
 import { formatCartItemOptions, resolveCartItemDisplayImage } from '../../utils/normalizeCart'
 
-const drawerEase = [0.16, 1, 0.3, 1]
+const panelEase = [0.16, 1, 0.3, 1]
 
-function clampQuantity(value) {
-  return Math.max(1, Number(value) || 1)
-}
-
-function MiniQuantityStepper({ value, onChange, disabled = false }) {
-  return (
-    <div className="inline-flex h-7 items-center gap-1 rounded-full bg-white px-1 ring-1 ring-slate-200/80">
-      <button
-        type="button"
-        aria-label="Decrease quantity"
-        onClick={() => onChange(clampQuantity(value - 1))}
-        disabled={disabled || value <= 1}
-        className="flex size-5 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-auth-primary disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <Minus className="size-3" strokeWidth={2.5} />
-      </button>
-      <span className="min-w-5 text-center text-xs font-bold tabular-nums text-slate-800">
-        {value}
-      </span>
-      <button
-        type="button"
-        aria-label="Increase quantity"
-        onClick={() => onChange(value + 1)}
-        disabled={disabled}
-        className="flex size-5 items-center justify-center rounded-full text-auth-primary transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <Plus className="size-3" strokeWidth={2.5} />
-      </button>
-    </div>
-  )
-}
-
-function MiniCartItem({ item, onQuantityChange, onRemove, onNavigate }) {
+function MiniCartItem({ item, onNavigate }) {
   const productHref = item.href?.replace(/^\/products\//, '/') ?? '/'
   const displayImage = resolveCartItemDisplayImage(item)
-  const optionLabel = formatCartItemOptions(item)
+  const optionLabel = formatCartItemOptions(item) || 'Default'
+  const quantity = Math.max(1, Number(item.quantity) || 1)
 
   return (
-    <article className="rounded-xl bg-slate-50/90 p-2.5 ring-1 ring-slate-200/60">
-      <div className="flex gap-2.5">
-        <Link
-          to={productHref}
-          onClick={onNavigate}
-          className="size-14 shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-slate-200/70"
-        >
+    <li>
+      <Link
+        to={productHref}
+        onClick={onNavigate}
+        className="flex items-start gap-3 py-3 transition-colors hover:bg-slate-50/80"
+      >
+        <span className="size-12 shrink-0 overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200/70 sm:size-14">
           <img
             src={displayImage}
             alt=""
             className="size-full object-contain p-0.5"
             loading="lazy"
           />
-        </Link>
+        </span>
 
-        <div className="min-w-0 flex-1">
-          <Link
-            to={productHref}
-            onClick={onNavigate}
-            className="line-clamp-2 text-[0.8125rem] font-semibold leading-snug text-slate-900 transition-colors hover:text-auth-primary"
-          >
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-1 text-sm font-semibold text-slate-900">
             {item.name}
-          </Link>
-          {optionLabel ? (
-            <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={optionLabel}>
-              {optionLabel}
-            </p>
-          ) : null}
-          <p className="mt-0.5 text-xs font-bold tabular-nums text-auth-primary">
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-slate-500">
+            {optionLabel}
+          </span>
+          <span className="mt-1 block text-sm font-bold tabular-nums text-slate-900">
             {formatCedi(item.price)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <MiniQuantityStepper
-          value={item.quantity}
-          onChange={(quantity) => onQuantityChange(item.id, quantity)}
-        />
-        <button
-          type="button"
-          onClick={() => onRemove(item.id)}
-          aria-label={`Remove ${item.name}`}
-          className="flex size-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary"
-        >
-          <X className="size-3.5" strokeWidth={2.25} />
-        </button>
-      </div>
-    </article>
+            <span className="font-semibold text-slate-700"> × {quantity}</span>
+          </span>
+        </span>
+      </Link>
+    </li>
   )
 }
 
 function EmptyMiniCart({ onClose }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-5 py-12 text-center">
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-        <ShoppingBag className="size-6" strokeWidth={1.75} />
+    <div className="px-4 py-8 text-center">
+      <span className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+        <ShoppingBag className="size-5" strokeWidth={1.75} />
       </span>
       <p className="mt-3 text-sm font-bold text-slate-900">Your cart is empty</p>
-      <p className="mt-1 max-w-56 text-xs leading-relaxed text-slate-500">
-        Add items from product cards to see them here.
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        Add items to see them here.
       </p>
       <button
         type="button"
         onClick={onClose}
-        className="mt-5 rounded-full bg-auth-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-auth-primary-hover"
+        className="mt-4 rounded-full bg-auth-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-auth-primary-hover"
       >
         Continue shopping
       </button>
@@ -126,29 +74,32 @@ function EmptyMiniCart({ onClose }) {
 export default function MiniCartDrawer() {
   const { isOpen, closeMiniCart } = useMiniCart()
   const navigate = useNavigate()
+  const panelRef = useRef(null)
   const items = useSelector(selectCartItems)
   const itemCount = useSelector(selectCartCount)
-  const { updateQuantity, deleteItem } = useCartActions()
-
-  const subtotal = items.reduce((total, item) => {
-    const lineTotal = item.displaySubtotal ?? (Number(item.price) || 0) * (Number(item.quantity) || 0)
-    return total + lineTotal
-  }, 0)
 
   useEffect(() => {
     if (!isOpen) return undefined
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') closeMiniCart()
     }
 
+    const handlePointerDown = (event) => {
+      if (event.target.closest('[data-mini-cart-toggle]')) return
+      if (panelRef.current?.contains(event.target)) return
+      closeMiniCart()
+    }
+
     window.addEventListener('keydown', handleKeyDown)
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDown, true)
+    }, 0)
+
     return () => {
-      document.body.style.overflow = previousOverflow
+      window.clearTimeout(timer)
       window.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('pointerdown', handlePointerDown, true)
     }
   }, [isOpen, closeMiniCart])
 
@@ -157,102 +108,67 @@ export default function MiniCartDrawer() {
     navigate('/cart')
   }
 
+  const previewItems = items.slice(0, 3)
+  const remainingCount = Math.max(0, items.length - previewItems.length)
+
   return createPortal(
     <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-130" role="dialog" aria-modal="true" aria-label="Your cart">
-          <motion.button
-            type="button"
-            aria-label="Close cart"
-            className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={closeMiniCart}
-          />
+      {isOpen ? (
+        <motion.div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="false"
+          aria-label="My cart"
+          data-mini-cart-panel
+          className="fixed top-[4.25rem] right-3 z-[140] w-[min(calc(100vw-1.5rem),20rem)] overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_16px_40px_-16px_rgba(15,23,42,0.35)] sm:right-6 lg:top-[5.25rem]"
+          initial={{ opacity: 0, y: -8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -6, scale: 0.98 }}
+          transition={{ duration: 0.2, ease: panelEase }}
+        >
+          <header className="flex items-center justify-between gap-3 px-4 py-3.5">
+            <h2 className="text-base font-bold tracking-tight text-slate-950">My Cart</h2>
+            <span className="flex min-w-5 items-center justify-center rounded-full bg-auth-primary px-1.5 py-0.5 text-[0.6875rem] font-bold leading-none text-white">
+              {itemCount > 99 ? '99+' : itemCount}
+            </span>
+          </header>
 
-          <motion.aside
-            className="absolute inset-y-0 right-0 flex w-[min(100vw-0.75rem,20rem)] flex-col border-l border-slate-200/80 bg-white shadow-[-8px_0_32px_-12px_rgba(15,23,42,0.28)]"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.3, ease: drawerEase }}
-          >
-            <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3.5">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-auth-primary/10 text-auth-primary">
-                  <ShoppingBag className="size-4" strokeWidth={2} />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="text-base font-bold tracking-tight text-slate-900">Cart</h2>
-                  <p className="text-xs text-slate-500">
-                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
-                  </p>
-                </div>
+          <div className="border-t border-slate-200" />
+
+          {items.length === 0 ? (
+            <EmptyMiniCart onClose={closeMiniCart} />
+          ) : (
+            <>
+              <ul className="divide-y divide-slate-100 px-4">
+                {previewItems.map((item) => (
+                  <MiniCartItem
+                    key={item.id}
+                    item={item}
+                    onNavigate={closeMiniCart}
+                  />
+                ))}
+              </ul>
+
+              {remainingCount > 0 ? (
+                <p className="border-t border-slate-100 px-4 py-2 text-center text-xs font-medium text-slate-500">
+                  +{remainingCount} more in cart
+                </p>
+              ) : null}
+
+              <div className="border-t border-slate-200 px-4 py-3.5">
+                <button
+                  type="button"
+                  onClick={handleViewCart}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-auth-primary px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-auth-primary-hover"
+                >
+                  <ShoppingCart className="size-4" strokeWidth={2.25} aria-hidden />
+                  View Cart
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={closeMiniCart}
-                aria-label="Close cart"
-                className="flex size-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-              >
-                <X className="size-4" strokeWidth={2.25} />
-              </button>
-            </header>
-
-            {items.length === 0 ? (
-              <EmptyMiniCart onClose={closeMiniCart} />
-            ) : (
-              <>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-                  <ul className="space-y-2.5">
-                    {items.map((item) => (
-                      <li key={item.id}>
-                        <MiniCartItem
-                          item={item}
-                          onQuantityChange={updateQuantity}
-                          onRemove={deleteItem}
-                          onNavigate={closeMiniCart}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <footer className="shrink-0 border-t border-slate-200/80 bg-slate-50/60 px-4 py-3.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-xs font-medium text-slate-600">Subtotal</span>
-                    <span className="text-base font-bold tabular-nums text-slate-900">
-                      {formatCedi(subtotal)}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[0.6875rem] text-slate-500">
-                    Shipping and taxes calculated at checkout.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={handleViewCart}
-                    className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-auth-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-auth-primary-hover"
-                  >
-                    View cart
-                    <ArrowRight className="size-4" strokeWidth={2.25} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={closeMiniCart}
-                    className="mt-2 w-full py-1 text-center text-xs font-medium text-slate-500 transition-colors hover:text-auth-primary"
-                  >
-                    Continue shopping
-                  </button>
-                </footer>
-              </>
-            )}
-          </motion.aside>
-        </div>
-      )}
+            </>
+          )}
+        </motion.div>
+      ) : null}
     </AnimatePresence>,
     document.body,
   )

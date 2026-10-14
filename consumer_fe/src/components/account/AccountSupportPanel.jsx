@@ -247,7 +247,7 @@ export default function AccountSupportPanel() {
         <div className="absolute -right-16 -top-20 size-56 rounded-full border-[28px] border-white/10" />
         <div className="relative max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/70">How can we help?</p>
-          <h3 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Get the answer you need</h3>
+          <h3 className="mt-2 text-lg font-extrabold tracking-tight sm:text-xl">Get the answer you need</h3>
           <p className="mt-2 text-sm leading-6 text-white/75">Search common questions or choose a support topic below.</p>
           <label className="relative mt-5 block">
             <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />

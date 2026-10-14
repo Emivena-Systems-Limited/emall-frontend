@@ -588,8 +588,8 @@ function OrdersList({ ordersQuery }) {
 
       <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Orders</h2>
-          <p className="mt-2 text-sm text-slate-500">Track, view and manage all your orders in one place.</p>
+          <h2 className="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">Orders</h2>
+          <p className="mt-1.5 text-xs text-slate-500 sm:text-sm">Track, view and manage all your orders in one place.</p>
         </div>
         {ordersQuery.isPending ? (
           <div className="h-10 w-full animate-pulse rounded-full bg-slate-200 lg:max-w-md" aria-hidden />

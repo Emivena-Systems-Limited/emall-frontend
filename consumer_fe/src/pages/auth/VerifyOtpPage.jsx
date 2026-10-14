@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useDispatch, useSelector } from 'react-redux'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import AuthLayout from '../../components/auth/AuthLayout'
 import OtpInput from '../../components/auth/OtpInput'
 import OtpExpiryNotice from '../../components/auth/OtpExpiryNotice'
@@ -29,6 +29,7 @@ import {
   continueBuyNowAfterAuthWithHold,
   getBuyNowResumePath,
 } from '../../utils/continueBuyNow'
+import Images from '../../utils/Images'
 
 export default function VerifyOtpPage() {
   const navigate = useNavigate()
@@ -59,6 +60,7 @@ export default function VerifyOtpPage() {
     : null
   const backPath = flow === AUTH_FLOW.REGISTER ? '/register' : '/login'
   const backLabel = flow === AUTH_FLOW.REGISTER ? 'Back to registration' : 'Back to login'
+  const isRegister = flow === AUTH_FLOW.REGISTER
 
   const handleExit = () => {
     clearAuthOtpSession()
@@ -144,123 +146,135 @@ export default function VerifyOtpPage() {
   }
 
   return (
-    <AuthLayout compact>
+    <AuthLayout
+      split
+      panelImage={Images.auth.verify_img}
+      panelHeadline="Almost there."
+      panelAccentLine="Verify and you’re in."
+      panelDescription="Enter the one-time code we sent you to finish signing in securely — and get back to shopping."
+    >
       <AnimatePresence mode="wait">
-          {isVerifying ? (
-            <motion.div
-              key="verifying"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <OtpVerifyingLoader
-                title={
-                  verifyStage === 'checkout'
-                    ? 'Taking you to checkout'
-                    : verifyStage === 'order'
-                      ? 'Preparing your order'
-                      : flow === AUTH_FLOW.REGISTER
-                        ? 'Verifying account'
-                        : 'Verifying OTP'
-                }
-                subtitle={
-                  verifyStage === 'checkout'
-                    ? 'Buy Now is ready. This will just take a moment.'
-                    : verifyStage === 'order'
-                      ? (buyNowItem?.name
-                        ? `Starting Buy Now for ${buyNowItem.name}`
-                        : 'Starting your Buy Now checkout')
-                      : flow === AUTH_FLOW.REGISTER
-                        ? 'Verifying your account, this will just take a moment'
-                        : 'Verifying your OTP, this will just take a moment'
-                }
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="form"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <div className="text-center">
-                <h1 className="auth-heading font-bold tracking-tight text-slate-900">
-                  Verification
-                </h1>
-                <p className="auth-body mt-3 leading-relaxed text-auth-muted">
-                  We have sent a 6-digit verification code to
-                </p>
-                <p className="auth-subheading mt-1 break-all font-semibold text-auth-accent">
-                  {displayContact}
-                </p>
-                <p className="auth-body mt-2 text-slate-400">
-                  {buyNowItem
-                    ? 'After this code, we’ll start Buy Now and take you to checkout.'
-                    : `Do not share with anyone · Code expires in ${OTP_EXPIRY_MINUTES} minutes`}
-                </p>
-                {buyNowItem ? (
-                  <p className="auth-body mt-1 text-slate-400">
-                    Do not share with anyone · Code expires in {OTP_EXPIRY_MINUTES} minutes
-                  </p>
-                ) : null}
-              </div>
-
-              <form onSubmit={handleSubmit} className="mt-4 space-y-4 sm:mt-5">
-                <OtpInput
-                  value={otp}
-                  autoFocus
-                  onChange={(value) => {
-                    setOtp(value)
-                    if (hasError) setHasError(false)
-                  }}
-                  error={hasError}
-                />
-
-                <OtpExpiryNotice className="mt-3" />
-
-                <motion.button
-                  type="submit"
-                  whileTap={{ scale: 0.985 }}
-                  className="w-full rounded-xl bg-auth-primary py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_rgba(199,59,45,0.7)] transition-colors hover:bg-auth-primary-hover sm:py-3 min-[1800px]:py-4.5 min-[1800px]:text-base"
-                >
-                  {hasError ? 'Retry' : 'Submit'}
-                </motion.button>
-              </form>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-      <div className={isVerifying ? 'sr-only' : 'mt-5 sm:mt-6'}>
-        <ResendTimer
-          onResend={handleResend}
-          disabled={resendOtpMutation.isPending || isVerifying}
-        />
-      </div>
-
-      {!isVerifying && (
-        <div className="mt-6 space-y-3 border-t border-slate-100 pt-5 text-center">
-          <button
-            type="button"
-            onClick={handleExit}
-            className="inline-flex cursor-pointer items-center justify-center gap-1.5 text-sm font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
+        {isVerifying ? (
+          <motion.div
+            key="verifying"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
           >
-            <ArrowLeft className="size-3.5" strokeWidth={2.25} aria-hidden="true" />
-            {backLabel}
-          </button>
-          <p className="auth-body text-auth-muted">
-            or{' '}
-            <Link
-              to="/"
-              onClick={clearAuthOtpSession}
-              className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
-            >
-              continue shopping
-            </Link>
-          </p>
-        </div>
-      )}
+            <OtpVerifyingLoader
+              title={
+                verifyStage === 'checkout'
+                  ? 'Taking you to checkout'
+                  : verifyStage === 'order'
+                    ? 'Preparing your order'
+                    : isRegister
+                      ? 'Verifying account'
+                      : 'Verifying OTP'
+              }
+              subtitle={
+                verifyStage === 'checkout'
+                  ? 'Buy Now is ready. This will just take a moment.'
+                  : verifyStage === 'order'
+                    ? (buyNowItem?.name
+                      ? `Starting Buy Now for ${buyNowItem.name}`
+                      : 'Starting your Buy Now checkout')
+                    : isRegister
+                      ? 'Verifying your account, this will just take a moment'
+                      : 'Verifying your OTP, this will just take a moment'
+              }
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="text-left">
+              <h1 className="text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2rem]">
+                {isRegister ? 'Verify your account' : 'Enter verification code'}
+              </h1>
+              <p className="mt-2 text-base font-medium text-slate-600">
+                We sent a 6-digit code to
+              </p>
+              <p className="mt-1 break-all text-sm font-semibold text-auth-primary">
+                {displayContact}
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                {buyNowItem
+                  ? 'After this code, we’ll start Buy Now and take you to checkout.'
+                  : `Do not share with anyone · Code expires in ${OTP_EXPIRY_MINUTES} minutes`}
+              </p>
+              {buyNowItem ? (
+                <p className="mt-1 text-sm text-slate-400">
+                  Do not share with anyone · Code expires in {OTP_EXPIRY_MINUTES} minutes
+                </p>
+              ) : null}
+            </div>
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4 sm:mt-7">
+              <OtpInput
+                value={otp}
+                autoFocus
+                onChange={(value) => {
+                  setOtp(value)
+                  if (hasError) setHasError(false)
+                }}
+                error={hasError}
+              />
+
+              <OtpExpiryNotice className="mt-3" />
+
+              <motion.button
+                type="submit"
+                whileTap={{ scale: 0.985 }}
+                className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-auth-primary py-3 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover sm:py-3.5"
+              >
+                {hasError ? 'Retry' : 'Verify code'}
+                {!hasError && (
+                  <ArrowRight className="size-4" strokeWidth={2.25} aria-hidden="true" />
+                )}
+              </motion.button>
+            </form>
+
+            <div className="mt-5 sm:mt-6">
+              <ResendTimer
+                onResend={handleResend}
+                disabled={resendOtpMutation.isPending}
+              />
+            </div>
+
+            <div className="mt-7 sm:mt-8">
+              <div className="relative flex items-center">
+                <div aria-hidden="true" className="h-px flex-1 bg-slate-200" />
+                <span className="px-3 text-xs font-medium text-slate-400">Need to go back?</span>
+                <div aria-hidden="true" className="h-px flex-1 bg-slate-200" />
+              </div>
+              <button
+                type="button"
+                onClick={handleExit}
+                className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 sm:py-3.5"
+              >
+                <ArrowLeft className="size-4" strokeWidth={2.25} aria-hidden="true" />
+                {backLabel}
+              </button>
+              <p className="mt-4 text-center text-sm text-slate-400">
+                or{' '}
+                <Link
+                  to="/"
+                  onClick={clearAuthOtpSession}
+                  className="font-semibold text-slate-700 underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
+                >
+                  continue shopping
+                </Link>
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AuthLayout>
   )
 }

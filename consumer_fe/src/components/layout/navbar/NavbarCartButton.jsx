@@ -1,12 +1,28 @@
-import { Link } from 'react-router'
+import { useNavigate } from 'react-router'
 import { ShoppingCart } from 'lucide-react'
+import { useOptionalMiniCart } from '../../../context/MiniCartContext'
 
 export default function NavbarCartButton({ count = 0, className = '', iconOnly = false }) {
+  const navigate = useNavigate()
+  const miniCart = useOptionalMiniCart()
+
+  const handleClick = () => {
+    if (miniCart) {
+      miniCart.toggleMiniCart()
+      return
+    }
+    navigate('/cart')
+  }
+
   return (
-    <Link
-      to="/cart"
+    <button
+      type="button"
+      data-mini-cart-toggle
       aria-label={`Shopping cart, ${count} items`}
-      className={`inline-flex shrink-0 items-center text-slate-900 transition-colors hover:text-nav-red focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nav-red ${
+      aria-expanded={miniCart?.isOpen ?? false}
+      aria-haspopup="dialog"
+      onClick={handleClick}
+      className={`inline-flex shrink-0 cursor-pointer items-center text-slate-900 transition-colors hover:text-nav-red focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nav-red ${
         iconOnly ? 'size-9 justify-center' : 'min-w-10 flex-col gap-1'
       } ${className}`}
     >
@@ -19,6 +35,6 @@ export default function NavbarCartButton({ count = 0, className = '', iconOnly =
         )}
       </span>
       {iconOnly ? null : <span className="text-[0.6875rem] leading-none font-medium">Cart</span>}
-    </Link>
+    </button>
   )
 }

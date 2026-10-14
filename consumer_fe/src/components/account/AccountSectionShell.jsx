@@ -12,17 +12,17 @@ export default function AccountSectionShell({
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-5 sm:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
         <div className="min-w-0">
           {eyebrow ? (
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-auth-primary">{eyebrow}</p>
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-auth-primary">{eyebrow}</p>
           ) : null}
-          <h2 className="mt-1 text-xl font-bold text-slate-950">{title}</h2>
-          {description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{description}</p> : null}
+          <h2 className="mt-1 text-base font-bold text-slate-950 sm:text-lg">{title}</h2>
+          {description ? <p className="mt-1.5 max-w-2xl text-xs leading-5 text-slate-500">{description}</p> : null}
         </div>
         {Icon ? (
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-auth-primary">
-            <Icon className="size-5" />
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-auth-primary">
+            <Icon className="size-4" />
           </span>
         ) : null}
       </div>

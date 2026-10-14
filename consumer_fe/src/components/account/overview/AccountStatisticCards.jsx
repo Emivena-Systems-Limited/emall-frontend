@@ -35,18 +35,18 @@ export default function AccountStatisticCards() {
         return (
           <article
             key={item.label}
-            className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-auth-primary/20 hover:shadow-[0_15px_35px_rgba(15,23,42,0.08)]"
+            className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_30px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-auth-primary/20 hover:shadow-[0_15px_35px_rgba(15,23,42,0.08)]"
           >
             <div className="flex items-start justify-between gap-3">
-              <span className={`flex size-11 items-center justify-center rounded-xl ${item.tone}`}>
-                <Icon className="size-5" />
+              <span className={`flex size-9 items-center justify-center rounded-xl ${item.tone}`}>
+                <Icon className="size-4" />
               </span>
-              <span className="text-3xl font-bold tracking-tight text-slate-950">{item.value}</span>
+              <span className="text-2xl font-bold tracking-tight text-slate-950">{item.value}</span>
             </div>
-            <h3 className="mt-4 text-sm font-semibold text-slate-600">{item.label}</h3>
+            <h3 className="mt-3 text-xs font-semibold text-slate-600">{item.label}</h3>
             <Link
               to={item.href}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-auth-primary hover:underline"
+              className="mt-2.5 inline-flex items-center gap-1 text-[0.6875rem] font-bold text-auth-primary hover:underline"
             >
               {item.link}
               <ChevronRight className="size-3.5" />

@@ -3,29 +3,29 @@ import {
   CircleHelp,
   Gift,
   Heart,
-  House,
   // MapPin,
-  MessageSquareText,
   Package,
   RotateCcw,
   Settings,
   ShoppingBag,
+  Star,
   Store,
   TicketPercent,
+  User,
 } from 'lucide-react'
 
 export const accountNavigationItems = [
-  { id: 'overview', label: 'Profile Overview', icon: House, href: '/account', enabled: true },
-  { id: 'orders', label: 'Orders', icon: Package, href: '/account/orders', enabled: true },
+  { id: 'overview', label: 'Profile', icon: User, href: '/account', enabled: true },
+  { id: 'orders', label: 'My Orders', icon: ShoppingBag, href: '/account/orders', enabled: true },
   { id: 'wishlist', label: 'Wishlist', icon: Heart, href: '/account/wishlist', enabled: true },
-  { id: 'coupons', label: 'Coupons & Offers', icon: TicketPercent, href: '/account/coupons', enabled: false },
-  { id: 'reviews', label: 'Reviews', icon: MessageSquareText, href: '/account/reviews', enabled: true },
   { id: 'returns', label: 'Returns & Refunds', icon: RotateCcw, href: '/account/returns', enabled: true },
   { id: 'stores', label: 'Followed Stores', icon: Store, href: '/account/stores', enabled: true },
+  { id: 'reviews', label: 'My Reviews', icon: Star, href: '/account/reviews', enabled: true },
   // Temporarily hidden at the product manager's request.
   // { id: 'addresses', label: 'Addresses', icon: MapPin, href: '/account/addresses', enabled: true },
-  { id: 'settings', label: 'Account Settings', icon: Settings, href: '/account/settings', enabled: true },
+  { id: 'coupons', label: 'Coupons & Offers', icon: TicketPercent, href: '/account/coupons', enabled: false },
   { id: 'notifications', label: 'Notifications', icon: Bell, href: '/account/notifications', enabled: true },
+  { id: 'settings', label: 'Settings', icon: Settings, href: '/account/settings', enabled: true },
   { id: 'support', label: 'Help & Support', icon: CircleHelp, href: '/account/support', enabled: true },
 ]
 

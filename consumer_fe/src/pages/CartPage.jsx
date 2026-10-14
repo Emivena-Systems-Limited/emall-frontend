@@ -35,7 +35,6 @@ import { useLatestProducts } from '../hooks/useLatestProducts'
 import { getPromotionsFilterHref, PROMOTION_FILTER_FLASH_SALES } from '../constants/categoryQuickFilters'
 import CartRecommendationSection from '../components/cart/CartRecommendationSection'
 import CartPageSkeleton from '../components/cart/CartPageSkeleton'
-import CartSavedItemsEmptyState from '../components/cart/CartSavedItemsEmptyState'
 
 const clampQuantity = (value) => Math.max(1, value)
 const CART_RAIL_LIMIT = 6
@@ -658,11 +657,7 @@ function SavedForLaterSection() {
   const savedItems = useSelector(selectSavedCartItems)
   const { restoreSavedItem, deleteSaved, clearSaved } = useCartActions()
 
-  if (!isAuthenticated) return null
-
-  if (savedItems.length === 0) {
-    return <CartSavedItemsEmptyState />
-  }
+  if (!isAuthenticated || savedItems.length === 0) return null
 
   return (
     <ItemTable

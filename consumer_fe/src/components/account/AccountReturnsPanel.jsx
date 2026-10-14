@@ -19,6 +19,7 @@ import {
 import kitchenImage from '../../assets/images/categories/kitchen_utensils.jpg'
 import electronicsImage from '../../assets/images/categories/electronics.jpg'
 import fashionImage from '../../assets/images/fashion.png'
+import CatalogLineItemCard from '../shared/CatalogLineItemCard'
 
 const returnRequests = [
   {
@@ -125,47 +126,48 @@ function SummaryCard({ label, value }) {
 
 function ReturnRequestCard({ request }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.035)] transition hover:border-auth-primary/25 hover:shadow-[0_14px_36px_rgba(15,23,42,0.07)] sm:p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="flex min-w-0 flex-1 gap-3.5">
-          <div className="flex size-20 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 sm:size-24">
-            <img src={request.image} alt="" className="size-full object-contain p-1" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <ReturnStatusBadge status={request.status} />
-              <span className="text-[0.68rem] font-medium text-slate-400">{request.requestedAt}</span>
-            </div>
-            <h3 className="mt-2 line-clamp-2 text-sm font-bold leading-5 text-slate-950 sm:text-base">{request.product}</h3>
-            <p className="mt-1 text-xs text-slate-500">{request.variation} · Qty {request.quantity}</p>
-          </div>
+    <CatalogLineItemCard
+      name={request.product}
+      href={`/account/returns/${request.id}`}
+      image={request.image}
+      imageFallback={<RotateCcw className="size-8" />}
+      optionLabel={`${request.variation} · Qty ${request.quantity}`}
+      hideQuantity
+      badges={(
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <ReturnStatusBadge status={request.status} />
+          <span className="text-[0.68rem] font-medium text-slate-400">{request.requestedAt}</span>
         </div>
-
-        <div className="grid grid-cols-2 gap-x-5 gap-y-3 border-t border-slate-100 pt-4 text-xs sm:w-72 sm:shrink-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0 lg:w-80">
+      )}
+      meta={(
+        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:max-w-md">
           <div>
             <p className="text-slate-400">Return ID</p>
-            <p className="mt-1 font-bold text-slate-800">{request.id}</p>
+            <p className="mt-0.5 font-bold text-slate-800">{request.id}</p>
           </div>
           <div>
             <p className="text-slate-400">Order</p>
-            <p className="mt-1 font-bold text-slate-800">#{request.orderId}</p>
+            <p className="mt-0.5 font-bold text-slate-800">#{request.orderId}</p>
           </div>
           <div>
             <p className="text-slate-400">Order date</p>
-            <p className="mt-1 font-semibold text-slate-700">{request.orderDate}</p>
+            <p className="mt-0.5 font-semibold text-slate-700">{request.orderDate}</p>
           </div>
-          <div className="flex items-end justify-end">
-            <Link
-              to={`/account/returns/${request.id}`}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-auth-primary px-4 py-2 font-bold text-white transition hover:bg-auth-primary-hover"
-            >
-              View details
-              <ArrowRight className="size-3.5" />
-            </Link>
+          <div>
+            <p className="text-slate-400">Amount</p>
+            <p className="mt-0.5 font-bold text-slate-950">{request.amount}</p>
           </div>
         </div>
-      </div>
-    </article>
+      )}
+      actions={[
+        {
+          id: 'details',
+          label: 'View details',
+          icon: ArrowRight,
+          to: `/account/returns/${request.id}`,
+        },
+      ]}
+    />
   )
 }
 
@@ -180,7 +182,7 @@ function ReturnDetails({ request }) {
           <Link to="/account/returns" className="inline-flex items-center gap-1.5 text-xs font-bold text-auth-primary hover:underline">
             <ArrowLeft className="size-3.5" /> Back to returns
           </Link>
-          <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Return request</h1>
+          <h1 className="mt-3 text-lg font-extrabold tracking-tight text-slate-950 sm:text-xl">Return request</h1>
           <p className="mt-1 text-sm text-slate-500">{request.id} · Submitted {request.requestedAt}</p>
         </div>
         <ReturnStatusBadge status={request.status} />
@@ -205,20 +207,21 @@ function ReturnDetails({ request }) {
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <section className="space-y-4">
           <h2 className="text-base font-bold text-slate-950">Returned item</h2>
-          <div className="mt-4 flex gap-4 border-b border-slate-100 pb-5">
-            <div className="flex size-24 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-              <img src={request.image} alt="" className="size-full object-contain p-1" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-bold leading-5 text-slate-950">{request.product}</h3>
-              <p className="mt-1 text-xs text-slate-500">{request.variation}</p>
-              <p className="mt-1 text-xs text-slate-500">Quantity: {request.quantity}</p>
-              <p className="mt-3 text-base font-extrabold text-slate-950">{request.amount}</p>
-            </div>
-          </div>
-          <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+          <CatalogLineItemCard
+            name={request.product}
+            href={`/account/returns/${request.id}`}
+            image={request.image}
+            imageFallback={<RotateCcw className="size-8" />}
+            optionLabel={request.variation}
+            quantity={request.quantity}
+            readOnlyQuantity
+            meta={(
+              <p className="mt-2 text-base font-bold tabular-nums text-slate-950">{request.amount}</p>
+            )}
+          />
+          <dl className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm sm:grid-cols-2 sm:p-6">
             <div><dt className="text-xs text-slate-400">Return reason</dt><dd className="mt-1 font-semibold text-slate-800">{request.reason}</dd></div>
             <div><dt className="text-xs text-slate-400">Refund method</dt><dd className="mt-1 font-semibold text-slate-800">{request.refundMethod}</dd></div>
             <div><dt className="text-xs text-slate-400">Order number</dt><dd className="mt-1 font-semibold text-slate-800">#{request.orderId}</dd></div>
@@ -274,8 +277,8 @@ export default function AccountReturnsPanel() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-auth-primary">Purchase support</p>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Returns & Refunds</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Track every return request, refund update, and next step in one place.</p>
+          <h1 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950 sm:text-xl">Returns & Refunds</h1>
+          <p className="mt-1.5 max-w-2xl text-xs leading-5 text-slate-500 sm:text-sm">Track every return request, refund update, and next step in one place.</p>
         </div>
         <Link to="/account/orders" className="inline-flex w-fit items-center gap-2 rounded-full bg-auth-primary px-4 py-2.5 text-xs font-bold text-white transition hover:bg-auth-primary-hover">
           <RotateCcw className="size-4" /> Request a return

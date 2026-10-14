@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router'
 import { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { ChevronRight, Download, Loader2, Package, Star } from 'lucide-react'
+import { ChevronRight, Download, Loader2, Package, RotateCcw, ShoppingCart, Star } from 'lucide-react'
 import {
   buildBuyAgainCartArgs,
   canReturnOrderItem,
@@ -26,11 +26,7 @@ import { useCartActions } from '../../hooks/useCartActions'
 import { hasBackendProductId } from '../../utils/normalizeCart'
 import OrderManagePanel from './OrderManagePanel'
 import OrderTrackingTimeline from './OrderTrackingTimeline'
-import LineItemPrice from '../shared/LineItemPrice'
-import {
-  LINE_ITEM_TABLE_CELL_PADDING,
-  LINE_ITEM_TABLE_ROW_CLASS,
-} from '../../constants/lineItemTable'
+import CatalogLineItemCard from '../shared/CatalogLineItemCard'
 
 const itemDeliveryStatusStyles = {
   'Pending Delivery': 'bg-amber-50 text-amber-700',
@@ -100,83 +96,62 @@ function OrderDetailsTableRow({ item, orderId, deliveryIsFree }) {
     }
   }
 
+  const quantity = Math.max(1, Number(item.quantity) || 1)
+  const actions = [
+    {
+      id: 'buy-again',
+      label: isBuyingAgain ? 'Adding…' : 'Buy Again',
+      icon: ShoppingCart,
+      onClick: handleBuyAgain,
+      disabled: isBuyingAgain,
+    },
+  ]
+  if (canReturn) {
+    actions.push({ id: 'return', label: 'Return Item', icon: RotateCcw, to: returnHref })
+  }
+  if (canReview) {
+    actions.push({
+      id: 'review',
+      label: 'Leave Review',
+      icon: Star,
+      to: reviewLink.to,
+      state: reviewLink.state,
+    })
+  }
+
   return (
-    <article className={LINE_ITEM_TABLE_ROW_CLASS}>
-      <div className={`flex min-w-0 items-center gap-3 ${LINE_ITEM_TABLE_CELL_PADDING}`}>
-        {image ? (
-          <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-            <img src={image} alt="" className="size-full object-contain p-1" />
-          </span>
-        ) : (
-          <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-slate-400">
-            <Package className="size-6" strokeWidth={1.8} aria-hidden />
-          </span>
-        )}
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <Link to={productHref} className="text-sm font-bold text-slate-950 transition hover:text-auth-primary">
-            {productName}
-          </Link>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <ItemDeliveryBadge status={item.delivery_status} />
-            {deliveryIsFree ? (
-              <span className="inline-flex rounded-sm bg-[#edf7ed] px-2 py-0.5 text-[0.6875rem] font-medium text-[#2e7d32]">
-                Free Delivery
-              </span>
-            ) : null}
-          </div>
-          {variantLabel ? (
-            <p className="text-xs leading-snug text-slate-500">{variantLabel}</p>
-          ) : null}
-          {storeName ? (
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="font-semibold text-auth-primary">{storeName}</span>
-              <span className="flex items-center text-auth-primary">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Star key={index} className="size-2.5 fill-current" aria-hidden />
-                ))}
-              </span>
-              {reviewCount != null ? (
-                <span className="text-slate-500">({reviewCount})</span>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5 text-xs text-slate-900">
-            <button
-              type="button"
-              onClick={handleBuyAgain}
-              disabled={isBuyingAgain}
-              className="underline underline-offset-2 hover:text-auth-primary disabled:cursor-wait disabled:opacity-60"
-            >
-              {isBuyingAgain ? 'Adding…' : 'Buy Again'}
-            </button>
-            {canReturn ? (
-              <Link to={returnHref} className="underline underline-offset-2 hover:text-auth-primary">
-                Return Item
-              </Link>
-            ) : null}
-            {canReview ? (
-              <Link
-                to={reviewLink.to}
-                state={reviewLink.state}
-                className="underline underline-offset-2 hover:text-auth-primary"
-              >
-                Leave Review
-              </Link>
-            ) : null}
-          </div>
+    <CatalogLineItemCard
+      name={productName}
+      href={productHref}
+      image={image}
+      imageFallback={<Package className="size-8" strokeWidth={1.8} aria-hidden />}
+      optionLabel={variantLabel || undefined}
+      freeShipping={deliveryIsFree}
+      quantity={quantity}
+      readOnlyQuantity
+      unitPrice={unitPrice}
+      lineTotal={unitPrice * quantity}
+      comparePrice={comparePrice}
+      badges={(
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <ItemDeliveryBadge status={item.delivery_status} />
         </div>
-      </div>
-
-      <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
-        <span className="text-xs font-semibold text-slate-500 sm:hidden">Quantity</span>
-        <span className="text-sm font-bold tabular-nums text-slate-950">{Math.max(1, Number(item.quantity) || 1)}</span>
-      </div>
-
-      <div className={`flex items-center justify-between sm:justify-center ${LINE_ITEM_TABLE_CELL_PADDING}`}>
-        <span className="text-xs font-semibold text-slate-500 sm:hidden">Price</span>
-        <LineItemPrice amount={unitPrice} compareAmount={comparePrice} />
-      </div>
-    </article>
+      )}
+      meta={storeName ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="font-semibold text-auth-primary">{storeName}</span>
+          <span className="flex items-center text-auth-primary">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Star key={index} className="size-2.5 fill-current" aria-hidden />
+            ))}
+          </span>
+          {reviewCount != null ? (
+            <span className="text-slate-500">({reviewCount})</span>
+          ) : null}
+        </div>
+      ) : null}
+      actions={actions}
+    />
   )
 }
 
@@ -222,7 +197,7 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
 
       <header className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+          <h1 className="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
             Order{' '}
             <span className="tabular-nums tracking-normal">{orderNumber}</span>
           </h1>
@@ -279,7 +254,7 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
 
       <section className="w-full pt-1">
         {items.length ? (
-          <div className="border-t border-slate-200">
+          <div className="space-y-3 sm:space-y-4">
             {items.map((item) => (
               <OrderDetailsTableRow
                 key={item.id ?? `${item.product_id}-${item.sku}`}
@@ -295,7 +270,7 @@ export default function OrderDetailsView({ order, onCancelRequest }) {
           </div>
         )}
 
-        <dl className="mt-4 space-y-2 border-t border-slate-200 px-3 pt-4 text-sm sm:px-4">
+        <dl className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm sm:px-5">
           <div className="flex items-center justify-between">
             <dt className="text-slate-600">Subtotal</dt>
             <dd className="font-semibold text-slate-900">{formatOrderMoney(totals.subtotal)}</dd>

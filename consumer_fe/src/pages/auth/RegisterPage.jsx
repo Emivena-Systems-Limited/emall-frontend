@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
+  ArrowRight,
   Building2,
   Landmark,
   Mail,
@@ -55,6 +56,7 @@ import {
   validatePersonName,
 } from '../../utils/validateGhanaPhone'
 import { scrollToFirstError } from '../../utils/scrollToFirstError'
+import Images from '../../utils/Images'
 
 const REGISTER_FIELD_ORDER = [
   'firstName',
@@ -314,209 +316,224 @@ export default function RegisterPage() {
     }
   }
 
+  const loginState = buyNowAuthState ?? (redirectTo ? { from: redirectTo } : undefined)
+
   return (
-    <AuthLayout wide>
-      <motion.div {...formHeaderMotion} className="text-center">
-        <p className="auth-subheading font-medium tracking-wide text-auth-muted">
-          {buyNowItem ? 'Finish your purchase' : "Let's get you started"}
-        </p>
-        <h1 className="auth-heading mt-1.5 font-bold tracking-tight text-slate-900">
-          {buyNowItem ? 'Create an account to buy now' : 'Register your account'}
+    <AuthLayout
+      split
+      wide
+      panelImage={Images.auth.signup_img}
+      panelHeadline="Join thousands of shoppers."
+      panelAccentLine="Start in minutes."
+      panelDescription="Create your eezmall account to shop from verified vendors, track orders, and checkout faster."
+    >
+      <motion.div {...formHeaderMotion} className="text-left">
+        <h1 className="text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2rem]">
+          {buyNowItem ? 'Create an account to buy now' : 'Create an account'}
         </h1>
-        <p className="auth-body mx-auto mt-1.5 max-w-md leading-relaxed text-slate-500">
+        <p className="mt-2 text-base font-medium text-slate-600">
+          {buyNowItem ? 'Finish your purchase' : 'Sign up for your eezmall account'}
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-400">
           {buyNowItem
-            ? 'Create your EZ-Stores account, verify with a code, and we’ll start checkout for the item you’re holding.'
-            : 'Create your EZ-Stores account to shop, track orders, and checkout faster.'}
+            ? 'Create your account, verify with a code, and we’ll start checkout for the item you’re holding.'
+            : 'Fill in your details and we’ll send a one-time code to verify your email.'}
         </p>
       </motion.div>
 
       <BuyNowAuthResume item={buyNowItem} onCancel={handleCancelBuyNow} />
 
-      <form onSubmit={handleSubmit} className="mt-4 space-y-4 sm:mt-5">
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4 sm:mt-7">
         <motion.div
           variants={formStaggerContainer}
           initial="hidden"
           animate="visible"
           className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4"
         >
-            <FormField name="firstName">
-              <TextInput
-                id="firstName"
-                label="First name"
-                icon={User}
-                value={form.firstName}
-                onChange={(value) => updateField('firstName', value)}
-                onBlur={() =>
-                  validateNameField('firstName', form.firstName, {
-                    fieldLabel: 'First name',
-                    requireValue: Boolean(form.firstName.trim()),
-                  })
-                }
-                error={errors.firstName}
-                disabled={isSubmitting}
-                autoComplete="given-name"
-              />
-            </FormField>
-            <FormField name="lastName">
-              <TextInput
-                id="lastName"
-                label="Last name"
-                icon={UserRound}
-                value={form.lastName}
-                onChange={(value) => updateField('lastName', value)}
-                onBlur={() =>
-                  validateNameField('lastName', form.lastName, {
-                    fieldLabel: 'Last name',
-                    requireValue: Boolean(form.lastName.trim()),
-                  })
-                }
-                error={errors.lastName}
-                disabled={isSubmitting}
-                autoComplete="family-name"
-              />
-            </FormField>
-            <FormField name="phone">
-              <PhoneInput
-                value={form.phone}
-                onChange={(value) => updateField('phone', formatGhanaPhoneDisplay(normalizeGhanaPhone(value)))}
-                onBlur={() => {
-                  if (!form.phone.trim()) return
-                  const result = validateGhanaPhone(form.phone)
-                  setFieldError('phone', result.valid ? '' : result.message)
-                }}
-                error={errors.phone}
-                disabled={isSubmitting}
-              />
-            </FormField>
-            <FormField name="email">
-              <TextInput
-                id="email"
-                label="Email address"
-                icon={Mail}
-                type="email"
-                value={form.email}
-                onChange={(value) => updateField('email', value)}
-                onBlur={() =>
-                  validateEmailField(form.email, {
-                    requireValue: Boolean(form.email.trim()),
-                  })
-                }
-                error={errors.email}
-                disabled={isSubmitting}
-                autoComplete="email"
-              />
-            </FormField>
-            <FormField name="region">
-              <SearchableSelect
-                id="region"
-                label="Region"
-                icon={MapPin}
-                value={form.region}
-                onChange={(value) => updateField('region', value)}
-                options={regionOptions}
-                placeholder="Search regions…"
-                emptyLabel="Select region"
-                error={errors.region}
-                disabled={isSubmitting}
-              />
-            </FormField>
-            <FormField name="city">
-              <SearchableSelect
-                id="city"
-                label="City"
-                icon={Building2}
-                value={form.city}
-                onChange={(value) => updateField('city', value)}
-                options={cityOptions}
-                placeholder="Search cities…"
-                emptyLabel="Select city"
-                allowOther
-                otherValue={LOCATION_OTHER_VALUE}
-                customValue={form.cityCustom}
-                onCustomChange={(value) => updateField('cityCustom', value)}
-                customInputPlaceholder="Type your city name"
-                error={errors.city}
-                customError={errors.cityCustom}
-                disabled={isSubmitting || !form.region}
-              />
-            </FormField>
-            <FormField name="district">
-              <SearchableSelect
-                id="district"
-                label="District"
-                icon={Landmark}
-                value={form.district}
-                onChange={(value) => updateField('district', value)}
-                options={districtOptions}
-                placeholder="Search districts…"
-                emptyLabel="Select district"
-                allowOther
-                otherValue={LOCATION_OTHER_VALUE}
-                customValue={form.districtCustom}
-                onCustomChange={(value) => updateField('districtCustom', value)}
-                customInputPlaceholder="Type your district name"
-                error={errors.district}
-                customError={errors.districtCustom}
-                disabled={isSubmitting || !form.city}
-              />
-            </FormField>
-            <FormField name="gender">
-              <SelectInput
-                id="gender"
-                label="Gender"
-                icon={Users}
-                value={form.gender}
-                onChange={(value) => updateField('gender', value)}
-                options={genderOptions}
-                error={errors.gender}
-                disabled={isSubmitting}
-              />
-            </FormField>
-          </motion.div>
-
-          <motion.div variants={formActionsMotion} initial="hidden" animate="visible">
-            <FormField name="terms">
-              <TermsCheckbox
-                checked={acceptedTerms}
-                onChange={setAcceptedTerms}
-                disabled={isSubmitting}
-              />
-              <FieldError message={termsError} />
-            </FormField>
-
-            <motion.button
-              type="submit"
+          <FormField name="firstName">
+            <TextInput
+              id="firstName"
+              label="First name"
+              icon={User}
+              value={form.firstName}
+              onChange={(value) => updateField('firstName', value)}
+              onBlur={() =>
+                validateNameField('firstName', form.firstName, {
+                  fieldLabel: 'First name',
+                  requireValue: Boolean(form.firstName.trim()),
+                })
+              }
+              error={errors.firstName}
               disabled={isSubmitting}
-              whileTap={{ scale: 0.985 }}
-              className="mt-4 w-full rounded-xl bg-auth-primary py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3 min-[1800px]:py-4 min-[1800px]:text-base"
-            >
-              {isSubmitting
-                ? 'Creating account…'
-                : buyNowItem
-                  ? 'Create account & continue'
-                  : 'Continue'}
-            </motion.button>
-          </motion.div>
-        </form>
+              autoComplete="given-name"
+            />
+          </FormField>
+          <FormField name="lastName">
+            <TextInput
+              id="lastName"
+              label="Last name"
+              icon={UserRound}
+              value={form.lastName}
+              onChange={(value) => updateField('lastName', value)}
+              onBlur={() =>
+                validateNameField('lastName', form.lastName, {
+                  fieldLabel: 'Last name',
+                  requireValue: Boolean(form.lastName.trim()),
+                })
+              }
+              error={errors.lastName}
+              disabled={isSubmitting}
+              autoComplete="family-name"
+            />
+          </FormField>
+          <FormField name="phone">
+            <PhoneInput
+              value={form.phone}
+              onChange={(value) => updateField('phone', formatGhanaPhoneDisplay(normalizeGhanaPhone(value)))}
+              onBlur={() => {
+                if (!form.phone.trim()) return
+                const result = validateGhanaPhone(form.phone)
+                setFieldError('phone', result.valid ? '' : result.message)
+              }}
+              error={errors.phone}
+              disabled={isSubmitting}
+            />
+          </FormField>
+          <FormField name="email">
+            <TextInput
+              id="email"
+              label="Email address"
+              icon={Mail}
+              type="email"
+              value={form.email}
+              onChange={(value) => updateField('email', value)}
+              onBlur={() =>
+                validateEmailField(form.email, {
+                  requireValue: Boolean(form.email.trim()),
+                })
+              }
+              error={errors.email}
+              disabled={isSubmitting}
+              autoComplete="email"
+            />
+          </FormField>
+          <FormField name="region">
+            <SearchableSelect
+              id="region"
+              label="Region"
+              icon={MapPin}
+              value={form.region}
+              onChange={(value) => updateField('region', value)}
+              options={regionOptions}
+              placeholder="Search regions…"
+              emptyLabel="Select region"
+              error={errors.region}
+              disabled={isSubmitting}
+            />
+          </FormField>
+          <FormField name="city">
+            <SearchableSelect
+              id="city"
+              label="City"
+              icon={Building2}
+              value={form.city}
+              onChange={(value) => updateField('city', value)}
+              options={cityOptions}
+              placeholder="Search cities…"
+              emptyLabel="Select city"
+              allowOther
+              otherValue={LOCATION_OTHER_VALUE}
+              customValue={form.cityCustom}
+              onCustomChange={(value) => updateField('cityCustom', value)}
+              customInputPlaceholder="Type your city name"
+              error={errors.city}
+              customError={errors.cityCustom}
+              disabled={isSubmitting || !form.region}
+            />
+          </FormField>
+          <FormField name="district">
+            <SearchableSelect
+              id="district"
+              label="District"
+              icon={Landmark}
+              value={form.district}
+              onChange={(value) => updateField('district', value)}
+              options={districtOptions}
+              placeholder="Search districts…"
+              emptyLabel="Select district"
+              allowOther
+              otherValue={LOCATION_OTHER_VALUE}
+              customValue={form.districtCustom}
+              onCustomChange={(value) => updateField('districtCustom', value)}
+              customInputPlaceholder="Type your district name"
+              error={errors.district}
+              customError={errors.districtCustom}
+              disabled={isSubmitting || !form.city}
+            />
+          </FormField>
+          <FormField name="gender">
+            <SelectInput
+              id="gender"
+              label="Gender"
+              icon={Users}
+              value={form.gender}
+              onChange={(value) => updateField('gender', value)}
+              options={genderOptions}
+              error={errors.gender}
+              disabled={isSubmitting}
+            />
+          </FormField>
+        </motion.div>
 
-        <motion.p
-          {...formHeaderMotion}
-          className="auth-body mt-4 text-center text-auth-muted sm:mt-5"
-        >
-          Already have an account?{' '}
-          <Link
-            to="/login"
-            state={buyNowAuthState ?? (redirectTo ? { from: redirectTo } : undefined)}
-            className="font-semibold text-auth-accent underline-offset-2 transition-colors hover:text-auth-primary hover:underline"
+        <motion.div variants={formActionsMotion} initial="hidden" animate="visible">
+          <FormField name="terms">
+            <TermsCheckbox
+              checked={acceptedTerms}
+              onChange={setAcceptedTerms}
+              disabled={isSubmitting}
+            />
+            <FieldError message={termsError} />
+          </FormField>
+
+          <motion.button
+            type="submit"
+            disabled={isSubmitting}
+            whileTap={{ scale: 0.985 }}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-auth-primary py-3 text-sm font-semibold text-white shadow-[0_10px_24px_-14px_rgba(199,59,45,0.65)] transition-colors hover:bg-auth-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:py-3.5"
           >
-            Login
-          </Link>
-        </motion.p>
+            {isSubmitting
+              ? 'Creating account…'
+              : buyNowItem
+                ? 'Create account & continue'
+                : (
+                  <>
+                    Create account
+                    <ArrowRight className="size-4" strokeWidth={2.25} aria-hidden="true" />
+                  </>
+                )}
+          </motion.button>
+        </motion.div>
+      </form>
 
-        <AuthHomeLink
-          to={buyNowItem?.href || '/'}
-          label={buyNowItem ? 'Back to product' : 'Back to home'}
-        />
+      <motion.div {...formHeaderMotion} className="mt-7 sm:mt-8">
+        <div className="relative flex items-center">
+          <div aria-hidden="true" className="h-px flex-1 bg-slate-200" />
+          <span className="px-3 text-xs font-medium text-slate-400">Already have an account?</span>
+          <div aria-hidden="true" className="h-px flex-1 bg-slate-200" />
+        </div>
+        <Link
+          to="/login"
+          state={loginState}
+          className="mt-4 flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 sm:py-3.5"
+        >
+          Sign in
+        </Link>
+      </motion.div>
+
+      <AuthHomeLink
+        to={buyNowItem?.href || '/'}
+        label={buyNowItem ? 'Back to product' : 'Back to home'}
+      />
     </AuthLayout>
   )
 }

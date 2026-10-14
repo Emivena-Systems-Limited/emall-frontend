@@ -7,61 +7,76 @@ import useNotificationUnreadCount from '../../hooks/useNotificationUnreadCount'
 
 const panelEase = [0.16, 1, 0.3, 1]
 
-function AccountNavList({ pathname, onNavigate, itemClassName }) {
+function AccountNavList({ pathname, onNavigate, onLogout, isLoggingOut, stretch = false }) {
   const { unreadCount } = useNotificationUnreadCount()
+  const navItems = accountNavigationItems.filter((item) => isAccountNavItemEnabled(item))
 
   return (
-    <>
-      {accountNavigationItems.map((item) => {
+    <ul className={`divide-y divide-slate-200 ${stretch ? 'flex h-full min-h-0 flex-col' : ''}`}>
+      {navItems.map((item) => {
         const Icon = item.icon
         const active = isAccountNavItemActive(pathname, item.href)
-        const enabled = isAccountNavItemEnabled(item)
-
-        if (!enabled) {
-          return (
-            <span
-              key={item.id}
-              aria-disabled="true"
-              title="Coming soon"
-              className={`flex cursor-not-allowed items-center gap-2 rounded-lg text-slate-400 ${itemClassName}`}
-            >
-              <Icon className="size-4 shrink-0 opacity-50" strokeWidth={2} />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-px text-[0.625rem] font-bold uppercase tracking-wide text-slate-500">
-                Soon
-              </span>
-            </span>
-          )
-        }
 
         return (
-          <Link
-            key={item.id}
-            to={item.href}
-            onClick={onNavigate}
-            aria-current={active ? 'page' : undefined}
-            className={`group flex items-center gap-2 rounded-lg transition-all ${itemClassName} ${
-              active
-                ? 'bg-auth-primary text-white shadow-sm'
-                : 'text-slate-600 hover:bg-red-50 hover:text-auth-primary'
-            }`}
-          >
-            <Icon className="size-4 shrink-0" strokeWidth={2} />
-            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            {item.id === 'notifications' && unreadCount > 0 ? (
-              <span className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold ${active ? 'bg-white text-auth-primary' : 'bg-red-50 text-auth-primary'}`}>
-                {unreadCount}
-              </span>
-            ) : null}
-            <ChevronRight
-              className={`size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 ${
-                active ? 'opacity-100' : 'opacity-35'
+          <li key={item.id} className={stretch ? 'flex min-h-0 flex-1' : undefined}>
+            <Link
+              to={item.href}
+              onClick={onNavigate}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex w-full items-center gap-2 px-2.5 text-xs font-medium transition-colors ${
+                stretch ? 'h-full min-h-9 py-0' : 'py-2'
+              } ${
+                active
+                  ? 'bg-red-50/40 text-auth-primary'
+                  : 'text-slate-900 hover:bg-slate-50 hover:text-auth-primary'
               }`}
-            />
-          </Link>
+            >
+              {active ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-0 left-0 w-[3px] rounded-r-full bg-auth-primary"
+                />
+              ) : null}
+              <Icon
+                className={`size-3.5 shrink-0 ${active ? 'text-auth-primary' : 'text-slate-800'}`}
+                strokeWidth={1.75}
+              />
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {item.id === 'notifications' && unreadCount > 0 ? (
+                <span
+                  className={`flex min-w-4 items-center justify-center rounded-full px-1 py-px text-[0.5625rem] font-bold ${
+                    active ? 'bg-auth-primary text-white' : 'bg-red-50 text-auth-primary'
+                  }`}
+                >
+                  {unreadCount}
+                </span>
+              ) : null}
+            </Link>
+          </li>
         )
       })}
-    </>
+
+      <li className={stretch ? 'flex min-h-0 flex-1' : undefined}>
+        <button
+          type="button"
+          onClick={() => {
+            onNavigate?.()
+            onLogout()
+          }}
+          disabled={isLoggingOut}
+          className={`flex w-full items-center gap-2 px-2.5 text-left text-xs font-medium text-auth-primary transition-colors hover:bg-red-50/50 disabled:cursor-not-allowed disabled:opacity-60 ${
+            stretch ? 'h-full min-h-9 py-0' : 'py-2'
+          }`}
+        >
+          {isLoggingOut ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin" strokeWidth={1.75} />
+          ) : (
+            <LogOut className="size-3.5 shrink-0" strokeWidth={1.75} />
+          )}
+          <span>{isLoggingOut ? 'Signing out…' : 'Sign Out'}</span>
+        </button>
+      </li>
+    </ul>
   )
 }
 
@@ -107,13 +122,8 @@ function AccountMobileDrawer({ open, onClose, pathname, isLoggingOut, onLogout }
             transition={{ duration: 0.32, ease: panelEase }}
             className="fixed inset-y-0 left-0 z-150 flex w-[min(20rem,85vw)] flex-col overflow-hidden bg-white shadow-2xl lg:hidden"
           >
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3.5">
-              <div>
-                <p className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-auth-primary">
-                  Account centre
-                </p>
-                <h2 className="mt-0.5 text-sm font-bold text-slate-950">Manage your account</h2>
-              </div>
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2 className="text-xs font-bold text-slate-950">Account menu</h2>
               <button
                 type="button"
                 onClick={onClose}
@@ -124,27 +134,14 @@ function AccountMobileDrawer({ open, onClose, pathname, isLoggingOut, onLogout }
               </button>
             </div>
 
-            <nav
-              className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3"
-              aria-label="Account navigation"
-            >
-              <AccountNavList pathname={pathname} onNavigate={onClose} itemClassName="px-3 py-2.5 text-sm font-semibold" />
+            <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Account navigation">
+              <AccountNavList
+                pathname={pathname}
+                onNavigate={onClose}
+                onLogout={onLogout}
+                isLoggingOut={isLoggingOut}
+              />
             </nav>
-
-            <div className="shrink-0 border-t border-slate-100 p-3">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose()
-                  onLogout()
-                }}
-                disabled={isLoggingOut}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoggingOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
-                {isLoggingOut ? 'Logging out…' : 'Log Out'}
-              </button>
-            </div>
           </motion.div>
         </>
       )}
@@ -159,20 +156,19 @@ export default function AccountSidebar({ pathname, isLoggingOut, onLogout }) {
 
   return (
     <>
-      {/* Mobile trigger */}
       <button
         type="button"
         onClick={() => setDrawerOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={drawerOpen}
-        className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-[0_8px_28px_rgba(15,23,42,0.05)] transition hover:border-auth-primary/30 lg:hidden"
+        className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 lg:hidden"
       >
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-auth-primary">
-          <ActiveIcon className="size-4" strokeWidth={2} />
+          <ActiveIcon className="size-4" strokeWidth={1.75} />
         </span>
         <span className="min-w-0 flex-1 text-left">
-          <span className="block text-[0.625rem] font-bold uppercase tracking-widest text-slate-400">Account menu</span>
-          <span className="block truncate text-sm font-bold text-slate-950">{activeItem?.label ?? 'Manage your account'}</span>
+          <span className="block text-[0.5625rem] font-bold uppercase tracking-widest text-slate-400">Account menu</span>
+          <span className="block truncate text-xs font-bold text-slate-950">{activeItem?.label ?? 'Manage your account'}</span>
         </span>
         <ChevronRight className="size-4 shrink-0 text-slate-400" />
       </button>
@@ -185,28 +181,15 @@ export default function AccountSidebar({ pathname, isLoggingOut, onLogout }) {
         onLogout={onLogout}
       />
 
-      {/* Desktop static/sticky card */}
-      <aside className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.05)] lg:block">
-        <div className="border-b border-slate-100 px-3.5 py-3">
-          <p className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-auth-primary">Account centre</p>
-          <h2 className="mt-0.5 text-sm font-bold text-slate-950">Manage your account</h2>
-        </div>
-
-        <nav className="grid gap-0.5 p-2" aria-label="Account navigation">
-          <AccountNavList pathname={pathname} itemClassName="px-2.5 py-2 text-xs font-semibold" />
+      <aside className="hidden h-full min-h-[36rem] overflow-hidden rounded-2xl border border-slate-200 bg-white lg:flex lg:flex-col">
+        <nav className="flex min-h-0 flex-1 flex-col" aria-label="Account navigation">
+          <AccountNavList
+            pathname={pathname}
+            onLogout={onLogout}
+            isLoggingOut={isLoggingOut}
+            stretch
+          />
         </nav>
-
-        <div className="border-t border-slate-100 p-2">
-          <button
-            type="button"
-            onClick={onLogout}
-            disabled={isLoggingOut}
-            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isLoggingOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
-            {isLoggingOut ? 'Logging out…' : 'Log Out'}
-          </button>
-        </div>
       </aside>
     </>
   )
