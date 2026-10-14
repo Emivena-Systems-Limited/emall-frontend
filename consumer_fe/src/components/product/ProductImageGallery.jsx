@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Heart, Share2 } from 'lucide-react'
+import { Expand, Heart, Share2 } from 'lucide-react'
 import ImageLightbox from '../shared/ImageLightbox'
 
 const SWIPE_THRESHOLD = 48
@@ -525,7 +525,34 @@ export default function ProductImageGallery({
           />
         )}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end gap-2 p-3 sm:p-4">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3 sm:p-4">
+          {supportsHoverZoom ? (
+            <div
+              data-gallery-action
+              className="pointer-events-auto"
+              onMouseEnter={dismissHoverZoom}
+              onMouseMove={(event) => event.stopPropagation()}
+              onMouseLeave={() => {
+                hoverZoomPausedRef.current = false
+              }}
+            >
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  openLightbox()
+                }}
+                aria-label="Click to see full view"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white/95 px-2.5 text-[0.6875rem] font-semibold text-slate-700 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:text-auth-primary hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95"
+              >
+                <Expand className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
+                <span>Full view</span>
+              </button>
+            </div>
+          ) : (
+            <span />
+          )}
+
           <div
             data-gallery-action
             className="pointer-events-auto flex gap-2"
@@ -535,41 +562,41 @@ export default function ProductImageGallery({
               hoverZoomPausedRef.current = false
             }}
           >
-          {onShare && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onShare()
-              }}
-              aria-label="Share product"
-              className="flex size-10 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:text-auth-primary hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95"
-            >
-              <Share2 className="size-4" strokeWidth={2.2} />
-            </button>
-          )}
-          {onWishlist && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onWishlist()
-              }}
-              title={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-              aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-              aria-pressed={isWishlisted}
-              className={`flex size-10 items-center justify-center rounded-full bg-white/95 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95 ${
-                isWishlisted
-                  ? 'text-auth-primary'
-                  : 'text-slate-700 hover:text-auth-primary'
-              }`}
-            >
-              <Heart
-                className={`size-4 ${isWishlisted ? 'fill-auth-primary text-auth-primary' : ''}`}
-                strokeWidth={2.2}
-              />
-            </button>
-          )}
+            {onWishlist && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onWishlist()
+                }}
+                title={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+                aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+                aria-pressed={isWishlisted}
+                className={`flex size-10 items-center justify-center rounded-full bg-white/95 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95 ${
+                  isWishlisted
+                    ? 'text-auth-primary'
+                    : 'text-slate-700 hover:text-auth-primary'
+                }`}
+              >
+                <Heart
+                  className={`size-4 ${isWishlisted ? 'fill-auth-primary text-auth-primary' : ''}`}
+                  strokeWidth={2.2}
+                />
+              </button>
+            )}
+            {onShare && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onShare()
+                }}
+                aria-label="Share product"
+                className="flex size-10 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-[0_2px_12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-110 hover:bg-white hover:text-auth-primary hover:shadow-[0_8px_20px_rgba(15,23,42,0.22)] active:scale-95"
+              >
+                <Share2 className="size-4" strokeWidth={2.2} />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -590,16 +617,6 @@ export default function ProductImageGallery({
           }}
         />,
         document.body,
-      )}
-
-      {supportsHoverZoom && (
-        <button
-          type="button"
-          onClick={openLightbox}
-          className="block text-center text-sm font-medium text-auth-primary hover:underline"
-        >
-          Click to see full view
-        </button>
       )}
 
       {isLightboxOpen && currentImage && (

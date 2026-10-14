@@ -1,4 +1,5 @@
 import { buildCartItem } from '../store/slices/cartSlice'
+import { buildProductDetailsHref } from './productHref'
 import { resolveVariantAttributeFields } from './productVariantFields'
 
 function firstValue(...values) {
@@ -520,7 +521,13 @@ export function normalizeCartItem(record) {
     attribute: record.attribute ?? matchedVariant.attribute ?? null,
     product,
     variantRecord: matchedVariant,
-    href: product.slug ? `/${product.slug}` : (productId ? `/${productId}` : undefined),
+    href: buildProductDetailsHref({
+      name: product.name ?? product.product_name ?? product.title,
+      slug: product.slug ?? product.product_slug,
+      id: productId,
+      backendId: productId,
+      href: product.href,
+    }) || undefined,
     selected: record.is_selected ?? record.selected ?? true,
     seller: firstValue(product.store?.store_name, product.store?.name, product.vendor?.name, record.store_name),
   })

@@ -1,3 +1,4 @@
+import { buildProductDetailsHref } from './productHref'
 import { resolveBackendMediaUrl } from './resolveBackendMediaUrl'
 
 function toArray(value) {
@@ -834,13 +835,15 @@ export function formatEstimatedDelivery(record) {
 }
 
 export function resolveOrderItemProductHref(item) {
-  const slug = String(item?.product?.slug ?? item?.product_slug ?? '').trim().replace(/^\//, '')
-  if (slug) return `/${slug}`
-
-  const id = String(resolveOrderItemProductId(item) ?? '').trim()
-  if (id) return `/${id}`
-
-  return ''
+  const product = item?.product && typeof item.product === 'object' ? item.product : {}
+  const href = buildProductDetailsHref({
+    name: product.name ?? product.product_name ?? item?.product_name ?? item?.name,
+    slug: product.slug ?? product.product_slug ?? item?.product_slug,
+    id: resolveOrderItemProductId(item),
+    backendId: resolveOrderItemProductId(item),
+    href: product.href,
+  })
+  return href === '/' ? '' : href
 }
 
 export function resolveOrderItemProductId(item) {

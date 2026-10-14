@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  BadgeCheck,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
   Globe,
+  Heart,
   Info,
   MessageSquareText,
   Minus,
@@ -14,16 +16,18 @@ import {
   Plus,
   Power,
   PowerOff,
-  Share2,
+  RotateCcw,
+  ShieldCheck,
   ShoppingCart,
   Star,
+  Truck,
   XCircle,
 } from 'lucide-react'
 import PortalMenu from '../common/PortalMenu'
 import ProductListingTypeBadge from './ProductListingTypeBadge'
 import VariantOptionRow from './VariantOptionRow'
 import notify from '../../lib/notify'
-import { formatItemWeight, formatPackageDimensions, getMetadataValue, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsEntries, mapKeyDetailsFromRecord, sortKeyDetailEntries } from '../../utils/productMetadata'
+import { formatItemWeight, formatPackageDimensions, getMetadataValue, getProductConditionLabel, isReservedKeyDetailKey, mapDescriptiveImageUrls, mapKeyDetailsEntries, mapKeyDetailsFromRecord, normalizeKeyDetailKey, sortKeyDetailEntries } from '../../utils/productMetadata'
 import { normalizeProductDescription } from '../../utils/productDescriptionHtml'
 import { calculateDisplayDiscountPercent } from '../../utils/productPricing'
 import { resolveRecordCatalogPricing } from '../../utils/normalizeProducts'
@@ -57,6 +61,7 @@ import {
   resolveInitialFamilyState,
 } from '../../utils/variantOptionTree'
 
+
 const cediFormatter = new Intl.NumberFormat('en-GH', {
   style: 'currency',
   currency: 'GHS',
@@ -64,28 +69,8 @@ const cediFormatter = new Intl.NumberFormat('en-GH', {
   maximumFractionDigits: 2,
 })
 
-const KEY_DETAILS_EXPANDED_SECTION_ID = 'product-key-details-expanded'
-const KEY_DETAILS_CUSTOM_VISIBLE_COUNT = 2
-const KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD = 3
 
-function scrollToExpandedKeyDetails() {
-  const target = document.getElementById(KEY_DETAILS_EXPANDED_SECTION_ID)
-  if (!target) return
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
 
-/** Standard fields (Category, SKU, Barcode, Condition, Brand, ...) always show in full.
- *  Custom backend key_details beyond the threshold get truncated with a link to the rest. */
-function splitCustomKeyDetails(customEntries) {
-  const entries = Array.isArray(customEntries) ? customEntries : []
-  if (entries.length <= KEY_DETAILS_CUSTOM_OVERFLOW_THRESHOLD) {
-    return { visible: entries, overflow: [] }
-  }
-  return {
-    visible: entries.slice(0, KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
-    overflow: entries.slice(KEY_DETAILS_CUSTOM_VISIBLE_COUNT),
-  }
-}
 
 function formatCedi(value) {
   return cediFormatter.format(Number(value) || 0)
@@ -533,8 +518,6 @@ function InfoPanel({
   compatibleModelOptions = [],
   displayPriceInfo,
 }) {
-  const [quantity, setQuantity] = useState(1)
-
   const variantFamilies = preview.variantFamilies ?? []
   const useFamilyPicker = variantFamilies.some((family) => (family.primaryValues?.length ?? 0) > 0)
 
@@ -570,137 +553,203 @@ function InfoPanel({
     && compatibleModelValues.every((value) => selectedOptionValues.has(String(value).toLowerCase()))
   const showCompatibleModels = compatibleModelValues.length > 0 && !hasDuplicateCompatibleModels
   const isLowStock = !outOfStock && stockCount <= lowStockThreshold
-  const hasResolvedLeaf = Boolean(activeVariant?.id)
   const hasSelectedOptions = Object.values(selectedOptions ?? {}).some((value) => String(value ?? '').trim())
 
-  return (
-    <aside className="min-w-0 bg-white p-3 sm:p-4">
-      <div className="border-b border-slate-200 pb-3">
-        <h1 className="wrap-break-word text-lg font-bold leading-snug text-slate-950">{preview.title}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-          {preview.reviewCount > 0 ? (
-            <>
-              <span className="font-bold text-slate-950">{preview.rating.toFixed(1)}</span>
-              <Stars rating={preview.rating} size="size-3" />
-              <a href="#reviews" className="font-semibold text-blue-600 hover:underline">
-                ({preview.reviewCount.toLocaleString()})
-              </a>
-            </>
-          ) : (
-            <span className="font-medium text-slate-500">No reviews yet</span>
-          )}
-          <span className="font-semibold text-slate-600">{preview.salesCount.toLocaleString()} sold</span>
-        </div>
-        <p className="mt-1 text-[0.6875rem] font-semibold text-slate-600">{preview.soldIndicator}</p>
-        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded bg-brand-light">
-              <ShoppingCart className="size-3.5 text-brand" strokeWidth={2} />
-            </span>
-            <span className="shrink-0 text-xs font-bold text-blue-600">Visit the {preview.storeName}</span>
-            <span className="min-w-0 flex-1 truncate text-[0.625rem] font-semibold text-slate-500">
-              110 Followers | 150k+ Followers | {preview.rating.toFixed(1)} ★
-            </span>
-          </div>
-          <button
-            type="button"
-            disabled
-            title="Preview only"
-            className="shrink-0 cursor-not-allowed rounded-full border border-slate-300 px-4 py-1.5 text-[0.625rem] font-bold text-slate-400 sm:px-5"
-          >
-            Follow
-          </button>
-        </div>
-      </div>
+  const selectedOptionLabel = Object.values(selectedOptions ?? {}).filter(Boolean).join(' / ')
+  const selectionSummary = [selectedOptionLabel, selectedCompatibleModel].filter(Boolean).join(' / ')
+  const activeSku = activeVariant?.sku || preview.keyDetails?.SKU || preview.sku || 'N/A'
 
-      <div className="space-y-2 py-3">
-        {displayPriceInfo.compareAt != null && (
-          <p className="w-fit rounded-sm bg-brand px-2 py-1 text-[0.625rem] font-bold text-white">
-            Limited time deal
-          </p>
-        )}
-        <div className="flex flex-wrap items-end gap-2">
-          {displayPriceInfo.discountPercent != null && displayPriceInfo.discountPercent > 0 && (
-            <span className="text-xl font-bold text-brand">-{displayPriceInfo.discountPercent}%</span>
-          )}
-          <span className="text-2xl font-extrabold text-slate-950">{formatCedi(displayPriceInfo.price)}</span>
-          {displayPriceInfo.compareAt != null && (
-            <span className="pb-0.5 text-xs text-slate-400 line-through">{formatCedi(displayPriceInfo.compareAt)}</span>
-          )}
-        </div>
-        <p className="text-xs font-medium text-slate-500">
-          List Price:{' '}
-          <span className={displayPriceInfo.compareAt != null ? 'line-through' : ''}>
-            {displayPriceInfo.compareAt != null ? formatCedi(displayPriceInfo.compareAt) : formatCedi(displayPriceInfo.price)}
+  return (
+    <div className="min-w-0 text-[0.8125rem]">
+      <h1 className="wrap-break-word text-base font-bold leading-snug tracking-tight text-slate-950 sm:text-lg">
+        {preview.title}
+      </h1>
+
+      <p className="mt-1.5 text-[0.6875rem] text-slate-600">
+        Sold by{' '}
+        <span className="font-semibold text-slate-800">{preview.storeName}</span>
+      </p>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <Stars rating={preview.rating} size="size-3" />
+        <span className="text-[0.6875rem] font-semibold text-slate-700">
+          {preview.rating?.toFixed(1) ?? '0.0'}
+        </span>
+        <span className="text-[0.6875rem] text-slate-400">
+          ({preview.reviewCount > 0
+            ? `${preview.reviewCount.toLocaleString()} reviews`
+            : 'No reviews yet'})
+        </span>
+        {preview.reviewCount > 0 ? (
+          <span className="inline-flex items-center gap-0.5 text-[0.625rem] font-semibold text-emerald-600">
+            <BadgeCheck className="size-2.5" strokeWidth={2.25} aria-hidden />
+            Verified
           </span>
-        </p>
-        {activeVariant?.variant_name ? (
-          <p className="text-xs font-semibold text-slate-700">{activeVariant.variant_name}</p>
         ) : null}
       </div>
 
-      {useFamilyPicker ? (
-        variantFamilies.map((family, familyIdx) => {
-          const isFamilyActive = activeFamilyId === family.id
-          const selectedPrimary = isFamilyActive ? (familyPrimary[family.id] ?? '') : ''
-          const selectedSec = familySecondary[family.id] ?? {}
+      <div className="mt-3 border-b border-slate-100 pb-3">
+        {displayPriceInfo.compareAt != null && displayPriceInfo.discountPercent > 0 ? (
+          <p className="mb-1.5 w-fit rounded-sm bg-brand px-1.5 py-0.5 text-[0.5625rem] font-bold leading-none text-white">
+            Limited time deal
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-end gap-x-1.5 gap-y-1">
+          {displayPriceInfo.discountPercent != null && displayPriceInfo.discountPercent > 0 ? (
+            <span className="pb-0.5 text-sm font-bold leading-none text-brand">
+              -{displayPriceInfo.discountPercent}%
+            </span>
+          ) : null}
+          <span className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-[1.75rem]">
+            {formatCedi(displayPriceInfo.price)}
+          </span>
+          {displayPriceInfo.compareAt != null ? (
+            <span className="pb-0.5 text-xs text-slate-400 line-through">
+              {formatCedi(displayPriceInfo.compareAt)}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-[0.6875rem] text-slate-400">SKU: {activeSku}</p>
+      </div>
 
-          return (
-            <div key={family.id}>
-              {familyIdx > 0 && (
-                <div className="my-2 flex items-center gap-2">
-                  <div className="h-px flex-1 bg-slate-100" />
-                  <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-400">or</span>
-                  <div className="h-px flex-1 bg-slate-100" />
-                </div>
-              )}
-              <VariantOptionRow
-                label={family.primaryLabel}
-                values={family.primaryValues}
-                images={family.primaryImages}
-                selected={selectedPrimary}
-                onSelect={(value) => onSelectFamilyPrimary(family.id, value)}
-                presentation={resolveGroupPresentation({ key: family.primaryKey, values: family.primaryValues, images: family.primaryImages })}
-              />
-              {isFamilyActive && getVisibleFamilySecondaryGroups(family, selectedPrimary).map((secGroup) => (
+      <div className="border-b border-slate-100 py-0.5 pb-2.5">
+        {useFamilyPicker ? (
+          variantFamilies.map((family, familyIdx) => {
+            const isFamilyActive = activeFamilyId === family.id
+            const selectedPrimary = isFamilyActive ? (familyPrimary[family.id] ?? '') : ''
+            const selectedSec = familySecondary[family.id] ?? {}
+
+            return (
+              <div key={family.id}>
+                {familyIdx > 0 && (
+                  <div className="my-2 flex items-center gap-2">
+                    <div className="h-px flex-1 bg-slate-100" />
+                    <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-400">or</span>
+                    <div className="h-px flex-1 bg-slate-100" />
+                  </div>
+                )}
                 <VariantOptionRow
-                  key={secGroup.key}
-                  label={secGroup.label}
-                  values={secGroup.values}
-                  selected={selectedSec[secGroup.key] ?? ''}
-                  onSelect={(value) => onSelectFamilySecondary(family.id, secGroup.key, value)}
-                  presentation="chips"
+                  label={family.primaryLabel}
+                  values={family.primaryValues}
+                  images={family.primaryImages}
+                  selected={selectedPrimary}
+                  onSelect={(value) => onSelectFamilyPrimary(family.id, value)}
+                  presentation={resolveGroupPresentation({ key: family.primaryKey, values: family.primaryValues, images: family.primaryImages })}
                 />
-              ))}
-            </div>
-          )
-        })
-      ) : (
-        visibleOptionGroups.map((group, index) => (
+                {isFamilyActive && getVisibleFamilySecondaryGroups(family, selectedPrimary).map((secGroup) => (
+                  <VariantOptionRow
+                    key={secGroup.key}
+                    label={secGroup.label}
+                    values={secGroup.values}
+                    selected={selectedSec[secGroup.key] ?? ''}
+                    onSelect={(value) => onSelectFamilySecondary(family.id, secGroup.key, value)}
+                    presentation="chips"
+                  />
+                ))}
+              </div>
+            )
+          })
+        ) : (
+          visibleOptionGroups.map((group, index) => (
+            <VariantOptionRow
+              key={group.key}
+              label={group.label}
+              values={group.values}
+              images={index === 0 ? group.images : undefined}
+              selected={selectedOptions?.[group.key] ?? ''}
+              onSelect={(value) => onSelectOption(group.key, value)}
+              presentation={resolveGroupPresentation(group, { allowImages: index === 0 })}
+            />
+          ))
+        )}
+        {showCompatibleModels && hasSelectedOptions ? (
           <VariantOptionRow
-            key={group.key}
-            label={group.label}
-            values={group.values}
-            images={index === 0 ? group.images : undefined}
-            selected={selectedOptions?.[group.key] ?? ''}
-            onSelect={(value) => onSelectOption(group.key, value)}
-            presentation={resolveGroupPresentation(group, { allowImages: index === 0 })}
+            label="Compatible Model"
+            values={compatibleModelValues}
+            selected={selectedCompatibleModel}
+            onSelect={setSelectedCompatibleModel}
+            presentation="chips"
           />
-        ))
-      )}
-      {showCompatibleModels && hasSelectedOptions ? (
-        <VariantOptionRow
-          label="Compatible Model"
-          values={compatibleModelValues}
-          selected={selectedCompatibleModel}
-          onSelect={setSelectedCompatibleModel}
-          presentation="chips"
-        />
+        ) : null}
+      </div>
+
+      {selectionSummary || !outOfStock ? (
+        <div
+          className={`mt-2.5 flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[0.6875rem] font-semibold ${
+            outOfStock
+              ? 'bg-red-50 text-red-700'
+              : isLowStock
+                ? 'bg-amber-50 text-amber-800'
+                : 'bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          <BadgeCheck className="size-3 shrink-0" strokeWidth={2.25} aria-hidden />
+          <span>
+            {selectionSummary ? `Selected: ${selectionSummary} — ` : ''}
+            {outOfStock ? 'Out of Stock' : isLowStock ? `Only ${stockCount} left` : 'In Stock'}
+          </span>
+        </div>
       ) : null}
 
-      <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="relative mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+        <div className="flex items-start gap-1.5 text-[0.6875rem] text-slate-600">
+          <Truck className="mt-0.5 size-3 shrink-0 text-emerald-600" strokeWidth={2.25} aria-hidden />
+          <span>Free Shipping in 3-5 business days</span>
+        </div>
+        <div className="flex items-start gap-1.5 text-[0.6875rem] text-slate-600">
+          <ShieldCheck className="mt-0.5 size-3 shrink-0 text-emerald-600" strokeWidth={2.25} aria-hidden />
+          <span>Warranty provided by seller</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PreviewPurchaseCard({
+  preview,
+  activeVariant,
+  displayPriceInfo,
+  selectedOptions = {},
+  selectedCompatibleModel,
+}) {
+  const [quantity, setQuantity] = useState(1)
+
+  const variantStock = activeVariant?.inventory?.available_quantity != null
+    ? toNumber(activeVariant.inventory.available_quantity, 0)
+    : activeVariant?.quantity != null && activeVariant.quantity !== ''
+      ? toNumber(activeVariant.quantity, 0)
+      : null
+  const stockCount = variantStock != null ? variantStock : preview.stockCount
+  const lowStockThreshold = activeVariant?.inventory?.minimum_threshold != null
+    ? toNumber(activeVariant.inventory.minimum_threshold, preview.lowStockThreshold ?? 10)
+    : (preview.lowStockThreshold ?? 10)
+  const outOfStock = stockCount <= 0
+  const isLowStock = !outOfStock && stockCount <= lowStockThreshold
+  const hasResolvedLeaf = Boolean(activeVariant?.id)
+  const selectedOptionLabel = Object.values(selectedOptions).filter(Boolean).join(' · ')
+  const variantLabel = activeVariant?.variant_name
+    || selectedOptionLabel
+    || selectedCompatibleModel
+    || 'Default'
+  const totalPriceLabel = formatCedi(Number(displayPriceInfo.price || 0) * quantity)
+
+  useEffect(() => {
+    setQuantity(1)
+  }, [activeVariant?.id])
+
+  return (
+    <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)] sm:p-5">
+      <p className="text-xs font-semibold text-slate-500">
+        Total{' '}
+        <span className="text-base font-extrabold text-slate-950">{totalPriceLabel}</span>
+      </p>
+      <p className="mt-1 truncate text-[0.6875rem] text-slate-500">
+        {variantLabel}
+      </p>
+
+      <div className="mt-4">
         <p className="text-xs font-bold text-slate-950">Quantity</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3 sm:gap-4">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <QuantitySelector value={quantity} onChange={setQuantity} disabled={outOfStock} />
           <p className="text-[0.625rem] leading-4">
             <span className={outOfStock ? 'font-bold text-red-600' : isLowStock ? 'font-bold text-brand' : 'font-bold text-emerald-600'}>
@@ -713,7 +762,7 @@ function InfoPanel({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 min-[420px]:grid-cols-2 sm:gap-3">
+      <div className="mt-4 flex flex-col gap-2">
         <button
           type="button"
           disabled
@@ -726,13 +775,24 @@ function InfoPanel({
           type="button"
           disabled
           title="Preview only — checkout is disabled here"
-          className="cursor-not-allowed rounded-full border border-brand/30 px-6 py-3 text-xs font-bold text-brand/50"
+          className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full border border-brand/30 px-6 py-3 text-xs font-bold text-brand/50"
         >
+          <ShoppingCart className="size-3.5" strokeWidth={2.25} aria-hidden />
           Add to Cart
         </button>
+        <button
+          type="button"
+          disabled
+          title="Preview only"
+          className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full border border-slate-200 px-6 py-2.5 text-xs font-semibold text-slate-400"
+        >
+          <Heart className="size-3.5" strokeWidth={2} aria-hidden />
+          Save
+        </button>
       </div>
-      <p className="mt-2 flex items-start gap-1.5 text-[0.625rem] font-semibold text-slate-400">
-        <Info className="size-3 mt-0.5 shrink-0" />
+
+      <p className="mt-3 flex items-start gap-1.5 text-[0.625rem] font-semibold text-slate-400">
+        <Info className="mt-0.5 size-3 shrink-0" />
         <span>
           Preview only — purchase actions are disabled in this view.
           {hasResolvedLeaf ? (
@@ -745,9 +805,9 @@ function InfoPanel({
         </span>
       </p>
 
-      <div className="mt-3 grid gap-1.5 text-[0.625rem] text-slate-500 min-[480px]:flex min-[480px]:items-center min-[480px]:justify-between min-[480px]:gap-3">
-        <span>Returns <b className="text-blue-600">30-day refund/replacement</b></span>
-        <span>Payment <b className="text-blue-600">Secure transaction</b></span>
+      <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-[0.625rem] text-slate-500">
+        <p>Returns <b className="text-slate-700">30-day refund/replacement</b></p>
+        <p>Payment <b className="text-slate-700">Secure transaction</b></p>
       </div>
     </aside>
   )
@@ -849,67 +909,125 @@ function PreviewActionsMenu({
   )
 }
 
-function KeyDetailsBlock({ tags, keyDetails, customKeyDetailEntries = [], activeSku, activeBarcode, onShare }) {
-  const detailsList = { ...keyDetails }
-  if (activeSku) detailsList['Model/SKU'] = activeSku
-  if (activeBarcode) detailsList.Barcode = activeBarcode
-  delete detailsList['Fulfillment']
-  delete detailsList['fulfillment']
-  delete detailsList['Status']
-  delete detailsList['status']
+const KEY_DETAIL_CARD_KEYS = new Set([
+  'category',
+  'sku',
+  'model/sku',
+  'barcode',
+  'condition',
+  'brand',
+])
 
-  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(customKeyDetailEntries)
-  const overflowKeys = new Set(overflowCustomEntries.map(([key]) => key))
-  const hasOverflow = overflowCustomEntries.length > 0
+function isKeyDetailCardKey(key) {
+  return KEY_DETAIL_CARD_KEYS.has(normalizeKeyDetailKey(key))
+}
 
-  const sortedEntries = sortKeyDetailEntries(Object.entries(detailsList))
-    .filter(([key]) => !overflowKeys.has(key))
+function DetailsEntriesCard({ title, entries }) {
+  const [expanded, setExpanded] = useState(true)
+  if (!entries?.length) return null
 
   return (
-    <section className="relative min-w-0 bg-white p-4 sm:p-6">
+    <section className="min-w-0">
       <button
         type="button"
-        onClick={onShare}
-        className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 sm:right-4 sm:top-4"
+        onClick={() => setExpanded((open) => !open)}
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between gap-3 text-left"
       >
-        <Share2 className="size-3.5" strokeWidth={2.2} />
-        Share
+        <h2 className="text-base font-bold text-slate-950 sm:text-lg">{title}</h2>
+        <ChevronDown
+          className={`size-4 shrink-0 text-slate-500 transition-transform duration-200 ${
+            expanded ? 'rotate-180' : ''
+          }`}
+          strokeWidth={2.25}
+          aria-hidden
+        />
       </button>
-      <h2 className="pr-24 text-base font-bold text-slate-950">Key Details</h2>
 
-      {tags.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-600"
-            >
-              {tag}
-            </span>
-          ))}
+      {expanded ? (
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
+          <ul className="space-y-3">
+            {entries.map(([key, value]) => (
+              <li key={key} className="flex min-w-0 items-start gap-2.5">
+                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                <div className="grid min-w-0 flex-1 grid-cols-[minmax(7rem,10rem)_minmax(0,1fr)] items-start gap-x-6 sm:grid-cols-[minmax(8.5rem,11rem)_minmax(0,1fr)] sm:gap-x-10">
+                  <span className="text-sm font-bold text-slate-900">{key}:</span>
+                  <span className="wrap-break-word text-sm text-slate-600">{value}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
-      )}
-
-      <dl className={`grid gap-2.5 text-sm leading-5 text-slate-700 ${tags.length > 0 ? 'mt-5' : 'mt-3'}`}>
-        {sortedEntries.map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-1 py-0.5 sm:grid-cols-[11rem_1fr] sm:gap-3">
-            <dt className="font-bold text-slate-900">{key}:</dt>
-            <dd className="wrap-break-word">{value}</dd>
-          </div>
-        ))}
-        {hasOverflow && (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={scrollToExpandedKeyDetails}
-              className="text-left text-sm font-semibold text-brand underline-offset-2 transition-colors hover:text-brand-hover hover:underline"
-            >
-              Click to see more details
-            </button>
-          </div>
-        )}
-      </dl>
+      ) : null}
     </section>
+  )
+}
+
+function KeyDetailsBlock({ keyDetails, customKeyDetailEntries = [], activeSku, activeBarcode }) {
+  const detailsList = { ...keyDetails }
+  if (activeSku) {
+    detailsList.SKU = activeSku
+    delete detailsList['Model/SKU']
+  } else if (detailsList['Model/SKU'] && !detailsList.SKU) {
+    detailsList.SKU = detailsList['Model/SKU']
+    delete detailsList['Model/SKU']
+  }
+  if (activeBarcode) detailsList.Barcode = activeBarcode
+
+  delete detailsList.Fulfillment
+  delete detailsList.fulfillment
+  delete detailsList.Status
+  delete detailsList.status
+
+  const customEntries = Array.isArray(customKeyDetailEntries) ? customKeyDetailEntries : []
+  const mergedEntries = [
+    ...Object.entries(detailsList),
+    ...customEntries,
+  ].filter(([key, value]) => String(key || '').trim() && String(value || '').trim())
+
+  const keyDetailEntries = sortKeyDetailEntries(
+    mergedEntries.filter(([key]) => isKeyDetailCardKey(key)),
+  )
+  const productDetailEntries = sortKeyDetailEntries(
+    mergedEntries.filter(([key]) => !isKeyDetailCardKey(key)),
+  )
+
+  if (keyDetailEntries.length === 0 && productDetailEntries.length === 0) return null
+
+  return (
+    <div className="flex min-w-0 w-full flex-col gap-5 sm:gap-6">
+      <DetailsEntriesCard title="Key Details" entries={keyDetailEntries} />
+      <DetailsEntriesCard title="Product Details" entries={productDetailEntries} />
+    </div>
+  )
+}
+
+function ProductReturnsBanner() {
+  return (
+    <aside
+      aria-label="30-day returns policy"
+      className="relative overflow-hidden rounded-[1.75rem] border border-[#EBD9C0]/80 bg-[linear-gradient(180deg,#FFFBF2_0%,#FFF6E8_100%)] px-5 py-8 text-center sm:rounded-[2rem] sm:px-10 sm:py-10"
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 14% 18%, rgba(180,120,60,0.09), transparent 44%), radial-gradient(circle at 86% 82%, rgba(180,120,60,0.07), transparent 42%)',
+        }}
+      />
+      <div className="relative mx-auto flex max-w-2xl flex-col items-center">
+        <span className="mb-3.5 flex size-11 items-center justify-center rounded-full bg-[#F3E6D2] text-[#8A5524] shadow-[inset_0_0_0_1px_rgba(138,85,36,0.12)] sm:mb-4 sm:size-12">
+          <RotateCcw className="size-5 sm:size-[1.35rem]" strokeWidth={2.1} aria-hidden />
+        </span>
+        <h3 className="text-lg font-bold tracking-tight text-[#8A5524] sm:text-xl">
+          30-Day Returns
+        </h3>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#A06A35] sm:text-[0.95rem] sm:leading-7">
+          Not happy with your purchase? Return it within 30 days for a full refund — no questions asked.
+        </p>
+      </div>
+    </aside>
   )
 }
 
@@ -1029,11 +1147,13 @@ function ReviewSummaryBlock({ rating, reviewCount, ratingDistribution, reviews, 
  * products (uploaded before the wide-banner format existed) safely on the legacy 2×2 grid.
  */
 function useDescriptiveImagesLandscapeLayout(imageUrls) {
-  const imageKey = imageUrls.join('|')
-  const [measured, setMeasured] = useState({ key: '', landscape: false })
+  const [isLandscapeLayout, setIsLandscapeLayout] = useState(false)
 
   useEffect(() => {
-    if (imageUrls.length === 0) return undefined
+    if (imageUrls.length === 0) {
+      setIsLandscapeLayout(false)
+      return undefined
+    }
 
     let cancelled = false
 
@@ -1045,94 +1165,54 @@ function useDescriptiveImagesLandscapeLayout(imageUrls) {
           && result?.height > 0
           && result.width / result.height >= DESCRIPTIVE_IMAGE_LANDSCAPE_RATIO_THRESHOLD
         ))
-        setMeasured({ key: imageKey, landscape: allLandscape })
+        setIsLandscapeLayout(allLandscape)
       })
 
     return () => {
       cancelled = true
     }
-  }, [imageKey, imageUrls])
+  }, [imageUrls])
 
-  return measured.key === imageKey && measured.landscape
+  return isLandscapeLayout
 }
 
-function ExpandedKeyDetailsPanel({ entries }) {
-  if (!entries?.length) return null
 
-  return (
-    <div
-      id={KEY_DETAILS_EXPANDED_SECTION_ID}
-      className="scroll-mt-24 grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]"
-    >
-      <dt className="shrink-0 font-bold whitespace-nowrap text-slate-950">Additional details</dt>
-      <dd className="min-w-0 text-slate-700">
-        <dl className="divide-y divide-slate-200">
-          {entries.map(([key, value]) => (
-            <div
-              key={key}
-              className="flex min-w-0 items-start gap-x-4 py-3 first:pt-0 last:pb-0"
-            >
-              <dt className="w-56 shrink-0 font-bold text-slate-950">{key}</dt>
-              <dd className="min-w-0 flex-1 wrap-break-word">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </dd>
-    </div>
-  )
-}
-
-function DescriptionBlock({ details, description, descriptionHtml, descriptiveImages = [], customKeyDetailEntries = [] }) {
-  const detailsList = { ...details }
-  delete detailsList.SKU
-  delete detailsList.sku
-  delete detailsList.Sku
-
-  const { overflow: overflowCustomEntries } = splitCustomKeyDetails(customKeyDetailEntries)
-  const hasOverflow = overflowCustomEntries.length > 0
-  const detailRows = Object.entries(detailsList)
-  const hasCategoryRow = detailRows.some(([key]) => key === 'Category')
+function DescriptionBlock({ description, descriptionHtml, descriptiveImages = [] }) {
+  const hasHtmlDescription = Boolean(descriptionHtml)
+  const plainDescription = String(description ?? '').trim()
+  const hasDescription = hasHtmlDescription || Boolean(plainDescription)
   const hasDescriptiveImages = descriptiveImages.length > 0
   const isLandscapeLayout = useDescriptiveImagesLandscapeLayout(descriptiveImages)
 
-  return (
-    <section className="min-w-0 bg-white p-3 sm:p-5">
-      <h2 className="text-base font-bold text-slate-950">Product description</h2>
-      <div className="mt-5 divide-y divide-slate-300 border-y border-slate-300">
-        {detailRows.flatMap(([key, value]) => {
-          const row = (
-            <div key={key} className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
-              <dt className="font-bold text-slate-950">{key}</dt>
-              <dd className="wrap-break-word text-slate-700">{value}</dd>
-            </div>
-          )
-
-          if (key === 'Category' && hasOverflow) {
-            return [row, <ExpandedKeyDetailsPanel key="expanded-key-details" entries={overflowCustomEntries} />]
-          }
-
-          return [row]
-        })}
-        {hasOverflow && !hasCategoryRow && (
-          <ExpandedKeyDetailsPanel entries={overflowCustomEntries} />
-        )}
-        <div className="grid min-w-0 gap-3 py-4 text-sm sm:grid-cols-[12rem_1fr]">
-          <dt className="font-bold text-slate-950">Description</dt>
-          <dd className="min-w-0 wrap-break-word text-slate-700">
-            {descriptionHtml ? (
-              <div
-                className="product-description text-sm leading-relaxed text-slate-700"
-                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-              />
-            ) : (
-              <p className="leading-relaxed">{description}</p>
-            )}
-          </dd>
-        </div>
+  if (!hasDescription && !hasDescriptiveImages) {
+    return (
+      <div className="space-y-4">
+        <ProductReturnsBanner />
       </div>
+    )
+  }
 
-      {hasDescriptiveImages && (
-        <div className="mt-6 w-full min-w-0">
+  return (
+    <section className="relative min-w-0 w-full space-y-4">
+      <h2 className="text-base font-bold text-slate-950 sm:text-lg">Product Description</h2>
+
+      {hasDescription ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
+          {hasHtmlDescription ? (
+            <div
+              className="product-description text-sm leading-relaxed text-slate-700"
+              dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+            />
+          ) : (
+            <p className="wrap-break-word text-sm leading-relaxed whitespace-pre-wrap text-slate-700">
+              {plainDescription}
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {hasDescriptiveImages ? (
+        <div className="w-full min-w-0">
           {isLandscapeLayout ? (
             <div className="flex w-full flex-col">
               {descriptiveImages.slice(0, MAX_DESCRIPTIVE_IMAGE_COUNT).map((image, index) => (
@@ -1145,19 +1225,21 @@ function DescriptionBlock({ details, description, descriptionHtml, descriptiveIm
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 gap-0 sm:gap-0">
               {descriptiveImages.slice(0, 4).map((image, index) => (
                 <img
                   key={`${image}-descriptive-${index}`}
                   src={image}
                   alt={`Product detail ${index + 1}`}
-                  className="block h-auto w-full max-w-full rounded-sm bg-slate-100"
+                  className="block h-auto w-full max-w-full bg-slate-100"
                 />
               ))}
             </div>
           )}
         </div>
-      )}
+      ) : null}
+
+      <ProductReturnsBanner />
     </section>
   )
 }
@@ -1166,34 +1248,41 @@ function DescriptionBlock({ details, description, descriptionHtml, descriptiveIm
 
 function SkeletonCard() {
   return (
-    <div className="min-w-0 animate-pulse">
-      <div className="aspect-square w-full rounded-lg bg-slate-200" />
-      <div className="mt-1.5 h-2 w-4/5 rounded-full bg-slate-200" />
-      <div className="mt-1 h-2 w-1/2 rounded-full bg-slate-200" />
+    <div className="min-w-0 animate-pulse overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="aspect-square w-full bg-slate-200" />
+      <div className="space-y-2 px-3 py-3">
+        <div className="h-3 w-4/5 rounded-full bg-slate-200" />
+        <div className="h-2.5 w-2/5 rounded-full bg-slate-100" />
+        <div className="h-3 w-1/2 rounded-full bg-slate-200" />
+      </div>
     </div>
   )
 }
 
 function SkeletonRail({ title, visibleCount = 5, note }) {
-  const desktopAutoCols = visibleCount === 3
-    ? 'lg:auto-cols-[calc((100%-1.5rem)/3)]'
-    : 'lg:auto-cols-[calc((100%-3rem)/5)]'
-  const placeholderCount = visibleCount === 3 ? 6 : 10
+  const placeholderCount = Math.max(visibleCount + 2, 6)
 
   return (
-    <section className="min-w-0 bg-white p-3 sm:p-4">
-      <div className="mb-3">
-        <h2 className="text-base font-bold text-slate-950">{title}</h2>
+    <section className="min-w-0 overflow-hidden bg-white py-4 sm:py-5">
+      <div className="mb-3.5 flex items-center justify-between gap-3 sm:mb-4">
+        <h2 className="min-w-0 text-base font-bold tracking-tight text-slate-950 sm:text-lg">
+          {title}
+        </h2>
+        <span className="inline-flex shrink-0 items-center gap-0.5 text-sm font-semibold text-brand/50">
+          View all
+          <ChevronRight className="size-4" strokeWidth={2.25} aria-hidden />
+        </span>
       </div>
-      <div className="relative">
+      <div className="relative sm:px-11">
         <span
           aria-hidden="true"
-          className="absolute left-0 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-200 bg-white text-slate-300"
+          className="absolute left-0 top-1/2 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-300 sm:flex"
         >
           <ChevronLeft className="size-4" />
         </span>
         <div
-          className={`grid auto-cols-[7rem] grid-flow-col grid-rows-1 gap-2 overflow-x-hidden px-8 pb-1 min-[390px]:auto-cols-[7.5rem] sm:auto-cols-[9rem] sm:gap-3 ${desktopAutoCols}`}
+          className="grid grid-flow-col grid-rows-1 gap-2.5 overflow-x-hidden"
+          style={{ gridAutoColumns: `calc((100% - ${(visibleCount - 1) * 0.625}rem) / ${visibleCount})` }}
         >
           {Array.from({ length: placeholderCount }).map((_, index) => (
             <SkeletonCard key={index} />
@@ -1201,12 +1290,12 @@ function SkeletonRail({ title, visibleCount = 5, note }) {
         </div>
         <span
           aria-hidden="true"
-          className="absolute right-0 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center border border-slate-200 bg-white text-slate-300"
+          className="absolute right-0 top-1/2 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-300 sm:flex"
         >
           <ChevronRight className="size-4" />
         </span>
       </div>
-      {note && <p className="mt-3 text-xs text-slate-400">{note}</p>}
+      {note ? <p className="mt-3 text-xs text-slate-400">{note}</p> : null}
     </section>
   )
 }
@@ -1214,6 +1303,7 @@ function SkeletonRail({ title, visibleCount = 5, note }) {
 // ─── Main preview ───────────────────────────────────────────────────────────
 
 export default function ProductStorefrontPreview({
+
   product,
   rawRecord,
   images,
@@ -1379,14 +1469,6 @@ export default function ProductStorefrontPreview({
     return { price, compareAt, discountPercent }
   }, [preview, activeVariant])
 
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href)
-      notify.success('Product link copied to clipboard!')
-    } catch {
-      notify.error('Could not copy link to clipboard')
-    }
-  }
 
   return (
     <div className="rounded-2xl border border-slate-200 shadow-[0_10px_40px_rgba(15,23,42,0.08)]">
@@ -1422,79 +1504,79 @@ export default function ProductStorefrontPreview({
         )}
       </div>
 
-      <div className="rounded-b-2xl bg-[#f2f2f2] p-2 sm:p-3">
-        <div className="w-full space-y-3 sm:space-y-4">
-          <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-stretch">
-            <div className="contents lg:sticky lg:top-4 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
-              <div className="order-1 min-w-0">
-                <PreviewGallery
-                  gallery={galleryImages}
-                  activeImage={displayActiveImage}
-                  setActiveImage={setActiveImage}
-                  title={preview.title}
-                />
-              </div>
-              <div className="order-3 min-w-0">
-                <KeyDetailsBlock
-                  tags={preview.tags}
-                  keyDetails={preview.keyDetails}
-                  customKeyDetailEntries={preview.customKeyDetailEntries}
-                  activeSku={activeSku}
-                  activeBarcode={activeBarcode}
-                  onShare={handleShare}
-                />
-              </div>
-              <div className="order-5 min-w-0">
-                <SkeletonRail
-                  title="Other Items From Seller"
-                  visibleCount={3}
-                  note="Your other published products will appear here for shoppers."
-                />
-              </div>
+      <div className="rounded-b-2xl bg-white p-3 sm:p-4">
+        <div className="w-full space-y-4 sm:space-y-5">
+          <section className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(15.5rem,18rem)] lg:items-start lg:gap-5 xl:gap-6">
+            <div className="min-w-0 lg:sticky lg:top-4 lg:z-10 lg:self-start lg:border-r lg:border-slate-200 lg:pr-5 xl:pr-6">
+              <PreviewGallery
+                gallery={galleryImages}
+                activeImage={displayActiveImage}
+                setActiveImage={setActiveImage}
+                title={preview.title}
+              />
             </div>
-            <div className="contents lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-4">
-              <div className="order-2 min-w-0">
-                <InfoPanel
-                  preview={preview}
-                  activeVariant={activeVariant}
-                  selectedOptions={selectedOptions}
-                  onSelectOption={handleOptionSelect}
-                  activeFamilyId={activeFamilyId}
-                  familyPrimary={familyPrimary}
-                  familySecondary={familySecondary}
-                  onSelectFamilyPrimary={handleSelectFamilyPrimary}
-                  onSelectFamilySecondary={handleSelectFamilySecondary}
-                  selectedCompatibleModel={effectiveCompatibleModel}
-                  setSelectedCompatibleModel={handleCompatibleModelSelect}
-                  compatibleModelOptions={compatibleModelOptions}
-                  displayPriceInfo={displayPriceInfo}
-                />
-              </div>
-              <div className="order-4 min-w-0">
-                <ReviewSummaryBlock
-                  rating={preview.rating}
-                  reviewCount={preview.reviewCount}
-                  ratingDistribution={preview.ratingDistribution}
-                  reviews={preview.reviews}
-                  fillHeight
-                />
-              </div>
+
+            <div className="min-w-0 border-b border-slate-200 pb-4 sm:pb-5">
+              <InfoPanel
+                preview={preview}
+                activeVariant={activeVariant}
+                selectedOptions={selectedOptions}
+                onSelectOption={handleOptionSelect}
+                activeFamilyId={activeFamilyId}
+                familyPrimary={familyPrimary}
+                familySecondary={familySecondary}
+                onSelectFamilyPrimary={handleSelectFamilyPrimary}
+                onSelectFamilySecondary={handleSelectFamilySecondary}
+                selectedCompatibleModel={effectiveCompatibleModel}
+                setSelectedCompatibleModel={handleCompatibleModelSelect}
+                compatibleModelOptions={compatibleModelOptions}
+                displayPriceInfo={displayPriceInfo}
+              />
+            </div>
+
+            <div className="min-w-0 lg:sticky lg:top-4 lg:z-10 lg:self-start">
+              <PreviewPurchaseCard
+                preview={preview}
+                activeVariant={activeVariant}
+                displayPriceInfo={displayPriceInfo}
+                selectedOptions={selectedOptions}
+                selectedCompatibleModel={effectiveCompatibleModel}
+              />
             </div>
           </section>
 
+          <KeyDetailsBlock
+            keyDetails={preview.keyDetails}
+            customKeyDetailEntries={preview.customKeyDetailEntries}
+            activeSku={activeSku}
+            activeBarcode={activeBarcode}
+          />
+
           <DescriptionBlock
-            details={preview.details}
             description={preview.description}
             descriptionHtml={preview.descriptionHtml}
             descriptiveImages={preview.descriptiveImages}
-            customKeyDetailEntries={preview.customKeyDetailEntries}
           />
 
-          <SkeletonRail
-            title="Explore Other Related Items"
-            visibleCount={5}
-            note="Related products from across the marketplace will show here for shoppers."
+          <ReviewSummaryBlock
+            rating={preview.rating}
+            reviewCount={preview.reviewCount}
+            ratingDistribution={preview.ratingDistribution}
+            reviews={preview.reviews}
           />
+
+          <div className="min-w-0 divide-y divide-slate-200 border-t border-slate-200">
+            <SkeletonRail
+              title="More items from this Seller"
+              visibleCount={5}
+              note="Your other published products will appear here for shoppers."
+            />
+            <SkeletonRail
+              title="You May Also Like"
+              visibleCount={5}
+              note="Related products from across the marketplace will show here for shoppers."
+            />
+          </div>
         </div>
       </div>
     </div>

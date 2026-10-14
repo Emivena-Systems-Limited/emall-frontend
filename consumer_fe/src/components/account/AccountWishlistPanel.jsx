@@ -11,6 +11,7 @@ import CatalogLineItemCard from '../shared/CatalogLineItemCard'
 import Images from '../../utils/Images'
 import { notify } from '../../lib/notify'
 import { getProductById } from '../../services/landingPageService'
+import { buildProductDetailsHref } from '../../utils/productHref'
 import { syncAuthenticatedCart } from '../../hooks/useAuthenticatedCart'
 import { AUTHENTICATED_CART_QUERY_KEY } from '../../constants/cart'
 import {
@@ -108,7 +109,12 @@ function WishlistItem({ item, selected, onSelect, onRemove, onMove, onDetails, o
   const image = variant.images?.[0]?.image_url
     ?? product.images?.find((entry) => entry.is_primary)?.image_url
     ?? product.images?.[0]?.image_url
-  const href = `/${product.slug ?? ''}`
+  const href = buildProductDetailsHref({
+    name: product.name,
+    slug: product.slug,
+    id: product.id ?? product.product_id,
+    backendId: product.id ?? product.product_id,
+  })
   const busy = Boolean(busyAction)
 
   return (

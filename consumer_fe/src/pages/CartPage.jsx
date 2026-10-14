@@ -803,7 +803,7 @@ export default function CartPage() {
             <CartBreadcrumb />
           </Container>
         </div>
-        <div className="bg-[#f4f4f5] py-4 sm:py-6 lg:bg-white lg:py-8">
+        <div className="bg-white py-4 sm:py-6 lg:py-8">
         <Container className="min-w-0 space-y-5 sm:space-y-8">
           {isLoadingCart ? (
             <CartPageSkeleton rows={Math.max(2, Math.min(items.length || 3, 4))} />

@@ -4,6 +4,7 @@ import {
   resolveProductDisplayPrices,
 } from './extractProductVariantFacets';
 import { calculateDisplayDiscountPercent } from './productPricing';
+import { buildProductDetailsHref, slugifyProductName } from './productHref';
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80';
@@ -42,11 +43,7 @@ export function isProductActive(product) {
 }
 
 function slugify(value) {
-  return String(value ?? 'product')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+  return slugifyProductName(value);
 }
 
 function getNestedImage(value) {
@@ -178,10 +175,11 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
     variation?.name,
     'Product',
   );
+  // Name-only slug; backend id is appended in href as /{slug}-{id}.
   const slug = firstValue(
     product.slug,
     product.product_slug,
-    slugify(`${name}-${id}`),
+    slugify(name),
   );
   let { price, compareAt } = resolveProductCardPrices(product, variation);
   const effectivePrice = toNumber(
@@ -213,12 +211,19 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
   const filterFields = enrichLandingProductForFilters(product, index, options);
   const priceRange = { min: filterFields.minPrice, max: filterFields.maxPrice };
   const storeCity = getVendorCity(product);
+  const detailsPath = buildProductDetailsHref({
+    name,
+    slug,
+    id: backendId ?? id,
+    backendId,
+  })
 
   return {
     id,
     backendId: backendId ?? null,
     syncable: Boolean(backendId),
     name,
+    slug,
     variant: getVariantText(product),
     price,
     compareAt,
@@ -234,7 +239,7 @@ export function normalizeLandingProduct(product, index = 0, options = {}) {
       ),
       0,
     ),
-    href: `/${slug}`,
+    href: detailsPath,
     image: getProductImage(product),
     discountPercent,
     isHot: Boolean(

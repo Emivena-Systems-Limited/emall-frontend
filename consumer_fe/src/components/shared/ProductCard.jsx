@@ -9,9 +9,15 @@ import PortaledHoverTooltip from './PortaledHoverTooltip'
 import QuickAddToCartModal from '../product/QuickAddToCartModal'
 import AddedToCartFlyout from '../product/AddedToCartFlyout'
 import { LOCK_PURCHASE_ACTIONS, STORE_DELIVERY_ELIGIBILITY_ENABLED } from '../../config/featureFlags'
+import { buildProductDetailsHref } from '../../utils/productHref'
 import { resolveAuthUserCity, resolveLocalDeliveryEligibility } from '../../utils/storefront'
 import { addToWishlist } from '../../services/wishlistService'
 import { notify } from '../../lib/notify'
+
+function resolveProductHref(product, hrefOverride) {
+  if (hrefOverride) return hrefOverride
+  return buildProductDetailsHref(product)
+}
 
 function resolveDiscountPercent(price, compareAt, discountPercent) {
   const given = Number(discountPercent)
@@ -115,7 +121,7 @@ export default function ProductCard({
   const [addedSnapshot, setAddedSnapshot] = useState(null)
   const [wishlisted, setWishlisted] = useState(false)
   const [savingWishlist, setSavingWishlist] = useState(false)
-  const productHref = hrefOverride ?? product.href?.replace(/^\/products\//, '/')
+  const productHref = resolveProductHref(product, hrefOverride)
   const productId = product.backendId ?? product.id
   const userCity = resolveAuthUserCity(user)
   const deliveryEligible = !STORE_DELIVERY_ELIGIBILITY_ENABLED

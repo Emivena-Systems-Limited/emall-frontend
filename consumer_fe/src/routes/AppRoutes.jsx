@@ -11,6 +11,7 @@ import StoresPage from '../pages/StoresPage'
 import StoreLandingPage from '../pages/StoreLandingPage'
 import ProductDetailsPage from '../pages/ProductDetailsPage'
 import ProductListingPage from '../pages/ProductListingPage'
+import FlashSalesPage from '../pages/FlashSalesPage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
 import VerifyOtpPage from '../pages/auth/VerifyOtpPage'
@@ -60,7 +61,7 @@ export default function AppRoutes() {
       <Route path="/products" element={<ProductListingPage type="all" />} />
       <Route path="/products/recommended" element={<ProductListingPage type="recommended" />} />
       <Route path="/products/best-sellers" element={<ProductListingPage type="best-sellers" />} />
-      <Route path="/products/flash-sales" element={<ProductListingPage type="flash-sales" />} />
+      <Route path="/products/flash-sales" element={<FlashSalesPage />} />
       <Route path="/products/explore" element={<ProductListingPage type="explore" />} />
       <Route path="/login" element={guestOnly(<LoginPage />)} />
       <Route path="/login/verify" element={authVerify(<VerifyOtpPage />)} />

@@ -7,7 +7,7 @@ export const footerColumns = [
   {
     title: 'DEALS',
     links: [
-      { label: 'Flash Deals', href: '/promotions?filter=flash-sales' },
+      { label: 'Flash Deals', href: '/products/flash-sales' },
       { label: 'Promotions', href: '/promotions' },
       { label: 'New Arrivals', href: '/#new-arrivals' },
       { label: 'Best Sellers', href: '/products/best-sellers' },

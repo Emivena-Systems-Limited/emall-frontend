@@ -4,12 +4,13 @@ import { Link } from 'react-router'
 import { useReducedMotion } from 'framer-motion'
 import Container from '../layout/Container'
 import ProductCard from '../shared/ProductCard'
+import { FLASH_SALE_ENDS_AT } from '../../constants/flashSalesProducts'
 import FlashSalesCountdown from './FlashSalesCountdown'
 
 export default function FlashSalesSection({ products = [] }) {
   const reduceMotion = useReducedMotion()
   const trackRef = useRef(null)
-  const endAt = '1970-01-01T00:00:00.000Z'
+  const endAt = FLASH_SALE_ENDS_AT
 
   const scrollByCard = useCallback((direction) => {
     const track = trackRef.current

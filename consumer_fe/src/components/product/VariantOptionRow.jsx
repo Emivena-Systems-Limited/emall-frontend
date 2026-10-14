@@ -10,16 +10,16 @@ function OptionImageButton({ value, selected, imageSrc, onSelect, compact = fals
         onClick={() => onSelect(value)}
         aria-pressed={selected}
         title={value}
-        className={`relative size-14 shrink-0 cursor-pointer overflow-hidden rounded-xl border bg-slate-50 transition outline-none focus-visible:ring-2 focus-visible:ring-nav-red/30 ${
+        className={`relative size-11 shrink-0 cursor-pointer overflow-hidden rounded-lg border bg-slate-50 transition outline-none focus-visible:ring-2 focus-visible:ring-nav-red/30 sm:size-12 ${
           selected
             ? 'border-nav-red ring-2 ring-nav-red/15'
             : 'border-slate-200 hover:border-slate-300'
         }`}
       >
         {imageSrc ? (
-          <img src={imageSrc} alt="" className="size-full object-contain p-1" />
+          <img src={imageSrc} alt="" className="size-full object-contain p-0.5" />
         ) : (
-          <span className="flex size-full items-center justify-center px-1 text-[0.625rem] font-semibold text-slate-500">
+          <span className="flex size-full items-center justify-center px-1 text-[0.5625rem] font-semibold text-slate-500">
             {value}
           </span>
         )}
@@ -58,9 +58,9 @@ function OptionChipButton({ value, selected, onSelect, compact = false }) {
       aria-pressed={selected}
       title={value}
       className={compact
-        ? `inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-full border px-3.5 text-xs font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-nav-red/30 ${
+        ? `inline-flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border px-2.5 text-[0.6875rem] font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-nav-red/30 ${
           selected
-            ? 'border-nav-red bg-nav-red text-white'
+            ? 'border-nav-red bg-white text-nav-red'
             : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
         }`
         : `inline-flex min-h-12 min-w-[5.5rem] shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl border-2 px-4 py-3 text-sm font-semibold leading-snug transition-colors outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 focus-visible:ring-offset-1 sm:min-h-[3.25rem] sm:px-5 sm:text-[0.9375rem] ${
@@ -144,27 +144,31 @@ export default function VariantOptionRow({
   const compact = size === 'compact'
 
   return (
-    <div className={`min-w-0 ${compact ? 'pt-2.5' : 'pt-3'}`}>
+    <div className={`min-w-0 ${compact ? 'pt-2' : 'pt-3'}`}>
       <p className={compact ? 'text-xs font-semibold text-slate-800' : 'text-sm font-bold text-slate-950'}>
         {label}{selected ? `: ${selected}` : ''}
       </p>
-      <div className={`flex min-w-0 items-center ${compact ? 'mt-1.5' : 'mt-2.5'} ${hasOverflow ? 'sm:gap-2' : ''}`}>
+      <div className={`flex min-w-0 items-center ${compact ? 'mt-1.5' : 'mt-2.5'} ${hasOverflow ? 'sm:gap-1.5' : ''}`}>
         {hasOverflow ? (
           <button
             type="button"
             disabled={!canScrollLeft}
             onClick={() => scrollByDirection(-1)}
             aria-label={`Previous ${label} options`}
-            className="hidden size-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
+            className={`hidden shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex ${
+              compact ? 'size-8' : 'size-11'
+            }`}
           >
-            <ChevronLeft className="size-5" strokeWidth={2} />
+            <ChevronLeft className={compact ? 'size-4' : 'size-5'} strokeWidth={2} />
           </button>
         ) : null}
         <div
           ref={scrollerRef}
           tabIndex={0}
           aria-label={`${label} options`}
-          className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-smooth overscroll-x-contain py-0.5 scrollbar-none [-ms-overflow-style:none] outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 [&::-webkit-scrollbar]:hidden"
+          className={`flex min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth overscroll-x-contain py-0.5 scrollbar-none [-ms-overflow-style:none] outline-none focus-visible:ring-2 focus-visible:ring-auth-primary/40 [&::-webkit-scrollbar]:hidden ${
+            compact ? 'gap-1.5' : 'gap-2.5'
+          }`}
         >
           {values.map((value) => (
             <div key={value} className="snap-start">
@@ -193,9 +197,11 @@ export default function VariantOptionRow({
             disabled={!canScrollRight}
             onClick={() => scrollByDirection(1)}
             aria-label={`Next ${label} options`}
-            className="hidden size-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
+            className={`hidden shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-30 sm:flex ${
+              compact ? 'size-8' : 'size-11'
+            }`}
           >
-            <ChevronRight className="size-5" strokeWidth={2} />
+            <ChevronRight className={compact ? 'size-4' : 'size-5'} strokeWidth={2} />
           </button>
         ) : null}
       </div>

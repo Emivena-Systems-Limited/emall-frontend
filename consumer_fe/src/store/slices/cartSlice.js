@@ -2,6 +2,7 @@ import { createSlice } from '@reduxjs/toolkit'
 import { REHYDRATE } from 'redux-persist'
 import { CART_PERSIST_KEY } from '../authPersist'
 import { isValidGuestCartId } from '../../utils/guestCartId'
+import { buildProductDetailsHref } from '../../utils/productHref'
 import { logout } from './authSlice'
 
 const getProductId = (product) =>
@@ -240,7 +241,14 @@ export function buildCartItem(product, options = {}) {
     attribute,
     product: options.productRecord ?? product?.productRecord ?? null,
     variantRecord: options.variantRecord ?? product?.variantRecord ?? null,
-    href: product?.href ?? (product?.slug ? `/${product.slug}` : '/cart'),
+    href: product?.href
+      ?? (buildProductDetailsHref({
+        name: product?.name,
+        slug: product?.slug,
+        id: getProductId(product),
+        backendId: product?.backendId ?? product?.product_id ?? product?.id,
+      }) || '/cart'),
+
     selected: product?.selected ?? true,
     seller: product?.seller ?? product?.storeName ?? product?.store_name ?? 'EZ-Stores',
     freeDelivery: product?.freeDelivery ?? true,

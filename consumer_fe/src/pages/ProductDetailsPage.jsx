@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import {
+  BadgeCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Heart,
@@ -10,19 +12,24 @@ import {
   MapPin,
   Minus,
   Plus,
+  RotateCcw,
+  ShieldCheck,
   ShoppingCart,
   Star,
+  Truck,
+  Zap,
 } from 'lucide-react'
 import Container from '../components/layout/Container'
 import SiteLayout from '../components/layout/SiteLayout'
 import ProductImageGallery from '../components/product/ProductImageGallery'
 import VariantOptionRow from '../components/product/VariantOptionRow'
 import AddedToCartFlyout from '../components/product/AddedToCartFlyout'
-import KeyDetailsModal from '../components/product/KeyDetailsModal'
 import ProductDetailsSkeleton from '../components/product/ProductDetailsSkeleton'
 import ProductReviewsModal from '../components/product/ProductReviewsModal'
 import ImageLightbox from '../components/shared/ImageLightbox'
 import PortaledHoverTooltip from '../components/shared/PortaledHoverTooltip'
+import ProductCard from '../components/shared/ProductCard'
+import ReviewsEmptyState from '../components/shared/ReviewsEmptyState'
 import VendorReviewReply, { normalizeVendorReviewReply } from '../components/shared/VendorReviewReply'
 import { getProductBySlug, getRelatedProducts } from '../constants/productDetails'
 import { useLandingPageData } from '../hooks/useLandingPageData'
@@ -34,8 +41,9 @@ import {
   unfollowStore,
 } from '../services/storeService'
 import { getProductReviews } from '../services/reviewService'
-import { formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
+import { formatCedi, formatProductListPrice, formatProductPriceParts } from '../utils/formatCurrency'
 import { isProductActive, normalizeLandingProduct } from '../utils/normalizeLandingProducts'
+import { CATALOG_STORE_PARAM } from '../constants/productCatalog'
 import { buildCategoryListingHref } from '../utils/listingFilterParams'
 import { STORE_DELIVERY_ELIGIBILITY_ENABLED, STORE_DIRECTORY_ENABLED, LOCK_PURCHASE_ACTIONS } from '../config/featureFlags'
 import { notify } from '../lib/notify'
@@ -53,8 +61,10 @@ import {
   initiateBuyNow,
 } from '../services/checkoutService'
 import { hasBackendProductId, resolveCartItemVariantLabel } from '../utils/normalizeCart'
+import { buildProductDetailsHref, extractProductIdFromRouteSlug } from '../utils/productHref'
 import {
   formatProductCondition,
+  normalizeKeyDetailKey,
   sortKeyDetailEntries,
 } from '../utils/keyDetailsOrder'
 import { normalizeProductDescription } from '../utils/productDescriptionHtml'
@@ -95,7 +105,6 @@ import {
 } from '../utils/variantOptionTree'
 
 const SHOW_PRODUCT_VARIANTS = true
-const KEY_DETAILS_VISIBLE_COUNT = 5
 const DESCRIPTION_LONG_TEXT_THRESHOLD = 480
 const DESCRIPTION_LONG_HTML_THRESHOLD = 700
 const MAX_GALLERY_IMAGES = 10
@@ -113,6 +122,11 @@ const TRUST_INFO = {
     title: 'Secure transaction',
     description:
       'Your payment is processed through encrypted, trusted payment partners. EZ-Stores does not store your full card or mobile money details on our servers.',
+  },
+  shipping: {
+    title: 'Shipping & warranty',
+    description:
+      'Delivery times and warranty coverage depend on the seller. Free shipping estimates apply to eligible locations and may vary during peak periods.',
   },
 }
 
@@ -280,15 +294,15 @@ function QuantitySelector({ value, onChange, disabled, max }) {
   }
 
   return (
-    <div className="inline-flex h-12 min-w-36 items-center justify-between rounded-full bg-slate-50 px-2.5 sm:h-14 sm:min-w-40 sm:px-3">
+    <div className="inline-flex h-10 w-full max-w-[11rem] items-center justify-between rounded-xl border border-slate-200 bg-white px-1.5">
       <button
         type="button"
         aria-label="Decrease quantity"
         disabled={disabled || value <= 1}
         onClick={() => commitValue(String(Math.max(1, value - 1)))}
-        className="flex size-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-auth-primary disabled:cursor-not-allowed disabled:opacity-40 sm:size-10"
+        className="flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        <Minus className="size-5" />
+        <Minus className="size-4" strokeWidth={2.25} />
       </button>
       <input
         type="number"
@@ -314,18 +328,153 @@ function QuantitySelector({ value, onChange, disabled, max }) {
           if (['e', 'E', '+', '-', '.'].includes(event.key)) event.preventDefault()
           if (event.key === 'Enter') event.currentTarget.blur()
         }}
-        className="h-9 w-12 appearance-none rounded-lg border border-transparent bg-transparent px-1 text-center text-base font-bold text-auth-primary outline-none transition focus:border-auth-primary/30 focus:bg-white focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-14 sm:text-lg [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="h-8 w-12 appearance-none border-0 bg-transparent px-1 text-center text-sm font-bold text-slate-950 outline-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <button
         type="button"
         aria-label="Increase quantity"
         disabled={disabled || (maximum != null && value >= maximum)}
         onClick={() => commitValue(String(maximum == null ? value + 1 : Math.min(maximum, value + 1)))}
-        className="flex size-9 items-center justify-center rounded-full text-auth-primary transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 sm:size-10"
+        className="flex size-8 items-center justify-center rounded-lg text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        <Plus className="size-5" />
+        <Plus className="size-4" strokeWidth={2.25} />
       </button>
     </div>
+  )
+}
+
+function resolveProductTags(product) {
+  const raw = product?.tags ?? product?.product_tags ?? product?.keywords
+  if (Array.isArray(raw)) {
+    return raw.map((tag) => String(tag?.name ?? tag?.label ?? tag).trim()).filter(Boolean).slice(0, 6)
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.split(/[,|]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 6)
+  }
+
+  return [
+    product?.brand,
+    product?.subcategory,
+    product?.category,
+  ].map((value) => String(value || '').trim()).filter(Boolean).slice(0, 4)
+}
+
+function SoldByLine({ product }) {
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1 text-[0.6875rem] text-slate-500">
+      <span>Sold by</span>
+      {STORE_DIRECTORY_ENABLED && product.vendorId ? (
+        <Link
+          to={`/stores/${product.vendorId}`}
+          className="font-semibold text-slate-800 transition-colors hover:text-nav-red hover:underline"
+        >
+          {product.storeName}
+        </Link>
+      ) : (
+        <span className="font-semibold text-slate-800">{product.storeName}</span>
+      )}
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-50 px-1.5 py-0.5 text-[0.5625rem] font-semibold text-sky-700">
+        <BadgeCheck className="size-2.5" strokeWidth={2.25} aria-hidden />
+        Verified
+      </span>
+    </p>
+  )
+}
+
+function VariantOptionsBlock({
+  product,
+  selectedOptions = {},
+  onSelectOption,
+  activeFamilyId,
+  familyPrimary = {},
+  familySecondary = {},
+  onSelectFamilyPrimary,
+  onSelectFamilySecondary,
+  selectedCompatibleModel,
+  setSelectedCompatibleModel,
+  compatibleModelOptions = [],
+  visibleOptionGroups = [],
+}) {
+  const variantFamilies = product.variantFamilies ?? []
+  const isMultiFamily = variantFamilies.length > 1
+  const selectedOptionValues = new Set(
+    Object.values(selectedOptions)
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase()),
+  )
+  const hasDuplicateCompatibleModels = compatibleModelOptions.length > 0
+    && selectedOptionValues.size > 0
+    && compatibleModelOptions.every((value) => selectedOptionValues.has(String(value).toLowerCase()))
+  const selectedOptionLabel = Object.values(selectedOptions).filter(Boolean).join(' · ')
+  const showCompatibleModels = SHOW_PRODUCT_VARIANTS
+    && compatibleModelOptions.length > 0
+    && !hasDuplicateCompatibleModels
+
+  return (
+    <>
+      {SHOW_PRODUCT_VARIANTS && !product.isSimpleListing && isMultiFamily ? (
+        variantFamilies.map((family, familyIdx) => {
+          const isFamilyActive = activeFamilyId === family.id
+          const selectedPrimary = isFamilyActive ? (familyPrimary[family.id] ?? '') : ''
+          const selectedSec = familySecondary[family.id] ?? {}
+
+          return (
+            <div key={family.id}>
+              {familyIdx > 0 && (
+                <div className="my-1.5 flex items-center gap-2">
+                  <div className="h-px flex-1 bg-slate-100" />
+                  <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-400">or</span>
+                  <div className="h-px flex-1 bg-slate-100" />
+                </div>
+              )}
+              <VariantOptionRow
+                label={family.primaryLabel}
+                values={family.primaryValues}
+                images={family.primaryImages}
+                selected={selectedPrimary}
+                onSelect={(value) => onSelectFamilyPrimary(family.id, value)}
+                presentation={resolveGroupPresentation({ key: family.primaryKey, values: family.primaryValues, images: family.primaryImages })}
+                size="compact"
+              />
+              {isFamilyActive && getVisibleFamilySecondaryGroups(family, selectedPrimary).map((secGroup) => (
+                <VariantOptionRow
+                  key={secGroup.key}
+                  label={secGroup.label}
+                  values={secGroup.values}
+                  selected={selectedSec[secGroup.key] ?? ''}
+                  onSelect={(value) => onSelectFamilySecondary(family.id, secGroup.key, value)}
+                  presentation="chips"
+                  size="compact"
+                />
+              ))}
+            </div>
+          )
+        })
+      ) : (
+        SHOW_PRODUCT_VARIANTS && !product.isSimpleListing && visibleOptionGroups.map((group, index) => (
+          <VariantOptionRow
+            key={group.key}
+            label={group.label}
+            values={group.values}
+            images={index === 0 ? group.images : undefined}
+            selected={selectedOptions[group.key] ?? ''}
+            onSelect={(value) => onSelectOption(group.key, value)}
+            presentation={resolveGroupPresentation(group, { allowImages: index === 0 })}
+            size="compact"
+          />
+        ))
+      )}
+      {SHOW_PRODUCT_VARIANTS && showCompatibleModels && selectedOptionLabel ? (
+        <VariantOptionRow
+          label="Compatible Model"
+          values={compatibleModelOptions}
+          selected={selectedCompatibleModel}
+          onSelect={setSelectedCompatibleModel}
+          presentation="chips"
+          size="compact"
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -438,7 +587,7 @@ function buildStarRatingDistribution(reviews, distribution) {
   }))
 }
 
-function ProductInfoPanel({
+function ProductDetailsColumn({
   product,
   selectedOptions = {},
   onSelectOption,
@@ -451,15 +600,183 @@ function ProductInfoPanel({
   setSelectedCompatibleModel,
   compatibleModelOptions = [],
   visibleOptionGroups = [],
+  activeVariant,
+  activeSku,
+  displayPriceInfo,
+}) {
+  const [shippingInfoOpen, setShippingInfoOpen] = useState(false)
+  const shippingInfoRef = useRef(null)
+  const variantStock = activeVariant
+    ? resolveVariantStock(activeVariant, 0)
+    : toNumber(product.stockCount, 0)
+  const stockAvailability = formatStockAvailability(
+    variantStock,
+    activeVariant
+      ? resolveVariantLowStockThreshold(activeVariant, product.lowStockThreshold ?? 10)
+      : (product.lowStockThreshold ?? 10),
+  )
+  const selectedOptionLabel = Object.values(selectedOptions).filter(Boolean).join(' / ')
+  const selectionSummary = [selectedOptionLabel, selectedCompatibleModel].filter(Boolean).join(' / ')
+  const currentPriceParts = formatProductPriceParts(displayPriceInfo.price)
+  const hasSalePrice =
+    displayPriceInfo.compareAt != null &&
+    displayPriceInfo.discountPercent != null &&
+    displayPriceInfo.discountPercent > 0 &&
+    displayPriceInfo.compareAt > displayPriceInfo.price
+  const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
+  const tags = resolveProductTags(product)
+
+  useEffect(() => {
+    if (!shippingInfoOpen) return undefined
+    const handlePointerDown = (event) => {
+      if (!shippingInfoRef.current?.contains(event.target)) {
+        setShippingInfoOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [shippingInfoOpen])
+
+  return (
+    <div className="min-w-0 text-[0.8125rem]">
+      <h1 className="wrap-break-word text-base font-bold leading-snug tracking-tight text-slate-950 sm:text-lg">
+        {product.title}
+      </h1>
+
+      <SoldByLine product={product} />
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <Stars rating={product.rating} size="size-3" />
+        <span className="text-[0.6875rem] font-semibold text-slate-700">
+          {product.rating?.toFixed(1) ?? '0.0'}
+        </span>
+        <span className="text-[0.6875rem] text-slate-400">
+          ({product.reviewCount > 0
+            ? `${product.reviewCount.toLocaleString()} reviews`
+            : 'No reviews yet'})
+        </span>
+        {product.reviewCount > 0 ? (
+          <span className="inline-flex items-center gap-0.5 text-[0.625rem] font-semibold text-emerald-600">
+            <BadgeCheck className="size-2.5" strokeWidth={2.25} aria-hidden />
+            Verified
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-3 border-b border-slate-100 pb-3">
+        {hasSalePrice ? (
+          <p className="mb-1.5 w-fit rounded-sm bg-auth-primary px-1.5 py-0.5 text-[0.5625rem] font-bold leading-none text-white">
+            Limited time deal
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-end gap-x-1.5 gap-y-1">
+          {hasSalePrice ? (
+            <span className="pb-0.5 text-sm font-bold leading-none text-auth-primary">
+              -{displayPriceInfo.discountPercent}%
+            </span>
+          ) : null}
+          <div className="inline-flex items-start gap-0.5 leading-none">
+            <span className="pt-0.5 text-xs font-normal text-slate-950">{currentPriceParts.currency}</span>
+            <span className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-[1.75rem]">
+              {currentPriceParts.amount}
+            </span>
+          </div>
+          {hasSalePrice ? (
+            <span className="pb-0.5 text-xs text-slate-400 line-through">
+              {formatProductListPrice(listPriceValue)}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-[0.6875rem] text-slate-400">SKU: {activeSku || 'N/A'}</p>
+      </div>
+
+      <div className="border-b border-slate-100 py-0.5 pb-2.5">
+        <VariantOptionsBlock
+          product={product}
+          selectedOptions={selectedOptions}
+          onSelectOption={onSelectOption}
+          activeFamilyId={activeFamilyId}
+          familyPrimary={familyPrimary}
+          familySecondary={familySecondary}
+          onSelectFamilyPrimary={onSelectFamilyPrimary}
+          onSelectFamilySecondary={onSelectFamilySecondary}
+          selectedCompatibleModel={selectedCompatibleModel}
+          setSelectedCompatibleModel={setSelectedCompatibleModel}
+          compatibleModelOptions={compatibleModelOptions}
+          visibleOptionGroups={visibleOptionGroups}
+        />
+      </div>
+
+      {selectionSummary || stockAvailability.tone !== 'out' ? (
+        <div
+          className={`mt-2.5 flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[0.6875rem] font-semibold ${
+            stockAvailability.tone === 'out'
+              ? 'bg-red-50 text-red-700'
+              : stockAvailability.tone === 'low'
+                ? 'bg-amber-50 text-amber-800'
+                : 'bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          <BadgeCheck className="size-3 shrink-0" strokeWidth={2.25} aria-hidden />
+          <span>
+            {selectionSummary ? `Selected: ${selectionSummary} — ` : ''}
+            {stockAvailability.tone === 'out'
+              ? 'Out of Stock'
+              : stockAvailability.tone === 'low'
+                ? stockAvailability.headline
+                : 'In Stock'}
+          </span>
+        </div>
+      ) : null}
+
+      {tags.length > 0 ? (
+        <div className="mt-2.5 flex flex-wrap gap-1">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.625rem] font-medium text-slate-600"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div ref={shippingInfoRef} className="relative mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+        <div className="flex items-start gap-1.5 text-[0.6875rem] text-slate-600">
+          <Truck className="mt-0.5 size-3 shrink-0 text-emerald-600" strokeWidth={2.25} aria-hidden />
+          <span>Free Shipping in 3-5 business days</span>
+        </div>
+        <div className="flex items-start gap-1.5 text-[0.6875rem] text-slate-600">
+          <ShieldCheck className="mt-0.5 size-3 shrink-0 text-emerald-600" strokeWidth={2.25} aria-hidden />
+          <span>Warranty provided by seller</span>
+        </div>
+        <TrustInfoComment
+          label="Shipping"
+          triggerText="Shipping & warranty terms vary by seller"
+          infoKey="shipping"
+          isOpen={shippingInfoOpen}
+          onToggle={() => setShippingInfoOpen((open) => !open)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ProductPurchaseCard({
+  product,
+  selectedOptions = {},
+  selectedCompatibleModel,
   activeImage,
   activeVariant,
   activeSku,
   displayPriceInfo,
   deliveryEligible = true,
   shoppingLocation = '',
+  isWishlisted = false,
+  onWishlist,
+  isTogglingWishlist = false,
 }) {
-  const variantFamilies = product.variantFamilies ?? []
-  const isMultiFamily = variantFamilies.length > 1
   const [quantity, setQuantity] = useState(1)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [isBuyingNow, setIsBuyingNow] = useState(false)
@@ -490,18 +807,6 @@ function ProductInfoPanel({
     ? availableQuantity
     : (LOCK_PURCHASE_ACTIONS ? 0 : 1)
   const purchaseQuantity = Math.min(quantity, Math.max(maximumQuantity, 1))
-  const compatibleModelValues = compatibleModelOptions
-  const selectedOptionValues = new Set(
-    Object.values(selectedOptions)
-      .filter(Boolean)
-      .map((value) => String(value).toLowerCase()),
-  )
-  const hasDuplicateCompatibleModels = compatibleModelValues.length > 0
-    && selectedOptionValues.size > 0
-    && compatibleModelValues.every((value) => selectedOptionValues.has(String(value).toLowerCase()))
-  const showCompatibleModels = SHOW_PRODUCT_VARIANTS
-    && compatibleModelValues.length > 0
-    && !hasDuplicateCompatibleModels
   const selectedOptionLabel = Object.values(selectedOptions).filter(Boolean).join(' · ')
   const cartVariantLabel = resolveCartItemVariantLabel({
     name: product.title ?? product.name,
@@ -510,6 +815,7 @@ function ProductInfoPanel({
     variantRecord: activeVariant,
     storage: selectedOptionLabel || selectedCompatibleModel,
   }) || selectedOptionLabel || selectedCompatibleModel || product.variant
+  const totalPriceLabel = formatCedi(Number(displayPriceInfo.price || 0) * purchaseQuantity)
 
   useEffect(() => {
     setQuantity(1)
@@ -527,18 +833,6 @@ function ProductInfoPanel({
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [trustInfoOpen])
-
-  const toggleTrustInfo = (infoKey) => {
-    setTrustInfoOpen((current) => (current === infoKey ? null : infoKey))
-  }
-
-  const currentPriceParts = formatProductPriceParts(displayPriceInfo.price)
-  const hasSalePrice =
-    displayPriceInfo.compareAt != null &&
-    displayPriceInfo.discountPercent != null &&
-    displayPriceInfo.discountPercent > 0 &&
-    displayPriceInfo.compareAt > displayPriceInfo.price
-  const listPriceValue = displayPriceInfo.compareAt ?? displayPriceInfo.price
 
   const requiresVariantSku = Array.isArray(product.variants) && product.variants.length > 0
   const locationBlocksPurchase = Boolean(
@@ -637,7 +931,7 @@ function ProductInfoPanel({
   }
 
   return (
-    <aside className="min-w-0 bg-white p-3 sm:p-4">
+    <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)] sm:p-5">
       <AddedToCartFlyout
         open={addedToCartOpen}
         product={product}
@@ -647,123 +941,36 @@ function ProductInfoPanel({
         price={displayPriceInfo.price}
         onClose={() => setAddedToCartOpen(false)}
       />
-      <div className="border-b border-slate-200 pb-4">
-        <h1 className="wrap-break-word text-lg font-bold capitalize leading-snug tracking-tight text-slate-950 sm:text-xl">
-          {product.title}
-        </h1>
 
-        <p className="mt-2 text-xs font-semibold text-slate-500">
-          {product.reviewCount > 0
-            ? `${product.rating.toFixed(1)} (${product.reviewCount.toLocaleString()} reviews)`
-            : 'No reviews yet'}{' '}
-          {(product.salesCount ?? 0).toLocaleString()} sold
-        </p>
-
-        {product.soldIndicator && (
-          <p className="mt-1 text-[0.6875rem] font-semibold text-slate-600">
-            {product.soldIndicator}
-          </p>
-        )}
-
-        <StoreInfo key={product.vendorId || product.storeName} product={product} />
-      </div>
-
-      <div className="space-y-2 py-3">
-        {hasSalePrice && (
-          <p className="w-fit rounded-sm bg-auth-primary px-2 py-1 text-[0.625rem] font-bold leading-none text-white">
-            Limited time deal
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-          {hasSalePrice && (
-            <span className="pb-0.5 text-xl font-bold leading-none text-auth-primary sm:text-2xl">
-              -{displayPriceInfo.discountPercent}%
-            </span>
-          )}
-          <div className="inline-flex items-start gap-0.5 leading-none">
-            <span className="pt-1 text-sm font-normal text-slate-950">{currentPriceParts.currency}</span>
-            <span className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-[2.5rem]">
-              {currentPriceParts.amount}
-            </span>
-          </div>
-          {hasSalePrice && (
-            <span className="pb-1 text-sm text-slate-400 line-through sm:text-base">
-              {formatProductListPrice(listPriceValue)}
-            </span>
-          )}
-        </div>
-
-        {hasSalePrice && (
-          <p className="text-xs font-medium text-slate-500">
-            List Price:{' '}
-            <span className="line-through">{formatProductListPrice(listPriceValue)}</span>
-          </p>
-        )}
-      </div>
-
-      {SHOW_PRODUCT_VARIANTS && !product.isSimpleListing && isMultiFamily ? (
-        variantFamilies.map((family, familyIdx) => {
-          const isFamilyActive = activeFamilyId === family.id
-          const selectedPrimary = isFamilyActive ? (familyPrimary[family.id] ?? '') : ''
-          const selectedSec = familySecondary[family.id] ?? {}
-
-          return (
-            <div key={family.id}>
-              {familyIdx > 0 && (
-                <div className="my-2 flex items-center gap-2">
-                  <div className="h-px flex-1 bg-slate-100" />
-                  <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-slate-400">or</span>
-                  <div className="h-px flex-1 bg-slate-100" />
-                </div>
-              )}
-              <VariantOptionRow
-                label={family.primaryLabel}
-                values={family.primaryValues}
-                images={family.primaryImages}
-                selected={selectedPrimary}
-                onSelect={(value) => onSelectFamilyPrimary(family.id, value)}
-                presentation={resolveGroupPresentation({ key: family.primaryKey, values: family.primaryValues, images: family.primaryImages })}
-              />
-              {isFamilyActive && getVisibleFamilySecondaryGroups(family, selectedPrimary).map((secGroup) => (
-                <VariantOptionRow
-                  key={secGroup.key}
-                  label={secGroup.label}
-                  values={secGroup.values}
-                  selected={selectedSec[secGroup.key] ?? ''}
-                  onSelect={(value) => onSelectFamilySecondary(family.id, secGroup.key, value)}
-                  presentation="chips"
-                />
-              ))}
-            </div>
-          )
-        })
-      ) : (
-        SHOW_PRODUCT_VARIANTS && !product.isSimpleListing && visibleOptionGroups.map((group, index) => (
-          <VariantOptionRow
-            key={group.key}
-            label={group.label}
-            values={group.values}
-            images={index === 0 ? group.images : undefined}
-            selected={selectedOptions[group.key] ?? ''}
-            onSelect={(value) => onSelectOption(group.key, value)}
-            presentation={resolveGroupPresentation(group, { allowImages: index === 0 })}
-          />
-        ))
-      )}
-      {SHOW_PRODUCT_VARIANTS && showCompatibleModels && selectedOptionLabel ? (
-        <VariantOptionRow
-          label="Compatible Model"
-          values={compatibleModelValues}
-          selected={selectedCompatibleModel}
-          onSelect={setSelectedCompatibleModel}
-          presentation="chips"
+      <p
+        className={`inline-flex items-center gap-1.5 text-sm font-semibold ${
+          stockAvailability.tone === 'out'
+            ? 'text-red-600'
+            : stockAvailability.tone === 'low'
+              ? 'text-amber-700'
+              : 'text-emerald-600'
+        }`}
+      >
+        <span
+          className={`size-1.5 rounded-full ${
+            stockAvailability.tone === 'out'
+              ? 'bg-red-500'
+              : stockAvailability.tone === 'low'
+                ? 'bg-amber-500'
+                : 'bg-emerald-500'
+          }`}
+          aria-hidden
         />
-      ) : null}
+        {stockAvailability.tone === 'out'
+          ? 'Out of Stock'
+          : stockAvailability.tone === 'low'
+            ? stockAvailability.headline
+            : 'In Stock'}
+      </p>
 
-      <div className="mt-4 border-t border-slate-200 pt-4">
-        <p className="text-xs font-bold text-slate-950">Quantity</p>
-        <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
+      <div className="mt-4">
+        <p className="text-xs font-semibold text-slate-700">Quantity</p>
+        <div className="mt-2">
           <QuantitySelector
             key={`${activeVariant?.id ?? 'product'}-${maximumQuantity}`}
             value={purchaseQuantity}
@@ -771,21 +978,16 @@ function ProductInfoPanel({
             disabled={outOfStock}
             max={maximumQuantity}
           />
-          <p className="text-sm leading-5">
-            <span
-              className={
-                stockAvailability.tone === 'out'
-                  ? 'font-bold text-red-600'
-                  : stockAvailability.tone === 'low'
-                    ? 'font-bold text-auth-primary'
-                    : 'font-bold text-emerald-600'
-              }
-            >
-              {stockAvailability.headline}
-            </span>
-            <span className="block text-slate-500">{stockAvailability.subtext}</span>
-          </p>
         </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
+        <span className="text-xs font-medium text-slate-500">
+          Total ({purchaseQuantity} {purchaseQuantity === 1 ? 'item' : 'items'})
+        </span>
+        <span className="text-sm font-bold text-slate-950 tabular-nums">
+          {totalPriceLabel}
+        </span>
       </div>
 
       {locationBlocksPurchase ? (
@@ -795,35 +997,23 @@ function ProductInfoPanel({
           className="mt-4 flex gap-2.5 rounded-xl border border-red-100 bg-red-50/70 p-3 text-xs leading-5 text-slate-700"
         >
           <MapPin className="mt-0.5 size-4 shrink-0 text-auth-primary" aria-hidden="true" />
-          <p><span className="font-bold text-slate-900">Delivery unavailable{shoppingLocation ? ` in ${shoppingLocation}` : ''}.</span> This store does not currently deliver to your location.</p>
+          <p>
+            <span className="font-bold text-slate-900">
+              Delivery unavailable{shoppingLocation ? ` in ${shoppingLocation}` : ''}.
+            </span>{' '}
+            This store does not currently deliver to your location.
+          </p>
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-2 min-[420px]:grid-cols-2 sm:gap-3">
-        <button
-          type="button"
-          disabled={isBuyingNow || locationBlocksPurchase || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || !deliveryEligible))}
-          onClick={handleBuyNow}
-          aria-busy={isBuyingNow}
-          aria-describedby={locationBlocksPurchase ? 'product-delivery-unavailable' : undefined}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FFA41C] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isBuyingNow ? (
-            <>
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              Starting...
-            </>
-          ) : (
-            'Buy Now'
-          )}
-        </button>
+      <div className="mt-4 space-y-2.5">
         <button
           type="button"
           disabled={isAddingToCart || locationBlocksPurchase || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || isInCart || !deliveryEligible))}
           onClick={handleAddToCart}
           aria-busy={isAddingToCart}
           aria-describedby={locationBlocksPurchase ? 'product-delivery-unavailable' : undefined}
-          className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f5d020] bg-[#f5d020] px-6 py-3 text-xs font-bold text-slate-900 transition-colors hover:bg-[#e6c01d] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-nav-red px-4 text-sm font-semibold text-white transition-colors hover:bg-nav-red-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isAddingToCart ? (
             <>
@@ -831,220 +1021,181 @@ function ProductInfoPanel({
               Adding...
             </>
           ) : (
-            'Add to Cart'
+            <>
+              <ShoppingCart className="size-4" strokeWidth={2.25} aria-hidden />
+              Add to Cart
+            </>
           )}
         </button>
+        <button
+          type="button"
+          disabled={isBuyingNow || locationBlocksPurchase || (LOCK_PURCHASE_ACTIONS && (!isAuthenticated || outOfStock || !deliveryEligible))}
+          onClick={handleBuyNow}
+          aria-busy={isBuyingNow}
+          aria-describedby={locationBlocksPurchase ? 'product-delivery-unavailable' : undefined}
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#FFA41C] px-4 text-sm font-semibold text-slate-950 transition-colors hover:bg-[#F0950C] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isBuyingNow ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Starting...
+            </>
+          ) : (
+            <>
+              <Zap className="size-4" strokeWidth={2.25} aria-hidden />
+              Buy Now
+            </>
+          )}
+        </button>
+        {onWishlist ? (
+          <button
+            type="button"
+            disabled={isTogglingWishlist}
+            onClick={onWishlist}
+            aria-pressed={isWishlisted}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+          >
+            <Heart
+              className={`size-4 ${isWishlisted ? 'fill-nav-red text-nav-red' : ''}`}
+              strokeWidth={2.25}
+              aria-hidden
+            />
+            {isWishlisted ? 'Saved to Wishlist' : 'Add to Wishlist'}
+          </button>
+        ) : null}
       </div>
 
       <div
         ref={trustInfoRef}
-        className="relative mt-3 flex flex-col gap-2 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between min-[480px]:gap-6"
+        className="relative mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3"
       >
         <TrustInfoComment
-          label="Returns"
-          triggerText="30-day refund/replacement"
-          infoKey="refund"
-          isOpen={trustInfoOpen === 'refund'}
-          onToggle={() => toggleTrustInfo('refund')}
-        />
-        <TrustInfoComment
           label="Payment"
-          triggerText="Secure transaction"
+          triggerText="Secure checkout"
           infoKey="secure"
           isOpen={trustInfoOpen === 'secure'}
-          onToggle={() => toggleTrustInfo('secure')}
-          align="right"
+          onToggle={() => setTrustInfoOpen((current) => (current === 'secure' ? null : 'secure'))}
+        />
+        <TrustInfoComment
+          label="Returns"
+          triggerText="Shipping & returns vary by seller"
+          infoKey="refund"
+          isOpen={trustInfoOpen === 'refund'}
+          onToggle={() => setTrustInfoOpen((current) => (current === 'refund' ? null : 'refund'))}
         />
       </div>
     </aside>
   )
 }
 
-function KeyDetails({ product, activeSku }) {
-  const [modalOpen, setModalOpen] = useState(false)
+function DetailsEntriesCard({ title, entries, defaultOpen = true }) {
+  const [expanded, setExpanded] = useState(defaultOpen)
+
+  if (!entries.length) return null
+
+  return (
+    <section className="relative min-w-0 w-full">
+      <button
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <h2 className="text-base font-bold text-slate-950 sm:text-lg">{title}</h2>
+        <ChevronDown
+          className={`size-4 shrink-0 text-slate-500 transition-transform duration-200 ${
+            expanded ? 'rotate-180' : ''
+          }`}
+          strokeWidth={2.25}
+          aria-hidden
+        />
+      </button>
+
+      {expanded ? (
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
+          <ul className="space-y-3">
+            {entries.map(([key, value]) => (
+              <li key={key} className="flex min-w-0 items-start gap-2.5">
+                <span
+                  className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500"
+                  aria-hidden
+                />
+                <div className="grid min-w-0 flex-1 grid-cols-[minmax(7rem,10rem)_minmax(0,1fr)] items-start gap-x-6 sm:grid-cols-[minmax(8.5rem,11rem)_minmax(0,1fr)] sm:gap-x-10">
+                  <span className="text-sm font-bold text-slate-900">{key}:</span>
+                  <span className="wrap-break-word text-sm text-slate-600">{value}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+const KEY_DETAIL_CARD_KEYS = new Set([
+  'category',
+  'sku',
+  'model/sku',
+  'barcode',
+  'condition',
+  'brand',
+])
+
+function isKeyDetailCardKey(key) {
+  return KEY_DETAIL_CARD_KEYS.has(normalizeKeyDetailKey(key))
+}
+
+function ProductDetailsSection({ product, activeSku }) {
   const detailsList = { ...product.keyDetails }
+
   if (activeSku) {
-    detailsList['Model/SKU'] = activeSku
+    detailsList.SKU = activeSku
+    delete detailsList['Model/SKU']
+  } else if (detailsList['Model/SKU'] && !detailsList.SKU) {
+    detailsList.SKU = detailsList['Model/SKU']
+    delete detailsList['Model/SKU']
   }
-  delete detailsList['Fulfillment']
-  delete detailsList['fulfillment']
-  delete detailsList['Status']
-  delete detailsList['status']
+
+  if (product.brand && !detailsList.Brand) {
+    detailsList.Brand = product.brand
+  }
+  if (product.category) {
+    detailsList.Category = product.category
+  }
+  if (product.subcategory) {
+    detailsList.Subcategory = product.subcategory
+  }
+
+  delete detailsList.Fulfillment
+  delete detailsList.fulfillment
+  delete detailsList.Status
+  delete detailsList.status
 
   const customEntries = Array.isArray(product.customKeyDetailEntries) ? product.customKeyDetailEntries : []
-  const sortedStandardEntries = sortKeyDetailEntries(Object.entries(detailsList))
-  const allEntries = [...sortedStandardEntries, ...customEntries]
-  const visibleEntries = allEntries.slice(0, KEY_DETAILS_VISIBLE_COUNT)
-  const hasMore = allEntries.length > KEY_DETAILS_VISIBLE_COUNT
+  const allEntries = [
+    ...Object.entries(detailsList),
+    ...customEntries,
+  ].filter(([key, value]) => String(key || '').trim() && String(value || '').trim())
 
-  return (
-    <>
-      <section className="relative min-w-0 bg-white p-4 sm:p-6">
-        <h2 className="text-base font-bold text-slate-950">Key Details</h2>
-        <dl className="mt-3 space-y-2.5 text-sm leading-5 text-slate-700">
-          {visibleEntries.map(([key, value]) => (
-            <div key={key} className="grid min-w-0 grid-cols-[minmax(0,7.5rem)_1fr] items-start gap-x-3 gap-y-0">
-              <dt className="font-bold text-slate-900">{key}:</dt>
-              <dd className="wrap-break-word">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        {hasMore && (
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            className="mt-3 text-left text-sm font-semibold text-auth-primary underline-offset-2 transition-colors hover:text-auth-primary-hover hover:underline"
-          >
-            See all details
-          </button>
-        )}
-      </section>
-
-      <KeyDetailsModal
-        open={modalOpen}
-        entries={allEntries}
-        onClose={() => setModalOpen(false)}
-      />
-    </>
+  const keyDetailEntries = sortKeyDetailEntries(
+    allEntries.filter(([key]) => isKeyDetailCardKey(key)),
   )
-}
+  const productDetailEntries = sortKeyDetailEntries(
+    allEntries.filter(([key]) => !isKeyDetailCardKey(key)),
+  )
 
-function ReviewGhostCard({ opacity = 1 }) {
+  if (keyDetailEntries.length === 0 && productDetailEntries.length === 0) return null
+
   return (
-    <div
-      className="flex gap-2.5 rounded-lg border border-slate-100 bg-white/90 px-3 py-2.5"
-      style={{ opacity }}
-      aria-hidden="true"
-    >
-      <span className="size-7 shrink-0 rounded-full bg-linear-to-br from-slate-200 to-slate-100" />
-      <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-20 rounded-full bg-slate-200" />
-          <span className="h-1.5 w-10 rounded-full bg-slate-100" />
-        </div>
-        <span className="flex gap-0.5">
-          {Array.from({ length: 5 }, (_, star) => (
-            <Star key={star} className="size-2.5" fill={STAR_EMPTY_FILL} strokeWidth={0} />
-          ))}
-        </span>
-        <span className="block h-1.5 w-full rounded-full bg-slate-100" />
-        <span className="block h-1.5 w-2/3 rounded-full bg-slate-100" />
-      </div>
+    <div className="flex min-w-0 w-full flex-col gap-5 sm:gap-6">
+      <DetailsEntriesCard title="Key Details" entries={keyDetailEntries} />
+      <DetailsEntriesCard title="Product Details" entries={productDetailEntries} />
     </div>
   )
 }
 
-function ReviewGhostList({ count = 3, className = '', fade = false }) {
-  return (
-    <div className={`space-y-2 ${className}`} aria-hidden="true">
-      {Array.from({ length: count }, (_, index) => (
-        <ReviewGhostCard
-          key={index}
-          opacity={fade ? Math.max(0.12, 0.5 - index * 0.16) : 1}
-        />
-      ))}
-    </div>
-  )
-}
-
-function ReviewGhostFiller() {
-  return (
-    <div
-      className="relative mt-4 hidden min-h-0 flex-1 overflow-hidden lg:block"
-      aria-hidden="true"
-      style={{
-        WebkitMaskImage: 'linear-gradient(to bottom, #000 50%, transparent 100%)',
-        maskImage: 'linear-gradient(to bottom, #000 50%, transparent 100%)',
-      }}
-    >
-      <div className="absolute inset-x-0 top-0 space-y-2">
-        {Array.from({ length: 24 }, (_, index) => (
-          <ReviewGhostCard key={index} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ReviewsEmptyState({ productName, onWriteReview, fillHeight }) {
-  const prompts = [
-    { label: 'Quality', hint: 'Feel, finish, and how it lasts' },
-    { label: 'Delivery', hint: 'Speed, packing, and condition' },
-    { label: 'Value', hint: 'Whether it earned the price' },
-  ]
-
-  return (
-    <div
-      className={`relative mt-4 flex flex-col overflow-hidden rounded-xl ${
-        fillHeight ? 'min-h-80 lg:min-h-0 lg:flex-1' : 'min-h-80'
-      }`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-slate-50 via-white to-slate-50" />
-      <div className="pointer-events-none absolute -right-12 -top-16 size-44 rounded-full bg-amber-100/80 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-10 -left-10 size-40 rounded-full bg-red-50 blur-3xl" />
-      <div className="pointer-events-none absolute inset-x-8 top-10 h-px bg-linear-to-r from-transparent via-amber-200/80 to-transparent" />
-
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 text-center sm:px-5">
-        <span className="inline-flex items-stretch overflow-hidden border border-slate-300 text-[0.625rem] leading-none">
-          <span className="bg-slate-950 px-2 py-1.5 font-bold tabular-nums text-white">0</span>
-          <span className="bg-white px-2 py-1.5 font-semibold text-slate-600">reviews so far</span>
-        </span>
-
-        <p className="mt-4 text-5xl font-black tracking-tight text-slate-200 sm:text-6xl">0.0</p>
-        <p className="mt-1 text-[0.625rem] font-semibold uppercase tracking-[0.16em] text-slate-400">
-          Awaiting its first rating
-        </p>
-
-        <div className="mt-4 flex items-center justify-center gap-1" aria-hidden="true">
-          {Array.from({ length: 5 }, (_, index) => (
-            <Star
-              key={index}
-              className="size-7 drop-shadow-sm sm:size-8"
-              fill={STAR_EMPTY_FILL}
-              strokeWidth={0}
-            />
-          ))}
-        </div>
-
-        <h3 className="mt-4 text-sm font-extrabold tracking-tight text-slate-950">
-          Be the first voice on this product
-        </h3>
-        {productName ? (
-          <p className="mt-1 line-clamp-2 max-w-[17rem] text-xs font-semibold text-slate-500">
-            {productName}
-          </p>
-        ) : null}
-        <p className="mt-2 max-w-[19rem] text-[0.6875rem] leading-5 text-slate-500">
-          Shoppers are waiting to hear how it holds up in real life. A clear explanation goes a long way.
-        </p>
-
-        <button
-          type="button"
-          onClick={onWriteReview}
-          className="mt-4 inline-flex items-center justify-center rounded-full bg-auth-primary px-5 py-2.5 text-xs font-bold text-white shadow-[0_10px_20px_-12px_rgba(199,59,45,0.7)] transition hover:bg-auth-primary-hover"
-        >
-          Write the first review
-        </button>
-
-        <div className="mt-5 grid w-full max-w-sm grid-cols-3 gap-2">
-          {prompts.map((prompt) => (
-            <div
-              key={prompt.label}
-              className="rounded-lg border border-slate-200/80 bg-white/90 px-2 py-2.5 shadow-[0_1px_0_rgba(15,23,42,0.03)]"
-            >
-              <p className="text-[0.625rem] font-bold text-slate-800">{prompt.label}</p>
-              <p className="mt-1 text-[0.5rem] leading-3.5 text-slate-500">{prompt.hint}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <ReviewGhostList fade count={3} className="relative z-10 mt-auto px-4 pb-4" />
-    </div>
-  )
-}
-
-function ReviewSummary({ product, fillHeight = false }) {
+function ReviewSummary({ product }) {
   const navigate = useNavigate()
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
   const [showAllReviews, setShowAllReviews] = useState(false)
@@ -1062,101 +1213,106 @@ function ReviewSummary({ product, fillHeight = false }) {
   }
 
   return (
-    <section
-      id="reviews"
-      className={`min-w-0 w-full bg-white p-3 sm:p-4 ${fillHeight ? 'flex min-h-0 flex-col lg:h-full lg:flex-1' : ''}`}
-    >
-      <div className="shrink-0" data-review-header>
-        <h2 className="text-base font-bold text-slate-950">Customer&apos;s Feedback</h2>
-        {hasReviews ? (
-          <>
-            <h3 className="mt-4 text-sm font-bold text-slate-950">Review this product</h3>
-            <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
-            <button
-              className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
-              type="button"
-              onClick={handleWriteReview}
-            >
-              Write a customer review
-            </button>
-
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-extrabold text-slate-950">{product.reviewCount.toLocaleString()} reviews | {product.rating.toFixed(1)}</span>
-              <Stars rating={product.rating} size="size-3" />
-              <span className="rounded-sm bg-emerald-50 px-2 py-1 text-[0.5rem] font-bold text-emerald-700 sm:ml-auto">
-                All ratings are by verified purchases
-              </span>
-            </div>
-
-            <div className="mt-5 space-y-2">
-              {product.ratingDistribution.map((row) => (
-                <div key={row.label} className="grid grid-cols-[3.75rem_1fr_2.25rem] items-center gap-3 text-[0.625rem] text-slate-600">
-                  <span className="truncate">{row.label}</span>
-                  <span className="h-1.5 overflow-hidden rounded-full bg-slate-200">
-                    <span className="block h-full rounded-full bg-slate-950" style={{ width: `${row.value}%` }} />
-                  </span>
-                  <span className="text-right tabular-nums">{row.value}%</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {['Nice', 'Perfect Fitting', 'Comfy'].map((tag) => (
-                <span key={tag} className="rounded-full bg-slate-100 px-3 py-1 text-[0.625rem] font-semibold text-slate-600">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </>
-        ) : null}
-      </div>
+    <section id="reviews" className="min-w-0 w-full">
+      <h2 className="text-base font-bold text-slate-950 sm:text-lg">Customer&apos;s Feedback</h2>
 
       {hasReviews ? (
-        <>
-          <div data-review-list className="mt-4 space-y-3">
-            {visibleReviews.map((review) => (
-              <article key={review.id} data-review-card className="border-t border-slate-200 pt-3">
-                <div className="flex items-start gap-2">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-pink-600 text-xs font-bold text-white">
-                    {review.name.charAt(0)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-xs font-bold text-slate-950">{review.name}</h3>
-                      <span className="text-[0.5625rem] text-slate-500">on {review.date}</span>
-                    </div>
-                    <Stars rating={review.rating} size="size-3" />
-                    <p className="mt-1 wrap-break-word text-[0.6875rem] leading-4 text-slate-700">{review.text}</p>
-                    <VendorReviewReply
-                      reply={review.vendorReply}
-                      compact
-                      vendorName={product.storeName}
-                    />
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          {reviews.length > 3 && (
-            <div data-review-footer className="mt-5 shrink-0 text-center">
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:items-start lg:gap-8">
+            <div className="min-w-0 border-b border-slate-100 pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
+              <h3 className="text-sm font-bold text-slate-950">Review this product</h3>
+              <p className="mt-1 text-xs text-slate-600">Share your thoughts with other customers</p>
               <button
+                className="mt-3 w-full rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
                 type="button"
-                onClick={() => setShowAllReviews(true)}
-                className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
+                onClick={handleWriteReview}
               >
-                See All Reviews
+                Write a customer review
               </button>
-            </div>
-          )}
 
-          {fillHeight ? <ReviewGhostFiller /> : null}
-        </>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-extrabold text-slate-950">
+                  {product.reviewCount.toLocaleString()} reviews | {product.rating.toFixed(1)}
+                </span>
+                <Stars rating={product.rating} size="size-3" />
+              </div>
+              <span className="mt-2 inline-flex rounded-sm bg-emerald-50 px-2 py-1 text-[0.5rem] font-bold text-emerald-700">
+                All ratings are by verified purchases
+              </span>
+
+              <div className="mt-4 space-y-2">
+                {product.ratingDistribution.map((row) => (
+                  <div
+                    key={row.label}
+                    className="grid grid-cols-[3.75rem_1fr_2.25rem] items-center gap-3 text-[0.625rem] text-slate-600"
+                  >
+                    <span className="truncate">{row.label}</span>
+                    <span className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <span className="block h-full rounded-full bg-slate-950" style={{ width: `${row.value}%` }} />
+                    </span>
+                    <span className="text-right tabular-nums">{row.value}%</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {['Nice', 'Perfect Fitting', 'Comfy'].map((tag) => (
+                  <span key={tag} className="rounded-full bg-slate-100 px-3 py-1 text-[0.625rem] font-semibold text-slate-600">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-3 lg:gap-3 lg:overflow-visible lg:pb-0">
+                {visibleReviews.map((review) => (
+                  <article
+                    key={review.id}
+                    className="min-w-[15rem] flex-1 rounded-xl border border-slate-100 bg-slate-50/60 p-3 lg:min-w-0"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-pink-600 text-xs font-bold text-white">
+                        {review.name.charAt(0)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-xs font-bold text-slate-950">{review.name}</h3>
+                          <span className="text-[0.5625rem] text-slate-500">on {review.date}</span>
+                        </div>
+                        <Stars rating={review.rating} size="size-3" />
+                        <p className="mt-1.5 line-clamp-4 wrap-break-word text-[0.6875rem] leading-4 text-slate-700">
+                          {review.text}
+                        </p>
+                        <VendorReviewReply
+                          reply={review.vendorReply}
+                          compact
+                          vendorName={product.storeName}
+                        />
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              {reviews.length > 3 ? (
+                <div className="mt-4 text-center lg:text-left">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllReviews(true)}
+                    className="rounded-full border border-slate-300 px-6 py-2 text-xs font-semibold text-slate-800 transition hover:border-auth-primary hover:bg-red-50 hover:text-auth-primary"
+                  >
+                    See All Reviews
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
       ) : (
         <ReviewsEmptyState
-          productName={product.title ?? product.name}
+          subjectName={product.title ?? product.name}
           onWriteReview={handleWriteReview}
-          fillHeight={fillHeight}
         />
       )}
 
@@ -1172,141 +1328,11 @@ function ReviewSummary({ product, fillHeight = false }) {
   )
 }
 
-function RailPriceDisplay({ price }) {
-  const parts = formatProductPriceParts(price)
-  const [whole, fraction] = parts.amount.includes('.')
-    ? parts.amount.split('.')
-    : [parts.amount, null]
-
-  return (
-    <span className="inline-flex items-baseline leading-none text-slate-950">
-      <span className="mr-1 text-[0.625rem] font-normal">{parts.currency}</span>
-      <span className="text-sm font-extrabold">{whole}</span>
-      {fraction != null && (
-        <span className="relative -top-0.5 text-[0.55rem] font-extrabold leading-none">.{fraction}</span>
-      )}
-    </span>
-  )
-}
-
-function RailProductCard({ product }) {
-  const fullStars = Math.floor(product.rating ?? 0)
-  const productHref = product.href?.replace(/^\/products\//, '/')
-  const cartItems = useSelector(selectCartItems)
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated)
-  const user = useSelector((state) => state.auth.user)
-  const { addToCart } = useCartActions()
-  const miniCart = useOptionalMiniCart()
-  const [isAdding, setIsAdding] = useState(false)
-  const productId = product.backendId ?? product.id
-  const isInCart = isProductInCart(cartItems, product, { productId, variantId: null })
-  const userCity = resolveAuthUserCity(user)
-  const deliveryEligible = !STORE_DELIVERY_ELIGIBILITY_ENABLED
-    ? true
-    : resolveLocalDeliveryEligibility(product.deliverySource ?? product, user)
-  const locationBlocksPurchase = Boolean(
-    isAuthenticated && STORE_DELIVERY_ELIGIBILITY_ENABLED && !deliveryEligible,
-  )
-  const cartLocked = locationBlocksPurchase || !isAuthenticated || isAdding || isInCart
-  const cartDisabledReason = locationBlocksPurchase
-    ? `Not available in ${userCity || 'your location'}`
-    : (isInCart ? `${product.name} is already in cart` : `Add ${product.name} to cart`)
-
-  const handleRailAddToCart = async () => {
-    if (cartLocked) return
-
-    setIsAdding(true)
-    try {
-      const item = await addToCart(product, {
-        productId,
-        syncable: Boolean(productId),
-        quantity: 1,
-        silentSuccess: true,
-      })
-      if (item) miniCart?.openMiniCart()
-    } finally {
-      setIsAdding(false)
-    }
-  }
-
-  return (
-    <article className="min-w-0 bg-white">
-      <Link to={productHref} className="block">
-        <span className="relative block aspect-square overflow-hidden bg-slate-50">
-          <img src={product.image} alt={product.name} className="size-full object-contain p-1" loading="lazy" />
-          <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
-            {product.discountPercent != null && (
-              <span className="rounded-sm bg-[#F5D020] px-1.5 py-0.5 text-[0.5rem] font-bold leading-none text-slate-900">
-                {product.discountPercent}% OFF
-              </span>
-            )}
-            {product.isHot && (
-              <span className="rounded-sm bg-auth-primary px-1.5 py-0.5 text-[0.5rem] font-bold leading-none text-white">
-                HOT
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            aria-label={`Save ${product.name}`}
-            onClick={(event) => event.preventDefault()}
-            className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center"
-          >
-            <Heart className="size-3.5 text-white drop-shadow-sm" strokeWidth={2} />
-          </button>
-        </span>
-        <span className="mt-1.5 block truncate text-xs font-bold text-slate-900">{product.name}</span>
-      </Link>
-      <RailPriceDisplay price={product.price} />
-      <div className="mt-1 flex items-center justify-between gap-2">
-        {product.reviewCount > 0 ? (
-          <div className="flex min-w-0 items-center gap-0.5">
-            {Array.from({ length: 5 }, (_, index) => (
-              <Star
-                key={index}
-                className="size-2.5"
-                fill={index < fullStars ? STAR_FILL : '#CBD5E1'}
-                strokeWidth={0}
-              />
-            ))}
-            <span className="ml-0.5 text-[0.5625rem] text-slate-500">({product.reviewCount})</span>
-          </div>
-        ) : (
-          <span className="text-[0.5625rem] text-slate-400">No reviews</span>
-        )}
-        <PortaledHoverTooltip
-          content={
-            locationBlocksPurchase
-              ? cartDisabledReason
-              : (isInCart ? 'Already in cart' : '')
-          }
-        >
-          <button
-            type="button"
-            onClick={handleRailAddToCart}
-            disabled={cartLocked}
-            aria-busy={isAdding}
-            aria-label={cartDisabledReason}
-            className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              cartLocked
-                ? 'border-slate-200 bg-slate-100 text-slate-400'
-                : 'border-slate-300 text-slate-500 hover:border-auth-primary hover:text-auth-primary'
-            }`}
-          >
-            {isAdding
-              ? <Loader2 className="size-3 animate-spin" aria-hidden="true" />
-              : <ShoppingCart className="size-3" strokeWidth={1.8} />}
-          </button>
-        </PortaledHoverTooltip>
-      </div>
-    </article>
-  )
-}
-
 function useRailVisibleCount(maxVisible) {
   const computeCount = (max) => {
     if (typeof window === 'undefined') return Math.min(max, 2)
-    if (window.matchMedia('(min-width: 1024px)').matches) return max
+    if (window.matchMedia('(min-width: 1280px)').matches) return max
+    if (window.matchMedia('(min-width: 1024px)').matches) return Math.min(max, 5)
     if (window.matchMedia('(min-width: 640px)').matches) return Math.min(max, 3)
     return Math.min(max, 2)
   }
@@ -1323,11 +1349,18 @@ function useRailVisibleCount(maxVisible) {
   return visibleCount
 }
 
-function HorizontalProductRail({ title, products, visibleCount: maxVisible = 5 }) {
+function HorizontalProductRail({
+  title,
+  products,
+  visibleCount: maxVisible = 5,
+  viewAllHref,
+  viewAllLabel = 'View all',
+}) {
   const railRef = useRef(null)
   const visibleCount = useRailVisibleCount(maxVisible)
-  const gapRem = 0.5
+  const gapRem = 0.625
   const gapCount = Math.max(visibleCount - 1, 1)
+  const showArrows = products.length > visibleCount
 
   const scrollRail = (direction) => {
     const rail = railRef.current
@@ -1349,46 +1382,65 @@ function HorizontalProductRail({ title, products, visibleCount: maxVisible = 5 }
     }
   }
 
+  if (!products.length) return null
+
   return (
-    <section className="min-w-0 overflow-hidden border-t border-slate-200 bg-white p-3 sm:p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <h2 className="min-w-0 text-sm font-bold text-slate-950 sm:text-base">{title}</h2>
-        <span className="shrink-0 text-[0.625rem] font-semibold text-slate-600 sm:text-xs">Page 1 Of 50</span>
+    <section className="min-w-0 overflow-hidden bg-white py-4 sm:py-5">
+      <div className="mb-3.5 flex items-center justify-between gap-3 sm:mb-4">
+        <h2 className="min-w-0 text-base font-bold tracking-tight text-slate-950 sm:text-lg">
+          {title}
+        </h2>
+        {viewAllHref ? (
+          <Link
+            to={viewAllHref}
+            className="inline-flex shrink-0 items-center gap-0.5 text-sm font-semibold text-nav-red transition-colors hover:text-nav-red-deep"
+          >
+            {viewAllLabel}
+            <ChevronRight className="size-4" strokeWidth={2.25} aria-hidden />
+          </Link>
+        ) : null}
       </div>
-      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden sm:gap-3">
-        <button
-          type="button"
-          onClick={() => scrollRail(-1)}
-          aria-label={`Previous ${title}`}
-          className="hidden size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:flex sm:size-9"
-        >
-          <ChevronLeft className="size-4 sm:size-5" strokeWidth={2} />
-        </button>
+
+      <div className={`relative flex min-w-0 items-stretch gap-2 overflow-hidden sm:gap-3 ${showArrows ? 'sm:px-11' : ''}`}>
+        {showArrows ? (
+          <button
+            type="button"
+            onClick={() => scrollRail(-1)}
+            aria-label={`Previous ${title}`}
+            className="absolute left-0 top-1/2 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 sm:flex"
+          >
+            <ChevronLeft className="size-4" strokeWidth={2} />
+          </button>
+        ) : null}
+
         <div
           ref={railRef}
           tabIndex={0}
           onKeyDown={handleRailKeyDown}
           aria-label={`${title} product carousel`}
           style={{ gridAutoColumns: `calc((100% - ${gapCount * gapRem}rem) / ${visibleCount})` }}
-          className="grid min-w-0 flex-1 grid-flow-col grid-rows-1 gap-2 overflow-x-auto scroll-smooth overscroll-x-contain outline-none snap-x snap-mandatory scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/40 sm:gap-2 [&::-webkit-scrollbar]:hidden"
+          className="grid min-w-0 flex-1 grid-flow-col grid-rows-1 gap-2.5 overflow-x-auto scroll-smooth overscroll-x-contain outline-none snap-x snap-mandatory scrollbar-none [-ms-overflow-style:none] focus-visible:ring-2 focus-visible:ring-auth-primary/40 [&::-webkit-scrollbar]:hidden"
         >
           {products.map((item, index) => (
             <div
               key={item.id ?? item.backendId ?? item.slug ?? item.href ?? `${title}-${index}`}
-              className="min-w-0 snap-start"
+              className="h-full min-w-0 snap-start"
             >
-              <RailProductCard product={item} />
+              <ProductCard product={item} />
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={() => scrollRail(1)}
-          aria-label={`Next ${title}`}
-          className="hidden size-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition-colors hover:border-slate-400 sm:flex sm:size-9"
-        >
-          <ChevronRight className="size-4 sm:size-5" strokeWidth={2} />
-        </button>
+
+        {showArrows ? (
+          <button
+            type="button"
+            onClick={() => scrollRail(1)}
+            aria-label={`Next ${title}`}
+            className="absolute right-0 top-1/2 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 sm:flex"
+          >
+            <ChevronRight className="size-4" strokeWidth={2} />
+          </button>
+        ) : null}
       </div>
     </section>
   )
@@ -1481,6 +1533,77 @@ function useDescriptiveImagesLandscapeLayout(imageUrls) {
   return isLandscapeLayout
 }
 
+const FASHION_SIZE_GUIDE = [
+  { size: 'XS', detail: 'Bust 80–84cm, Waist 62–66cm' },
+  { size: 'S', detail: 'Bust 84–88cm, Waist 66–70cm' },
+  { size: 'M', detail: 'Bust 88–94cm, Waist 70–76cm' },
+  { size: 'L', detail: 'Bust 94–100cm, Waist 76–82cm' },
+  { size: 'XL', detail: 'Bust 100–108cm, Waist 82–90cm' },
+]
+
+function isFashionProduct(product) {
+  const haystack = [
+    product?.categorySlug,
+    product?.category,
+    product?.subcategorySlug,
+    product?.subcategory,
+    product?.keyDetails?.Category,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return /fashion|apparel|clothing|cloth|wear|tee|shirt|dress|tops?|jeans?|jacket/.test(haystack)
+}
+
+function FashionSizeGuide() {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:px-5 sm:py-5">
+      <h3 className="text-sm font-bold text-slate-950 sm:text-base">Size Guide</h3>
+      <ul className="mt-3 space-y-2">
+        {FASHION_SIZE_GUIDE.map((row) => (
+          <li key={row.size} className="text-sm leading-6 text-slate-700">
+            <span className="font-bold text-slate-900">{row.size}:</span>{' '}
+            <span>{row.detail}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 text-xs leading-5 text-slate-500 sm:text-sm">
+        Measure your bust at the fullest point and choose the size that matches.
+      </p>
+    </div>
+  )
+}
+
+function ProductReturnsBanner() {
+  return (
+    <aside
+      aria-label="30-day returns policy"
+      className="relative overflow-hidden rounded-[1.75rem] border border-[#EBD9C0]/80 bg-[linear-gradient(180deg,#FFFBF2_0%,#FFF6E8_100%)] px-5 py-8 text-center sm:rounded-[2rem] sm:px-10 sm:py-10"
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 14% 18%, rgba(180,120,60,0.09), transparent 44%), radial-gradient(circle at 86% 82%, rgba(180,120,60,0.07), transparent 42%)',
+        }}
+      />
+      <div className="relative mx-auto flex max-w-2xl flex-col items-center">
+        <span className="mb-3.5 flex size-11 items-center justify-center rounded-full bg-[#F3E6D2] text-[#8A5524] shadow-[inset_0_0_0_1px_rgba(138,85,36,0.12)] sm:mb-4 sm:size-12">
+          <RotateCcw className="size-5 sm:size-[1.35rem]" strokeWidth={2.1} aria-hidden />
+        </span>
+        <h3 className="text-lg font-bold tracking-tight text-[#8A5524] sm:text-xl">
+          30-Day Returns
+        </h3>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#A06A35] sm:text-[0.95rem] sm:leading-7">
+          Not happy with your purchase? Return it within 30 days for a full refund — no questions asked.
+        </p>
+      </div>
+    </aside>
+  )
+}
+
 function DescriptiveImagesGrid({ product }) {
   const descriptiveImages = useMemo(
     () => (product.descriptiveImages ?? []).filter(Boolean),
@@ -1531,7 +1654,7 @@ function DescriptiveImagesGrid({ product }) {
 
   return (
     <>
-      <div className="mt-6 w-full min-w-0">
+      <div className="mt-6 w-[calc(100%+2*clamp(0.75rem,2vw,2rem))] min-w-0 -mx-[clamp(0.75rem,2vw,2rem)]">
         <div
           className={
             isLandscapeLayout
@@ -1690,73 +1813,89 @@ function StoreInfo({ product }) {
 }
 
 function ProductDescription({ product }) {
+  const [sectionOpen, setSectionOpen] = useState(true)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
-  const detailsList = { ...product.details }
-  delete detailsList['SKU']
-  delete detailsList['sku']
-  delete detailsList['Sku']
-
-  const detailRows = Object.entries(detailsList)
 
   const hasHtmlDescription = Boolean(product.descriptionHtml)
+  const plainDescription = String(product.description ?? '').trim()
+  const hasDescription = hasHtmlDescription || Boolean(plainDescription)
   const descriptionLength = hasHtmlDescription
     ? String(product.descriptionHtml).length
-    : String(product.description ?? '').length
+    : plainDescription.length
   const isLongDescription = hasHtmlDescription
     ? descriptionLength > DESCRIPTION_LONG_HTML_THRESHOLD
     : descriptionLength > DESCRIPTION_LONG_TEXT_THRESHOLD
 
+  const showFashionSizeGuide = isFashionProduct(product)
+  if (!hasDescription && !(product.descriptiveImages ?? []).length && !showFashionSizeGuide) {
+    return null
+  }
+
   return (
-    <section className="min-w-0 bg-white p-3 sm:p-5">
-      <h2 className="text-base font-bold text-slate-950">Product description</h2>
-      <div className="mt-5 divide-y divide-slate-300 border-y border-slate-300">
-        {detailRows.map(([key, value]) => (
-          <div key={key} className="grid min-w-0 gap-1.5 py-4 text-sm">
-            <dt className="font-bold text-slate-950">{key}</dt>
-            <dd className="wrap-break-word text-slate-700">{value}</dd>
-          </div>
-        ))}
-        <div className="grid min-w-0 gap-1.5 py-4 text-sm">
-          <dt className="font-bold text-slate-950">Description</dt>
-          <dd className="relative min-w-0 text-slate-700">
-            {hasHtmlDescription ? (
-              <div
-                className={`product-description text-sm leading-relaxed text-slate-700 ${
-                  !descriptionExpanded && isLongDescription ? 'max-h-56 overflow-hidden' : ''
-                }`}
-                dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
-              />
-            ) : (
-              <p
-                className={`wrap-break-word text-sm leading-relaxed ${
-                  !descriptionExpanded && isLongDescription ? 'line-clamp-6' : ''
-                }`}
-              >
-                {product.description}
-              </p>
-            )}
+    <section className="relative min-w-0 w-full">
+      <button
+        type="button"
+        onClick={() => setSectionOpen((open) => !open)}
+        aria-expanded={sectionOpen}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <h2 className="text-base font-bold text-slate-950 sm:text-lg">Product Description</h2>
+        <ChevronDown
+          className={`size-4 shrink-0 text-slate-500 transition-transform duration-200 ${
+            sectionOpen ? 'rotate-180' : ''
+          }`}
+          strokeWidth={2.25}
+          aria-hidden
+        />
+      </button>
 
-            {!descriptionExpanded && isLongDescription && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 bottom-8 h-16 bg-linear-to-t from-white to-transparent"
-              />
-            )}
+      {sectionOpen ? (
+        <div className="mt-3 space-y-4">
+          {hasDescription ? (
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
+              <div className="relative min-w-0 text-slate-700">
+                {hasHtmlDescription ? (
+                  <div
+                    className={`product-description text-sm leading-relaxed text-slate-700 ${
+                      !descriptionExpanded && isLongDescription ? 'max-h-56 overflow-hidden' : ''
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
+                  />
+                ) : (
+                  <p
+                    className={`wrap-break-word text-sm leading-relaxed whitespace-pre-wrap ${
+                      !descriptionExpanded && isLongDescription ? 'line-clamp-8' : ''
+                    }`}
+                  >
+                    {plainDescription}
+                  </p>
+                )}
 
-            {isLongDescription && (
-              <button
-                type="button"
-                onClick={() => setDescriptionExpanded((current) => !current)}
-                className="relative z-10 mt-3 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline"
-              >
-                {descriptionExpanded ? 'Show less' : 'Read more'}
-              </button>
-            )}
-          </dd>
+                {!descriptionExpanded && isLongDescription ? (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-8 h-16 bg-linear-to-t from-white to-transparent"
+                  />
+                ) : null}
+
+                {isLongDescription ? (
+                  <button
+                    type="button"
+                    onClick={() => setDescriptionExpanded((current) => !current)}
+                    className="relative z-10 mt-3 text-sm font-semibold text-auth-primary underline-offset-2 hover:underline"
+                  >
+                    {descriptionExpanded ? 'Show less' : 'Read more'}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <DescriptiveImagesGrid product={product} />
+          <ProductReturnsBanner />
+          {showFashionSizeGuide ? <FashionSizeGuide /> : null}
         </div>
-      </div>
-
-      <DescriptiveImagesGrid product={product} />
+      ) : null}
     </section>
   )
 }
@@ -2088,8 +2227,26 @@ function normalizeApiProductDetails(apiProduct) {
   }
 }
 
+function findProductInList(list, slug) {
+  if (!Array.isArray(list) || !slug) return null
+  const routeId = extractProductIdFromRouteSlug(slug)
+  return list.find((product) => {
+    if (!product || !isProductActive(product)) return false
+    const productId = String(product.backendId ?? product.id ?? product.product_id ?? '')
+    return (
+      product.slug === slug
+      || (routeId && productId === String(routeId))
+      || productId === String(slug)
+      || product.href === `/${slug}`
+      || product.href === `/products/${slug}`
+      || buildProductDetailsHref(product) === `/${slug}`
+    )
+  }) ?? null
+}
+
 export default function ProductDetailsPage() {
   const { slug } = useParams()
+  const queryClient = useQueryClient()
   const {
     data: landingData,
     isPending: isLandingPending,
@@ -2104,21 +2261,32 @@ export default function ProductDetailsPage() {
     if (!landingData) return null
     const sections = ['recommended_products', 'best_sellers', 'flash_sales', 'random_products']
     for (const sec of sections) {
-      const list = landingData[sec]
-      if (Array.isArray(list)) {
-        const found = list.find((p) => (
-          p
-          && isProductActive(p)
-          && (p.slug === slug || String(p.id ?? p.product_id ?? '') === String(slug))
-        ))
-        if (found) return found
-      }
+      const found = findProductInList(landingData[sec], slug)
+      if (found) return found
     }
     return null
   }, [landingData, slug])
 
-  const routeProductId = hasBackendProductId(slug) ? slug : null
-  const apiProductId = landingProduct?.id ?? routeProductId
+  const cachedCatalogProduct = useMemo(() => {
+    if (!slug || landingProduct) return null
+    const catalogQueries = queryClient.getQueriesData({ queryKey: ['product-catalog'] })
+    for (const [, data] of catalogQueries) {
+      const found = findProductInList(data?.products, slug)
+      if (found) return found
+    }
+    return null
+  }, [landingProduct, queryClient, slug])
+
+  const routeProductId = extractProductIdFromRouteSlug(slug)
+  const cachedProductId = cachedCatalogProduct?.backendId ?? cachedCatalogProduct?.id ?? null
+  const landingBackendId = landingProduct?.backendId
+    ?? landingProduct?.id
+    ?? landingProduct?.product_id
+    ?? null
+  // Prefer id parsed from /{name-slug}-{id}; otherwise resolve via landing/catalog cache.
+  const apiProductId = routeProductId
+    ?? (hasBackendProductId(landingBackendId) ? String(landingBackendId) : null)
+    ?? (hasBackendProductId(cachedProductId) ? String(cachedProductId) : null)
 
   const {
     data: apiProduct,
@@ -2165,8 +2333,12 @@ export default function ProductDetailsPage() {
     if (landingProduct) {
       return normalizeApiProductDetails(landingProduct)
     }
+    if (cachedCatalogProduct) {
+      return normalizeApiProductDetails(cachedCatalogProduct)
+    }
+    // Exact mock match only — never default to an unrelated product (e.g. phone case).
     return getProductBySlug(slug)
-  }, [apiProduct, landingProduct, productReviewData, showSkeleton, slug])
+  }, [apiProduct, cachedCatalogProduct, landingProduct, productReviewData, showSkeleton, slug])
 
   const productViewKey = useMemo(() => {
     if (!product) return `loading::${slug}`
@@ -2180,12 +2352,33 @@ export default function ProductDetailsPage() {
     ].join('::')
   }, [product, slug])
 
-  if (showSkeleton || !product) {
+  if (showSkeleton) {
     return (
       <SiteLayout>
         <main className="bg-white py-3 sm:py-4">
           <Container>
             <ProductDetailsSkeleton />
+          </Container>
+        </main>
+      </SiteLayout>
+    )
+  }
+
+  if (!product) {
+    return (
+      <SiteLayout>
+        <main className="bg-white py-10 sm:py-14">
+          <Container className="mx-auto max-w-lg text-center">
+            <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Product not found</h1>
+            <p className="mt-2 text-sm text-slate-500">
+              This product is unavailable or the link is no longer valid.
+            </p>
+            <Link
+              to="/products"
+              className="mt-6 inline-flex items-center justify-center rounded-full bg-nav-red px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-nav-red-deep"
+            >
+              Browse products
+            </Link>
           </Container>
         </main>
       </SiteLayout>
@@ -2638,41 +2831,68 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
 
   const sellerProducts = useMemo(() => {
     if (!apiProduct) {
-      return getRelatedProducts(product.slug, 8)
+      return getRelatedProducts(product.slug, 10)
     }
 
-    const currentVendorId = apiProduct.vendor?.id ?? apiProduct.vendor_id
-    let matching = allApiProducts.filter(
-      (p) => p.id !== product.id && p.vendor_id === currentVendorId
+    const currentVendorId = String(
+      apiProduct.vendor?.id
+      ?? apiProduct.vendor_id
+      ?? apiProduct.store?.id
+      ?? product.vendorId
+      ?? '',
     )
+    let matching = allApiProducts.filter((p) => (
+      p.id !== product.id
+      && currentVendorId
+      && String(p.vendor_id ?? p.storeId ?? '') === currentVendorId
+    ))
 
-    if (matching.length < 5) {
-      const otherReal = allApiProducts.filter(
-        (p) => p.id !== product.id && p.vendor_id !== currentVendorId
-      )
-      matching = [...matching, ...otherReal].slice(0, 8)
+    // Prefer same-seller items; fill with other catalog products if the seller set is thin.
+    if (matching.length < 6) {
+      const otherReal = allApiProducts.filter((p) => (
+        p.id !== product.id
+        && String(p.vendor_id ?? p.storeId ?? '') !== currentVendorId
+      ))
+      matching = [...matching, ...otherReal].slice(0, 10)
     }
 
     if (matching.length === 0) {
-      return getRelatedProducts(product.slug, 8)
+      return getRelatedProducts(product.slug, 10)
     }
 
-    return matching
-  }, [apiProduct, product.id, product.slug, allApiProducts])
+    return matching.slice(0, 10)
+  }, [apiProduct, product.id, product.slug, product.vendorId, allApiProducts])
 
-  const exploreRelatedProducts = useMemo(() => {
+  const youMayAlsoLikeProducts = useMemo(() => {
     if (!apiProduct) {
-      return getRelatedProducts(product.slug, 8)
+      return getRelatedProducts(product.slug, 10)
     }
 
     const otherReal = allApiProducts.filter((p) => p.id !== product.id)
-    
+
     if (otherReal.length === 0) {
-      return getRelatedProducts(product.slug, 8)
+      return getRelatedProducts(product.slug, 10)
     }
 
-    return otherReal.slice(0, 8)
+    return otherReal.slice(0, 10)
   }, [apiProduct, product.id, product.slug, allApiProducts])
+
+  const sellerViewAllHref = useMemo(() => {
+    if (STORE_DIRECTORY_ENABLED && product.vendorId) {
+      return `/stores/${product.vendorId}`
+    }
+    if (product.vendorId) {
+      return `/products?${CATALOG_STORE_PARAM}=${encodeURIComponent(product.vendorId)}`
+    }
+    return '/products'
+  }, [product.vendorId])
+
+  const youMayAlsoLikeViewAllHref = useMemo(() => {
+    if (product.categorySlug) {
+      return buildCategoryListingHref(product.categorySlug, product.subcategorySlug)
+    }
+    return '/products'
+  }, [product.categorySlug, product.subcategorySlug])
 
   return (
     <SiteLayout>
@@ -2689,29 +2909,23 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
       </div>
       <main className="bg-white py-3 sm:py-4">
         <Container className="space-y-3 sm:space-y-4">
-          <section className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)] lg:items-stretch">
-            <div className="contents lg:sticky lg:top-14 lg:z-10 lg:flex lg:flex-col lg:gap-4 lg:self-start">
-              <div className="order-1 min-w-0">
-                <ProductGallery
-                  key={String(activeVariant?.id ?? 'product')}
-                  images={galleryImages}
-                  title={product.title}
-                  activeImage={displayActiveImage}
-                  setActiveImage={setActiveImage}
-                  onShare={() => shareProduct(product)}
-                  onWishlist={handleWishlistToggle}
-                  isWishlisted={isWishlisted}
-                />
-              </div>
-
-              <div className="order-3 flex min-w-0 flex-col gap-4">
-                <KeyDetails product={product} activeSku={activeSku} />
-                <HorizontalProductRail title="Other Items From Seller" products={sellerProducts} visibleCount={3} />
-              </div>
+          <section className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(15.5rem,18rem)] lg:items-start lg:gap-5 xl:gap-6">
+            <div className="min-w-0 lg:sticky lg:top-16 lg:z-10 lg:self-start lg:border-r lg:border-slate-200 lg:pr-5 xl:pr-6">
+              <ProductGallery
+                key={String(activeVariant?.id ?? 'product')}
+                images={galleryImages}
+                title={product.title}
+                activeImage={displayActiveImage}
+                setActiveImage={setActiveImage}
+                onShare={() => shareProduct(product)}
+                onWishlist={handleWishlistToggle}
+                isWishlisted={isWishlisted}
+              />
             </div>
 
-            <div className="order-2 flex h-full min-w-0 flex-col gap-3" data-product-sidebar>
-              <ProductInfoPanel
+
+            <div className="min-w-0 border-b border-slate-200 pb-4 sm:pb-5">
+              <ProductDetailsColumn
                 product={product}
                 selectedOptions={selectedOptions}
                 onSelectOption={handleOptionSelect}
@@ -2724,19 +2938,49 @@ function ProductDetailsView({ product, apiProduct, landingData }) {
                 setSelectedCompatibleModel={handleCompatibleModelSelect}
                 compatibleModelOptions={compatibleModelOptions}
                 visibleOptionGroups={visibleOptionGroups}
+                activeVariant={activeVariant}
+                activeSku={activeSku}
+                displayPriceInfo={displayPriceInfo}
+              />
+            </div>
+
+            <div className="min-w-0 lg:sticky lg:top-16 lg:z-10 lg:self-start" data-product-sidebar>
+              <ProductPurchaseCard
+                product={product}
+                selectedOptions={selectedOptions}
+                selectedCompatibleModel={effectiveCompatibleModel}
                 activeImage={displayActiveImage}
                 activeVariant={activeVariant}
                 activeSku={activeSku}
                 displayPriceInfo={displayPriceInfo}
                 deliveryEligible={deliveryEligible}
                 shoppingLocation={shoppingLocation}
+                isWishlisted={isWishlisted}
+                onWishlist={handleWishlistToggle}
+                isTogglingWishlist={isTogglingWishlist}
               />
-              <ReviewSummary product={product} fillHeight />
             </div>
           </section>
 
+          <ProductDetailsSection product={product} activeSku={activeSku} />
           <ProductDescription product={product} />
-          <HorizontalProductRail title="Explore Other Related Items" products={exploreRelatedProducts} visibleCount={5} />
+          <ReviewSummary product={product} />
+
+          <div className="min-w-0 divide-y divide-slate-200 border-t border-slate-200">
+            <HorizontalProductRail
+              title="More items from this Seller"
+              products={sellerProducts}
+              visibleCount={5}
+              viewAllHref={sellerViewAllHref}
+            />
+            <HorizontalProductRail
+              title="You May Also Like"
+              products={youMayAlsoLikeProducts}
+              visibleCount={5}
+              viewAllHref={youMayAlsoLikeViewAllHref}
+            />
+
+          </div>
         </Container>
       </main>
     </SiteLayout>

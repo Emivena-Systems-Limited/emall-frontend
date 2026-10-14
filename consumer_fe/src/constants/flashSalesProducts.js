@@ -1,5 +1,5 @@
 /** ISO end time for the current flash sale window */
-export const FLASH_SALE_ENDS_AT = '2026-06-26T23:59:59.000Z'
+export const FLASH_SALE_ENDS_AT = '2026-11-14T23:59:59.000Z'
 
 export const flashSaleProducts = [
   {

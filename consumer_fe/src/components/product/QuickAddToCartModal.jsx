@@ -12,6 +12,7 @@ import { calculateDisplayDiscountPercent } from '../../utils/productPricing'
 import { isSameVariantOption } from '../../utils/productVariantFields'
 import { useSelector } from 'react-redux'
 import { isProductInCart, selectCartItems } from '../../store/slices/cartSlice'
+import { buildProductDetailsHref } from '../../utils/productHref'
 import { resolveBrandName } from '../../utils/productVariantFields'
 
 function isColorAttribute(key = '', label = '') {
@@ -188,7 +189,13 @@ export default function QuickAddToCartModal({ open, product, onClose, onAdded })
   const brandName = resolveBrandName(productQuery.data) || product?.brand || ''
   const unitPrice = pricing.price ?? 0
   const subtotal = unitPrice * quantity
-  const detailsHref = product?.href?.replace(/^\/products\//, '/') || (catalog?.slug ? `/${catalog.slug}` : '')
+  const detailsHref = buildProductDetailsHref({
+    name: catalog?.name ?? product?.name,
+    slug: catalog?.slug ?? product?.slug,
+    id: catalog?.id ?? product?.backendId ?? product?.id,
+    backendId: catalog?.id ?? product?.backendId ?? product?.id,
+    href: product?.href,
+  })
   const variantInCart = isProductInCart(cartItems, product, {
     productId: catalog?.id ?? product?.backendId ?? product?.id,
     variantId: activeVariant?.id ?? null,

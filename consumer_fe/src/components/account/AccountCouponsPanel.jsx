@@ -25,7 +25,7 @@ const TYPE_OPTIONS = ['All Types', 'Percentage Discount', 'Fixed Amount', 'Free 
 const CATEGORY_OPTIONS = ['All Categories', 'Electronics', 'Beauty', 'Home & Kitchen', 'Fashion']
 const OFFERS = [
   { title: "Today's Deals", description: 'Fresh discounts on popular products, updated throughout the day.', icon: Sparkles, image: promotionsHeroLifestyle, href: '/promotions?filter=todays-deals' },
-  { title: 'Flash Sale', description: 'Short-lived offers with exceptional prices while stock lasts.', icon: Zap, image: promotionsHeroProduct, href: '/promotions?filter=flash-sales' },
+  { title: 'Flash Sale', description: 'Short-lived offers with exceptional prices while stock lasts.', icon: Zap, image: promotionsHeroProduct, href: '/products/flash-sales' },
   { title: 'Clearance Sale', description: 'Last-chance savings across fashion, home, electronics, and more.', icon: Tag, image: promotionsHeroLifestyle, href: '/promotions?filter=clearance' },
 ]
 

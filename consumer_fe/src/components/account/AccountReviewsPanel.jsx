@@ -34,6 +34,7 @@ import {
   resolveOrderItemVariantId,
   resolveOrderItemVariantLabel,
 } from '../../utils/normalizeOrders'
+import { buildProductDetailsHref } from '../../utils/productHref'
 import { resolveBackendMediaUrl } from '../../utils/resolveBackendMediaUrl'
 import { readReviewOrderItem } from '../../utils/reviewRouteState'
 import VendorReviewReply, { normalizeVendorReviewReply } from '../shared/VendorReviewReply'
@@ -412,14 +413,6 @@ function resolveReviewProductHref(record, fallbackId = '') {
       ?? asRecord(asRecord(source.product_variant)?.product)
       ?? asRecord(asRecord(source.variant)?.product)
       ?? {}
-    const slug = firstProductToken(
-      nestedProduct.slug,
-      source.product_slug,
-      source.slug,
-      asRecord(source.product_variant)?.slug,
-    )
-    if (slug) return `/${slug}`
-
     const id = firstProductToken(
       source.product_id,
       source.productId,
@@ -430,11 +423,23 @@ function resolveReviewProductHref(record, fallbackId = '') {
       typeof source.product === 'string' ? source.product : '',
       fallbackId,
     )
-    if (id) return `/${id}`
+    const href = buildProductDetailsHref({
+      name: nestedProduct.name ?? nestedProduct.product_name ?? source.product_name ?? source.name,
+      slug: firstProductToken(
+        nestedProduct.slug,
+        source.product_slug,
+        source.slug,
+        asRecord(source.product_variant)?.slug,
+      ),
+      id,
+      backendId: id,
+      href: nestedProduct.href,
+    })
+    if (href && href !== '/') return href
   }
 
   const fallback = firstProductToken(fallbackId)
-  return fallback ? `/${fallback}` : ''
+  return fallback ? buildProductDetailsHref({ id: fallback, backendId: fallback }) : ''
 }
 
 function findMatchingOrderItem(orders, { itemId, productName, orderRef } = {}) {

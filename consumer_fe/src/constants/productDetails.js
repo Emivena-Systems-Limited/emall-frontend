@@ -135,7 +135,8 @@ function buildDetails(product, index) {
 export const productDetails = uniqueProducts.map(buildDetails)
 
 export function getProductBySlug(slug) {
-  return productDetails.find((product) => product.slug === slug) ?? productDetails[0]
+  if (!slug) return null
+  return productDetails.find((product) => product.slug === slug) ?? null
 }
 
 export function getRelatedProducts(currentSlug, limit = 10) {

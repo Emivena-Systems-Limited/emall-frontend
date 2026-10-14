@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { SlidersHorizontal } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  LayoutGrid,
+  List,
+  Search,
+  SlidersHorizontal,
+} from 'lucide-react'
 import SiteLayout from '../components/layout/SiteLayout'
 import Container from '../components/layout/Container'
 import PromotionsHeroBanner from '../components/promotions/PromotionsHeroBanner'
 import CategoryQuickFilterTabs from '../components/category/CategoryQuickFilterTabs'
 import PromotionsBreadcrumb from '../components/promotions/PromotionsBreadcrumb'
-import CategoryFilterSidebar from '../components/category/CategoryFilterSidebar'
 import CategoryFilterDrawer from '../components/category/CategoryFilterDrawer'
+import CategoryFilterPanelContent from '../components/category/CategoryFilterPanelContent'
 import CategoryProductsPanel from '../components/category/CategoryProductsPanel'
 import { useCategoryCatalog } from '../hooks/useCategoryCatalog'
 import { useProductCatalog } from '../hooks/useProductCatalog'
@@ -15,6 +21,7 @@ import {
   CATALOG_BRAND_PARAM,
   CATALOG_FILTER_PARAM,
   CATALOG_PAGE_PARAM,
+  CATALOG_SEARCH_PARAM,
   CATALOG_SIZE_PARAM,
   CATALOG_STORE_PARAM,
 } from '../constants/productCatalog'
@@ -35,20 +42,135 @@ import {
 } from '../utils/catalogQueryParams'
 import { mergeCatalogFacets } from '../utils/normalizeProductCatalog'
 
+const FILTER_SIDEBAR_WIDTH = 272
+const LAYOUT_EASE = [0.16, 1, 0.3, 1]
+
 const EMPTY_PRODUCTS = []
 const EMPTY_FACETS = { brands: [], colors: [], sizes: [], stores: [] }
+
+const SORT_OPTIONS = [
+  { value: 'best-match', label: 'Best Match' },
+  { value: 'highest-rated', label: 'Highest Rated' },
+  { value: 'newest', label: 'Newest Arrivals' },
+  { value: 'biggest-discount', label: 'Biggest Discount' },
+  { value: 'price-asc', label: 'Price: Low to High' },
+  { value: 'price-desc', label: 'Price: High to Low' },
+]
 
 function selectedFacetOptions(searchParams, key) {
   return getSelectedFilterValues(searchParams, key).map((value) => ({ id: value, label: value }))
 }
 
+function FiltersToggleButton({
+  filtersOpen,
+  onToggleFilters,
+  activeFilterCount,
+  className = '',
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggleFilters}
+      aria-pressed={filtersOpen}
+      aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+      className={`relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-colors sm:h-9 sm:w-auto sm:gap-1.5 sm:px-3 ${
+        filtersOpen
+          ? 'border-nav-red bg-nav-red text-white'
+          : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+      } ${className}`}
+    >
+      <SlidersHorizontal className="size-3.5" strokeWidth={2.25} aria-hidden />
+      <span className="hidden sm:inline">Filters</span>
+      {activeFilterCount > 0 ? (
+        <span
+          className={`inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] font-bold ${
+            filtersOpen
+              ? 'bg-white/20 text-white max-sm:absolute max-sm:-top-1 max-sm:-right-1'
+              : 'bg-nav-red text-white max-sm:absolute max-sm:-top-1 max-sm:-right-1'
+          }`}
+        >
+          {activeFilterCount}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
+function ListingSortControls({ sort, onSortChange, viewMode, onViewModeChange }) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-initial">
+      <label className="relative min-w-0 flex-1 sm:flex-initial">
+        <span className="sr-only">Sort products</span>
+        <select
+          value={sort}
+          onChange={(event) => onSortChange(event.target.value)}
+          className="h-9 w-full appearance-none rounded-lg border border-slate-200 bg-white py-1.5 pr-8 pl-2.5 text-xs font-medium text-slate-800 outline-none transition-colors hover:border-slate-300 focus-visible:ring-2 focus-visible:ring-nav-red/30 sm:w-auto"
+        >
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-slate-400">
+          <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+            <path
+              fillRule="evenodd"
+              d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </span>
+      </label>
+
+      <div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white sm:inline-flex">
+        <button
+          type="button"
+          aria-label="Grid view"
+          aria-pressed={viewMode === 'grid'}
+          onClick={() => onViewModeChange('grid')}
+          className={`flex size-9 items-center justify-center transition-colors ${
+            viewMode === 'grid'
+              ? 'bg-nav-red text-white'
+              : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <LayoutGrid className="size-3.5" strokeWidth={2.25} aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label="List view"
+          aria-pressed={viewMode === 'list'}
+          onClick={() => onViewModeChange('list')}
+          className={`flex size-9 items-center justify-center border-l border-slate-200 transition-colors ${
+            viewMode === 'list'
+              ? 'bg-nav-red text-white'
+              : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <List className="size-3.5" strokeWidth={2.25} aria-hidden />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function PromotionsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
+  const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [viewMode, setViewMode] = useState('grid')
+  const [sort, setSort] = useState(searchParams.get('sort') || 'best-match')
+  const [searchDraft, setSearchDraft] = useState(searchParams.get(CATALOG_SEARCH_PARAM) ?? '')
+  const filtersActive = desktopFiltersOpen || mobileFiltersOpen
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
+
+  useEffect(() => {
+    setSearchDraft(searchParams.get(CATALOG_SEARCH_PARAM) ?? '')
+  }, [searchParams])
 
   const { parentCategories, isLoading } = useCategoryCatalog()
 
@@ -131,7 +253,32 @@ export default function PromotionsPage() {
     ? `/promotions?category=${selectedCategorySlugs[0]}`
     : '/promotions'
 
+  const resultCount = pagination.total || products.length
   const activeFilterCount = countSidebarCatalogFilters(searchParams)
+    + selectedCategorySlugs.length
+    + selectedSubcategorySlugs.length
+
+  const handleSearchSubmit = (event) => {
+    event.preventDefault()
+    const value = searchDraft.trim()
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set(CATALOG_SEARCH_PARAM, value)
+      else next.delete(CATALOG_SEARCH_PARAM)
+      next.delete(CATALOG_PAGE_PARAM)
+      return next
+    }, { replace: true })
+  }
+
+  const handleSortChange = (value) => {
+    setSort(value)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value === 'best-match') next.delete('sort')
+      else next.set('sort', value)
+      return next
+    }, { replace: true })
+  }
 
   const handlePageChange = (page) => {
     setSearchParams((prev) => {
@@ -141,6 +288,14 @@ export default function PromotionsPage() {
       return next
     }, { replace: true })
     document.getElementById('promotions-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const toggleFilters = () => {
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+      setDesktopFiltersOpen((open) => !open)
+      return
+    }
+    setMobileFiltersOpen((open) => !open)
   }
 
   return (
@@ -159,7 +314,7 @@ export default function PromotionsPage() {
 
       <section className="bg-white py-4 sm:py-5 lg:py-6">
         <Container>
-          <div className="mb-4 flex items-center justify-between gap-3 sm:mb-5">
+          <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
             <PromotionsBreadcrumb
               categoryLabel={categoryLabel}
               categoryHref={categoryHref}
@@ -167,55 +322,111 @@ export default function PromotionsPage() {
               quickFilterLabel={activeQuickFilterId !== 'all' ? activeQuickFilterLabel : null}
             />
 
-            <button
-              type="button"
-              onClick={() => setIsFilterDrawerOpen(true)}
-              className="relative flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-auth-primary hover:text-auth-primary sm:text-sm lg:hidden"
+            <form
+              onSubmit={handleSearchSubmit}
+              className="relative w-full max-w-md sm:w-[16rem] lg:w-[18rem]"
             >
-              <SlidersHorizontal className="size-3.5 sm:size-4" strokeWidth={2.25} aria-hidden />
-              Filters
-              {activeFilterCount > 0 ? (
-                <span className="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-auth-primary px-1.5 text-[0.65rem] font-bold text-white">
-                  {activeFilterCount}
-                </span>
-              ) : null}
-            </button>
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400"
+                strokeWidth={2.25}
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                placeholder="Search products..."
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white pr-3 pl-9 text-xs text-slate-800 outline-none transition-shadow placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-nav-red/30"
+              />
+            </form>
           </div>
 
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6 xl:gap-8">
-            <CategoryFilterSidebar
-              parentCategories={parentCategories}
-              isLoading={isLoading}
-              isFacetsLoading={catalogQuery.isPending && products.length === 0}
-              facetOptions={facetOptions}
-              variant="promotions"
-            />
+          <div
+            className={`flex flex-col lg:flex-row lg:items-start ${
+              desktopFiltersOpen ? 'lg:gap-6 xl:gap-8' : 'lg:gap-0'
+            } transition-[gap] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]`}
+          >
+            <AnimatePresence initial={false}>
+              {desktopFiltersOpen ? (
+                <motion.aside
+                  key="promotions-filters"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: FILTER_SIDEBAR_WIDTH, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.35, ease: LAYOUT_EASE }}
+                  className="hidden shrink-0 overflow-hidden lg:sticky lg:top-16 lg:z-20 lg:block lg:self-start"
+                >
+                  <div
+                    style={{ width: FILTER_SIDEBAR_WIDTH }}
+                    className="flex max-h-[calc(100vh-4.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60"
+                  >
+                    <CategoryFilterPanelContent
+                      parentCategories={parentCategories}
+                      isLoading={isLoading}
+                      isFacetsLoading={catalogQuery.isPending && products.length === 0}
+                      facetOptions={facetOptions}
+                      variant="promotions"
+                      layout="browse"
+                      showHeading
+                    />
+                  </div>
+                </motion.aside>
+              ) : null}
+            </AnimatePresence>
 
-            <CategoryProductsPanel
-              id="promotions-products"
-              products={products}
-              pagination={pagination}
-              isPending={catalogQuery.isPending}
-              isFetching={catalogQuery.isFetching}
-              isError={catalogQuery.isError}
-              isPlaceholderData={catalogQuery.isPlaceholderData}
-              error={catalogQuery.error}
-              emptyLabel={emptyStateLabel}
-              onRetry={() => catalogQuery.refetch()}
-              onPageChange={handlePageChange}
-            />
+            <div className="min-w-0 flex-1">
+              <div className="mb-4 flex items-center gap-2.5 sm:mb-5 sm:justify-between sm:gap-3">
+                <FiltersToggleButton
+                  filtersOpen={filtersActive}
+                  onToggleFilters={toggleFilters}
+                  activeFilterCount={activeFilterCount}
+                />
+                <ListingSortControls
+                  sort={sort}
+                  onSortChange={handleSortChange}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                />
+              </div>
+
+              <CategoryProductsPanel
+                id="promotions-products"
+                bare
+                layout={viewMode}
+                products={products}
+                pagination={pagination}
+                isPending={catalogQuery.isPending}
+                isFetching={catalogQuery.isFetching}
+                isError={catalogQuery.isError}
+                isPlaceholderData={catalogQuery.isPlaceholderData}
+                error={catalogQuery.error}
+                emptyLabel={emptyStateLabel}
+                onRetry={() => catalogQuery.refetch()}
+                onPageChange={handlePageChange}
+                gridClassName={
+                  viewMode === 'list'
+                    ? 'grid grid-cols-1 gap-3 sm:gap-4 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] [&>*]:min-w-0'
+                    : desktopFiltersOpen
+                      ? 'grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] [&>*]:min-w-0'
+                      : 'grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] [&>*]:min-w-0'
+                }
+              />
+            </div>
           </div>
         </Container>
       </section>
 
       <CategoryFilterDrawer
-        isOpen={isFilterDrawerOpen}
-        onClose={() => setIsFilterDrawerOpen(false)}
+        isOpen={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
         parentCategories={parentCategories}
         isLoading={isLoading}
         isFacetsLoading={catalogQuery.isPending && products.length === 0}
         facetOptions={facetOptions}
         variant="promotions"
+        presentation="drawer"
+        layout="browse"
+        resultCount={resultCount}
       />
     </SiteLayout>
   )
